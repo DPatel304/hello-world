@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stomp Stomp Clap Clap Jump Spin Freeze... Again</title>
+<style>
+  /* No webfonts and no CDN: this runs from a file:// URL with the network off. */
+  :root{
+    --ground:#101419;
+    --panel:#182029;
+    --panel-2:#1f2a35;
+    --line:#2a3844;
+    --text:#cdd9e3;
+    --dim:#7b8d9d;
+    --faint:#4d6070;
+    --coral:#ff7a45;
+    --cyan:#29d3ff;
+    --good:#4ade80;
+    --warn:#fbbf24;
+    --bad:#f87171;
+    --p1:#ff7a45;
+    --p2:#29d3ff;
+    --ui:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--ground);color:var(--text);
+    font-family:var(--ui);font-size:14px;line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{
+    min-height:100%;max-width:1280px;margin:0 auto;
+    padding-inline:16px;padding-block:16px 28px;
+    display:flex;flex-direction:column;gap:14px;
+  }
+
+  /* ---------- header ---------- */
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  h1{
+    font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0;color:#e8f0f6;
+  }
+  h1 em{font-style:normal;color:var(--coral);}
+  .sub{font-size:12.5px;color:var(--dim);}
+
+  /* ---------- layout ---------- */
+  .main{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start;}
+  @media (max-width:860px){ .main{grid-template-columns:minmax(0,1fr);} }
+
+  .stage{
+    position:relative;background:#06090c;border:1px solid var(--line);
+    aspect-ratio:4/3;overflow:hidden;max-width:100%;
+  }
+  #view{display:block;width:100%;height:100%;}
+  #cam{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
+
+  .curtain{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,9,12,.94);text-align:center;padding:24px;
+  }
+  .curtain .inner{max-width:400px;}
+  .curtain h2{font-size:19px;margin:0 0 8px;color:#e8f0f6;}
+  .curtain p{font-size:13.5px;color:var(--dim);margin:0 0 6px;}
+  .big{
+    font-family:var(--mono);font-size:54px;color:var(--coral);
+    font-variant-numeric:tabular-nums;line-height:1.1;margin-top:8px;
+  }
+
+  button{
+    font-family:var(--ui);font-size:13px;font-weight:600;
+    background:var(--panel-2);color:var(--text);
+    border:1px solid var(--line);padding:9px 14px;cursor:pointer;
+  }
+  button:hover:not(:disabled){border-color:var(--coral);color:#fff;}
+  button:focus-visible{outline:2px solid var(--coral);outline-offset:2px;}
+  button:disabled{opacity:.45;cursor:default;}
+  button.primary{background:var(--coral);border-color:var(--coral);color:#231007;}
+  button.primary:hover{background:#ff8f60;color:#231007;}
+  button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan);}
+
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+
+  /* ---------- diagnostics ---------- */
+  .diag{
+    background:var(--panel);border:1px solid var(--line);
+    padding:12px;display:flex;flex-direction:column;gap:12px;
+  }
+  .diag h3{
+    font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);margin:0;font-weight:600;
+  }
+  .rows{display:flex;flex-direction:column;gap:5px;}
+  .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12.5px;}
+  .row span:first-child{color:var(--dim);}
+  .row span:last-child{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--text);}
+  .row .ok{color:var(--good);} .row .mid{color:var(--warn);} .row .bad{color:var(--bad);}
+
+  .zones{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;}
+  .zones i{
+    display:block;height:17px;background:var(--panel-2);
+    border:1px solid var(--line);position:relative;overflow:hidden;
+  }
+  .zones i::after{
+    content:"";position:absolute;left:0;bottom:0;width:100%;
+    height:var(--e,0%);background:var(--cyan);opacity:.85;
+  }
+
+  .hint{font-size:11.5px;color:var(--faint);line-height:1.6;}
+  .hint b{color:var(--dim);font-weight:600;}
+
+  .err{
+    background:#2a1416;border:1px solid #5b2327;color:#ffc9c9;
+    padding:10px 12px;font-size:13px;
+  }
+  .err code{font-family:var(--mono);font-size:12px;color:#ffd9d9;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>Stomp Stomp Clap Clap <em>Jump Spin Freeze</em>… Again</h1>
+    <div class="sub">Camera-controlled play &middot; no controllers &middot; runs entirely on your machine</div>
+  </header>
+
+  <div class="bar">
+    <button id="btn-start" class="primary" type="button">Start camera</button>
+    <button id="btn-cal" type="button" disabled>Recalibrate</button>
+    <button id="btn-players" type="button" aria-pressed="false" disabled>2 players: off</button>
+    <button id="btn-mask" type="button" aria-pressed="false" disabled>Show motion</button>
+    <button id="btn-reset" type="button" disabled>Reset score</button>
+  </div>
+
+  <div id="error" class="err" hidden></div>
+
+  <div class="main">
+    <div class="stage" id="stage">
+      <video id="cam" playsinline autoplay muted></video>
+      <canvas id="view" width="960" height="720"></canvas>
+      <div class="curtain" id="curtain">
+        <div class="inner">
+          <h2>Stand back and press Start</h2>
+          <p>Your camera never leaves this page &mdash; there is no server and no network call.</p>
+          <p>You need about two metres of space. Any number of people can play at once.</p>
+        </div>
+      </div>
+    </div>
+
+    <aside class="diag">
+      <div>
+        <h3>Camera</h3>
+        <div class="rows">
+          <div class="row"><span>Capture</span><span id="d-cap">&mdash;</span></div>
+          <div class="row"><span>Processing</span><span id="d-proc">&mdash;</span></div>
+          <div class="row"><span>Frame rate</span><span id="d-fps">&mdash;</span></div>
+        </div>
+      </div>
+      <div>
+        <h3>Latency budget</h3>
+        <div class="rows">
+          <div class="row"><span>Vision</span><span id="d-vis">&mdash;</span></div>
+          <div class="row"><span>Draw</span><span id="d-draw">&mdash;</span></div>
+          <div class="row"><span>Camera to pixel</span><span id="d-e2e">&mdash;</span></div>
+        </div>
+      </div>
+      <div>
+        <h3>Scene</h3>
+        <div class="rows">
+          <div class="row"><span>Motion coverage</span><span id="d-cov">&mdash;</span></div>
+          <div class="row"><span>Light correction</span><span id="d-gain">&mdash;</span></div>
+          <div class="row"><span>Active zones</span><span id="d-act">&mdash;</span></div>
+        </div>
+      </div>
+      <div>
+        <h3>Zone energy</h3>
+        <div class="zones" id="zones"></div>
+      </div>
+      <p class="hint">
+        <b>Multi-player.</b> Motion is measured per region, so the camera never has to work out
+        who is who. Two people, or five, cost the same and cannot be confused for each other.
+      </p>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   MOTION PLAYGROUND
+
+   A camera-controlled play system in the spirit of Nex Playground,
+   built around two of that device's documented weaknesses.
+
+   1. MULTI-PLAYER. A single 2D camera that estimates skeletons has to
+      decide which limb belongs to which child, and it gets that wrong
+      when people overlap. This pipeline never segments people at all:
+      it measures where the picture is CHANGING. Five players cost the
+      same as one and cannot be attributed to each other. Scoring is
+      settled by territory instead of identity.
+
+   2. LATENCY. Vision runs on a 160x120 luma buffer - 19,200 samples,
+      small enough to process well inside a frame - and drives hits on
+      a rising edge with hysteresis rather than a smoothed average, so
+      a hit registers on the frame it happens.
+
+   The camera itself is an adaptive background subtractor with
+   per-pixel noise modelling and global illumination normalisation,
+   which is what keeps it honest in a backlit or dim room.
+   ============================================================ */
+
+var PW = 160, PH = 120, NPIX = PW * PH;   /* vision resolution */
+var ZC = 4, ZR = 3;                        /* diagnostic zone grid */
+
+/* ---- tunables ---- */
+var MIN_THRESH   = 9;     /* luma units a pixel must move to count at all   */
+var NOISE_K      = 2.6;   /* ... or this many standard deviations of its own noise */
+var BG_CALM      = 0.060; /* background adapts fast where nothing is moving  */
+var BG_MOVING    = 0.002; /* ... and very slowly where something is, so a
+                             person standing still is not absorbed quickly   */
+var VAR_RATE     = 0.05;
+var GAIN_CLAMP   = [0.55, 1.9];
+var HIT_DENSITY  = 0.16;  /* fraction of a target's disc that must be moving */
+
+/* ---- state ---- */
+var video, view, vctx, proc, pctx;
+var cur  = new Float32Array(NPIX);
+var bg   = new Float32Array(NPIX);
+var vr   = new Float32Array(NPIX);
+var raw  = new Uint8Array(NPIX);
+var mask = new Uint8Array(NPIX);
+var zone = new Float32Array(ZC * ZR);
+var seeded = false, running = false, showMask = false, twoPlayer = false;
+var gain = 1, coverage = 0, activeZones = 0;
+var visMs = 0, drawMs = 0, e2eMs = 0, fps = 0;
+var lastFrameAt = 0, frameAcc = 0, frameN = 0;
+var calibrating = 0;
+
+/* ---- game ---- */
+var targets = [], bursts = [], score = [0, 0], combo = 0, spawnAt = 0, tNow = 0;
+
+function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+
+/* ============================================================
+   VISION
+   ============================================================ */
+var bgMean = 0, bgStd = 16, curMean = 0, curStd = 16, lightShift = 0;
+
+function stats(buf, skipMask){
+  /* Illumination is measured over the STILL part of the scene only. If a
+     player walks in, their pixels must not drag the estimate around, or the
+     correction would fight real movement instead of the light. */
+  var sum = 0, sq = 0, n = 0, i, v;
+  for (i = 0; i < NPIX; i++){
+    if (skipMask && mask[i]) continue;
+    v = buf[i]; sum += v; sq += v * v; n++;
+  }
+  if (n < NPIX * 0.2){                        /* scene is nearly all movement */
+    sum = 0; sq = 0; n = NPIX;
+    for (i = 0; i < NPIX; i++){ v = buf[i]; sum += v; sq += v * v; }
+  }
+  var m = sum / n, va = sq / n - m * m;
+  return [m, Math.sqrt(va > 1 ? va : 1)];
+}
+
+function grabLuma(){
+  /* mirrored, so the play area reads like a mirror and screen-space
+     coordinates need no further flipping downstream */
+  pctx.save();
+  pctx.scale(-1, 1);
+  pctx.drawImage(video, -PW, 0, PW, PH);
+  pctx.restore();
+  var d = pctx.getImageData(0, 0, PW, PH).data;
+  for (var i = 0, p = 0; i < NPIX; i++, p += 4){
+    /* integer luma: 0.30R + 0.59G + 0.11B */
+    cur[i] = (d[p] * 77 + d[p+1] * 150 + d[p+2] * 29) >> 8;
+  }
+}
+
+function seed(){
+  for (var i = 0; i < NPIX; i++){ bg[i] = cur[i]; vr[i] = 16; }
+  var st = stats(bg, false);
+  bgMean = st[0]; bgStd = st[1];
+  seeded = true;
+}
+
+function vision(){
+  var t0 = performance.now();
+  grabLuma();
+  if (!seeded){ seed(); visMs = performance.now() - t0; return; }
+
+  /* --- illumination normalisation, affine ---
+     A room light, a cloud, or the webcam's own auto-exposure shifts the
+     whole frame. That shift has BOTH parts: exposure scales the picture,
+     ambient light adds to it. Correcting with a gain alone leaves the
+     additive half behind and the entire frame reads as movement, so match
+     the still scene's mean and spread together. */
+  var cs = stats(cur, true);
+  curMean = cs[0]; curStd = cs[1];
+  var scale = clamp(bgStd / curStd, 0.45, 2.4);
+  var offset = bgMean - curMean * scale;
+  gain = scale; lightShift = offset;
+
+  /* squared comparison throughout: no per-pixel sqrt in the hot loop */
+  var minT2 = MIN_THRESH * MIN_THRESH, k2 = NOISE_K * NOISE_K;
+  var bSum = 0, bSq = 0, bN = 0, i;
+
+  for (i = 0; i < NPIX; i++){
+    var v = cur[i] * scale + offset;
+    var diff = v - bg[i];
+    var d2 = diff * diff;
+    var t2 = k2 * vr[i];
+    if (t2 < minT2) t2 = minT2;
+
+    if (d2 > t2){
+      raw[i] = 1;
+      bg[i] += BG_MOVING * diff;   /* a person standing still is absorbed slowly */
+    } else {
+      raw[i] = 0;
+      vr[i] += VAR_RATE * (d2 - vr[i]);
+      bg[i] += BG_CALM * diff;
+      var b = bg[i]; bSum += b; bSq += b * b; bN++;
+    }
+  }
+  /* background stats for the next frame, from still pixels only */
+  if (bN > NPIX * 0.2){
+    bgMean = bSum / bN;
+    var bv = bSq / bN - bgMean * bgMean;
+    bgStd = Math.sqrt(bv > 1 ? bv : 1);
+  }
+
+  /* --- speckle rejection ---
+     Sensor noise fires isolated pixels. Real bodies fire neighbourhoods.
+     Keeping only pixels with 3+ moving neighbours costs one pass and
+     removes almost all of the false positives a flat threshold leaves. */
+  var kept = 0;
+  mask.fill(0);
+  for (var y = 1; y < PH - 1; y++){
+    var row = y * PW;
+    for (var x = 1; x < PW - 1; x++){
+      var k = row + x;
+      if (!raw[k]) continue;
+      var n = raw[k-1] + raw[k+1] + raw[k-PW] + raw[k+PW] +
+              raw[k-PW-1] + raw[k-PW+1] + raw[k+PW-1] + raw[k+PW+1];
+      if (n >= 3){ mask[k] = 1; kept++; }
+    }
+  }
+  coverage = kept / NPIX;
+
+  /* zone energies, for the diagnostics grid */
+  zone.fill(0);
+  var zw = PW / ZC, zh = PH / ZR;
+  for (var yy = 0; yy < PH; yy++){
+    var zy = (yy / zh) | 0, r2 = yy * PW;
+    for (var xx = 0; xx < PW; xx++){
+      if (mask[r2 + xx]) zone[zy * ZC + ((xx / zw) | 0)]++;
+    }
+  }
+  var per = (zw * zh);
+  activeZones = 0;
+  for (i = 0; i < zone.length; i++){
+    zone[i] /= per;
+    if (zone[i] > 0.06) activeZones++;
+  }
+
+  visMs = performance.now() - t0;
+}
+
+/* how much of a disc, in display coordinates, is currently moving */
+function motionAt(nx, ny, nr){
+  var cx = nx * PW, cy = ny * PH, r = nr * PW;
+  var x0 = Math.max(0, (cx - r) | 0), x1 = Math.min(PW - 1, (cx + r) | 0);
+  var y0 = Math.max(0, (cy - r) | 0), y1 = Math.min(PH - 1, (cy + r) | 0);
+  var hit = 0, tot = 0, r2 = r * r;
+  for (var y = y0; y <= y1; y++){
+    var dy = y - cy, row = y * PW;
+    for (var x = x0; x <= x1; x++){
+      var dx = x - cx;
+      if (dx*dx + dy*dy > r2) continue;
+      tot++;
+      if (mask[row + x]) hit++;
+    }
+  }
+  return tot ? hit / tot : 0;
+}
+
+/* ============================================================
+   GAME
+   Targets are popped by movement inside them. Nothing here knows
+   how many people are in the room.
+   ============================================================ */
+function spawn(){
+  var bomb = Math.random() < 0.18;
+  targets.push({
+    x: 0.12 + Math.random() * 0.76,
+    y: 1.12,
+    r: bomb ? 0.055 : (0.05 + Math.random() * 0.028),
+    vy: -(0.19 + Math.random() * 0.13),
+    vx: (Math.random() - 0.5) * 0.10,
+    bomb: bomb, born: tNow, dead: false, pop: 0
+  });
+}
+function burst(x, y, colour, n){
+  for (var i = 0; i < n; i++){
+    var a = Math.random() * 6.2832, s = 0.06 + Math.random() * 0.16;
+    bursts.push({ x:x, y:y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:1, c:colour });
+  }
+}
+
+function step(dt){
+  tNow += dt;
+  if (tNow > spawnAt){ spawn(); spawnAt = tNow + 0.62 + Math.random() * 0.5; }
+
+  for (var i = targets.length - 1; i >= 0; i--){
+    var t = targets[i];
+    if (t.dead){
+      t.pop += dt * 5;
+      if (t.pop > 1) targets.splice(i, 1);
+      continue;
+    }
+    t.y += t.vy * dt; t.x += t.vx * dt;
+    t.vy += 0.24 * dt;                         /* lobbed, not launched */
+    if (t.x < 0.06 || t.x > 0.94) t.vx *= -1;
+    if (t.y > 1.3){ targets.splice(i, 1); combo = 0; continue; }
+
+    /* hit on the frame it happens: no smoothing on this path */
+    if (motionAt(t.x, t.y, t.r) > HIT_DENSITY){
+      t.dead = true;
+      var side = twoPlayer ? (t.x < 0.5 ? 0 : 1) : 0;
+      if (t.bomb){
+        score[side] = Math.max(0, score[side] - 5); combo = 0;
+        burst(t.x, t.y, '#f87171', 16);
+      } else {
+        combo++;
+        score[side] += 1 + Math.min(4, (combo / 4) | 0);
+        burst(t.x, t.y, twoPlayer ? (side ? '#29d3ff' : '#ff7a45') : '#ff7a45', 12);
+      }
+    }
+  }
+  for (var j = bursts.length - 1; j >= 0; j--){
+    var b = bursts[j];
+    b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 0.5 * dt; b.life -= dt * 1.8;
+    if (b.life <= 0) bursts.splice(j, 1);
+  }
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){
+  var t0 = performance.now();
+  var W = view.width, H = view.height;
+
+  vctx.save();
+  vctx.scale(-1, 1);
+  vctx.drawImage(video, -W, 0, W, H);        /* mirrored preview */
+  vctx.restore();
+  vctx.fillStyle = 'rgba(8,12,16,.52)';      /* hold the video back so play reads */
+  vctx.fillRect(0, 0, W, H);
+
+  if (showMask){
+    var img = vctx.createImageData(PW, PH), d = img.data;
+    for (var i = 0, p = 0; i < NPIX; i++, p += 4){
+      if (mask[i]){ d[p] = 41; d[p+1] = 211; d[p+2] = 255; d[p+3] = 150; }
+    }
+    proc.getContext('2d').putImageData(img, 0, 0);
+    vctx.imageSmoothingEnabled = false;
+    vctx.drawImage(proc, 0, 0, W, H);
+    vctx.imageSmoothingEnabled = true;
+  }
+
+  if (twoPlayer){
+    vctx.strokeStyle = 'rgba(205,217,227,.22)';
+    vctx.setLineDash([8, 10]); vctx.lineWidth = 2;
+    vctx.beginPath(); vctx.moveTo(W/2, 0); vctx.lineTo(W/2, H); vctx.stroke();
+    vctx.setLineDash([]);
+  }
+
+  targets.forEach(function(t){
+    var x = t.x * W, y = t.y * H, r = t.r * W;
+    if (t.dead){ r *= 1 + t.pop * 0.8; }
+    vctx.globalAlpha = t.dead ? Math.max(0, 1 - t.pop) : 1;
+    vctx.beginPath(); vctx.arc(x, y, r, 0, 6.2832);
+    vctx.fillStyle = t.bomb ? 'rgba(248,113,113,.22)' : 'rgba(255,122,69,.22)';
+    vctx.fill();
+    vctx.lineWidth = 4;
+    vctx.strokeStyle = t.bomb ? '#f87171' : '#ff7a45';
+    vctx.stroke();
+    if (t.bomb && !t.dead){
+      vctx.lineWidth = 5; vctx.strokeStyle = '#f87171';
+      vctx.beginPath();
+      vctx.moveTo(x - r*0.36, y - r*0.36); vctx.lineTo(x + r*0.36, y + r*0.36);
+      vctx.moveTo(x + r*0.36, y - r*0.36); vctx.lineTo(x - r*0.36, y + r*0.36);
+      vctx.stroke();
+    }
+    vctx.globalAlpha = 1;
+  });
+
+  bursts.forEach(function(b){
+    vctx.globalAlpha = Math.max(0, b.life);
+    vctx.fillStyle = b.c;
+    vctx.fillRect(b.x * W - 3, b.y * H - 3, 6, 6);
+    vctx.globalAlpha = 1;
+  });
+
+  /* score */
+  vctx.font = '700 40px ui-sans-serif,system-ui,sans-serif';
+  vctx.textBaseline = 'top';
+  if (twoPlayer){
+    vctx.fillStyle = '#ff7a45'; vctx.textAlign = 'left';
+    vctx.fillText(String(score[0]), 22, 16);
+    vctx.fillStyle = '#29d3ff'; vctx.textAlign = 'right';
+    vctx.fillText(String(score[1]), W - 22, 16);
+  } else {
+    vctx.fillStyle = '#ff7a45'; vctx.textAlign = 'left';
+    vctx.fillText(String(score[0]), 22, 16);
+  }
+  if (combo > 2){
+    vctx.font = '700 17px ui-sans-serif,system-ui,sans-serif';
+    vctx.fillStyle = '#4ade80'; vctx.textAlign = 'left';
+    vctx.fillText(combo + ' in a row', 24, 62);
+  }
+  drawMs = performance.now() - t0;
+}
+
+/* ============================================================
+   LOOP
+   ============================================================ */
+var el = {};
+function ids(){
+  ['d-cap','d-proc','d-fps','d-vis','d-draw','d-e2e','d-cov','d-gain','d-act',
+   'zones','curtain','error'].forEach(function(id){ el[id] = document.getElementById(id); });
+}
+function grade(node, v, good, mid){
+  node.className = v <= good ? 'ok' : (v <= mid ? 'mid' : 'bad');
+}
+var diagAt = 0;
+function diagnostics(now){
+  if (now - diagAt < 180) return;
+  diagAt = now;
+  el['d-fps'].textContent = fps.toFixed(0) + ' fps';
+  el['d-vis'].textContent = visMs.toFixed(1) + ' ms';
+  el['d-draw'].textContent = drawMs.toFixed(1) + ' ms';
+  el['d-e2e'].textContent = e2eMs.toFixed(1) + ' ms';
+  grade(el['d-vis'], visMs, 4, 9);
+  grade(el['d-e2e'], e2eMs, 33, 60);
+  el['d-cov'].textContent = (coverage * 100).toFixed(1) + '%';
+  el['d-gain'].textContent = (lightShift >= 0 ? '+' : '') + lightShift.toFixed(0) + ' luma';
+  el['d-act'].textContent = activeZones + ' / ' + (ZC * ZR);
+  for (var i = 0; i < zone.length; i++){
+    el.zones.children[i].style.setProperty('--e', Math.min(100, zone[i] * 260).toFixed(0) + '%');
+  }
+}
+
+function frame(now){
+  if (!running) return;
+  var dt = lastFrameAt ? Math.min(0.05, (now - lastFrameAt) / 1000) : 0.016;
+  lastFrameAt = now;
+  frameAcc += dt; frameN++;
+  if (frameAcc > 0.4){ fps = frameN / frameAcc; frameAcc = 0; frameN = 0; }
+
+  var t0 = performance.now();
+  if (calibrating > 0){
+    calibrating -= dt;
+    grabLuma(); seed();
+    el.curtain.hidden = false;
+    el.curtain.innerHTML = '<div class="inner"><h2>Hold still</h2>' +
+      '<p>Learning the room so it can tell you apart from the furniture.</p>' +
+      '<div class="big">' + Math.ceil(calibrating) + '</div></div>';
+  } else {
+    if (!el.curtain.hidden) el.curtain.hidden = true;
+    vision();
+    step(dt);
+  }
+  render();
+  e2eMs = performance.now() - t0;
+  diagnostics(now);
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   CAMERA
+   ============================================================ */
+function fail(msg, detail){
+  el.error.hidden = false;
+  el.error.innerHTML = msg + (detail ? ' <code>' + detail + '</code>' : '');
+}
+
+function start(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    fail('This browser will not hand over a camera. Open the file directly in Chrome, Edge, Safari or Firefox.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({
+    video: { width:{ideal:640}, height:{ideal:480}, frameRate:{ideal:30} }, audio:false
+  }).then(function(stream){
+    video.srcObject = stream;
+    return video.play();
+  }).then(function(){
+    var s = video.srcObject.getVideoTracks()[0].getSettings();
+    el['d-cap'].textContent = (s.width||video.videoWidth) + '×' + (s.height||video.videoHeight) +
+                              (s.frameRate ? ' @' + Math.round(s.frameRate) : '');
+    el['d-proc'].textContent = PW + '×' + PH + ' luma';
+    ['btn-cal','btn-players','btn-mask','btn-reset'].forEach(function(b){
+      document.getElementById(b).disabled = false;
+    });
+    document.getElementById('btn-start').disabled = true;
+    el.error.hidden = true;
+    seeded = false; calibrating = 2.2; running = true;
+    lastFrameAt = 0; tNow = 0; spawnAt = 0.7;
+    requestAnimationFrame(frame);
+  }).catch(function(e){
+    var why = e && e.name === 'NotAllowedError'
+      ? 'Camera permission was refused. Allow it in the address bar and press Start again.'
+      : 'Could not open a camera.';
+    fail(why, e && e.name ? e.name : '');
+  });
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+function boot(){
+  video = document.getElementById('cam');
+  view  = document.getElementById('view');
+  vctx  = view.getContext('2d');
+  proc  = document.createElement('canvas'); proc.width = PW; proc.height = PH;
+  pctx  = proc.getContext('2d', { willReadFrequently: true });
+  ids();
+
+  for (var i = 0; i < ZC * ZR; i++) el.zones.appendChild(document.createElement('i'));
+
+  document.getElementById('btn-start').addEventListener('click', start);
+  document.getElementById('btn-cal').addEventListener('click', function(){ calibrating = 2.2; });
+  document.getElementById('btn-reset').addEventListener('click', function(){
+    score = [0,0]; combo = 0; targets.length = 0;
+  });
+  document.getElementById('btn-players').addEventListener('click', function(){
+    twoPlayer = !twoPlayer; score = [0,0];
+    this.setAttribute('aria-pressed', String(twoPlayer));
+    this.textContent = '2 players: ' + (twoPlayer ? 'on' : 'off');
+  });
+  document.getElementById('btn-mask').addEventListener('click', function(){
+    showMask = !showMask;
+    this.setAttribute('aria-pressed', String(showMask));
+    this.textContent = showMask ? 'Hide motion' : 'Show motion';
+  });
+
+  /* a small handle so the pipeline can be driven from a test or a console */
+  window.MotionPlayground = {
+    vision: function(){ return { coverage:coverage, gain:gain, shift:lightShift, zones:Array.from(zone),
+                                 visMs:visMs, e2eMs:e2eMs, fps:fps, seeded:seeded,
+                                 calibrating:calibrating }; },
+    motionAt: motionAt,
+    zoneAt: function(c, r){ return zone[r * ZC + c]; },
+    state: function(){ return { score:score.slice(), targets:targets.length,
+                                twoPlayer:twoPlayer, running:running }; },
+    recalibrate: function(){ calibrating = 2.2; },
+    settle: function(){ calibrating = 0; },
+    config: { PW:PW, PH:PH, ZC:ZC, ZR:ZR, HIT_DENSITY:HIT_DENSITY }
+  };
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+
+})();
+</script>
+</body>
+</html>
