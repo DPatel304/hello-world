@@ -8,19 +8,22 @@ before *Again* is a real freeze. Then the loop restarts.
 
 ## Where this is
 
-`stomp.html` — a single-file prototype running on a laptop webcam. It carries an
-adaptive background subtractor (160x120 luma, per-pixel noise modelling,
-illumination normalisation, speckle rejection) feeding a motion-energy game.
+`stomp.html` — a single self-contained file. Open it in a browser, press Start,
+stand back about two metres. Moving paints. That is the whole game.
 
-**It is UNVERIFIED.** Synthetic-camera tests passed for the empty room, a single
-mover, and two simultaneous movers. They then caught two failures, and the fixes
-are in the file but were never re-tested:
+No menu, no score, no timer, nothing to lose. Colour is chosen by where you are
+across the room, so moving sideways changes it — the most discoverable mapping a
+toddler can find. Trails fade over roughly eight seconds, so the canvas cleans
+itself and never needs an adult.
 
-- illumination correction was multiplicative and could not cancel an additive
-  light shift, so a changing room light read as whole-frame motion
-- a per-pixel `sqrt` in the noise test cost 23ms a frame
+**Verified**, against synthetic camera footage fed to Chromium as a fake capture
+device (empty room, one mover, two simultaneous movers, a swinging room light):
 
-Next step is to re-run the synthetic-camera suite against those fixes.
+- empty room reads as still — 0.00% motion, no frame spikes
+- one mover localises cleanly — 1.51 vs 0.00 across the midline
+- two movers register simultaneously at 0.96 balance, costing no more time than one
+- a changing room light paints nothing — 0.00%
+- vision 1.7ms, whole frame 2.3ms, comfortably inside a 60fps slot
 
 ## Where it is going
 

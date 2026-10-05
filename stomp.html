@@ -24,6 +24,10 @@
     --ui:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   }
+  /* `.curtain` and friends set display, which beats the UA rule for [hidden],
+     so hiding them silently does nothing without this. */
+  [hidden]{display:none!important;}
+
   *{box-sizing:border-box;}
   html,body{height:100%;}
   body{
@@ -128,9 +132,9 @@
   <div class="bar">
     <button id="btn-start" class="primary" type="button">Start camera</button>
     <button id="btn-cal" type="button" disabled>Recalibrate</button>
-    <button id="btn-players" type="button" aria-pressed="false" disabled>2 players: off</button>
+    <button id="btn-clear" type="button" disabled>Clear painting</button>
+    <button id="btn-mute" type="button" aria-pressed="false" disabled>Sound on</button>
     <button id="btn-mask" type="button" aria-pressed="false" disabled>Show motion</button>
-    <button id="btn-reset" type="button" disabled>Reset score</button>
   </div>
 
   <div id="error" class="err" hidden></div>
@@ -144,6 +148,7 @@
           <h2>Stand back and press Start</h2>
           <p>Your camera never leaves this page &mdash; there is no server and no network call.</p>
           <p>You need about two metres of space. Any number of people can play at once.</p>
+          <p style="color:#7b8d9d">Move, and you paint. That is the whole game.</p>
         </div>
       </div>
     </div>
@@ -223,7 +228,6 @@ var BG_MOVING    = 0.002; /* ... and very slowly where something is, so a
                              person standing still is not absorbed quickly   */
 var VAR_RATE     = 0.05;
 var GAIN_CLAMP   = [0.55, 1.9];
-var HIT_DENSITY  = 0.16;  /* fraction of a target's disc that must be moving */
 
 /* ---- state ---- */
 var video, view, vctx, proc, pctx;
@@ -233,14 +237,11 @@ var vr   = new Float32Array(NPIX);
 var raw  = new Uint8Array(NPIX);
 var mask = new Uint8Array(NPIX);
 var zone = new Float32Array(ZC * ZR);
-var seeded = false, running = false, showMask = false, twoPlayer = false;
+var seeded = false, running = false, showMask = false;
 var gain = 1, coverage = 0, activeZones = 0;
 var visMs = 0, drawMs = 0, e2eMs = 0, fps = 0;
 var lastFrameAt = 0, frameAcc = 0, frameN = 0;
 var calibrating = 0;
-
-/* ---- game ---- */
-var targets = [], bursts = [], score = [0, 0], combo = 0, spawnAt = 0, tNow = 0;
 
 function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
 
@@ -369,82 +370,96 @@ function vision(){
   visMs = performance.now() - t0;
 }
 
-/* how much of a disc, in display coordinates, is currently moving */
-function motionAt(nx, ny, nr){
-  var cx = nx * PW, cy = ny * PH, r = nr * PW;
-  var x0 = Math.max(0, (cx - r) | 0), x1 = Math.min(PW - 1, (cx + r) | 0);
-  var y0 = Math.max(0, (cy - r) | 0), y1 = Math.min(PH - 1, (cy + r) | 0);
-  var hit = 0, tot = 0, r2 = r * r;
-  for (var y = y0; y <= y1; y++){
-    var dy = y - cy, row = y * PW;
-    for (var x = x0; x <= x1; x++){
-      var dx = x - cx;
-      if (dx*dx + dy*dy > r2) continue;
-      tot++;
-      if (mask[row + x]) hit++;
-    }
-  }
-  return tot ? hit / tot : 0;
-}
-
 /* ============================================================
-   GAME
-   Targets are popped by movement inside them. Nothing here knows
-   how many people are in the room.
+   BODY PAINT
+
+   Your silhouette is the brush. There is no goal, no score and
+   nothing to lose - the only rule is that moving makes colour.
+
+   Paint accumulates in a small float buffer at vision resolution
+   and is drawn upscaled with smoothing, which costs almost nothing
+   and gives soft watercolour edges instead of hard pixels.
    ============================================================ */
-function spawn(){
-  var bomb = Math.random() < 0.18;
-  targets.push({
-    x: 0.12 + Math.random() * 0.76,
-    y: 1.12,
-    r: bomb ? 0.055 : (0.05 + Math.random() * 0.028),
-    vy: -(0.19 + Math.random() * 0.13),
-    vx: (Math.random() - 0.5) * 0.10,
-    bomb: bomb, born: tNow, dead: false, pop: 0
-  });
-}
-function burst(x, y, colour, n){
-  for (var i = 0; i < n; i++){
-    var a = Math.random() * 6.2832, s = 0.06 + Math.random() * 0.16;
-    bursts.push({ x:x, y:y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:1, c:colour });
+var paint = new Float32Array(NPIX * 3);
+var paintCv = null, paintCtx = null, paintImg = null;
+
+var FADE      = 0.9985;   /* ~8s half-life: trails linger, the canvas self-cleans */
+var RISE      = 0.30;     /* a moving pixel EASES toward its colour rather than
+                             accumulating - adding without a ceiling just drives
+                             every channel to 255 and the painting turns white  */
+var DRIFT     = 9;        /* degrees of hue per second, so repeat passes differ  */
+var hueDrift  = 0;
+
+/* hue is a function of where you are across the room, so moving sideways
+   changes colour - the most discoverable mapping a toddler can find */
+var PALETTE = new Float32Array(PW * 3);
+function buildPalette(){
+  for (var x = 0; x < PW; x++){
+    var h = ((x / PW) * 300 + hueDrift) % 360 / 60;
+    var i = Math.floor(h), f = h - i;
+    var q = 1 - f, t = f, r, g, b;
+    if (i === 0){ r=1; g=t; b=0; }
+    else if (i === 1){ r=q; g=1; b=0; }
+    else if (i === 2){ r=0; g=1; b=t; }
+    else if (i === 3){ r=0; g=q; b=1; }
+    else if (i === 4){ r=t; g=0; b=1; }
+    else { r=1; g=0; b=q; }
+    PALETTE[x*3] = r; PALETTE[x*3+1] = g; PALETTE[x*3+2] = b;
   }
 }
 
-function step(dt){
-  tNow += dt;
-  if (tNow > spawnAt){ spawn(); spawnAt = tNow + 0.62 + Math.random() * 0.5; }
+var motionY = 0.5, lastCoverage = 0, chimeAt = 0;
 
-  for (var i = targets.length - 1; i >= 0; i--){
-    var t = targets[i];
-    if (t.dead){
-      t.pop += dt * 5;
-      if (t.pop > 1) targets.splice(i, 1);
-      continue;
-    }
-    t.y += t.vy * dt; t.x += t.vx * dt;
-    t.vy += 0.24 * dt;                         /* lobbed, not launched */
-    if (t.x < 0.06 || t.x > 0.94) t.vx *= -1;
-    if (t.y > 1.3){ targets.splice(i, 1); combo = 0; continue; }
+function brush(dt){
+  hueDrift = (hueDrift + DRIFT * dt) % 360;
+  buildPalette();
 
-    /* hit on the frame it happens: no smoothing on this path */
-    if (motionAt(t.x, t.y, t.r) > HIT_DENSITY){
-      t.dead = true;
-      var side = twoPlayer ? (t.x < 0.5 ? 0 : 1) : 0;
-      if (t.bomb){
-        score[side] = Math.max(0, score[side] - 5); combo = 0;
-        burst(t.x, t.y, '#f87171', 16);
-      } else {
-        combo++;
-        score[side] += 1 + Math.min(4, (combo / 4) | 0);
-        burst(t.x, t.y, twoPlayer ? (side ? '#29d3ff' : '#ff7a45') : '#ff7a45', 12);
-      }
-    }
+  var sumY = 0, n = 0;
+  for (var i = 0; i < NPIX; i++){
+    var p = i * 3;
+    paint[p] *= FADE; paint[p+1] *= FADE; paint[p+2] *= FADE;
+    if (!mask[i]) continue;
+    var x = i % PW, c = x * 3;
+    paint[p]   += (PALETTE[c]   * 255 - paint[p])   * RISE;
+    paint[p+1] += (PALETTE[c+1] * 255 - paint[p+1]) * RISE;
+    paint[p+2] += (PALETTE[c+2] * 255 - paint[p+2]) * RISE;
+    sumY += (i / PW) | 0; n++;
   }
-  for (var j = bursts.length - 1; j >= 0; j--){
-    var b = bursts[j];
-    b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 0.5 * dt; b.life -= dt * 1.8;
-    if (b.life <= 0) bursts.splice(j, 1);
+  if (n) motionY = (sumY / n) / PH;
+
+  /* a soft chime on each new burst of movement, pitched by how high it was */
+  var now = performance.now();
+  if (coverage > 0.02 && lastCoverage <= 0.02 && now - chimeAt > 220){
+    chimeAt = now;
+    chime(1 - motionY, Math.min(0.5, coverage * 4));
   }
+  lastCoverage = coverage;
+}
+
+function clearPaint(){ paint.fill(0); }
+function paintedFraction(){
+  var n = 0;
+  for (var i = 0; i < NPIX; i++){ if (paint[i*3] + paint[i*3+1] + paint[i*3+2] > 12) n++; }
+  return n / NPIX;
+}
+
+/* ---------- a gentle voice, because sound matters more than graphics here ---------- */
+var AC = null, muted = false;
+var SCALE = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];   /* pentatonic: nothing can sound wrong */
+function chime(height, vol){
+  if (muted) return;
+  try {
+    if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+  } catch(e){ return; }
+  var step = SCALE[Math.min(SCALE.length - 1, Math.floor(height * SCALE.length))];
+  var freq = 220 * Math.pow(2, step / 12);
+  var t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.02, vol) * 0.25, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+  o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 1.2);
 }
 
 /* ============================================================
@@ -454,75 +469,43 @@ function render(){
   var t0 = performance.now();
   var W = view.width, H = view.height;
 
-  vctx.save();
-  vctx.scale(-1, 1);
-  vctx.drawImage(video, -W, 0, W, H);        /* mirrored preview */
-  vctx.restore();
-  vctx.fillStyle = 'rgba(8,12,16,.52)';      /* hold the video back so play reads */
+  vctx.fillStyle = '#05080c';
   vctx.fillRect(0, 0, W, H);
 
+  /* A faint mirror, so they can see the connection between body and colour.
+     Drawn from the 160x120 vision canvas rather than the full-resolution video:
+     it is already mirrored and already downscaled, so this is a fraction of the
+     cost and the softness suits the painting better anyway. */
+  vctx.globalAlpha = 0.18;
+  vctx.imageSmoothingEnabled = true;
+  vctx.drawImage(proc, 0, 0, W, H);
+  vctx.globalAlpha = 1;
+
+  var d = paintImg.data;
+  for (var i = 0, p = 0, q = 0; i < NPIX; i++, p += 3, q += 4){
+    var r = paint[p], g = paint[p+1], b = paint[p+2];
+    d[q]   = r > 255 ? 255 : r;
+    d[q+1] = g > 255 ? 255 : g;
+    d[q+2] = b > 255 ? 255 : b;
+    d[q+3] = 255;
+  }
+  paintCtx.putImageData(paintImg, 0, 0);
+  vctx.globalCompositeOperation = 'lighter';
+  vctx.imageSmoothingEnabled = true;
+  vctx.drawImage(paintCv, 0, 0, W, H);
+  vctx.globalCompositeOperation = 'source-over';
+
   if (showMask){
-    var img = vctx.createImageData(PW, PH), d = img.data;
-    for (var i = 0, p = 0; i < NPIX; i++, p += 4){
-      if (mask[i]){ d[p] = 41; d[p+1] = 211; d[p+2] = 255; d[p+3] = 150; }
+    var m = paintCtx.createImageData(PW, PH), md = m.data;
+    for (var k = 0, mp = 0; k < NPIX; k++, mp += 4){
+      if (mask[k]){ md[mp] = 41; md[mp+1] = 211; md[mp+2] = 255; md[mp+3] = 130; }
     }
-    proc.getContext('2d').putImageData(img, 0, 0);
+    paintCtx.putImageData(m, 0, 0);
     vctx.imageSmoothingEnabled = false;
-    vctx.drawImage(proc, 0, 0, W, H);
+    vctx.drawImage(paintCv, 0, 0, W, H);
     vctx.imageSmoothingEnabled = true;
   }
 
-  if (twoPlayer){
-    vctx.strokeStyle = 'rgba(205,217,227,.22)';
-    vctx.setLineDash([8, 10]); vctx.lineWidth = 2;
-    vctx.beginPath(); vctx.moveTo(W/2, 0); vctx.lineTo(W/2, H); vctx.stroke();
-    vctx.setLineDash([]);
-  }
-
-  targets.forEach(function(t){
-    var x = t.x * W, y = t.y * H, r = t.r * W;
-    if (t.dead){ r *= 1 + t.pop * 0.8; }
-    vctx.globalAlpha = t.dead ? Math.max(0, 1 - t.pop) : 1;
-    vctx.beginPath(); vctx.arc(x, y, r, 0, 6.2832);
-    vctx.fillStyle = t.bomb ? 'rgba(248,113,113,.22)' : 'rgba(255,122,69,.22)';
-    vctx.fill();
-    vctx.lineWidth = 4;
-    vctx.strokeStyle = t.bomb ? '#f87171' : '#ff7a45';
-    vctx.stroke();
-    if (t.bomb && !t.dead){
-      vctx.lineWidth = 5; vctx.strokeStyle = '#f87171';
-      vctx.beginPath();
-      vctx.moveTo(x - r*0.36, y - r*0.36); vctx.lineTo(x + r*0.36, y + r*0.36);
-      vctx.moveTo(x + r*0.36, y - r*0.36); vctx.lineTo(x - r*0.36, y + r*0.36);
-      vctx.stroke();
-    }
-    vctx.globalAlpha = 1;
-  });
-
-  bursts.forEach(function(b){
-    vctx.globalAlpha = Math.max(0, b.life);
-    vctx.fillStyle = b.c;
-    vctx.fillRect(b.x * W - 3, b.y * H - 3, 6, 6);
-    vctx.globalAlpha = 1;
-  });
-
-  /* score */
-  vctx.font = '700 40px ui-sans-serif,system-ui,sans-serif';
-  vctx.textBaseline = 'top';
-  if (twoPlayer){
-    vctx.fillStyle = '#ff7a45'; vctx.textAlign = 'left';
-    vctx.fillText(String(score[0]), 22, 16);
-    vctx.fillStyle = '#29d3ff'; vctx.textAlign = 'right';
-    vctx.fillText(String(score[1]), W - 22, 16);
-  } else {
-    vctx.fillStyle = '#ff7a45'; vctx.textAlign = 'left';
-    vctx.fillText(String(score[0]), 22, 16);
-  }
-  if (combo > 2){
-    vctx.font = '700 17px ui-sans-serif,system-ui,sans-serif';
-    vctx.fillStyle = '#4ade80'; vctx.textAlign = 'left';
-    vctx.fillText(combo + ' in a row', 24, 62);
-  }
   drawMs = performance.now() - t0;
 }
 
@@ -573,7 +556,7 @@ function frame(now){
   } else {
     if (!el.curtain.hidden) el.curtain.hidden = true;
     vision();
-    step(dt);
+    brush(dt);
   }
   render();
   e2eMs = performance.now() - t0;
@@ -604,13 +587,13 @@ function start(){
     el['d-cap'].textContent = (s.width||video.videoWidth) + '×' + (s.height||video.videoHeight) +
                               (s.frameRate ? ' @' + Math.round(s.frameRate) : '');
     el['d-proc'].textContent = PW + '×' + PH + ' luma';
-    ['btn-cal','btn-players','btn-mask','btn-reset'].forEach(function(b){
+    ['btn-cal','btn-clear','btn-mute','btn-mask'].forEach(function(b){
       document.getElementById(b).disabled = false;
     });
     document.getElementById('btn-start').disabled = true;
     el.error.hidden = true;
     seeded = false; calibrating = 2.2; running = true;
-    lastFrameAt = 0; tNow = 0; spawnAt = 0.7;
+    lastFrameAt = 0;
     requestAnimationFrame(frame);
   }).catch(function(e){
     var why = e && e.name === 'NotAllowedError'
@@ -629,19 +612,20 @@ function boot(){
   vctx  = view.getContext('2d');
   proc  = document.createElement('canvas'); proc.width = PW; proc.height = PH;
   pctx  = proc.getContext('2d', { willReadFrequently: true });
+  paintCv = document.createElement('canvas'); paintCv.width = PW; paintCv.height = PH;
+  paintCtx = paintCv.getContext('2d');
+  paintImg = paintCtx.createImageData(PW, PH);
   ids();
 
   for (var i = 0; i < ZC * ZR; i++) el.zones.appendChild(document.createElement('i'));
 
   document.getElementById('btn-start').addEventListener('click', start);
   document.getElementById('btn-cal').addEventListener('click', function(){ calibrating = 2.2; });
-  document.getElementById('btn-reset').addEventListener('click', function(){
-    score = [0,0]; combo = 0; targets.length = 0;
-  });
-  document.getElementById('btn-players').addEventListener('click', function(){
-    twoPlayer = !twoPlayer; score = [0,0];
-    this.setAttribute('aria-pressed', String(twoPlayer));
-    this.textContent = '2 players: ' + (twoPlayer ? 'on' : 'off');
+  document.getElementById('btn-clear').addEventListener('click', clearPaint);
+  document.getElementById('btn-mute').addEventListener('click', function(){
+    muted = !muted;
+    this.setAttribute('aria-pressed', String(muted));
+    this.textContent = muted ? 'Sound off' : 'Sound on';
   });
   document.getElementById('btn-mask').addEventListener('click', function(){
     showMask = !showMask;
@@ -650,17 +634,16 @@ function boot(){
   });
 
   /* a small handle so the pipeline can be driven from a test or a console */
-  window.MotionPlayground = {
+  window.Stomp = {
     vision: function(){ return { coverage:coverage, gain:gain, shift:lightShift, zones:Array.from(zone),
                                  visMs:visMs, e2eMs:e2eMs, fps:fps, seeded:seeded,
                                  calibrating:calibrating }; },
-    motionAt: motionAt,
     zoneAt: function(c, r){ return zone[r * ZC + c]; },
-    state: function(){ return { score:score.slice(), targets:targets.length,
-                                twoPlayer:twoPlayer, running:running }; },
+    state: function(){ return { running:running, painted:paintedFraction() }; },
     recalibrate: function(){ calibrating = 2.2; },
     settle: function(){ calibrating = 0; },
-    config: { PW:PW, PH:PH, ZC:ZC, ZR:ZR, HIT_DENSITY:HIT_DENSITY }
+    clear: clearPaint,
+    config: { PW:PW, PH:PH, ZC:ZC, ZR:ZR, FADE:FADE, RISE:RISE }
   };
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
