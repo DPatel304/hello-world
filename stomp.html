@@ -237,7 +237,7 @@ var vr   = new Float32Array(NPIX);
 var raw  = new Uint8Array(NPIX);
 var mask = new Uint8Array(NPIX);
 var zone = new Float32Array(ZC * ZR);
-var seeded = false, running = false, showMask = false;
+var seeded = false, running = false, showMask = false, knocked = false, noBump = false;
 var gain = 1, coverage = 0, activeZones = 0;
 var visMs = 0, drawMs = 0, e2eMs = 0, fps = 0;
 var lastFrameAt = 0, frameAcc = 0, frameN = 0;
@@ -381,6 +381,10 @@ function vision(){
    and gives soft watercolour edges instead of hard pixels.
    ============================================================ */
 var paint = new Float32Array(NPIX * 3);
+/* A copy of the canvas from a moment ago, kept so a knocked camera can be
+   undone. It is only ever taken while the room is calm, so it can never
+   contain the flood it exists to erase. */
+var snap = new Float32Array(NPIX * 3), snapAge = 0;
 var paintCv = null, paintCtx = null, paintImg = null;
 
 var FADE      = 0.9985;   /* ~8s half-life: trails linger, the canvas self-cleans */
@@ -410,6 +414,33 @@ function buildPalette(){
 
 var motionY = 0.5, lastCoverage = 0, chimeAt = 0;
 
+/* ---- knocked-camera detection ----
+   A background subtractor models what is static, so if the CAMERA moves then
+   every pixel changes at once and the whole room reads as one enormous player
+   until the model reconverges - measured at 3.7 seconds of garbage, during
+   which the painting floods.
+
+   Coverage level cannot separate the two cases: measured, two people playing
+   hard peak at 30.2% and a knocked tripod at 30.6%. Neither can a sudden step,
+   because players re-entering frame step just as fast. What does separate them
+   is how long it holds. A bump is a permanent misalignment, so coverage stays
+   pinned high until the model catches up; people cannot do that, because limbs
+   change direction - in the same two-player clip coverage never held above 24%
+   for more than half a second. So require the level to survive BUMP_HOLD
+   seconds, and clear the timer on a single quiet frame: one dip is proof it is
+   a person and not the furniture having moved. */
+var BUMP_LEVEL = 0.24;        /* above two players at full tilt */
+var BUMP_HOLD  = 0.9;         /* vs 0.5s, the longest players managed */
+var CALM_LEVEL = 0.18;        /* below two players at full tilt, measured at 25-30% */
+var SNAP_EVERY = 1.0;         /* how much of their own painting a bump may cost */
+var highFor = 0, calmFor = 0, bumps = 0;
+
+function cameraWasKnocked(dt){
+  if (coverage > BUMP_LEVEL) highFor += dt; else highFor = 0;
+  if (highFor >= BUMP_HOLD){ highFor = 0; bumps++; return true; }
+  return false;
+}
+
 function brush(dt){
   hueDrift = (hueDrift + DRIFT * dt) % 360;
   buildPalette();
@@ -436,7 +467,7 @@ function brush(dt){
   lastCoverage = coverage;
 }
 
-function clearPaint(){ paint.fill(0); }
+function clearPaint(){ paint.fill(0); snap.fill(0); snapAge = 0; }
 function paintedFraction(){
   var n = 0;
   for (var i = 0; i < NPIX; i++){ if (paint[i*3] + paint[i*3+1] + paint[i*3+2] > 12) n++; }
@@ -550,13 +581,37 @@ function frame(now){
     calibrating -= dt;
     grabLuma(); seed();
     el.curtain.hidden = false;
-    el.curtain.innerHTML = '<div class="inner"><h2>Hold still</h2>' +
-      '<p>Learning the room so it can tell you apart from the furniture.</p>' +
+    el.curtain.innerHTML = '<div class="inner"><h2>' +
+      (knocked ? 'Camera moved' : 'Hold still') + '</h2>' +
+      '<p>' + (knocked ? 'Learning the room again. Your painting is safe.'
+                       : 'Learning the room so it can tell you apart from the furniture.') + '</p>' +
       '<div class="big">' + Math.ceil(calibrating) + '</div></div>';
+    highFor = 0; calmFor = 0;
+    if (calibrating <= 0) knocked = false;
   } else {
     if (!el.curtain.hidden) el.curtain.hidden = true;
     vision();
-    brush(dt);
+    if (!noBump && cameraWasKnocked(dt)){
+      /* Roll the canvas back to before the flood. Confirming a bump takes
+         BUMP_HOLD seconds and paint rises in about three frames, so by now the
+         whole room has been painted over. The snapshot is at most SNAP_EVERY
+         seconds old, so the player loses a moment of their own strokes and
+         gets the rest back. */
+      paint.set(snap);
+      calibrating = 1.5;
+      knocked = true;
+    } else {
+      brush(dt);
+      /* Only take a restore point once the room has been quiet for longer than
+         it takes to confirm a bump. Being merely below the trip line is not
+         enough: a bump's own coverage dips to 23% as the model starts to catch
+         up, which was enough to snapshot the flood itself. Requiring an
+         unbroken calm stretch means a bump cannot hide inside the snapshot,
+         because a bump never gives you one. */
+      if (coverage < CALM_LEVEL) calmFor += dt; else calmFor = 0;
+      snapAge += dt;
+      if (calmFor > BUMP_HOLD && snapAge > SNAP_EVERY){ snap.set(paint); snapAge = 0; }
+    }
   }
   render();
   e2eMs = performance.now() - t0;
@@ -637,12 +692,14 @@ function boot(){
   window.Stomp = {
     vision: function(){ return { coverage:coverage, gain:gain, shift:lightShift, zones:Array.from(zone),
                                  visMs:visMs, e2eMs:e2eMs, fps:fps, seeded:seeded,
-                                 calibrating:calibrating }; },
+                                 calibrating:calibrating, highFor:highFor }; },
     zoneAt: function(c, r){ return zone[r * ZC + c]; },
     state: function(){ return { running:running, painted:paintedFraction() }; },
     recalibrate: function(){ calibrating = 2.2; },
     settle: function(){ calibrating = 0; },
     clear: clearPaint,
+    bumps: function(){ return bumps; },
+    noBump: function(v){ noBump = !!v; },
     config: { PW:PW, PH:PH, ZC:ZC, ZR:ZR, FADE:FADE, RISE:RISE }
   };
 }
