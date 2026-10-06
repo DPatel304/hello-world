@@ -134,7 +134,6 @@
     <div class="card-h"><h3>Market</h3><span id="chg"></span></div>
     <div id="price">$0.05</div><div class="muted" style="font-size:13px">per bitcoin · your stack ≈ <span id="worth"></span></div>
     <canvas id="chart"></canvas>
-    <div class="note">Hardware is priced in dollars, so it costs fewer satoshis when bitcoin is up.</div>
   </div>
 </section>
 <div id="foot" data-reveal="hardware"><button id="resetBtn">Reset progress</button></div>
@@ -153,36 +152,36 @@ const CFG = {
   R0:50000 * SAT,                              // first-epoch block reward, so 2 * 210 * R0 = 21M BTC
   BT:300 / 210,                                // seconds per network block (5-minute epochs)
   CLICK:1,                                     // the very first click pays 1 satoshi
-  NG:3e-4,                                     // network hashrate growth per second
+  NG:0,                                        // base network hashrate growth per second (rivals still react to you)
   P0:0.05, PG:4.8e-3,                          // BTC/USD starts at $0.05 and trends up
   ER:0.004,                                    // electricity: satoshis per watt, relative to mining yield
-  GROW:1.15, DX:0.6,                           // each extra machine costs 15% more; DX: how strongly satoshi prices follow BTC price
+  GROW:1.12,                                   // each extra machine of a type costs 12% more
 };
 CFG.N0 = CFG.R0 / (CFG.BT * CFG.CLICK);        // network hashrate that makes one hash worth 1 satoshi
 
-const TIERS = [   // cost is in satoshis at the starting BTC price
-  { id:"cpu",  name:"Laptop CPU",       cost:50,      hash:1,        watts:45 },
-  { id:"gpu",  name:"Gaming GPU",       cost:2.5e3,       hash:60,       watts:1.42e3 },
-  { id:"rig",  name:"GPU Rig",          cost:1.25e5,   hash:3.6e3,    watts:4.49e4 },
-  { id:"fpga", name:"FPGA Cluster",     cost:6.25e6,   hash:2.16e5,   watts:1.42e6 },
-  { id:"asic", name:"ASIC Miner",       cost:3.12e8,   hash:1.3e7,    watts:4.48e7 },
-  { id:"rack", name:"ASIC Rack",        cost:1.56e10,   hash:7.78e8,   watts:1.41e9 },
-  { id:"farm", name:"Mining Farm",      cost:7.81e11,   hash:4.67e10,  watts:4.46e10 },
-  { id:"dc",   name:"Hyperscale Site",  cost:3.91e13,  hash:2.8e12,   watts:1.41e12 },
-  { id:"fus",  name:"Fusion Campus",    cost:1.95e15,  hash:1.68e14,  watts:4.45e13 },
+const TIERS = [   // fixed prices in satoshis; each extra unit of a type costs 12% more
+  { id:"cpu",  name:"Laptop CPU",       cost:50,        hash:1,        watts:45 },
+  { id:"gpu",  name:"Gaming GPU",       cost:1e3,       hash:60,       watts:1.42e3 },
+  { id:"rig",  name:"GPU Rig",          cost:2e4,       hash:3.6e3,    watts:4.49e4 },
+  { id:"fpga", name:"FPGA Cluster",     cost:4e5,       hash:2.16e5,   watts:1.42e6 },
+  { id:"asic", name:"ASIC Miner",       cost:8e6,       hash:1.3e7,    watts:4.48e7 },
+  { id:"rack", name:"ASIC Rack",        cost:1.6e8,     hash:7.78e8,   watts:1.41e9 },
+  { id:"farm", name:"Mining Farm",      cost:3.2e9,     hash:4.67e10,  watts:4.46e10 },
+  { id:"dc",   name:"Hyperscale Site",  cost:6.4e10,    hash:2.8e12,   watts:1.41e12 },
+  { id:"fus",  name:"Fusion Campus",    cost:1.28e12,   hash:1.68e14,  watts:4.45e13 },
 ];
 // hm: hashrate x, wm: watts x, em: electricity price x, cm: click x
 const UPS = [
-  { id:"mouse",   name:"Better Mouse",        desc:"Clicks ×3",               cost:50,   cm:3 },
-  { id:"oc",      name:"Overclocking",        desc:"Hashrate ×1.25",          cost:1.38e3,    hm:1.25, wm:1.15 },
-  { id:"macro",   name:"Click Macro",         desc:"Clicks ×10",              cost:3.83e4,   cm:10 },
-  { id:"offpeak", name:"Off-Peak Power",      desc:"Electricity −30%",        cost:1.06e6,   em:0.7 },
-  { id:"firm",    name:"Custom Firmware",     desc:"Hashrate ×1.5",           cost:2.93e7,   hm:1.5 },
-  { id:"hydro",   name:"Hydro Contract",      desc:"Electricity −40%",        cost:8.1e8,   em:0.6 },
-  { id:"immerse", name:"Immersion Cooling",   desc:"Hashrate ×1.6",           cost:2.24e10,   hm:1.6, wm:0.9 },
-  { id:"stratum", name:"Stratum V2",          desc:"Hashrate ×1.5",           cost:6.19e11,  hm:1.5 },
-  { id:"solar",   name:"Solar + Batteries",   desc:"Electricity −50%",        cost:1.71e13,  em:0.5 },
-  { id:"chip",    name:"3nm Chips",           desc:"Hashrate ×2",             cost:4.74e14,  hm:2 },
+  { id:"mouse",   name:"Better Mouse",        desc:"Clicks ×3",               cost:20,   cm:3 },
+  { id:"oc",      name:"Overclocking",        desc:"Hashrate ×1.25",          cost:243,    hm:1.25, wm:1.15 },
+  { id:"macro",   name:"Click Macro",         desc:"Clicks ×10",              cost:2.94e3,   cm:10 },
+  { id:"offpeak", name:"Off-Peak Power",      desc:"Electricity −30%",        cost:3.57e4,   em:0.7 },
+  { id:"firm",    name:"Custom Firmware",     desc:"Hashrate ×1.5",           cost:4.32e5,   hm:1.5 },
+  { id:"hydro",   name:"Hydro Contract",      desc:"Electricity −40%",        cost:5.24e6,   em:0.6 },
+  { id:"immerse", name:"Immersion Cooling",   desc:"Hashrate ×1.6",           cost:6.36e7,   hm:1.6, wm:0.9 },
+  { id:"stratum", name:"Stratum V2",          desc:"Hashrate ×1.5",           cost:7.71e8,  hm:1.5 },
+  { id:"solar",   name:"Solar + Batteries",   desc:"Electricity −50%",        cost:9.35e9,  em:0.5 },
+  { id:"chip",    name:"3nm Chips",           desc:"Hashrate ×2",             cost:1.13e11,  hm:2 },
 ];
 
 const randn = () => { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*Math.random()); };
@@ -215,14 +214,12 @@ const clickValue = () => clickPow() * yieldPerHash();
 const watts     = () => { let w = 0; for (let i = 0; i < TIERS.length; i++) w += S.hw[i] * TIERS[i].watts; return w * mult("wm"); };
 // electricity is priced against mining yield, so inefficient hardware stays inefficient all game
 const powerCost = () => watts() * CFG.ER * mult("em") * yieldPerHash();
-// hardware has a dollar price, so it costs fewer satoshis as bitcoin's price rises (and more during a crash)
-const satsPerDollarRatio = () => Math.pow(CFG.P0 / price(), CFG.DX);
-const costN = (i, n) => satsPerDollarRatio() * TIERS[i].cost * Math.pow(CFG.GROW, S.hw[i]) * (Math.pow(CFG.GROW, n) - 1) / (CFG.GROW - 1);
+const costN = (i, n) => TIERS[i].cost * Math.pow(CFG.GROW, S.hw[i]) * (Math.pow(CFG.GROW, n) - 1) / (CFG.GROW - 1);
 function maxAff(i) {
-  const base = satsPerDollarRatio() * TIERS[i].cost * Math.pow(CFG.GROW, S.hw[i]);
+  const base = TIERS[i].cost * Math.pow(CFG.GROW, S.hw[i]);
   return Math.max(0, Math.floor(Math.log(1 + S.sats * (CFG.GROW - 1) / base) / Math.log(CFG.GROW)));
 }
-const upCost = u => satsPerDollarRatio() * u.cost;
+const upCost = u => u.cost;
 
 function earn(x) { S.sats += x; S.mined += x; }
 function buyTier(i, qty) {
@@ -314,7 +311,7 @@ const STAGES = [
   ["stats",    () => totalHw() > 0],
   ["upgrades", () => totalHw() >= 2,                                "Upgrades unlocked."],
   ["network",  () => totalHw() >= 8 || S.mined >= 2000,               "You're one tiny miner on a big network. Grow your share."],
-  ["market",   () => S.seen.network && (totalHw() >= 18 || S.height >= CFG.EP), "Market unlocked. Buy hardware when bitcoin is up."],
+  ["market",   () => S.seen.network && (totalHw() >= 18 || S.height >= CFG.EP), "Market unlocked. See what your stack is worth."],
 ];
 function checkReveal() {
   const now = performance.now();
@@ -407,7 +404,7 @@ H.event = (type, r) => {
   const list = NEWS[type], msg = list[Math.floor(r * list.length)];
   $("news").innerHTML = `<span class="${type === "pump" ? "up" : type === "crash" ? "down" : ""}">${type === "pump" ? "▲" : type === "crash" ? "▼" : "·"}</span> ${msg}`;
   if (!S.seen.market) return;
-  if (type === "pump") { SFX.pump(); toast("▲ " + msg + ". Hardware is cheaper in satoshis"); }
+  if (type === "pump") { SFX.pump(); toast("▲ " + msg); }
   if (type === "crash") { SFX.crash(); toast("▼ " + msg); }
 };
 H.final = () => {
