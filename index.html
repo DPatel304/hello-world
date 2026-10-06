@@ -89,7 +89,7 @@
 <div id="ctl" data-reveal="started"><button id="sndBtn" class="on">Sound</button><button id="musBtn" class="on">Music</button></div>
 
 <section id="hero">
-  <div id="balance"><div data-reveal="started"><span id="bNum">0</span><span id="bUnit">sats</span></div><div id="bSub"></div></div>
+  <div id="balance"><div data-reveal="started"><span id="bNum">0</span><span id="bUnit">satoshis</span></div><div id="bSub"></div></div>
   <div id="coinWrap" title="Mine">
     <svg id="ring" viewBox="0 0 100 100" data-reveal="network"><circle class="track" cx="50" cy="50" r="49"/><circle class="prog" cx="50" cy="50" r="49" pathLength="100"/></svg>
     <svg id="coin" viewBox="0 0 200 200" aria-label="Bitcoin">
@@ -134,7 +134,7 @@
     <div class="card-h"><h3>Market</h3><span id="chg"></span></div>
     <div id="price">$0.05</div><div class="muted" style="font-size:13px">per bitcoin · your stack ≈ <span id="worth"></span></div>
     <canvas id="chart"></canvas>
-    <div class="note">Hardware is priced in dollars, so it costs fewer sats when bitcoin is up.</div>
+    <div class="note">Hardware is priced in dollars, so it costs fewer satoshis when bitcoin is up.</div>
   </div>
 </section>
 <div id="foot" data-reveal="hardware"><button id="resetBtn">Reset progress</button></div>
@@ -144,7 +144,7 @@
 <script>
 "use strict";
 //#CORE-START
-// Everything is denominated in satoshis (1 BTC = 1e8 sats).
+// Everything is denominated in satoshis (1 BTC = 100,000,000 satoshis).
 // You are one miner on a network that keeps mining on Bitcoin's schedule (compressed in time).
 // Each block's reward is split by hashrate share; the game ends when all 21M BTC exist.
 const SAT = 1e8;
@@ -152,37 +152,37 @@ const CFG = {
   CAP:21e6 * SAT, EPOCHS:10, EP:210,          // 10 halvings, 210 blocks per epoch (scaled from 210,000)
   R0:50000 * SAT,                              // first-epoch block reward, so 2 * 210 * R0 = 21M BTC
   BT:300 / 210,                                // seconds per network block (5-minute epochs)
-  CLICK:0.01,                                  // the very first click pays 0.01 sat
+  CLICK:1,                                     // the very first click pays 1 satoshi
   NG:3e-4,                                     // network hashrate growth per second
   P0:0.05, PG:4.8e-3,                          // BTC/USD starts at $0.05 and trends up
-  ER:0.004,                                    // electricity: sats per watt, relative to mining yield
-  GROW:1.15, DX:0.6,                           // each extra machine costs 15% more; DX: how strongly sat-prices follow BTC price
+  ER:0.004,                                    // electricity: satoshis per watt, relative to mining yield
+  GROW:1.15, DX:0.6,                           // each extra machine costs 15% more; DX: how strongly satoshi prices follow BTC price
 };
-CFG.N0 = CFG.R0 / (CFG.BT * CFG.CLICK);        // network hashrate that makes one hash worth 0.01 sat
+CFG.N0 = CFG.R0 / (CFG.BT * CFG.CLICK);        // network hashrate that makes one hash worth 1 satoshi
 
-const TIERS = [   // cost is in sats at the starting BTC price
-  { id:"cpu",  name:"Laptop CPU",       cost:0.5,      hash:1,        watts:45 },
-  { id:"gpu",  name:"Gaming GPU",       cost:25,       hash:60,       watts:1.42e3 },
-  { id:"rig",  name:"GPU Rig",          cost:1.25e3,   hash:3.6e3,    watts:4.49e4 },
-  { id:"fpga", name:"FPGA Cluster",     cost:6.25e4,   hash:2.16e5,   watts:1.42e6 },
-  { id:"asic", name:"ASIC Miner",       cost:3.12e6,   hash:1.3e7,    watts:4.48e7 },
-  { id:"rack", name:"ASIC Rack",        cost:1.56e8,   hash:7.78e8,   watts:1.41e9 },
-  { id:"farm", name:"Mining Farm",      cost:7.81e9,   hash:4.67e10,  watts:4.46e10 },
-  { id:"dc",   name:"Hyperscale Site",  cost:3.91e11,  hash:2.8e12,   watts:1.41e12 },
-  { id:"fus",  name:"Fusion Campus",    cost:1.95e13,  hash:1.68e14,  watts:4.45e13 },
+const TIERS = [   // cost is in satoshis at the starting BTC price
+  { id:"cpu",  name:"Laptop CPU",       cost:50,      hash:1,        watts:45 },
+  { id:"gpu",  name:"Gaming GPU",       cost:2.5e3,       hash:60,       watts:1.42e3 },
+  { id:"rig",  name:"GPU Rig",          cost:1.25e5,   hash:3.6e3,    watts:4.49e4 },
+  { id:"fpga", name:"FPGA Cluster",     cost:6.25e6,   hash:2.16e5,   watts:1.42e6 },
+  { id:"asic", name:"ASIC Miner",       cost:3.12e8,   hash:1.3e7,    watts:4.48e7 },
+  { id:"rack", name:"ASIC Rack",        cost:1.56e10,   hash:7.78e8,   watts:1.41e9 },
+  { id:"farm", name:"Mining Farm",      cost:7.81e11,   hash:4.67e10,  watts:4.46e10 },
+  { id:"dc",   name:"Hyperscale Site",  cost:3.91e13,  hash:2.8e12,   watts:1.41e12 },
+  { id:"fus",  name:"Fusion Campus",    cost:1.95e15,  hash:1.68e14,  watts:4.45e13 },
 ];
 // hm: hashrate x, wm: watts x, em: electricity price x, cm: click x
 const UPS = [
-  { id:"mouse",   name:"Better Mouse",        desc:"Clicks ×3",               cost:0.5,   cm:3 },
-  { id:"oc",      name:"Overclocking",        desc:"Hashrate ×1.25",          cost:13.8,    hm:1.25, wm:1.15 },
-  { id:"macro",   name:"Click Macro",         desc:"Clicks ×10",              cost:383,   cm:10 },
-  { id:"offpeak", name:"Off-Peak Power",      desc:"Electricity −30%",        cost:1.06e4,   em:0.7 },
-  { id:"firm",    name:"Custom Firmware",     desc:"Hashrate ×1.5",           cost:2.93e5,   hm:1.5 },
-  { id:"hydro",   name:"Hydro Contract",      desc:"Electricity −40%",        cost:8.1e6,   em:0.6 },
-  { id:"immerse", name:"Immersion Cooling",   desc:"Hashrate ×1.6",           cost:2.24e8,   hm:1.6, wm:0.9 },
-  { id:"stratum", name:"Stratum V2",          desc:"Hashrate ×1.5",           cost:6.19e9,  hm:1.5 },
-  { id:"solar",   name:"Solar + Batteries",   desc:"Electricity −50%",        cost:1.71e11,  em:0.5 },
-  { id:"chip",    name:"3nm Chips",           desc:"Hashrate ×2",             cost:4.74e12,  hm:2 },
+  { id:"mouse",   name:"Better Mouse",        desc:"Clicks ×3",               cost:50,   cm:3 },
+  { id:"oc",      name:"Overclocking",        desc:"Hashrate ×1.25",          cost:1.38e3,    hm:1.25, wm:1.15 },
+  { id:"macro",   name:"Click Macro",         desc:"Clicks ×10",              cost:3.83e4,   cm:10 },
+  { id:"offpeak", name:"Off-Peak Power",      desc:"Electricity −30%",        cost:1.06e6,   em:0.7 },
+  { id:"firm",    name:"Custom Firmware",     desc:"Hashrate ×1.5",           cost:2.93e7,   hm:1.5 },
+  { id:"hydro",   name:"Hydro Contract",      desc:"Electricity −40%",        cost:8.1e8,   em:0.6 },
+  { id:"immerse", name:"Immersion Cooling",   desc:"Hashrate ×1.6",           cost:2.24e10,   hm:1.6, wm:0.9 },
+  { id:"stratum", name:"Stratum V2",          desc:"Hashrate ×1.5",           cost:6.19e11,  hm:1.5 },
+  { id:"solar",   name:"Solar + Batteries",   desc:"Electricity −50%",        cost:1.71e13,  em:0.5 },
+  { id:"chip",    name:"3nm Chips",           desc:"Hashrate ×2",             cost:4.74e14,  hm:2 },
 ];
 
 const randn = () => { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*Math.random()); };
@@ -208,14 +208,14 @@ function mult(k) { let m = 1; for (const u of UPS) if (S.ups[u.id] && u[k]) m *=
 const rawHash   = () => { let h = 0; for (let i = 0; i < TIERS.length; i++) h += S.hw[i] * TIERS[i].hash; return h * mult("hm"); };
 const hashrate  = () => rawHash() * (S.brown ? 0.2 : 1);
 const share     = () => { const h = hashrate(); return h / (h + netHash()); };
-const yieldPerHash = () => reward() / (CFG.BT * (hashrate() + netHash()));    // sats per hash
-const income    = () => hashrate() * yieldPerHash();                          // sats per second
+const yieldPerHash = () => reward() / (CFG.BT * (hashrate() + netHash()));    // satoshis per hash
+const income    = () => hashrate() * yieldPerHash();                          // satoshis per second
 const clickPow  = () => mult("cm");
 const clickValue = () => clickPow() * yieldPerHash();
 const watts     = () => { let w = 0; for (let i = 0; i < TIERS.length; i++) w += S.hw[i] * TIERS[i].watts; return w * mult("wm"); };
 // electricity is priced against mining yield, so inefficient hardware stays inefficient all game
 const powerCost = () => watts() * CFG.ER * mult("em") * yieldPerHash();
-// hardware has a dollar price, so it costs fewer sats as bitcoin's price rises (and more during a crash)
+// hardware has a dollar price, so it costs fewer satoshis as bitcoin's price rises (and more during a crash)
 const satsPerDollarRatio = () => Math.pow(CFG.P0 / price(), CFG.DX);
 const costN = (i, n) => satsPerDollarRatio() * TIERS[i].cost * Math.pow(CFG.GROW, S.hw[i]) * (Math.pow(CFG.GROW, n) - 1) / (CFG.GROW - 1);
 function maxAff(i) {
@@ -259,7 +259,7 @@ function step(dt) {
     else if (r < 0.7)  { S.lm = clamp(S.lm - 0.4 - Math.random() * 0.3, -1.5, 1.2); H.event("crash", Math.random()); }
     else               { H.event("news", Math.random()); }
   }
-  // power is paid in sats; if you can't pay, the rigs throttle
+  // power is paid in satoshis; if you can't pay, the rigs throttle
   const pc = powerCost() * dt;
   if (S.sats >= pc) { S.sats -= pc; S.spent += pc; S.brown = false; } else { S.brown = rawHash() > 0; }
   earn(income() * dt);
@@ -274,14 +274,16 @@ const $ = id => document.getElementById(id);
 const SAVE_KEY = "blockminer-v2";
 const U = { qty:1, hist:[], upKey:"", lastFloat:0, lastChime:0, lastReveal:0, peakShare:0 };
 
-// --- formatting: sats until 0.01 BTC, then BTC ---
+// --- formatting: satoshis until 0.01 BTC, then BTC ---
 function satsParts(n) {
-  if (n <= 0) return ["0", "sats"];
-  if (n < 10) return [n.toFixed(2), "sats"];
-  if (n < 1000) return [n.toFixed(1), "sats"];
-  if (n < 1e6) return [Math.floor(n).toLocaleString("en-US"), "sats"];
+  if (n <= 0) return ["0", "satoshis"];
+  if (n < 1e6) {
+    const d = n < 10 ? 2 : n < 1000 ? 1 : 0, v = +n.toFixed(d);           // drop trailing zeros: 1, 1.5, 31
+    return [v.toLocaleString("en-US", { maximumFractionDigits:d }), v === 1 ? "satoshi" : "satoshis"];
+  }
   const b = n / SAT;
-  return [b < 1 ? b.toFixed(4) : b < 1000 ? b.toFixed(3) : Math.floor(b).toLocaleString("en-US"), "BTC"];
+  const d = b < 1 ? 4 : b < 1000 ? 3 : 0;
+  return [(+b.toFixed(d)).toLocaleString("en-US", { maximumFractionDigits:d }), "BTC"];
 }
 const fmtSats = n => satsParts(n).join(" ");
 function fmtN(n) {
@@ -308,10 +310,10 @@ function restart(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.cl
 const totalHw = () => S.hw.reduce((a, b) => a + b, 0);
 const STAGES = [
   ["started",  () => S.clicks > 0],
-  ["hardware", () => S.mined >= 0.3,                                "Hardware unlocked. Machines mine while you rest."],
+  ["hardware", () => S.mined >= 30,                                "Hardware unlocked. Machines mine while you rest."],
   ["stats",    () => totalHw() > 0],
   ["upgrades", () => totalHw() >= 2,                                "Upgrades unlocked."],
-  ["network",  () => totalHw() >= 8 || S.mined >= 20,               "You're one tiny miner on a big network. Grow your share."],
+  ["network",  () => totalHw() >= 8 || S.mined >= 2000,               "You're one tiny miner on a big network. Grow your share."],
   ["market",   () => S.seen.network && (totalHw() >= 18 || S.height >= CFG.EP), "Market unlocked. Buy hardware when bitcoin is up."],
 ];
 function checkReveal() {
@@ -405,7 +407,7 @@ H.event = (type, r) => {
   const list = NEWS[type], msg = list[Math.floor(r * list.length)];
   $("news").innerHTML = `<span class="${type === "pump" ? "up" : type === "crash" ? "down" : ""}">${type === "pump" ? "▲" : type === "crash" ? "▼" : "·"}</span> ${msg}`;
   if (!S.seen.market) return;
-  if (type === "pump") { SFX.pump(); toast("▲ " + msg + ". Hardware is cheaper in sats"); }
+  if (type === "pump") { SFX.pump(); toast("▲ " + msg + ". Hardware is cheaper in satoshis"); }
   if (type === "crash") { SFX.crash(); toast("▼ " + msg); }
 };
 H.final = () => {
