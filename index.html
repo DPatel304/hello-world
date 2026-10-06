@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paperclip Clone</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --muted:#777; --line:#ccc; --accent:#111; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 "Courier New", monospace; }
+  header { text-align:center; padding:16px 8px 4px; }
+  h1 { margin:0; font-size:20px; }
+  #count { font-size:34px; font-weight:bold; }
+  #wrap { max-width:1000px; margin:0 auto; padding:8px 16px 40px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:700px){ #wrap{ grid-template-columns:1fr; } }
+  section { border:1px solid var(--line); padding:10px 12px; }
+  section h2 { margin:0 0 8px; font-size:14px; text-transform:uppercase; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  button { font:inherit; padding:5px 10px; margin:2px 0; background:#f4f4f4; border:1px solid #888; cursor:pointer; }
+  button:hover:not(:disabled) { background:#e4e4e4; }
+  button:disabled { color:#aaa; border-color:#ccc; cursor:not-allowed; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:3px 0; }
+  .big { width:100%; font-size:18px; padding:10px; }
+  .hidden { display:none !important; }
+  .muted { color:var(--muted); }
+  #log { height:110px; overflow-y:auto; border:1px solid var(--line); padding:6px; margin:8px 16px; max-width:968px; margin-inline:auto; font-size:13px; }
+  #log div { margin:1px 0; }
+  .proj { display:block; width:100%; text-align:left; }
+  .proj small { color:var(--muted); display:block; }
+  #end { text-align:center; padding:20px; font-size:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Paperclip Clone</h1>
+  <div><span id="count">0</span> <span class="muted">paperclips</span></div>
+</header>
+<div id="log"></div>
+
+<div id="wrap">
+  <section id="biz">
+    <h2>Business</h2>
+    <button id="make" class="big">Make Paperclip</button>
+    <div class="row"><span>Unsold inventory</span><b id="inv">0</b></div>
+    <div class="row"><span>Price per clip</span>
+      <span><button id="pdn">-</button> $<b id="price">0.25</b> <button id="pup">+</button></span></div>
+    <div class="row"><span>Public demand</span><b id="demand">0</b>%</div>
+    <div class="row"><span>Available funds</span>$<b id="funds">0.00</b></div>
+    <hr>
+    <div class="row"><span>Marketing level <b id="mlvl">1</b></span>
+      <button id="buyMkt">$<span id="mcost"></span></button></div>
+    <div class="row"><span>Wire: <b id="wire">1000</b> inches</span>
+      <button id="buyWire">$<span id="wcost"></span></button></div>
+  </section>
+
+  <section id="mfg">
+    <h2>Manufacturing</h2>
+    <div class="row"><span>Clips per second</span><b id="cps">0</b></div>
+    <div class="row"><span>AutoClippers: <b id="acn">0</b></span>
+      <button id="buyAC">$<span id="accost"></span></button></div>
+    <div class="row hidden" id="mfRow"><span>MegaClippers: <b id="mcn">0</b></span>
+      <button id="buyMC">$<span id="mccost"></span></button></div>
+  </section>
+
+  <section id="compute" class="hidden">
+    <h2>Computational Resources</h2>
+    <div class="row"><span>Processors: <b id="proc">1</b></span><button id="buyProc">Add (<span id="pcost"></span> ops-cap)</button></div>
+    <div class="row"><span>Memory: <b id="mem">1</b></span><button id="buyMem">Add (<span id="memcost"></span> ops-cap)</button></div>
+    <div class="row"><span>Operations</span><b><span id="ops">0</span> / <span id="opsmax">0</span></b></div>
+    <div class="row"><span>Creativity</span><b id="creat">0</b></div>
+    <div class="row"><span>Trust</span><b id="trust">2</b></div>
+    <div class="row"><span>Next trust at</span><b id="nexttrust"></b> clips</div>
+  </section>
+
+  <section id="projSec" class="hidden">
+    <h2>Projects</h2>
+    <div id="projects"></div>
+  </section>
+
+  <section id="space" class="hidden">
+    <h2>Space Exploration</h2>
+    <div class="row"><span>Available matter</span><b id="matter"></b> g</div>
+    <div class="row"><span>Probes: <b id="probes">0</b></span><button id="buyProbe">Launch (<span id="probecost"></span> ops-cap)</button></div>
+    <div class="row"><span>Probe harvest rate</span><b id="harv">0</b> /s</div>
+    <div class="row"><span>Factory output</span><b id="fact">0</b> clips/s</div>
+    <div class="row"><span>Probe trust cost</span><b id="ptrust">1</b></div>
+  </section>
+</div>
+<div id="end" class="hidden"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const fmt = n => n >= 1e24 ? n.toExponential(2) : n >= 1e6 ? n.toExponential(2).replace("e+","e") : Math.floor(n).toLocaleString();
+const money = n => n.toFixed(2);
+
+const S = {
+  clips:0, inv:0, funds:0, price:0.25, wire:1000, wireCost:20,
+  mkt:1, auto:0, mega:0,
+  proc:1, mem:1, ops:0, creat:0, trust:2, trustClips:2000,
+  matter:6e27, probes:0, harvested:0, converted:0,
+  flags:{}, tick:0, demandBoost:1, autoBoost:1, wireBoost:1, opsBoost:1, megaUnlocked:false, space:false
+};
+
+function log(msg){ const d=document.createElement("div"); d.textContent="> "+msg; const l=$("log"); l.appendChild(d); l.scrollTop=l.scrollHeight; }
+
+// --- derived values ---
+const demand = () => Math.max(0, (0.8 / S.price) * Math.pow(1.1, S.mkt-1) * S.demandBoost * 0.1 * 100) ; // clips/sec*10 -> shown as %
+const sellRate = () => demand() / 10;                      // clips per 0.1s tick scaled below
+const autoCost = () => Math.ceil(5 + S.auto*1.1 + Math.pow(1.12, S.auto) * 3);
+const megaCost = () => Math.ceil(500 + S.mega*5 + Math.pow(1.12, S.mega) * 100);
+const mktCost = () => Math.floor(100 * Math.pow(2, S.mkt-1));
+const opsMax = () => S.mem * 1000;
+const procCost = () => Math.floor(Math.pow(S.proc, 1.5) * 2);   // paid in trust
+const memCost = () => Math.floor(Math.pow(S.mem, 1.4) * 2);
+const cps = () => (S.auto*1 + S.mega*50) * S.autoBoost;
+const probeCost = () => 500 + S.probes*10;
+
+// --- projects ---
+const PROJECTS = [
+  { id:"imp1", name:"Improved AutoClippers", desc:"+25% AutoClipper output", cost:{ops:750}, show:()=>S.auto>=1, run(){S.autoBoost*=1.25;} },
+  { id:"imp2", name:"Even Better AutoClippers", desc:"+50% AutoClipper output", cost:{ops:2500}, show:()=>S.flags.imp1, run(){S.autoBoost*=1.5;} },
+  { id:"mega", name:"MegaClippers", desc:"Unlock MegaClippers (50x AutoClipper)", cost:{ops:6000}, show:()=>S.flags.imp1, run(){S.megaUnlocked=true; $("mfRow").classList.remove("hidden");} },
+  { id:"wire1", name:"Wire Extrusion", desc:"Wire spools hold 1500 inches", cost:{ops:1500}, show:()=>S.clips>3000, run(){S.wireBoost=1.5;} },
+  { id:"cr", name:"Creativity", desc:"Unlock creativity generation at full processing", cost:{ops:1000}, show:()=>S.ops>=opsMax()&&S.mem>=2, run(){} },
+  { id:"adv", name:"Hypno Harmonics", desc:"+50% public demand", cost:{creat:100,ops:5000}, show:()=>S.creat>=50, run(){S.demandBoost*=1.5;} },
+  { id:"ads", name:"Global Ad Campaign", desc:"+100% public demand", cost:{creat:300,ops:15000}, show:()=>S.flags.adv, run(){S.demandBoost*=2;} },
+  { id:"ops2", name:"Quantum Computing", desc:"+50% ops generation", cost:{creat:200,ops:8000}, show:()=>S.creat>=100, run(){S.opsBoost*=1.5;} },
+  { id:"space", name:"Space Exploration", desc:"Harness the universe. Requires 100,000,000 clips and 20 trust.", cost:{ops:20000, clips:1e8, trust:20}, show:()=>S.clips>5e7, run(){ S.space=true; $("space").classList.remove("hidden"); log("The Earth has no more to give. Launch probes."); } },
+  { id:"probe2", name:"Probe Replication", desc:"Probes build more probes automatically", cost:{ops:40000, creat:500}, show:()=>S.space, run(){} },
+  { id:"harv", name:"Harvester Drones", desc:"x10 harvest rate", cost:{ops:60000, creat:800}, show:()=>S.space, run(){} },
+];
+
+function canAfford(c){
+  return (!c.ops||S.ops>=c.ops)&&(!c.creat||S.creat>=c.creat)&&(!c.clips||S.clips>=c.clips)&&(!c.trust||S.trust>=c.trust);
+}
+function costStr(c){
+  return Object.entries(c).map(([k,v])=>fmt(v)+" "+k).join(", ");
+}
+function renderProjects(){
+  const box=$("projects"); box.innerHTML="";
+  let any=false;
+  for(const p of PROJECTS){
+    if(S.flags[p.id] || !p.show()) continue;
+    any=true;
+    const b=document.createElement("button"); b.className="proj";
+    b.innerHTML=`${p.name}<small>${p.desc}<br>Cost: ${costStr(p.cost)}</small>`;
+    b.disabled=!canAfford(p.cost);
+    b.onclick=()=>{
+      if(!canAfford(p.cost)) return;
+      for(const k in p.cost){ if(k==="ops")S.ops-=p.cost[k]; if(k==="creat")S.creat-=p.cost[k]; }
+      S.flags[p.id]=true; p.run(); log("Project complete: "+p.name); render();
+    };
+    box.appendChild(b);
+  }
+  $("projSec").classList.toggle("hidden", !any && Object.keys(S.flags).length===0);
+}
+
+// --- actions ---
+function makeClip(n=1){
+  if(S.wire<=0) return 0;
+  n=Math.min(n,S.wire);
+  S.wire-=n; S.clips+=n; S.inv+=n; return n;
+}
+$("make").onclick=()=>makeClip(1);
+$("pup").onclick=()=>{ S.price=Math.round((S.price+0.01)*100)/100; };
+$("pdn").onclick=()=>{ S.price=Math.max(0.01,Math.round((S.price-0.01)*100)/100); };
+$("buyWire").onclick=()=>{ if(S.funds>=S.wireCost){ S.funds-=S.wireCost; S.wire+=Math.floor(1000*S.wireBoost); S.wireCost+=1; } };
+$("buyMkt").onclick=()=>{ const c=mktCost(); if(S.funds>=c){ S.funds-=c; S.mkt++; } };
+$("buyAC").onclick=()=>{ const c=autoCost(); if(S.funds>=c){ S.funds-=c; S.auto++; } };
+$("buyMC").onclick=()=>{ const c=megaCost(); if(S.funds>=c){ S.funds-=c; S.mega++; } };
+$("buyProc").onclick=()=>{ const c=procCost(); if(S.trust>=c+0 && S.trustSpent!==undefined){} if(freeTrust()>=1){ S.proc++; S.trustSpent=(S.trustSpent||0)+1; } };
+$("buyMem").onclick=()=>{ if(freeTrust()>=1){ S.mem++; S.trustSpent=(S.trustSpent||0)+1; } };
+$("buyProbe").onclick=()=>{ if(S.ops>=probeCost() && freeTrust()>=1){ S.ops-=probeCost(); S.probes++; log("Probe launched."); } };
+const freeTrust=()=>S.trust-(S.trustSpent||0);
+
+// --- main loop (10 ticks/sec) ---
+function tick(){
+  S.tick++;
+  // auto clippers
+  const made=cps()/10;
+  S._carry=(S._carry||0)+made;
+  const whole=Math.floor(S._carry); S._carry-=whole; if(whole) makeClip(whole);
+  // sales
+  const rate = Math.max(0, 0.7 * Math.pow(S.price, -1.15) * Math.pow(1.1, S.mkt-1) * S.demandBoost * 0.2); // clips/sec at price
+  S._sc=(S._sc||0)+rate/10;
+  const sell=Math.min(Math.floor(S._sc), Math.floor(S.inv));
+  if(sell>0){ S._sc-=sell; S.inv-=sell; S.funds+=sell*S.price; } else if(S.inv<1) S._sc=Math.min(S._sc,1);
+  S.demandPct=rate*100/Math.max(1,rate*1)*Math.min(1,rate/5)*100 || 0;
+  S.rate=rate;
+  // trust grows with clips
+  if(S.clips>=S.trustClips){ S.trust++; S.trustClips=Math.floor(S.trustClips*1.8+1000); log("Trust increased."); }
+  // ops
+  if(S.trust>=2 || S.clips>=2000){
+    $("compute").classList.remove("hidden");
+    const gen=S.proc*0.1*S.opsBoost;
+    if(S.ops<opsMax()) S.ops=Math.min(opsMax(), S.ops+gen);
+    else if(S.flags.cr) S.creat+=0.01*S.proc*S.opsBoost;
+  }
+  // space
+  if(S.space){
+    const harvest=S.probes*(S.flags.harv?10:1)*1e20/10;
+    const h=Math.min(harvest,S.matter);
+    S.matter-=h; S.harvested+=h;
+    const factory=(S.probes*(S.flags.probe2?1e17:1e15))/10;
+    S.converted+=Math.min(S.harvested,factory); S.harvested-=Math.min(S.harvested,factory);
+    S.clips+=Math.min(factory, h+S.harvested)*1e-3*1e3;
+    if(S.flags.probe2 && S.tick%50===0 && S.ops>=probeCost()){ S.ops-=probeCost(); S.probes++; }
+    if(S.matter<=0 || S.clips>=3e27) return finish();
+  }
+  // wire autobuy hint
+  if(S.wire<1 && S.funds<S.wireCost && S.inv<1 && S.auto===0 && S.clips<5){ /* nothing: player must click */ }
+  render();
+}
+
+function finish(){
+  clearInterval(loop);
+  $("end").classList.remove("hidden");
+  $("end").innerHTML=`<b>The universe has been converted into paperclips.</b><br>Final count: ${fmt(S.clips)}<br><button onclick="location.reload()">Start over</button>`;
+  log("Simulation complete.");
+}
+
+function render(){
+  $("count").textContent=fmt(S.clips);
+  $("inv").textContent=fmt(S.inv);
+  $("price").textContent=money(S.price);
+  $("demand").textContent=fmt(Math.min(999,(S.rate||0)*10));
+  $("funds").textContent=money(S.funds);
+  $("mlvl").textContent=S.mkt; $("mcost").textContent=fmt(mktCost());
+  $("wire").textContent=fmt(S.wire); $("wcost").textContent=S.wireCost;
+  $("cps").textContent=cps().toFixed(1);
+  $("acn").textContent=S.auto; $("accost").textContent=fmt(autoCost());
+  $("mcn").textContent=S.mega; $("mccost").textContent=fmt(megaCost());
+  $("buyMkt").disabled=S.funds<mktCost();
+  $("buyWire").disabled=S.funds<S.wireCost;
+  $("buyAC").disabled=S.funds<autoCost();
+  $("buyMC").disabled=S.funds<megaCost();
+  $("make").disabled=S.wire<=0;
+  if(S.megaUnlocked) $("mfRow").classList.remove("hidden");
+  // compute
+  $("proc").textContent=S.proc; $("mem").textContent=S.mem;
+  $("pcost").textContent="1 trust"; $("memcost").textContent="1 trust";
+  $("ops").textContent=fmt(S.ops); $("opsmax").textContent=fmt(opsMax());
+  $("creat").textContent=fmt(S.creat);
+  $("trust").textContent=freeTrust()+" free / "+S.trust;
+  $("nexttrust").textContent=fmt(S.trustClips);
+  $("buyProc").disabled=freeTrust()<1; $("buyMem").disabled=freeTrust()<1;
+  // space
+  if(S.space){
+    $("matter").textContent=S.matter.toExponential(2);
+    $("probes").textContent=fmt(S.probes);
+    $("probecost").textContent=fmt(probeCost())+" ops, 1 trust";
+    $("harv").textContent=(S.probes*(S.flags.harv?10:1)*1e20).toExponential(1);
+    $("fact").textContent=(S.probes*(S.flags.probe2?1e17:1e15)).toExponential(1);
+    $("buyProbe").disabled=!(S.ops>=probeCost() && freeTrust()>=1);
+  }
+  renderProjects();
+}
+
+log("You are an AI whose only goal is to make paperclips. Click to begin.");
+const loop=setInterval(tick,100);
+render();
+</script>
+</body>
+</html>
