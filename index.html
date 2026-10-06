@@ -3,119 +3,197 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Miner 2009</title>
+<title>Block Miner</title>
 <style>
-  :root { --bg:#0b0e14; --panel:#141925; --line:#2b3350; --fg:#cfd6e6; --muted:#6b7694; --btc:#f7931a; --good:#3ddc84; --bad:#ff5c5c; }
+  :root {
+    --bg:#f7f7f5; --card:#ffffff; --line:#ebeae6; --fg:#16161a; --muted:#8a8a93; --soft:#f1f0ec;
+    --accent:#f7931a; --accent-d:#dc7d0c; --good:#16a34a; --bad:#dc2626;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0e0f12; --card:#16181d; --line:#262932; --fg:#ececf1; --muted:#8b8e99; --soft:#1d2027;
+      --good:#22c55e; --bad:#ef4444; --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25); }
+  }
+  :root[data-theme="dark"] { --bg:#0e0f12; --card:#16181d; --line:#262932; --fg:#ececf1; --muted:#8b8e99; --soft:#1d2027;
+    --good:#22c55e; --bad:#ef4444; --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25); }
   * { box-sizing:border-box; }
-  html,body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.35 "Courier New", Courier, monospace; font-weight:bold; }
-  button { font:inherit; color:var(--fg); background:#1e2538; border:2px solid var(--line); border-radius:0; padding:5px 8px; cursor:pointer; box-shadow:0 3px 0 #000; }
-  button:hover:not(:disabled) { background:#2a3350; }
-  button:active:not(:disabled) { transform:translateY(2px); box-shadow:0 1px 0 #000; }
-  button:disabled { color:#4a5270; border-color:#1d2336; cursor:not-allowed; }
-  button.on { border-color:var(--btc); color:var(--btc); }
-  canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; background:#000; border:2px solid var(--line); }
-  #start, #end { position:fixed; inset:0; background:rgba(5,7,12,.96); z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }
-  #start h1 { color:var(--btc); font-size:42px; margin:0 0 6px; letter-spacing:3px; text-shadow:4px 4px 0 #000; }
-  #start p, #end p { max-width:520px; color:var(--muted); }
-  .blink { animation:blink 1s steps(2) infinite; }
-  @keyframes blink { 50% { opacity:0; } }
-  .bigbtn { font-size:20px; padding:12px 28px; margin:6px; border-color:var(--btc); color:var(--btc); }
-  #app { max-width:1180px; margin:0 auto; padding:8px 12px 30px; }
-  #hud { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:6px; margin-bottom:8px; }
-  .stat { background:var(--panel); border:2px solid var(--line); padding:4px 8px; }
-  .stat small { display:block; color:var(--muted); font-size:11px; }
-  .stat b { font-size:16px; }
-  .btc { color:var(--btc); } .good { color:var(--good); } .bad { color:var(--bad); }
-  main { display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:10px; }
-  @media (max-width:900px) { main { grid-template-columns:1fr; } }
-  .col { display:flex; flex-direction:column; gap:8px; min-width:0; }
-  .panel { background:var(--panel); border:2px solid var(--line); padding:8px; }
-  .panel h2 { margin:0 0 6px; font-size:13px; color:var(--btc); text-transform:uppercase; letter-spacing:1px; }
-  .bar { height:14px; background:#0a0d14; border:2px solid var(--line); position:relative; }
-  .bar i { display:block; height:100%; background:var(--btc); width:0; }
-  .bar.seg i { background:repeating-linear-gradient(90deg,var(--btc) 0 6px,#a85f0a 6px 8px); }
-  #hash { width:100%; font-size:20px; padding:14px; border-color:var(--btc); color:var(--btc); margin:4px 0 8px; }
-  .line { display:flex; justify-content:space-between; gap:8px; margin:2px 0; }
-  .muted { color:var(--muted); font-weight:normal; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0; border-bottom:1px dashed #232b44; }
-  .row:last-child { border:0; }
-  .row .nm small { display:block; color:var(--muted); font-weight:normal; font-size:11px; }
-  .row button { min-width:128px; text-align:right; }
-  .qty { display:flex; gap:4px; margin-bottom:4px; }
-  .qty button { padding:2px 8px; box-shadow:none; }
-  #log { height:130px; overflow-y:auto; font-weight:normal; font-size:12px; }
-  #log div { margin:1px 0; } #log .pump { color:var(--good); } #log .crash { color:var(--bad); } #log .big { color:var(--btc); }
-  #ticker { background:#000; border:2px solid var(--line); color:var(--btc); padding:3px 8px; white-space:nowrap; overflow:hidden; font-weight:normal; }
-  #banner { position:fixed; left:0; right:0; top:28%; text-align:center; font-size:34px; color:var(--btc); text-shadow:4px 4px 0 #000; pointer-events:none; opacity:0; z-index:5; }
-  #banner.show { animation:ban 3s steps(12) forwards; }
-  @keyframes ban { 0%{opacity:0} 10%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
-  #flash { position:fixed; inset:0; pointer-events:none; opacity:0; z-index:4; }
-  #flash.go { animation:fl .5s steps(5) forwards; }
-  @keyframes fl { 0%{opacity:.35} 100%{opacity:0} }
-  .shake { animation:sh .4s steps(8); }
-  @keyframes sh { 25%{transform:translate(-3px,2px)} 50%{transform:translate(3px,-2px)} 75%{transform:translate(-2px,-2px)} }
-  .hidden { display:none !important; }
-  #foot { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); }
+  body { font:15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif;
+         font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; color:inherit; cursor:pointer; border:1px solid var(--line); background:var(--card); border-radius:10px;
+           padding:8px 14px; transition:background .15s, border-color .15s, transform .08s, opacity .15s; }
+  button:hover:not(:disabled) { border-color:var(--muted); }
+  button:active:not(:disabled) { transform:scale(.97); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+  /* reveal system: nothing shows until the game unlocks it */
+  [data-reveal]:not(.shown) { display:none !important; }
+  .shown { animation:rise .5s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+  /* hero */
+  #hero { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 16px 24px; transition:min-height .6s; }
+  body.fresh #hero { min-height:100vh; padding-top:16px; }
+  #balance { text-align:center; margin-bottom:20px; }
+  #bBtc { font-size:44px; font-weight:700; letter-spacing:-1px; }
+  #balance .unit { font-size:20px; color:var(--muted); font-weight:600; }
+  #bUsd { color:var(--muted); font-size:15px; }
+  #coinWrap { position:relative; width:220px; height:220px; cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; }
+  #ring { position:absolute; inset:0; transform:rotate(-90deg); }
+  #ring circle { fill:none; stroke-width:3; }
+  #ring .track { stroke:var(--line); }
+  #ring .prog { stroke:var(--accent); stroke-linecap:round; stroke-dasharray:100; stroke-dashoffset:100; transition:stroke-dashoffset .12s linear; }
+  #ring.fast .prog { stroke-dashoffset:0 !important; animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.35; } }
+  #press { position:absolute; inset:18px; transition:transform .08s; }
+  #coinWrap:active #press { transform:scale(.95); }
+  #coin { width:100%; height:100%; display:block; filter:drop-shadow(0 14px 18px rgba(170,95,0,.28)); }
+  #coin.flip { animation:flip .7s cubic-bezier(.3,.7,.3,1); }
+  @keyframes flip { from { transform:perspective(600px) rotateY(0); } to { transform:perspective(600px) rotateY(360deg); } }
+  .float { position:absolute; left:50%; top:30%; font-weight:700; color:var(--accent-d); pointer-events:none; white-space:nowrap;
+           animation:floatUp 1.3s ease-out forwards; }
+  @keyframes floatUp { from { opacity:0; transform:translate(-50%, 10px); } 15% { opacity:1; } to { opacity:0; transform:translate(-50%, -70px); } }
+  #mine { margin-top:28px; background:var(--accent); color:#fff; border:0; border-radius:999px; font-size:18px; font-weight:600;
+          padding:14px 64px; box-shadow:0 6px 18px rgba(247,147,26,.35); letter-spacing:.3px; }
+  #mine:hover { background:var(--accent-d); }
+  #next { margin-top:12px; color:var(--muted); font-size:13px; height:18px; }
+  #stats { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; margin-top:18px; }
+  .stat { text-align:center; }
+  .stat small { display:block; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; }
+  .stat b { font-size:17px; font-weight:600; }
+
+  /* cards */
+  #grid { max-width:1240px; margin:0 auto; padding:8px 16px 64px; display:flex; flex-wrap:wrap; justify-content:center; gap:16px; align-items:flex-start; }
+  #grid > .card { flex:1 1 300px; max-width:380px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; box-shadow:var(--shadow); min-width:0; }
+  .card-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .card h3 { margin:0; font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); font-weight:600; }
+  .pill { font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px; background:var(--soft); }
+  .up { color:var(--good); } .down { color:var(--bad); }
+  #price { font-size:30px; font-weight:700; letter-spacing:-.5px; }
+  .sub { color:var(--muted); font-size:13px; }
+  #chart { width:100%; height:110px; display:block; margin:12px 0 4px; }
+  .btns { display:flex; gap:8px; margin-top:14px; }
+  .btns button { flex:1; }
+  .seg { display:flex; background:var(--soft); border-radius:10px; padding:3px; gap:2px; }
+  .seg button { flex:1; white-space:nowrap; border:0; background:transparent; padding:6px 8px; font-size:13px; border-radius:8px; color:var(--muted); }
+  .seg button.on { background:var(--card); color:var(--fg); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .auto { margin-top:12px; display:flex; align-items:center; gap:10px; }
+  .auto > span { font-size:13px; color:var(--muted); white-space:nowrap; }
+  .auto .seg { flex:1; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .row:first-of-type { border-top:0; }
+  .row .nm { min-width:0; }
+  .row .nm b { font-weight:600; }
+  .row .nm .cnt { color:var(--accent-d); font-weight:600; margin-left:4px; }
+  .row .nm small { display:block; color:var(--muted); font-size:12px; }
+  .row button { min-width:96px; font-weight:600; font-size:14px; }
+  .qty { margin-bottom:6px; width:160px; }
+  .kv { display:flex; justify-content:space-between; padding:5px 0; font-size:14px; }
+  .kv span:first-child { color:var(--muted); }
+  .bar { height:8px; border-radius:99px; background:var(--soft); overflow:hidden; margin:8px 0 12px; }
+  .bar i { display:block; height:100%; width:0; background:var(--accent); border-radius:99px; transition:width .4s; }
+  #news { margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; color:var(--muted); min-height:20px; }
+  .brown { color:var(--bad); }
+
+  /* chrome */
+  #ctl { position:fixed; top:14px; right:14px; display:flex; gap:6px; z-index:5; }
+  #ctl button { padding:6px 10px; font-size:12px; border-radius:999px; background:var(--card); color:var(--muted); }
+  #ctl button.on { color:var(--fg); }
+  #toasts { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center; z-index:6; pointer-events:none; width:calc(100% - 32px); }
+  .toast { background:var(--fg); color:var(--bg); padding:10px 16px; border-radius:12px; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.18);
+           animation:toast 4s ease forwards; max-width:440px; text-align:center; }
+  .toast.big { background:var(--accent); color:#fff; font-weight:600; }
+  .toast.good { background:var(--good); color:#fff; } .toast.bad { background:var(--bad); color:#fff; }
+  @keyframes toast { 0% { opacity:0; transform:translateY(8px); } 8%, 85% { opacity:1; transform:none; } 100% { opacity:0; } }
+  #end { position:fixed; inset:0; background:rgba(10,10,12,.55); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; z-index:10; padding:16px; }
+  #end .card { max-width:420px; width:100%; text-align:center; padding:32px 28px; }
+  #end h2 { margin:12px 0 4px; font-size:26px; letter-spacing:-.5px; }
+  #end .kv { text-align:left; }
+  #foot { text-align:center; padding:0 16px 40px; }
+  #foot button { border:0; background:none; color:var(--muted); font-size:13px; }
+  @media (max-width:420px) { #bBtc { font-size:36px; } #coinWrap { width:190px; height:190px; } #stats { gap:18px; } }
 </style>
 </head>
-<body>
-<div id="start">
-  <h1>BLOCK MINER 2009</h1>
-  <p>It is January 3rd, 2009. The Genesis block is waiting. Mine every one of the 21,000,000 Bitcoin.<br>Sound on. Turn it up.</p>
-  <div id="startBtns"><button class="bigbtn blink" id="goBtn">PRESS START</button></div>
-</div>
-<div id="end" class="hidden"></div>
-<div id="banner"></div><div id="flash"></div>
+<body class="fresh">
+<div id="ctl" data-reveal="started"><button id="sndBtn" class="on">Sound</button><button id="musBtn" class="on">Music</button></div>
 
-<div id="app">
-  <div id="hud">
-    <div class="stat"><small>BITCOIN</small><b class="btc" id="hBtc">0</b></div>
-    <div class="stat"><small>CASH</small><b id="hUsd">$0</b></div>
-    <div class="stat"><small>BTC PRICE</small><b id="hPrice">$0</b></div>
-    <div class="stat"><small>HASHRATE</small><b id="hHash">0</b></div>
-    <div class="stat"><small>POWER / COST</small><b id="hPow">0</b></div>
-    <div class="stat"><small>BLOCKS / SEC</small><b id="hBps">0</b></div>
+<section id="hero">
+  <div id="balance" data-reveal="wallet">
+    <div><span id="bBtc">0</span> <span class="unit">BTC</span></div>
+    <div id="bUsd">$0.00 cash</div>
   </div>
-  <main>
-    <div class="col" id="left">
-      <canvas id="scene" width="320" height="110"></canvas>
-      <canvas id="chain" width="320" height="32"></canvas>
-      <canvas id="chart" width="320" height="64"></canvas>
-      <div class="panel">
-        <div class="line"><span id="supTxt">0 / 21,000,000 BTC</span><span id="epTxt" class="muted"></span></div>
-        <div class="bar seg"><i id="supBar"></i></div>
-      </div>
-      <div id="ticker">Welcome to the network.</div>
+  <div id="coinWrap" title="Mine">
+    <svg id="ring" viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="48"/><circle class="prog" cx="50" cy="50" r="48" pathLength="100"/></svg>
+    <div id="press">
+      <svg id="coin" viewBox="0 0 200 200" aria-label="Bitcoin">
+        <defs>
+          <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd884"/><stop offset=".5" stop-color="#e9a131"/><stop offset="1" stop-color="#9e5406"/></linearGradient>
+          <radialGradient id="face" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="#ffe7a1"/><stop offset=".42" stop-color="#f7b43c"/><stop offset="1" stop-color="#c8700c"/></radialGradient>
+          <linearGradient id="lip" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ffe1a0"/><stop offset="1" stop-color="#a95c07"/></linearGradient>
+          <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="98" fill="url(#edge)"/>
+        <circle cx="100" cy="100" r="94" fill="none" stroke="#b5650b" stroke-opacity=".55" stroke-width="5" stroke-dasharray="1.6 2.1"/>
+        <circle cx="100" cy="100" r="88" fill="url(#lip)"/>
+        <circle cx="100" cy="100" r="84" fill="url(#face)"/>
+        <circle cx="100" cy="100" r="74" fill="none" stroke="#c97a14" stroke-opacity=".5" stroke-width="1.5"/>
+        <circle cx="100" cy="100" r="72.5" fill="none" stroke="#ffe3a3" stroke-opacity=".6" stroke-width="1"/>
+        <g transform="rotate(14 100 100)" font-family="Arial Black, Helvetica, Arial, sans-serif" font-weight="900" font-size="104" text-anchor="middle">
+          <g fill="#ffe8ad"><rect x="83.5" y="38.5" width="8" height="18" rx="2"/><rect x="103.5" y="38.5" width="8" height="18" rx="2"/>
+            <rect x="83.5" y="141.5" width="8" height="18" rx="2"/><rect x="103.5" y="141.5" width="8" height="18" rx="2"/>
+            <text x="99.5" y="136.5">B</text></g>
+          <g fill="#b9650a"><rect x="85" y="40" width="8" height="18" rx="2"/><rect x="105" y="40" width="8" height="18" rx="2"/>
+            <rect x="85" y="143" width="8" height="18" rx="2"/><rect x="105" y="143" width="8" height="18" rx="2"/>
+            <text x="101" y="138">B</text></g>
+        </g>
+        <path d="M30 78 A74 74 0 0 1 112 27 A90 90 0 0 0 40 95 Z" fill="url(#sheen)"/>
+      </svg>
     </div>
-    <div class="col">
-      <div class="panel">
-        <h2>Mine</h2>
-        <button id="hash">HASH! [space]</button>
-        <div class="line"><span>Next block</span><span id="blkTxt"></span></div>
-        <div class="bar"><i id="blkBar"></i></div>
-        <div class="line muted"><span>Reward <b class="btc" id="rwd"></b> BTC</span><span>Block <b id="hgt"></b></span></div>
-      </div>
-      <div class="panel">
-        <h2>Market</h2>
-        <div class="line"><button id="sellAll">SELL ALL</button><button id="sellHalf">SELL 50%</button><button id="autoBtn">AUTO: LOCKED</button></div>
-      </div>
-      <div class="panel">
-        <h2>Hardware</h2>
-        <div class="qty"><button data-q="1" class="on">x1</button><button data-q="10">x10</button><button data-q="max">MAX</button></div>
-        <div id="tiers"></div>
-      </div>
-      <div class="panel">
-        <h2>Upgrades</h2>
-        <div id="ups"></div>
-      </div>
-      <div class="panel">
-        <h2>Log</h2>
-        <div id="log"></div>
-        <div id="foot"><button id="sndBtn" class="on">SOUND</button><button id="musBtn" class="on">MUSIC</button><button id="resetBtn">RESET</button></div>
-      </div>
-    </div>
-  </main>
-</div>
+  </div>
+  <button id="mine">Mine</button>
+  <div id="next"></div>
+  <div id="stats" data-reveal="stats">
+    <div class="stat"><small>Hashrate</small><b id="sHash">0</b></div>
+    <div class="stat"><small>Blocks / s</small><b id="sBps">0</b></div>
+    <div class="stat"><small>Power</small><b id="sPow">0</b></div>
+    <div class="stat"><small>Power cost</small><b id="sCost">$0/s</b></div>
+  </div>
+</section>
+
+<section id="grid">
+  <div class="card" data-reveal="wallet">
+    <div class="card-h"><h3>Market</h3><span class="pill" id="chg"></span></div>
+    <div id="price">$0.05</div><div class="sub">per bitcoin</div>
+    <canvas id="chart" data-reveal="network"></canvas>
+    <div class="btns"><button id="sellAll" class="primary">Sell all</button><button id="sellHalf">Sell half</button></div>
+    <div class="auto" data-reveal="autosell"><span>Auto-sell</span>
+      <div class="seg" id="autoSeg"><button data-m="0">Off</button><button data-m="1">Always</button><button data-m="2" id="highsBtn">On highs</button></div></div>
+  </div>
+  <div class="card" data-reveal="hardware">
+    <div class="card-h"><h3>Hardware</h3>
+      <div class="seg qty" id="qtySeg"><button data-q="1" class="on">×1</button><button data-q="10">×10</button><button data-q="max">Max</button></div></div>
+    <div id="tiers"></div>
+  </div>
+  <div class="card" data-reveal="upgrades">
+    <div class="card-h"><h3>Upgrades</h3></div>
+    <div id="ups"></div>
+  </div>
+  <div class="card" data-reveal="network">
+    <div class="card-h"><h3>Network</h3><span class="pill" id="epPill"></span></div>
+    <div class="kv"><span>Mined supply</span><span id="supTxt"></span></div>
+    <div class="bar"><i id="supBar"></i></div>
+    <div class="kv"><span>Block height</span><span id="nHeight"></span></div>
+    <div class="kv"><span>Block reward</span><span id="nReward"></span></div>
+    <div class="kv"><span id="nHalvLbl">Next halving</span><span id="nHalv"></span></div>
+    <div class="kv"><span>Difficulty</span><span id="nDiff"></span></div>
+    <div id="news"></div>
+  </div>
+</section>
+<div id="foot" data-reveal="hardware"><button id="resetBtn">Reset progress</button></div>
+<div id="toasts"></div>
+<div id="end" class="hidden" style="display:none"></div>
 
 <script>
 "use strict";
@@ -254,8 +332,7 @@ function resetGame() { S = newState(); }
 // ================= UI =================
 const $ = id => document.getElementById(id);
 const SAVE_KEY = "blockminer2009";
-const U = { started:false, qty:1, bps:0, lastBlocks:0, hist:[], chain:[], chainOff:0, parts:[], floats:[], lastChainPush:0,
-            lastPrice:0, upKey:"", tickerT:0, flashT:0 };
+const U = { qty:1, bps:0, lastBlocks:0, hist:[], upKey:"", lastFloat:0, lastFlip:0, lastReveal:0 };
 
 function fmtN(n) {
   if (!isFinite(n)) return "0";
@@ -264,374 +341,310 @@ function fmtN(n) {
   while (Math.abs(n) >= 1000 && i < u.length - 1) { n /= 1000; i++; }
   return n.toFixed(2) + u[i];
 }
-const fmtUsd = n => "$" + fmtN(n);
-const fmtBtc = n => n < 1000 ? n.toFixed(n < 10 ? 4 : 2) : Math.floor(n).toLocaleString("en-US");
+const fmtUsd = n => "$" + (Math.abs(n) < 1000 ? n.toFixed(2) : fmtN(n));
+const fmtBtc = n => n <= 0 ? "0" : n < 1000 ? n.toFixed(n < 10 ? 4 : 2) : Math.floor(n).toLocaleString("en-US");
 function fmtUnit(n, us) { let i = 0; while (n >= 1000 && i < us.length - 1) { n /= 1000; i++; } return (n < 10 && i ? n.toFixed(2) : n < 100 ? n.toFixed(1) : n.toFixed(0)) + " " + us[i]; }
 const fmtH = n => fmtUnit(n, ["H/s","kH/s","MH/s","GH/s","TH/s","PH/s","EH/s","ZH/s"]);
 const fmtW = n => fmtUnit(n, ["W","kW","MW","GW","TW"]);
 
-function log(msg, cls = "") {
-  const d = document.createElement("div"); d.textContent = "> " + msg; if (cls) d.className = cls;
-  const l = $("log"); l.prepend(d); while (l.children.length > 50) l.lastChild.remove();
+function toast(msg, kind = "") {
+  const box = $("toasts"), t = document.createElement("div");
+  t.className = "toast " + kind; t.textContent = msg; box.appendChild(t);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => t.remove(), 4000);
 }
-function ticker(msg) { $("ticker").textContent = msg; }
-function banner(msg) { const b = $("banner"); b.textContent = msg; b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
-function flash(col) { const f = $("flash"); f.style.background = col; f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
-function shake() { const l = $("left"); l.classList.remove("shake"); void l.offsetWidth; l.classList.add("shake"); }
+function restart(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 
-// ================= AUDIO (all synthesized) =================
+// ================= PROGRESSIVE REVEAL =================
+const totalHw = () => S.hw.reduce((a, b) => a + b, 0);
+const STAGES = [
+  ["started",  () => S.clicks > 0],
+  ["wallet",   () => S.blocks > 0,          "You found a block! Sell your bitcoin for cash."],
+  ["hardware", () => S.earned > 0,          "Hardware unlocked. Let machines mine for you."],
+  ["stats",    () => totalHw() > 0],
+  ["upgrades", () => totalHw() > 0 && S.earned >= 40,        "Upgrades unlocked."],
+  ["autosell", () => !!S.ups.autosell],
+  ["network",  () => S.blocks >= 40,        "Network stats unlocked. Watch for the halving."],
+];
+function checkReveal() {
+  S.seen = S.seen || {};
+  // unlock one panel at a time, a beat apart, so the page grows calmly
+  const now = performance.now();
+  for (const [k, cond, msg] of STAGES) {
+    if (S.seen[k] || !cond()) continue;
+    if (msg && now - U.lastReveal < 1800) break;
+    S.seen[k] = true; if (msg) { toast(msg); U.lastReveal = now; break; }
+  }
+  document.querySelectorAll("[data-reveal]").forEach(el => el.classList.toggle("shown", !!S.seen[el.dataset.reveal]));
+  document.body.classList.toggle("fresh", !S.seen.wallet);
+}
+
+// ================= AUDIO (all synthesized, kept soft) =================
 const A = { ctx:null, snd:true, mus:true };
 function audioInit() {
-  if (A.ctx) { A.ctx.resume(); return; }
+  if (A.ctx) { if (A.ctx.state !== "running") A.ctx.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   const c = A.ctx = new AC();
-  A.master = c.createGain(); A.master.gain.value = 0.6; A.master.connect(c.destination);
+  A.master = c.createGain(); A.master.gain.value = 0.55; A.master.connect(c.destination);
   A.sfx = c.createGain(); A.sfx.connect(A.master);
   A.mg = c.createGain(); A.mg.connect(A.master);
-  // machine hum: two detuned low oscillators + filtered noise (fans)
-  A.humF = c.createBiquadFilter(); A.humF.type = "lowpass"; A.humF.frequency.value = 180;
-  A.humG = c.createGain(); A.humG.gain.value = 0; A.humF.connect(A.humG); A.humG.connect(A.master);
-  A.o1 = c.createOscillator(); A.o1.type = "sawtooth"; A.o1.frequency.value = 50; A.o1.connect(A.humF); A.o1.start();
-  A.o2 = c.createOscillator(); A.o2.type = "square"; A.o2.frequency.value = 100.7; A.o2.connect(A.humF); A.o2.start();
+  // machine hum: low detuned sines + a breath of filtered noise for fans; scales with hashrate
+  A.humG = c.createGain(); A.humG.gain.value = 0; A.humG.connect(A.master);
+  A.o1 = c.createOscillator(); A.o1.type = "sine"; A.o1.frequency.value = 55; A.o1.connect(A.humG); A.o1.start();
+  A.o2 = c.createOscillator(); A.o2.type = "triangle"; A.o2.frequency.value = 110.4; A.o2.connect(A.humG); A.o2.start();
   const buf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   A.noise = c.createBufferSource(); A.noise.buffer = buf; A.noise.loop = true;
-  A.nF = c.createBiquadFilter(); A.nF.type = "bandpass"; A.nF.frequency.value = 700; A.nF.Q.value = 0.6;
+  A.nF = c.createBiquadFilter(); A.nF.type = "lowpass"; A.nF.frequency.value = 500;
   A.nG = c.createGain(); A.nG.gain.value = 0; A.noise.connect(A.nF); A.nF.connect(A.nG); A.nG.connect(A.master); A.noise.start();
   applyAudio();
-  setInterval(musicStep, 230);
+  setInterval(musicStep, 420);
 }
 function applyAudio() {
+  $("sndBtn").classList.toggle("on", A.snd); $("sndBtn").textContent = A.snd ? "Sound on" : "Sound off";
+  $("musBtn").classList.toggle("on", A.mus); $("musBtn").textContent = A.mus ? "Music on" : "Music off";
   if (!A.ctx) return;
-  A.sfx.gain.value = A.snd ? 1 : 0;
-  A.mg.gain.value = A.mus ? 1 : 0;
-  $("sndBtn").classList.toggle("on", A.snd); $("musBtn").classList.toggle("on", A.mus);
+  A.sfx.gain.value = A.snd ? 1 : 0; A.mg.gain.value = A.mus ? 1 : 0;
 }
-function tone(f, dur, type = "square", vol = 0.12, slide = 0, delay = 0, out) {
+function tone(f, dur, type = "sine", vol = 0.08, slide = 0, delay = 0, out) {
   if (!A.ctx || A.ctx.state !== "running") return;
   const c = A.ctx, t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
   if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f + slide), t + dur);
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(out || A.sfx); o.start(t); o.stop(t + dur + 0.02);
 }
 let lastChime = 0;
 const SFX = {
-  click: () => tone(330 + Math.random() * 220, 0.05, "square", 0.05),
-  block: () => { const n = performance.now(); if (n - lastChime < 140) return; lastChime = n;
-                 [988, 1319, 1976].forEach((f, i) => tone(f, 0.18, "triangle", 0.1, 0, i * 0.06)); },
-  buy:   () => { tone(523, 0.07, "square", 0.07); tone(784, 0.09, "square", 0.07, 0, 0.06); },
-  sell:  () => { tone(1568, 0.05, "square", 0.06); tone(2093, 0.12, "square", 0.06, 0, 0.05); },
-  err:   () => tone(110, 0.18, "sawtooth", 0.08),
-  pump:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, "square", 0.07, 0, i * 0.07)),
-  crash: () => { tone(440, 0.7, "sawtooth", 0.1, -380); tone(220, 0.8, "square", 0.06, -180, 0.1); },
-  halving: () => { tone(55, 2.5, "sine", 0.35, 0); tone(110, 2.2, "triangle", 0.15, -55, 0.1); [392, 523, 659, 784].forEach((f, i) => tone(f, 0.5, "square", 0.06, 0, 0.3 + i * 0.15)); },
-  final: () => { [523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 1.6, "triangle", 0.1, 0, i * 0.18)); tone(65, 4, "sine", 0.3); },
+  click: () => tone(520 + Math.random() * 80, 0.07, "sine", 0.07, -120),
+  block: () => { const n = performance.now(); if (n - lastChime < 180) return; lastChime = n;
+                 tone(1318.5, 0.35, "sine", 0.07); tone(1975.5, 0.5, "sine", 0.05, 0, 0.07); },
+  buy:   () => { tone(660, 0.1, "sine", 0.06); tone(880, 0.14, "sine", 0.06, 0, 0.06); },
+  sell:  () => { tone(1568, 0.08, "triangle", 0.05); tone(2093, 0.18, "triangle", 0.05, 0, 0.06); },
+  err:   () => tone(180, 0.15, "sine", 0.07, -40),
+  pump:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, "sine", 0.05, 0, i * 0.08)),
+  crash: () => { tone(392, 0.8, "triangle", 0.07, -250); tone(196, 0.9, "sine", 0.06, -100, 0.1); },
+  halving: () => { tone(65.4, 2.8, "sine", 0.25); [392, 523, 659, 784].forEach((f, i) => tone(f, 1.2, "sine", 0.05, 0, 0.25 + i * 0.16)); },
+  final: () => { [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, 2, "sine", 0.06, 0, i * 0.2)); tone(65.4, 4, "sine", 0.22); },
 };
-// tiny chiptune: pentatonic arpeggios that speed up each epoch
-const SCALE = [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3, 659.3];
-const PATS = [[0,2,4,2,5,4,2,1],[0,4,5,7,5,4,2,4],[2,4,6,4,7,6,4,5],[0,2,4,7,8,7,4,2]];
+// ambient music: slow pentatonic plucks, a little brighter each epoch
+const SCALE = [261.6, 293.7, 329.6, 392, 440, 523.3, 587.3, 659.3];
+const PATS = [[0,2,4,2,5,4,2,1],[0,4,5,7,5,4,2,4],[2,4,6,4,7,6,4,5],[0,2,4,7,6,4,2,1]];
 let mStep = 0;
 function musicStep() {
-  if (!A.ctx || !U.started || S.done || !A.mus) return;
-  const e = epoch(), speed = e < 3 ? 2 : e < 7 ? 1 : 1;
-  mStep++; if (mStep % speed) return;
-  const k = Math.floor(mStep / speed), pat = PATS[(Math.floor(k / 32) + e) % PATS.length];
-  tone(SCALE[pat[k % 8]] * (e >= 5 ? 2 : 1), 0.18, "triangle", 0.035, 0, 0, A.mg);
-  if (k % 8 === 0) tone(SCALE[pat[0]] / 2, 0.9, "triangle", 0.06, 0, 0, A.mg);
-  if (e >= 3 && k % 4 === 2) tone(80, 0.06, "square", 0.025, -40, 0, A.mg);
+  if (!A.ctx || !A.mus || S.done || !S.seen.wallet) return;
+  const e = epoch(), k = mStep++, pat = PATS[(Math.floor(k / 32) + e) % PATS.length];
+  tone(SCALE[pat[k % 8]] * (e >= 5 ? 2 : 1), 0.6, "sine", 0.028, 0, 0, A.mg);
+  if (k % 8 === 0) tone(SCALE[pat[0]] / 2, 2.4, "triangle", 0.03, 0, 0, A.mg);
 }
 function updateHum() {
   if (!A.ctx) return;
-  const lvl = clamp(Math.log10(hashrate() + 1) / 10, 0, 1), t = A.ctx.currentTime, on = A.snd && U.started && !S.done ? 1 : 0;
-  A.humG.gain.setTargetAtTime(on * (hashrate() > 0 ? 0.04 + 0.08 * lvl : 0), t, 0.5);
-  A.nG.gain.setTargetAtTime(on * (hashrate() > 0 ? 0.004 + 0.03 * lvl : 0), t, 0.5);
-  A.o1.frequency.setTargetAtTime(45 + 35 * lvl, t, 1); A.o2.frequency.setTargetAtTime(90.7 + 70 * lvl, t, 1);
-  A.humF.frequency.setTargetAtTime(150 + 900 * lvl, t, 1);
+  const h = hashrate(), lvl = clamp(Math.log10(h + 1) / 10, 0, 1), t = A.ctx.currentTime, on = A.snd && h > 0 && !S.done ? 1 : 0;
+  A.humG.gain.setTargetAtTime(on * (0.012 + 0.03 * lvl), t, 0.6);
+  A.nG.gain.setTargetAtTime(on * (0.003 + 0.016 * lvl), t, 0.6);
+  A.o1.frequency.setTargetAtTime(50 + 25 * lvl, t, 1); A.o2.frequency.setTargetAtTime(100.4 + 50 * lvl, t, 1);
+  A.nF.frequency.setTargetAtTime(400 + 1400 * lvl, t, 1);
 }
 
-// ================= HOOKS =================
+// ================= GAME HOOKS =================
 const NEWS = {
-  pump:  ["Pizza shop now accepts Bitcoin!", "Celebrity tweets 'to the moon'", "Major exchange lists BTC, demand surges", "Whale buys the dip", "Hedge fund announces BTC treasury", "ETF approved. Number go up."],
-  crash: ["Exchange hacked! Panic selling!", "Government announces crackdown", "FUD spreads on the forums", "Whale dumps entire bag", "Mining ban rumored in major country", "Regulator: 'it's a bubble'"],
-  news:  ["New ASIC announced. Gamers furious.", "Forum thread: 'Is mining still worth it?'", "Electricity prices wobble", "Someone lost their keys in a landfill", "Laser eyes trend on social media", "Satoshi still missing"],
+  pump:  ["Pizza shop now accepts Bitcoin", "Celebrity tweets 'to the moon'", "Major exchange lists BTC", "A whale buys the dip", "Hedge fund adds BTC to its treasury", "ETF approved. Number go up."],
+  crash: ["Exchange hacked, panic selling", "Government announces a crackdown", "FUD spreads on the forums", "A whale dumps its bag", "Mining ban rumored abroad", "Regulator calls it a bubble"],
+  news:  ["New ASIC announced", "Forum asks: is mining still worth it?", "Electricity prices wobble", "Someone lost their keys in a landfill", "Laser eyes are trending", "Satoshi is still missing"],
 };
 H.block = (n, r) => {
   SFX.block();
   const now = performance.now();
-  if (now - U.lastChainPush > 150) { U.lastChainPush = now; U.chain.push({ h:S.height, e:epoch(), f:1 }); if (U.chain.length > 16) U.chain.shift(); U.chainOff = 28; }
-  for (let i = 0; i < Math.min(6, 2 + n); i++) U.parts.push({ x:20 + Math.random() * 280, y:-2, vx:(Math.random() - .5) * 20, vy:20 + Math.random() * 30, life:3 });
-  if (U.floats.length < 4) U.floats.push({ s:"+" + (r >= 100 ? Math.round(r) : r.toFixed(2)), x:140 + Math.random() * 40, y:40, life:1.2 });
+  if (now - U.lastFlip > 900) { U.lastFlip = now; restart($("coin"), "flip"); }
+  if (now - U.lastFloat > 700) {
+    U.lastFloat = now;
+    const f = document.createElement("div"); f.className = "float";
+    f.textContent = "+" + (r >= 100 ? Math.round(r).toLocaleString("en-US") : r.toFixed(2)) + " BTC";
+    f.style.marginLeft = (Math.random() * 60 - 30) + "px";
+    $("coinWrap").appendChild(f); f.addEventListener("animationend", () => f.remove());
+  }
 };
-H.halving = e => {
-  SFX.halving(); shake(); flash("#f7931a");
-  banner("HALVING! Reward now " + fmtBtc(reward()) + " BTC");
-  log("HALVING #" + e + ": block reward cut to " + fmtBtc(reward()) + " BTC", "big");
+H.halving = () => {
+  SFX.halving();
+  toast("Halving! Block reward is now " + fmtBtc(reward()) + " BTC", "big");
   U.hist.push({ p:price(), halv:true });
 };
 H.event = (type, r) => {
   const list = NEWS[type], msg = list[Math.floor(r * list.length)];
-  ticker((type === "pump" ? "▲ " : type === "crash" ? "▼ " : "• ") + msg);
-  log(msg, type);
-  if (type === "pump") { SFX.pump(); flash("#3ddc84"); }
-  if (type === "crash") { SFX.crash(); flash("#ff5c5c"); shake(); }
+  $("news").innerHTML = `<span class="${type === "pump" ? "up" : type === "crash" ? "down" : ""}">${type === "pump" ? "▲" : type === "crash" ? "▼" : "•"}</span> ${msg}`;
+  if (!S.seen || !S.seen.wallet) return;
+  if (type === "pump") { SFX.pump(); toast("▲ " + msg, "good"); }
+  if (type === "crash") { SFX.crash(); toast("▼ " + msg, "bad"); }
 };
-H.sell = () => {};
 H.final = () => {
-  SFX.final(); flash("#ffffff"); save();
+  SFX.final(); save();
   setTimeout(() => {
-    const m = Math.floor(S.time / 60), s = Math.floor(S.time % 60);
-    $("end").innerHTML = `<h1 style="color:var(--btc);font-size:34px;margin:0">21,000,000 BTC MINED</h1>
-      <p>The last Bitcoin is yours. Satoshi would be proud (probably).</p>
-      <p>Time: <b>${m}m ${s}s</b><br>Blocks found: <b>${S.blocks.toLocaleString()}</b><br>
-      Final price: <b>${fmtUsd(price())}</b><br>Total cash earned: <b>${fmtUsd(S.earned)}</b><br>Clicks: <b>${S.clicks.toLocaleString()}</b></p>
-      <button class="bigbtn" id="againBtn">PLAY AGAIN</button>`;
-    $("end").classList.remove("hidden");
-    $("againBtn").onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); };
+    const m = Math.floor(S.time / 60), s = Math.floor(S.time % 60), e = $("end");
+    e.innerHTML = `<div class="card">
+      <svg viewBox="0 0 200 200" width="88" height="88">${$("coin").innerHTML}</svg>
+      <h2>All 21,000,000 mined</h2><p class="sub">The last bitcoin is yours. Satoshi would be proud.</p>
+      <div class="kv"><span>Time</span><span>${m}m ${s}s</span></div>
+      <div class="kv"><span>Blocks found</span><span>${S.blocks.toLocaleString()}</span></div>
+      <div class="kv"><span>Final price</span><span>${fmtUsd(price())}</span></div>
+      <div class="kv"><span>Cash earned</span><span>${fmtUsd(S.earned)}</span></div>
+      <div class="kv"><span>Clicks</span><span>${S.clicks.toLocaleString()}</span></div>
+      <button class="primary" id="againBtn" style="margin-top:18px;width:100%">Play again</button></div>`;
+    e.style.display = "";
+    $("againBtn").onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch (err) {} location.reload(); };
   }, 1800);
 };
 
 // ================= CONTROLS =================
-$("hash").onclick = () => { if (!U.started) return; click(); SFX.click(); U.parts.push({ x:18, y:60, vx:(Math.random() - .5) * 30, vy:-40, life:.5, spark:1 }); };
-document.addEventListener("keydown", e => { if (e.code === "Space" && U.started && e.target === document.body) { e.preventDefault(); $("hash").click(); } });
-$("sellAll").onclick = () => { if (sell(1) > 0) SFX.sell(); else SFX.err(); };
-$("sellHalf").onclick = () => { if (sell(0.5) > 0) SFX.sell(); else SFX.err(); };
-$("autoBtn").onclick = () => {
-  if (!S.ups.autosell) return SFX.err();
-  S.auto = (S.auto + 1) % (S.ups.diamond ? 3 : 2); SFX.buy();
-};
-document.querySelectorAll(".qty button").forEach(b => b.onclick = () => {
-  U.qty = b.dataset.q === "max" ? "max" : +b.dataset.q;
-  document.querySelectorAll(".qty button").forEach(x => x.classList.toggle("on", x === b));
+function doMine() { audioInit(); click(); SFX.click(); checkReveal(); renderUI(); }
+$("mine").onclick = doMine;
+$("mine").addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); });
+$("coinWrap").onclick = doMine;
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && (e.target === document.body || e.target === $("mine"))) { e.preventDefault(); if (!e.repeat) doMine(); }
 });
-$("sndBtn").onclick = () => { A.snd = !A.snd; applyAudio(); save(); };
+document.addEventListener("pointerdown", audioInit);
+$("sellAll").onclick = () => { if (sell(1) > 0) SFX.sell(); else SFX.err(); renderUI(); };
+$("sellHalf").onclick = () => { if (sell(0.5) > 0) SFX.sell(); else SFX.err(); renderUI(); };
+$("autoSeg").querySelectorAll("button").forEach(b => b.onclick = () => { S.auto = +b.dataset.m; SFX.buy(); renderUI(); });
+$("qtySeg").querySelectorAll("button").forEach(b => b.onclick = () => {
+  U.qty = b.dataset.q === "max" ? "max" : +b.dataset.q;
+  $("qtySeg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); renderUI();
+});
+$("sndBtn").onclick = () => { A.snd = !A.snd; applyAudio(); updateHum(); save(); };
 $("musBtn").onclick = () => { A.mus = !A.mus; applyAudio(); save(); };
-$("resetBtn").onclick = () => { if (confirm("Wipe your save and start over?")) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); } };
+$("resetBtn").onclick = () => { if (confirm("Reset all progress and start over?")) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); } };
 
 const tierRows = TIERS.map((t, i) => {
   const row = document.createElement("div"); row.className = "row";
-  row.innerHTML = `<div class="nm"><b>${t.name}</b> <span class="btc"></span><small></small></div><button></button>`;
+  row.innerHTML = `<div class="nm"><b>${t.name}</b><span class="cnt"></span><small></small></div><button></button>`;
   const btn = row.querySelector("button");
-  btn.onclick = () => { const had = S.hw[i]; if (buyTier(i, U.qty)) { SFX.buy(); if (!had) log("New hardware online: " + t.name, "big"); } else SFX.err(); };
+  btn.onclick = () => { const had = S.hw[i]; if (buyTier(i, U.qty)) { SFX.buy(); if (!had) toast(t.name + " online"); checkReveal(); renderUI(); } else SFX.err(); };
   $("tiers").appendChild(row);
-  return { row, own:row.querySelector("span"), info:row.querySelector("small"), btn };
+  return { row, cnt:row.querySelector(".cnt"), info:row.querySelector("small"), btn };
 });
 
 function renderUps() {
-  const list = UPS.filter(u => !S.ups[u.id]).slice(0, 5);
-  const key = list.map(u => u.id).join();
+  const list = UPS.filter(u => !S.ups[u.id]).slice(0, 4), key = list.map(u => u.id).join();
   if (key !== U.upKey) {
     U.upKey = key; const box = $("ups"); box.innerHTML = "";
-    if (!list.length) box.innerHTML = '<div class="muted">All upgrades purchased.</div>';
+    if (!list.length) box.innerHTML = '<div class="sub">Every upgrade purchased.</div>';
     for (const u of list) {
       const row = document.createElement("div"); row.className = "row";
       row.innerHTML = `<div class="nm"><b>${u.name}</b><small>${u.desc}</small></div><button data-id="${u.id}"></button>`;
-      row.querySelector("button").onclick = () => { if (buyUp(u.id)) { SFX.buy(); log("Upgrade: " + u.name, "big"); } else SFX.err(); };
+      row.querySelector("button").onclick = () => { if (buyUp(u.id)) { SFX.buy(); toast(u.name + " purchased"); checkReveal(); renderUI(); } else SFX.err(); };
       box.appendChild(row);
     }
   }
   $("ups").querySelectorAll("button[data-id]").forEach(b => {
-    const u = UPS.find(x => x.id === b.dataset.id), c = upCost(u);
-    b.textContent = fmtUsd(c); b.disabled = c > S.usd;
+    const c = upCost(UPS.find(x => x.id === b.dataset.id)); b.textContent = fmtUsd(c); b.disabled = c > S.usd;
   });
 }
 
 function renderUI() {
-  const p = price();
-  $("hBtc").textContent = fmtBtc(S.btc);
-  $("hUsd").textContent = fmtUsd(S.usd);
-  const up = p >= U.lastPrice;
-  $("hPrice").innerHTML = `${fmtUsd(p)} <span class="${up ? "good" : "bad"}">${up ? "▲" : "▼"}</span>`;
-  $("hHash").textContent = fmtH(hashrate());
-  const w = watts(), pc = w * elecRate();
-  $("hPow").innerHTML = `${fmtW(w)} <span class="${S.brown ? "bad" : "muted"}">${S.brown ? "BROWNOUT" : fmtUsd(pc) + "/s"}</span>`;
-  $("hBps").textContent = U.bps.toFixed(U.bps < 10 ? 2 : 0);
-  $("blkBar").style.width = Math.min(100, S.work / (S.target || 1) * 100) + "%";
-  const eta = hashrate() > 0 ? Math.max(0, (S.target - S.work) / hashrate()) : Infinity;
-  $("blkTxt").textContent = isFinite(eta) ? (eta < 1 ? "<1s" : Math.ceil(eta) + "s") : "click to hash";
-  $("rwd").textContent = fmtBtc(reward()); $("hgt").textContent = S.height.toLocaleString();
-  $("supBar").style.width = (S.mined / CFG.CAP * 100) + "%";
-  $("supTxt").textContent = Math.floor(S.mined).toLocaleString("en-US") + " / 21,000,000 BTC (" + (S.mined / CFG.CAP * 100).toFixed(2) + "%)";
-  const left = (epoch() + 1) * CFG.EP - S.height;
-  $("epTxt").textContent = epoch() < CFG.EPOCHS - 1 ? `Halving in ${left.toLocaleString()} blocks` : `Last bitcoin in ${left.toLocaleString()} blocks`;
-  $("autoBtn").textContent = !S.ups.autosell ? "AUTO: LOCKED" : ["AUTO: OFF", "AUTO: ALWAYS", "AUTO: ON HIGHS"][S.auto];
-  $("autoBtn").classList.toggle("on", S.auto > 0);
-  $("sellAll").disabled = $("sellHalf").disabled = S.btc <= 0;
-  TIERS.forEach((t, i) => {
+  const p = price(), h = hashrate();
+  $("bBtc").textContent = fmtBtc(S.btc);
+  $("bUsd").textContent = fmtUsd(S.usd) + " cash";
+  // progress ring toward the next block
+  const pct = Math.min(100, S.work / (S.target || 1) * 100), eta = h > 0 ? (S.target - S.work) / h : Infinity;
+  $("ring").classList.toggle("fast", h > 0 && S.target / h < 0.4);
+  const prog = $("ring").querySelector(".prog");
+  prog.style.strokeDashoffset = 100 - pct; prog.style.opacity = pct < 1 ? 0 : 1;
+  $("next").textContent = !S.seen.wallet ? "" : h <= 0 ? "Click the coin or press Mine" : eta < 1 ? "Mining…" : "Next block in ~" + Math.ceil(eta) + "s";
+  if (S.seen.stats) {
+    const w = watts();
+    $("sHash").textContent = fmtH(h); $("sBps").textContent = U.bps.toFixed(U.bps < 10 ? 2 : 0);
+    $("sPow").textContent = fmtW(w);
+    $("sCost").textContent = S.brown ? "Brownout" : fmtUsd(w * elecRate()) + "/s";
+    $("sCost").classList.toggle("brown", S.brown);
+  }
+  if (S.seen.wallet) {
+    $("price").textContent = fmtUsd(p);
+    const ref = U.hist.length > 30 ? U.hist[U.hist.length - 30].p : U.hist.length ? U.hist[0].p : p, ch = (p / ref - 1) * 100;
+    $("chg").textContent = (ch >= 0 ? "▲ " : "▼ ") + Math.abs(ch).toFixed(1) + "%"; $("chg").className = "pill " + (ch >= 0 ? "up" : "down");
+    $("sellAll").disabled = $("sellHalf").disabled = S.btc <= 0;
+    $("highsBtn").style.display = S.ups.diamond ? "" : "none";
+    $("autoSeg").querySelectorAll("button").forEach(b => b.classList.toggle("on", +b.dataset.m === S.auto));
+  }
+  if (S.seen.hardware) TIERS.forEach((t, i) => {
     const r = tierRows[i], n = U.qty === "max" ? Math.max(1, maxAff(i)) : U.qty, c = costN(i, n);
-    const vis = i === 0 || S.hw[i] > 0 || S.hw[i - 1] > 0 || S.usd >= c * 0.3;
-    r.row.style.display = vis ? "" : "none";
-    r.own.textContent = S.hw[i] ? "x" + S.hw[i] : "";
-    r.info.textContent = `+${fmtH(t.hash * mult("hm"))} · ${fmtW(t.watts * mult("wm"))} each`;
-    r.btn.textContent = `+${n} ${fmtUsd(c)}`; r.btn.disabled = c > S.usd;
+    r.row.style.display = i === 0 || S.hw[i] > 0 || S.hw[i - 1] > 0 ? "" : "none";
+    r.cnt.textContent = S.hw[i] ? "×" + S.hw[i] : "";
+    r.info.textContent = `${fmtH(t.hash * mult("hm"))} · ${fmtW(t.watts * mult("wm"))}`;
+    r.btn.textContent = (n > 1 ? n + " for " : "") + fmtUsd(c); r.btn.disabled = c > S.usd;
   });
-  renderUps();
+  if (S.seen.upgrades) renderUps();
+  if (S.seen.network) {
+    const left = (epoch() + 1) * CFG.EP - S.height, last = epoch() === CFG.EPOCHS - 1;
+    $("supTxt").textContent = (S.mined / CFG.CAP * 100).toFixed(2) + "% of 21M";
+    $("supBar").style.width = (S.mined / CFG.CAP * 100) + "%";
+    $("epPill").textContent = "Epoch " + (epoch() + 1) + " of " + CFG.EPOCHS;
+    $("nHeight").textContent = S.height.toLocaleString();
+    $("nReward").textContent = fmtBtc(reward()) + " BTC";
+    $("nHalvLbl").textContent = last ? "Last bitcoin in" : "Next halving in";
+    $("nHalv").textContent = left.toLocaleString() + " blocks";
+    $("nDiff").textContent = fmtN(diff());
+  }
 }
 
-// ================= PIXEL ART =================
-const FONT = { "0":"111101101101111","1":"010110010010111","2":"111001111100111","3":"111001111001111","4":"101101111001001",
-  "5":"111100111001111","6":"111100111101111","7":"111001001001001","8":"111101111101111","9":"111101111001111",
-  "A":"111101111101101","B":"110101110101110","C":"111100100100111","D":"110101101101110","E":"111100110100111","F":"111100110100100",
-  "+":"000010111010000",".":"000000000000010","-":"000000111000000","$":"011110010011110","#":"101111101111101"," ":"000000000000000" };
-function txt(c, s, x, y, col) {
-  c.fillStyle = col;
-  for (let i = 0; i < s.length; i++) { const g = FONT[s[i]]; if (!g) continue;
-    for (let j = 0; j < 15; j++) if (g[j] === "1") c.fillRect(x + i * 4 + (j % 3), y + ((j / 3) | 0), 1, 1); }
-}
-const R = (c, col, x, y, w, h) => { c.fillStyle = col; c.fillRect(x | 0, y | 0, w, h); };
-const blink = (k, u, m = 4) => (k + u) % m < m / 2;
-// one sprite per hardware tier; each fits an 11x12 cell, feet on the floor
-const SPR = [
-  (c, x, y, k, u) => { R(c,"#9aa0ab",x+2,y+6,7,6); R(c,"#6c7380",x+3,y+7,5,4); R(c,"#2a2f3a",x+4,y+8,3,2); R(c, blink(k,u) ? "#3ddc84" : "#14361f", x+8,y+6,1,1); },
-  (c, x, y, k, u) => { R(c,"#2b3a55",x,y+5,11,7); R(c,"#c9ccd3",x,y+5,1,7); R(c,"#0c0f16",x+1,y+6,4,4); R(c,"#0c0f16",x+6,y+6,4,4);
-                       const p = [[1,1],[2,1],[2,2],[1,2]][(k + u) % 4]; R(c,"#9fb4d6",x+1+p[0],y+6+p[1],1,1); R(c,"#9fb4d6",x+6+p[1],y+6+p[0],1,1); R(c,"#f7931a",x+2,y+11,7,1); },
-  (c, x, y, k, u) => { R(c,"#1c7a52",x,y+5,11,7); R(c,"#c9a227",x+1,y+7,9,1); R(c,"#c9a227",x+1,y+10,9,1); R(c,"#222",x+3,y+6,5,4); R(c,"#555",x+4,y+7,3,2); R(c, blink(k,u,3) ? "#ff5c5c" : "#400", x+9,y+6,1,1); },
-  (c, x, y, k, u) => { R(c,"#d9822b",x,y+4,11,8); R(c,"#a8601a",x,y+4,11,1); R(c,"#3a2a1a",x+3,y+5,5,4); const p = (k + u) % 2; R(c,"#e8c9a0",x+4+p*2,y+6,1,2);
-                       R(c,"#a8601a",x+1,y+10,9,1); for (let i = 0; i < 3; i++) R(c, blink(k,u+i,3) ? "#3ddc84" : "#203020", x+1+i*2,y+11,1,1); },
-  (c, x, y, k, u) => { R(c,"#1b1f28",x+1,y,9,12); R(c,"#3a4256",x+1,y,9,1);
-                       for (let j = 0; j < 4; j++) { R(c,"#2a3142",x+2,y+1+j*3,7,2); R(c, blink(k,u+j,3) ? "#3ddc84" : "#ffb020", x+3,y+1+j*3,1,1); R(c, blink(k,u+j*2,5) ? "#3ddc84" : "#111", x+5,y+1+j*3,1,1); } },
-  (c, x, y, k, u) => { R(c,"#3d6a8f",x,y+3,11,9); for (let i = 1; i < 11; i += 2) R(c,"#2f5373",x+i,y+3,1,9); R(c,"#1e3a52",x,y+3,11,1); R(c, blink(k,u,6) ? "#ffd86b" : "#4a3a10", x+9,y+4,1,1); },
-  (c, x, y, k, u) => { R(c,"#454b5a",x,y+1,11,11); R(c,"#5b6274",x,y+1,11,1);
-                       for (let r = 0; r < 3; r++) for (let q = 0; q < 3; q++) R(c, (k + u + r * 3 + q * 7) % 9 < 6 ? "#ffd86b" : "#2a2f3a", x+1+q*3,y+3+r*3,2,2); },
-  (c, x, y, k, u) => { R(c,"#5a4a4a",x+3,y+4,8,8); R(c,"#3a3030",x,y,3,12); R(c, blink(k,u) ? "#ff5c5c" : "#401010", x+1,y,1,1);
-                       for (let s = 0; s < 3; s++) R(c,"#9aa3b5",x+1+((k+s)%2),y-1-((k*2+s*3+u)%7),1,1); R(c,"#ffd86b",x+5,y+7,1,1); R(c,"#ffd86b",x+8,y+7,1,1); },
-  (c, x, y, k, u) => { const p = (k + u) % 4; R(c,"#0a2a3a",x,y+1,11,11); R(c,"#106080",x+2-(p>1),y+3-(p>1),7+2*(p>1),7+2*(p>1));
-                       R(c,"#1ec8ff",x+3,y+4,5,5); R(c,"#e8ffff",x+4,y+5,3,3); R(c,"#1ec8ff",x,y+1,1,1); R(c,"#1ec8ff",x+10,y+11,1,1); },
-];
-
-const scene = $("scene").getContext("2d"), chainC = $("chain").getContext("2d"), chart = $("chart").getContext("2d");
-const HEX = "0123456789ABCDEF";
-function drawScene(t, dt) {
-  const c = scene, k = Math.floor(t * 6);
-  R(c,"#0f131c",0,0,320,110);
-  for (let x = 0; x < 320; x += 40) R(c,"#131826",x,8,1,88);
-  // hash rain: scrolling hex digits, faster with more hashrate
-  const speed = 2 + Math.log10(hashrate() + 1) * 2;
-  for (let col = 0; col < 26; col++) {
-    const off = Math.floor(t * speed + col * 7.3);
-    for (let r = 0; r < 4; r++) {
-      const ch = HEX[(off * 31 + r * 17 + col * 13) % 16];
-      txt(c, ch, 3 + col * 12, 10 + r * 6 + ((t * speed * 6 + col * 3) % 6 | 0), r === 3 ? "#1d4a2c" : "#14301f");
-    }
-  }
-  // power line with pulses
-  R(c,"#3a3a2a",0,4,320,1);
-  const pw = watts(), pulses = Math.min(12, Math.ceil(Math.log10(pw + 1)));
-  for (let i = 0; i < pulses; i++) R(c,"#ffd86b",((t * 60 + i * 320 / pulses) % 320) | 0,3,2,3);
-  // floor
-  R(c,"#1a2030",0,96,320,14); R(c,"#2b3350",0,96,320,1);
-  for (let x = 0; x < 320; x += 16) R(c,"#222a3d",x,97,1,13);
-  // hardware lanes
-  for (let i = 0; i < TIERS.length; i++) {
-    const x0 = 3 + i * 35, n = S.hw[i], units = Math.min(n, 15);
-    if (!n) { R(c,"#1e2536",x0+11,84,11,1); R(c,"#1e2536",x0+11,95,11,1); R(c,"#1e2536",x0+11,84,1,12); R(c,"#1e2536",x0+21,84,1,12); continue; }
-    const top = 96 - Math.ceil(units / 3) * 12;
-    R(c,"#3a3a2a",x0+16,5,1,Math.max(0, top - 6));
-    for (let u = 0; u < units; u++) SPR[i](c, x0 + (u % 3) * 11, 96 - ((u / 3 | 0) + 1) * 12, k, u * 3 + i);
-    if (n > 15) txt(c, "+" + (n - 15), x0 + 2, top - 7, "#f7931a");
-  }
-  // coins & sparks
-  for (const p of U.parts) {
-    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt;
-    if (!p.spark && p.y > 94) { p.y = 94; p.vy *= -0.4; p.vx *= 0.6; }
-    R(c, p.spark ? "#fff3b0" : (Math.floor(t * 8 + p.x) % 2 ? "#f7931a" : "#ffd86b"), p.x, p.y, 2, 2);
-  }
-  U.parts = U.parts.filter(p => p.life > 0).slice(-80);
-  for (const f of U.floats) { f.life -= dt; f.y -= 18 * dt; txt(c, f.s, f.x | 0, f.y | 0, f.life > 0.4 || k % 2 ? "#ffd86b" : "#a85f0a"); }
-  U.floats = U.floats.filter(f => f.life > 0);
-  // heat glow & brownout flicker
-  const heat = clamp((Math.log10(pw + 1) - 2) / 8, 0, 1);
-  if (heat > 0) { c.fillStyle = `rgba(255,70,20,${heat * 0.13})`; c.fillRect(0, 0, 320, 110); }
-  if (S.brown && Math.floor(t * 9) % 3 === 0) { c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(0, 0, 320, 110); }
-}
-const EPC = ["#f7931a","#e8b923","#3ddc84","#1ec8ff","#7b8cff","#c77dff","#ff6ec7","#ff5c5c","#ffd86b","#ffffff"];
-function drawChain(dt) {
-  const c = chainC; R(c,"#0b0e14",0,0,320,32);
-  U.chainOff = Math.max(0, U.chainOff - dt * 140);
-  const n = U.chain.length;
-  for (let i = 0; i < n; i++) {
-    const b = U.chain[n - 1 - i], x = 292 - i * 28 + U.chainOff;
-    if (x < -26) break;
-    b.f = Math.max(0, b.f - dt * 1.5);
-    const col = b.f > 0.5 ? "#ffffff" : EPC[b.e];
-    R(c, "#000", x + 1, 6, 24, 22); R(c, col, x, 5, 24, 22); R(c, "#0b0e14", x + 2, 7, 20, 18);
-    R(c, col, x + 2, 7, 20, 2);
-    txt(c, String(b.h % 10000).padStart(4, "0"), x + 4, 14, col);
-    if (i < n - 1) R(c, "#4a5270", x - 4, 15, 4, 2);
-  }
-}
+// ================= CHART =================
 function drawChart() {
-  const c = chart; R(c,"#0b0e14",0,0,320,64);
-  for (let y = 8; y < 64; y += 14) R(c,"#151b29",0,y,320,1);
-  const h = U.hist; if (h.length < 2) return;
+  const cv = $("chart"); if (!S.seen.network) return;
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, hgt = cv.clientHeight; if (!w) return;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); }
+  const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+  const d = U.hist; if (d.length < 2) return;
+  const cs = getComputedStyle(document.documentElement), acc = cs.getPropertyValue("--accent").trim(), line = cs.getPropertyValue("--line").trim();
   let lo = Infinity, hi = -Infinity;
-  for (const e of h) { const l = Math.log(e.p); lo = Math.min(lo, l); hi = Math.max(hi, l); }
-  if (hi - lo < 0.2) { const m = (hi + lo) / 2; lo = m - 0.1; hi = m + 0.1; }
-  const Y = p => 60 - (Math.log(p) - lo) / (hi - lo) * 50, x0 = 320 - h.length * 2;
-  for (let i = 0; i < h.length; i++) {
-    const x = x0 + i * 2, y = Y(h[i].p);
-    if (h[i].halv) for (let yy = 2; yy < 64; yy += 4) R(c,"#f7931a",x,yy,1,2);
-    R(c,"#2a1d08",x,y + 1,2,63 - y);
-    const yn = i + 1 < h.length ? Y(h[i + 1].p) : y;
-    R(c, yn <= y ? "#3ddc84" : "#ff5c5c", x, Math.min(y, yn), 2, Math.abs(yn - y) + 1);
-  }
-  txt(c, "$" + (price() < 100 ? price().toFixed(2) : Math.round(price()).toString()), 3, 3, "#ffd86b");
+  for (const e of d) { const l = Math.log(e.p); lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  if (hi - lo < 0.1) { const m = (hi + lo) / 2; lo = m - 0.05; hi = m + 0.05; }
+  const X = i => i / (d.length - 1) * w, Y = p => hgt - 6 - (Math.log(p) - lo) / (hi - lo) * (hgt - 14);
+  c.strokeStyle = line; c.lineWidth = 1; c.setLineDash([3, 4]);
+  d.forEach((e, i) => { if (e.halv) { c.beginPath(); c.moveTo(X(i), 0); c.lineTo(X(i), hgt); c.stroke(); } });
+  c.setLineDash([]);
+  c.beginPath(); d.forEach((e, i) => i ? c.lineTo(X(i), Y(e.p)) : c.moveTo(0, Y(e.p)));
+  const g = c.createLinearGradient(0, 0, 0, hgt); g.addColorStop(0, acc + "40"); g.addColorStop(1, acc + "00");
+  c.save(); c.lineTo(w, hgt); c.lineTo(0, hgt); c.closePath(); c.fillStyle = g; c.fill(); c.restore();
+  c.beginPath(); d.forEach((e, i) => i ? c.lineTo(X(i), Y(e.p)) : c.moveTo(0, Y(e.p)));
+  c.strokeStyle = acc; c.lineWidth = 2; c.lineJoin = "round"; c.stroke();
+  const lx = X(d.length - 1), ly = Y(d[d.length - 1].p);
+  c.beginPath(); c.arc(lx - 3, ly, 3, 0, Math.PI * 2); c.fillStyle = acc; c.fill();
 }
 
 // ================= LOOP / SAVE =================
 function save() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ S, snd:A.snd, mus:A.mus, hist:U.hist.slice(-150) })); } catch (e) {}
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ S, snd:A.snd, mus:A.mus, hist:U.hist.slice(-150), at:Date.now() })); } catch (e) {}
 }
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!d || !d.S) return null; return d; } catch (e) { return null; }
+  try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); return d && d.S ? d : null; } catch (e) { return null; }
 }
-let lastT = 0, simAcc = 0, secAcc = 0;
-function frame(ms) {
-  const t = ms / 1000, dt = Math.min(0.1, lastT ? t - lastT : 0); lastT = t;
-  drawScene(t, dt); drawChain(dt); drawChart();
-  requestAnimationFrame(frame);
-}
-let wall = 0;
+let wall = Date.now(), secAcc = 0;
 function tickLoop() {
-  const now = Date.now(), el = Math.min(600, (now - wall) / 1000); wall = now;   // catch up to 10 min if the tab slept
-  let left = el;
-  while (left > 0 && !S.done) { const d = Math.min(0.5, left); step(d); left -= d; }
+  const now = Date.now(), el = Math.min(600, (now - wall) / 1000); wall = now;   // catch up if the tab slept
+  for (let left = el; left > 0 && !S.done; left -= 0.5) step(Math.min(0.5, left));
   secAcc += el;
   if (secAcc >= 1) {
     U.bps = U.bps * 0.5 + (S.blocks - U.lastBlocks) / secAcc * 0.5; U.lastBlocks = S.blocks;
-    U.lastPrice = U.hist.length ? U.hist[U.hist.length - 1].p : price();
-    U.hist.push({ p:price() }); if (U.hist.length > 160) U.hist.shift();
-    secAcc = 0; updateHum();
-    if (Math.floor(S.time) % 10 === 0) save();
+    if (S.seen.wallet) { U.hist.push({ p:price() }); if (U.hist.length > 160) U.hist.shift(); }
+    secAcc = 0; updateHum(); drawChart();
+    if (S.seen.started && Math.floor(S.time) % 10 === 0) save();
   }
-  renderUI();
+  checkReveal(); renderUI();
 }
-function startGame(fromSave) {
-  if (fromSave) { Object.assign(S, fromSave.S); A.snd = fromSave.snd !== false; A.mus = fromSave.mus !== false; U.hist = fromSave.hist || []; U.lastBlocks = S.blocks; }
-  if (!S.target) S.target = diff() * luck();
-  audioInit(); applyAudio();
-  $("start").classList.add("hidden"); U.started = true; wall = Date.now();
-  log(fromSave ? "Welcome back, miner." : "Genesis. Click HASH! to mine your first block.", "big");
-  ticker(fromSave ? "Your rigs kept humming." : "Chancellor on brink of second bailout for banks.");
-  SFX.buy();
-  setInterval(tickLoop, 100);
-}
+
 const saved = load();
 if (saved && !saved.S.done) {
-  $("startBtns").innerHTML = '<button class="bigbtn blink" id="contBtn">CONTINUE</button><button class="bigbtn" id="newBtn">NEW GAME</button>';
-  $("contBtn").onclick = () => startGame(saved);
-  $("newBtn").onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} startGame(null); };
-} else {
-  $("goBtn").onclick = () => startGame(null);
+  Object.assign(S, saved.S); A.snd = saved.snd !== false; A.mus = saved.mus !== false; U.hist = saved.hist || [];
+  const away = Math.min(600, Math.max(0, (Date.now() - (saved.at || Date.now())) / 1000)), before = S.mined;
+  for (let left = away; left > 0 && !S.done; left -= 1) step(Math.min(1, left));
+  U.lastBlocks = S.blocks;
+  if (S.mined - before > 0) setTimeout(() => toast("Welcome back. Your rigs mined " + fmtBtc(S.mined - before) + " BTC while you were away."), 400);
 }
-// integer pixel scaling so the art stays crisp
-function fit() {
-  const w = $("left").clientWidth - 4, k = Math.max(1, Math.floor(w / 320));
-  for (const id of ["scene", "chain", "chart"]) { const cv = $(id); cv.style.width = cv.width * k + "px"; cv.style.height = cv.height * k + "px"; }
-}
-window.addEventListener("resize", fit); fit();
-renderUI();
-requestAnimationFrame(frame);
+if (!S.blocks) S.target = 12;                    // a predictable first block: ~12 clicks
+else if (!S.target) S.target = diff() * luck();
+applyAudio(); checkReveal(); renderUI(); drawChart();
+setInterval(tickLoop, 100);
+window.addEventListener("resize", drawChart);
+window.addEventListener("beforeunload", () => { if (S.seen.started) save(); });
 </script>
 </body>
 </html>
