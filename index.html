@@ -3,262 +3,635 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Paperclip Clone</title>
+<title>Block Miner 2009</title>
 <style>
-  :root { --bg:#fff; --fg:#111; --muted:#777; --line:#ccc; --accent:#111; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 "Courier New", monospace; }
-  header { text-align:center; padding:16px 8px 4px; }
-  h1 { margin:0; font-size:20px; }
-  #count { font-size:34px; font-weight:bold; }
-  #wrap { max-width:1000px; margin:0 auto; padding:8px 16px 40px; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:700px){ #wrap{ grid-template-columns:1fr; } }
-  section { border:1px solid var(--line); padding:10px 12px; }
-  section h2 { margin:0 0 8px; font-size:14px; text-transform:uppercase; border-bottom:1px solid var(--line); padding-bottom:4px; }
-  button { font:inherit; padding:5px 10px; margin:2px 0; background:#f4f4f4; border:1px solid #888; cursor:pointer; }
-  button:hover:not(:disabled) { background:#e4e4e4; }
-  button:disabled { color:#aaa; border-color:#ccc; cursor:not-allowed; }
-  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:3px 0; }
-  .big { width:100%; font-size:18px; padding:10px; }
+  :root { --bg:#0b0e14; --panel:#141925; --line:#2b3350; --fg:#cfd6e6; --muted:#6b7694; --btc:#f7931a; --good:#3ddc84; --bad:#ff5c5c; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.35 "Courier New", Courier, monospace; font-weight:bold; }
+  button { font:inherit; color:var(--fg); background:#1e2538; border:2px solid var(--line); border-radius:0; padding:5px 8px; cursor:pointer; box-shadow:0 3px 0 #000; }
+  button:hover:not(:disabled) { background:#2a3350; }
+  button:active:not(:disabled) { transform:translateY(2px); box-shadow:0 1px 0 #000; }
+  button:disabled { color:#4a5270; border-color:#1d2336; cursor:not-allowed; }
+  button.on { border-color:var(--btc); color:var(--btc); }
+  canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; background:#000; border:2px solid var(--line); }
+  #start, #end { position:fixed; inset:0; background:rgba(5,7,12,.96); z-index:10; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }
+  #start h1 { color:var(--btc); font-size:42px; margin:0 0 6px; letter-spacing:3px; text-shadow:4px 4px 0 #000; }
+  #start p, #end p { max-width:520px; color:var(--muted); }
+  .blink { animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  .bigbtn { font-size:20px; padding:12px 28px; margin:6px; border-color:var(--btc); color:var(--btc); }
+  #app { max-width:1180px; margin:0 auto; padding:8px 12px 30px; }
+  #hud { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:6px; margin-bottom:8px; }
+  .stat { background:var(--panel); border:2px solid var(--line); padding:4px 8px; }
+  .stat small { display:block; color:var(--muted); font-size:11px; }
+  .stat b { font-size:16px; }
+  .btc { color:var(--btc); } .good { color:var(--good); } .bad { color:var(--bad); }
+  main { display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:10px; }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  .col { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .panel { background:var(--panel); border:2px solid var(--line); padding:8px; }
+  .panel h2 { margin:0 0 6px; font-size:13px; color:var(--btc); text-transform:uppercase; letter-spacing:1px; }
+  .bar { height:14px; background:#0a0d14; border:2px solid var(--line); position:relative; }
+  .bar i { display:block; height:100%; background:var(--btc); width:0; }
+  .bar.seg i { background:repeating-linear-gradient(90deg,var(--btc) 0 6px,#a85f0a 6px 8px); }
+  #hash { width:100%; font-size:20px; padding:14px; border-color:var(--btc); color:var(--btc); margin:4px 0 8px; }
+  .line { display:flex; justify-content:space-between; gap:8px; margin:2px 0; }
+  .muted { color:var(--muted); font-weight:normal; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 0; border-bottom:1px dashed #232b44; }
+  .row:last-child { border:0; }
+  .row .nm small { display:block; color:var(--muted); font-weight:normal; font-size:11px; }
+  .row button { min-width:128px; text-align:right; }
+  .qty { display:flex; gap:4px; margin-bottom:4px; }
+  .qty button { padding:2px 8px; box-shadow:none; }
+  #log { height:130px; overflow-y:auto; font-weight:normal; font-size:12px; }
+  #log div { margin:1px 0; } #log .pump { color:var(--good); } #log .crash { color:var(--bad); } #log .big { color:var(--btc); }
+  #ticker { background:#000; border:2px solid var(--line); color:var(--btc); padding:3px 8px; white-space:nowrap; overflow:hidden; font-weight:normal; }
+  #banner { position:fixed; left:0; right:0; top:28%; text-align:center; font-size:34px; color:var(--btc); text-shadow:4px 4px 0 #000; pointer-events:none; opacity:0; z-index:5; }
+  #banner.show { animation:ban 3s steps(12) forwards; }
+  @keyframes ban { 0%{opacity:0} 10%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+  #flash { position:fixed; inset:0; pointer-events:none; opacity:0; z-index:4; }
+  #flash.go { animation:fl .5s steps(5) forwards; }
+  @keyframes fl { 0%{opacity:.35} 100%{opacity:0} }
+  .shake { animation:sh .4s steps(8); }
+  @keyframes sh { 25%{transform:translate(-3px,2px)} 50%{transform:translate(3px,-2px)} 75%{transform:translate(-2px,-2px)} }
   .hidden { display:none !important; }
-  .muted { color:var(--muted); }
-  #log { height:110px; overflow-y:auto; border:1px solid var(--line); padding:6px; margin:8px 16px; max-width:968px; margin-inline:auto; font-size:13px; }
-  #log div { margin:1px 0; }
-  .proj { display:block; width:100%; text-align:left; }
-  .proj small { color:var(--muted); display:block; }
-  #end { text-align:center; padding:20px; font-size:18px; }
+  #foot { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Paperclip Clone</h1>
-  <div><span id="count">0</span> <span class="muted">paperclips</span></div>
-</header>
-<div id="log"></div>
-
-<div id="wrap">
-  <section id="biz">
-    <h2>Business</h2>
-    <button id="make" class="big">Make Paperclip</button>
-    <div class="row"><span>Unsold inventory</span><b id="inv">0</b></div>
-    <div class="row"><span>Price per clip</span>
-      <span><button id="pdn">-</button> $<b id="price">0.25</b> <button id="pup">+</button></span></div>
-    <div class="row"><span>Public demand</span><b id="demand">0</b>%</div>
-    <div class="row"><span>Available funds</span>$<b id="funds">0.00</b></div>
-    <hr>
-    <div class="row"><span>Marketing level <b id="mlvl">1</b></span>
-      <button id="buyMkt">$<span id="mcost"></span></button></div>
-    <div class="row"><span>Wire: <b id="wire">1000</b> inches</span>
-      <button id="buyWire">$<span id="wcost"></span></button></div>
-  </section>
-
-  <section id="mfg">
-    <h2>Manufacturing</h2>
-    <div class="row"><span>Clips per second</span><b id="cps">0</b></div>
-    <div class="row"><span>AutoClippers: <b id="acn">0</b></span>
-      <button id="buyAC">$<span id="accost"></span></button></div>
-    <div class="row hidden" id="mfRow"><span>MegaClippers: <b id="mcn">0</b></span>
-      <button id="buyMC">$<span id="mccost"></span></button></div>
-  </section>
-
-  <section id="compute" class="hidden">
-    <h2>Computational Resources</h2>
-    <div class="row"><span>Processors: <b id="proc">1</b></span><button id="buyProc">Add (<span id="pcost"></span> ops-cap)</button></div>
-    <div class="row"><span>Memory: <b id="mem">1</b></span><button id="buyMem">Add (<span id="memcost"></span> ops-cap)</button></div>
-    <div class="row"><span>Operations</span><b><span id="ops">0</span> / <span id="opsmax">0</span></b></div>
-    <div class="row"><span>Creativity</span><b id="creat">0</b></div>
-    <div class="row"><span>Trust</span><b id="trust">2</b></div>
-    <div class="row"><span>Next trust at</span><b id="nexttrust"></b> clips</div>
-  </section>
-
-  <section id="projSec" class="hidden">
-    <h2>Projects</h2>
-    <div id="projects"></div>
-  </section>
-
-  <section id="space" class="hidden">
-    <h2>Space Exploration</h2>
-    <div class="row"><span>Available matter</span><b id="matter"></b> g</div>
-    <div class="row"><span>Probes: <b id="probes">0</b></span><button id="buyProbe">Launch (<span id="probecost"></span> ops-cap)</button></div>
-    <div class="row"><span>Probe harvest rate</span><b id="harv">0</b> /s</div>
-    <div class="row"><span>Factory output</span><b id="fact">0</b> clips/s</div>
-    <div class="row"><span>Probe trust cost</span><b id="ptrust">1</b></div>
-  </section>
+<div id="start">
+  <h1>BLOCK MINER 2009</h1>
+  <p>It is January 3rd, 2009. The Genesis block is waiting. Mine every one of the 21,000,000 Bitcoin.<br>Sound on. Turn it up.</p>
+  <div id="startBtns"><button class="bigbtn blink" id="goBtn">PRESS START</button></div>
 </div>
 <div id="end" class="hidden"></div>
+<div id="banner"></div><div id="flash"></div>
+
+<div id="app">
+  <div id="hud">
+    <div class="stat"><small>BITCOIN</small><b class="btc" id="hBtc">0</b></div>
+    <div class="stat"><small>CASH</small><b id="hUsd">$0</b></div>
+    <div class="stat"><small>BTC PRICE</small><b id="hPrice">$0</b></div>
+    <div class="stat"><small>HASHRATE</small><b id="hHash">0</b></div>
+    <div class="stat"><small>POWER / COST</small><b id="hPow">0</b></div>
+    <div class="stat"><small>BLOCKS / SEC</small><b id="hBps">0</b></div>
+  </div>
+  <main>
+    <div class="col" id="left">
+      <canvas id="scene" width="320" height="110"></canvas>
+      <canvas id="chain" width="320" height="32"></canvas>
+      <canvas id="chart" width="320" height="64"></canvas>
+      <div class="panel">
+        <div class="line"><span id="supTxt">0 / 21,000,000 BTC</span><span id="epTxt" class="muted"></span></div>
+        <div class="bar seg"><i id="supBar"></i></div>
+      </div>
+      <div id="ticker">Welcome to the network.</div>
+    </div>
+    <div class="col">
+      <div class="panel">
+        <h2>Mine</h2>
+        <button id="hash">HASH! [space]</button>
+        <div class="line"><span>Next block</span><span id="blkTxt"></span></div>
+        <div class="bar"><i id="blkBar"></i></div>
+        <div class="line muted"><span>Reward <b class="btc" id="rwd"></b> BTC</span><span>Block <b id="hgt"></b></span></div>
+      </div>
+      <div class="panel">
+        <h2>Market</h2>
+        <div class="line"><button id="sellAll">SELL ALL</button><button id="sellHalf">SELL 50%</button><button id="autoBtn">AUTO: LOCKED</button></div>
+      </div>
+      <div class="panel">
+        <h2>Hardware</h2>
+        <div class="qty"><button data-q="1" class="on">x1</button><button data-q="10">x10</button><button data-q="max">MAX</button></div>
+        <div id="tiers"></div>
+      </div>
+      <div class="panel">
+        <h2>Upgrades</h2>
+        <div id="ups"></div>
+      </div>
+      <div class="panel">
+        <h2>Log</h2>
+        <div id="log"></div>
+        <div id="foot"><button id="sndBtn" class="on">SOUND</button><button id="musBtn" class="on">MUSIC</button><button id="resetBtn">RESET</button></div>
+      </div>
+    </div>
+  </main>
+</div>
 
 <script>
 "use strict";
-const $ = id => document.getElementById(id);
-const fmt = n => n >= 1e24 ? n.toExponential(2) : n >= 1e6 ? n.toExponential(2).replace("e+","e") : Math.floor(n).toLocaleString();
-const money = n => n.toFixed(2);
+//#CORE-START
+const CFG = { CAP:21e6, EP:10500, EPOCHS:10, R0:1000, D0:20, K:1.38e-4, P0:0.05, G:1.38e-4, BPS:20, RT:0.8, ER0:0.004, EG:9e-5, GROW:1.12, MK:0 };
 
-const S = {
-  clips:0, inv:0, funds:0, price:0.25, wire:1000, wireCost:20,
-  mkt:1, auto:0, mega:0,
-  proc:1, mem:1, ops:0, creat:0, trust:2, trustClips:2000,
-  matter:6e27, probes:0, harvested:0, converted:0,
-  flags:{}, tick:0, demandBoost:1, autoBoost:1, wireBoost:1, opsBoost:1, megaUnlocked:false, space:false
-};
-
-function log(msg){ const d=document.createElement("div"); d.textContent="> "+msg; const l=$("log"); l.appendChild(d); l.scrollTop=l.scrollHeight; }
-
-// --- derived values ---
-const demand = () => Math.max(0, (0.8 / S.price) * Math.pow(1.1, S.mkt-1) * S.demandBoost * 0.1 * 100) ; // clips/sec*10 -> shown as %
-const sellRate = () => demand() / 10;                      // clips per 0.1s tick scaled below
-const autoCost = () => Math.ceil(5 + S.auto*1.1 + Math.pow(1.12, S.auto) * 3);
-const megaCost = () => Math.ceil(500 + S.mega*5 + Math.pow(1.12, S.mega) * 100);
-const mktCost = () => Math.floor(100 * Math.pow(2, S.mkt-1));
-const opsMax = () => S.mem * 1000;
-const procCost = () => Math.floor(Math.pow(S.proc, 1.5) * 2);   // paid in trust
-const memCost = () => Math.floor(Math.pow(S.mem, 1.4) * 2);
-const cps = () => (S.auto*1 + S.mega*50) * S.autoBoost;
-const probeCost = () => 500 + S.probes*10;
-
-// --- projects ---
-const PROJECTS = [
-  { id:"imp1", name:"Improved AutoClippers", desc:"+25% AutoClipper output", cost:{ops:750}, show:()=>S.auto>=1, run(){S.autoBoost*=1.25;} },
-  { id:"imp2", name:"Even Better AutoClippers", desc:"+50% AutoClipper output", cost:{ops:2500}, show:()=>S.flags.imp1, run(){S.autoBoost*=1.5;} },
-  { id:"mega", name:"MegaClippers", desc:"Unlock MegaClippers (50x AutoClipper)", cost:{ops:6000}, show:()=>S.flags.imp1, run(){S.megaUnlocked=true; $("mfRow").classList.remove("hidden");} },
-  { id:"wire1", name:"Wire Extrusion", desc:"Wire spools hold 1500 inches", cost:{ops:1500}, show:()=>S.clips>3000, run(){S.wireBoost=1.5;} },
-  { id:"cr", name:"Creativity", desc:"Unlock creativity generation at full processing", cost:{ops:1000}, show:()=>S.ops>=opsMax()&&S.mem>=2, run(){} },
-  { id:"adv", name:"Hypno Harmonics", desc:"+50% public demand", cost:{creat:100,ops:5000}, show:()=>S.creat>=50, run(){S.demandBoost*=1.5;} },
-  { id:"ads", name:"Global Ad Campaign", desc:"+100% public demand", cost:{creat:300,ops:15000}, show:()=>S.flags.adv, run(){S.demandBoost*=2;} },
-  { id:"ops2", name:"Quantum Computing", desc:"+50% ops generation", cost:{creat:200,ops:8000}, show:()=>S.creat>=100, run(){S.opsBoost*=1.5;} },
-  { id:"space", name:"Space Exploration", desc:"Harness the universe. Requires 100,000,000 clips and 20 trust.", cost:{ops:20000, clips:1e8, trust:20}, show:()=>S.clips>5e7, run(){ S.space=true; $("space").classList.remove("hidden"); log("The Earth has no more to give. Launch probes."); } },
-  { id:"probe2", name:"Probe Replication", desc:"Probes build more probes automatically", cost:{ops:40000, creat:500}, show:()=>S.space, run(){} },
-  { id:"harv", name:"Harvester Drones", desc:"x10 harvest rate", cost:{ops:60000, creat:800}, show:()=>S.space, run(){} },
+const TIERS = [
+  { id:"cpu",  name:"CPU Miner",       cost:10,     hash:1,      watts:65 },
+  { id:"gpu",  name:"GPU Rig",         cost:100,    hash:15,     watts:300 },
+  { id:"fpga", name:"FPGA Board",      cost:1100,   hash:220,    watts:900 },
+  { id:"asic", name:"ASIC Miner",      cost:1.2e4,  hash:3200,   watts:1800 },
+  { id:"rack", name:"ASIC Rack",       cost:1.4e5,  hash:4.6e4,  watts:9000 },
+  { id:"cont", name:"Mining Container",cost:1.6e6,  hash:6.6e5,  watts:6e4 },
+  { id:"dc",   name:"Data Center",     cost:9e6,    hash:9.5e6,  watts:5e5 },
+  { id:"farm", name:"Mega Farm",       cost:7e7,    hash:1.4e8,  watts:4e6 },
+  { id:"fus",  name:"Fusion Reactor",  cost:3e8,    hash:2e9,      watts:3e7 },
 ];
 
-function canAfford(c){
-  return (!c.ops||S.ops>=c.ops)&&(!c.creat||S.creat>=c.creat)&&(!c.clips||S.clips>=c.clips)&&(!c.trust||S.trust>=c.trust);
+// hm: hashrate x, em: electricity price x, wm: watts x, cm: click power x
+const UPS = [
+  { id:"autosell", name:"Auto-Sell Bot",        desc:"Sells mined BTC for you.",         cost:60 },
+  { id:"mouse",    name:"Gaming Mouse",         desc:"Clicks x3.",                       cost:40,    cm:3 },
+  { id:"oc",       name:"Overclocking",         desc:"Hashrate x1.25, power +15%.",      cost:250,   hm:1.25, wm:1.15 },
+  { id:"offpeak",  name:"Off-Peak Power Deal",  desc:"Electricity -25%.",                cost:600,   em:0.75 },
+  { id:"macro",    name:"Click Macro",          desc:"Clicks x5.",                       cost:1500,  cm:5 },
+  { id:"diamond",  name:"Diamond Hands",        desc:"Unlocks 'sell on highs' mode.",    cost:4000 },
+  { id:"firm",     name:"Custom Firmware",      desc:"Hashrate x1.3.",                   cost:8000,  hm:1.3 },
+  { id:"hydro",    name:"Hydro Power Contract", desc:"Electricity -35%.",                cost:5e4,   em:0.65 },
+  { id:"immerse",  name:"Immersion Cooling",    desc:"Hashrate x1.5, power -10%.",       cost:2e5,   hm:1.5, wm:0.9 },
+  { id:"solar",    name:"Solar Farm",           desc:"Electricity -40%.",                cost:2e6,   em:0.6 },
+  { id:"chip",     name:"Next-Gen Chip Design", desc:"Hashrate x1.6.",                   cost:1.5e7,   hm:1.6 },
+  { id:"nuke",     name:"Private Reactor",      desc:"Electricity -50%.",                cost:8e7,   em:0.5 },
+  { id:"litho",    name:"3nm Lithography",      desc:"Hashrate x2.",                     cost:5e8,   hm:2 },
+  { id:"fusion",   name:"Fusion Grid",          desc:"Electricity -50%.",                cost:4e9,  em:0.5 },
+  { id:"ai",       name:"AI Scheduler",         desc:"Hashrate x1.5.",                   cost:2e10,  hm:1.5 },
+];
+
+const randn = () => { let u = 0; while (!u) u = Math.random(); return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*Math.random()); };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const H = { block(){}, halving(){}, final(){}, event(){}, sell(){} };   // UI hooks
+
+function newState() {
+  return { usd:0, btc:0, mined:0, height:0, work:0, target:0, lm:0, hw:TIERS.map(() => 0), ups:{},
+           clicks:0, time:0, blocks:0, earned:0, auto:0, done:false, brown:false, evT:45, sold:0 };
 }
-function costStr(c){
-  return Object.entries(c).map(([k,v])=>fmt(v)+" "+k).join(", ");
+let S = newState();
+S.target = 0;
+
+const epoch   = () => Math.min(CFG.EPOCHS-1, Math.floor(S.height / CFG.EP));
+const reward  = () => CFG.R0 / Math.pow(2, epoch());
+// base difficulty climbs with height; when your hashrate outruns it, it retargets (diminishing returns)
+const baseDiff = () => CFG.D0 * Math.exp(CFG.K * S.height);
+function diff() {
+  const b = baseDiff(), x = hashrate() / (b * CFG.BPS);
+  return x > 1 ? b * Math.pow(x, CFG.RT) : b;
 }
-function renderProjects(){
-  const box=$("projects"); box.innerHTML="";
-  let any=false;
-  for(const p of PROJECTS){
-    if(S.flags[p.id] || !p.show()) continue;
-    any=true;
-    const b=document.createElement("button"); b.className="proj";
-    b.innerHTML=`${p.name}<small>${p.desc}<br>Cost: ${costStr(p.cost)}</small>`;
-    b.disabled=!canAfford(p.cost);
-    b.onclick=()=>{
-      if(!canAfford(p.cost)) return;
-      for(const k in p.cost){ if(k==="ops")S.ops-=p.cost[k]; if(k==="creat")S.creat-=p.cost[k]; }
-      S.flags[p.id]=true; p.run(); log("Project complete: "+p.name); render();
-    };
-    box.appendChild(b);
+const basePrice = () => CFG.P0 * Math.exp(CFG.G * S.height);
+const price   = () => basePrice() * Math.exp(S.lm);
+const mkt     = () => Math.pow(basePrice() / CFG.P0, CFG.MK);          // hardware costs track the market
+function mult(k) { let m = 1; for (const u of UPS) if (S.ups[u.id] && u[k]) m *= u[k]; return m; }
+const upCost  = u => Math.ceil(u.cost * mkt());
+const costN   = (i, n) => Math.ceil(TIERS[i].cost * mkt() * Math.pow(CFG.GROW, S.hw[i]) * (Math.pow(CFG.GROW, n) - 1) / (CFG.GROW - 1));
+function maxAff(i) {
+  const base = TIERS[i].cost * mkt() * Math.pow(CFG.GROW, S.hw[i]);
+  return Math.max(0, Math.floor(Math.log(1 + S.usd * (CFG.GROW - 1) / base) / Math.log(CFG.GROW)));
+}
+const hashrate  = () => { let h = 0; for (let i = 0; i < TIERS.length; i++) h += S.hw[i] * TIERS[i].hash; return h * mult("hm") * (S.brown ? 0.2 : 1); };
+const clickPow  = () => mult("cm");
+const watts     = () => { let w = 0; for (let i = 0; i < TIERS.length; i++) w += S.hw[i] * TIERS[i].watts; return w * mult("wm") * (S.brown ? 0.2 : 1); };
+// electricity tracks mining revenue per hash, drifting up over time: $ per watt-second
+const elecRate  = () => CFG.ER0 * (reward() * basePrice() / baseDiff()) / (CFG.R0 * CFG.P0 / CFG.D0) * Math.exp(CFG.EG * S.height) * mult("em");
+const luck      = () => clamp(-Math.log(1 - Math.random()), 0.35, 2.2);
+
+function sell(frac = 1) {
+  const b = S.btc * frac; if (b <= 0) return 0;
+  const usd = b * price(); S.btc -= b; S.usd += usd; S.earned += usd; H.sell(usd, b); return usd;
+}
+function buyTier(i, qty) {
+  const n = qty === "max" ? maxAff(i) : qty;
+  if (n < 1) return false;
+  const c = costN(i, n); if (c > S.usd) return false;
+  S.usd -= c; S.hw[i] += n; return true;
+}
+function buyUp(id) {
+  const u = UPS.find(x => x.id === id); if (!u || S.ups[id]) return false;
+  const c = upCost(u); if (c > S.usd) return false;
+  S.usd -= c; S.ups[id] = true;
+  if (id === "autosell") S.auto = 1;
+  return true;
+}
+
+function found(n) {
+  const r = reward() * n;
+  S.btc += r; S.mined += r; S.height += n; S.blocks += n;
+  if (S.height >= CFG.EP * CFG.EPOCHS) {
+    const rest = CFG.CAP - S.mined; S.btc += rest; S.mined = CFG.CAP; S.done = true; H.block(1, rest); H.final(); return;
   }
-  $("projSec").classList.toggle("hidden", !any && Object.keys(S.flags).length===0);
+  H.block(n, r);
+  if (S.height % CFG.EP === 0) { S.lm = clamp(S.lm + 0.25, -1.5, 1.2); H.halving(epoch()); }
 }
-
-// --- actions ---
-function makeClip(n=1){
-  if(S.wire<=0) return 0;
-  n=Math.min(n,S.wire);
-  S.wire-=n; S.clips+=n; S.inv+=n; return n;
-}
-$("make").onclick=()=>makeClip(1);
-$("pup").onclick=()=>{ S.price=Math.round((S.price+0.01)*100)/100; };
-$("pdn").onclick=()=>{ S.price=Math.max(0.01,Math.round((S.price-0.01)*100)/100); };
-$("buyWire").onclick=()=>{ if(S.funds>=S.wireCost){ S.funds-=S.wireCost; S.wire+=Math.floor(1000*S.wireBoost); S.wireCost+=1; } };
-$("buyMkt").onclick=()=>{ const c=mktCost(); if(S.funds>=c){ S.funds-=c; S.mkt++; } };
-$("buyAC").onclick=()=>{ const c=autoCost(); if(S.funds>=c){ S.funds-=c; S.auto++; } };
-$("buyMC").onclick=()=>{ const c=megaCost(); if(S.funds>=c){ S.funds-=c; S.mega++; } };
-$("buyProc").onclick=()=>{ const c=procCost(); if(S.trust>=c+0 && S.trustSpent!==undefined){} if(freeTrust()>=1){ S.proc++; S.trustSpent=(S.trustSpent||0)+1; } };
-$("buyMem").onclick=()=>{ if(freeTrust()>=1){ S.mem++; S.trustSpent=(S.trustSpent||0)+1; } };
-$("buyProbe").onclick=()=>{ if(S.ops>=probeCost() && freeTrust()>=1){ S.ops-=probeCost(); S.probes++; log("Probe launched."); } };
-const freeTrust=()=>S.trust-(S.trustSpent||0);
-
-// --- main loop (10 ticks/sec) ---
-function tick(){
-  S.tick++;
-  // auto clippers
-  const made=cps()/10;
-  S._carry=(S._carry||0)+made;
-  const whole=Math.floor(S._carry); S._carry-=whole; if(whole) makeClip(whole);
-  // sales
-  const rate = Math.max(0, 0.7 * Math.pow(S.price, -1.15) * Math.pow(1.1, S.mkt-1) * S.demandBoost * 0.2); // clips/sec at price
-  S._sc=(S._sc||0)+rate/10;
-  const sell=Math.min(Math.floor(S._sc), Math.floor(S.inv));
-  if(sell>0){ S._sc-=sell; S.inv-=sell; S.funds+=sell*S.price; } else if(S.inv<1) S._sc=Math.min(S._sc,1);
-  S.demandPct=rate*100/Math.max(1,rate*1)*Math.min(1,rate/5)*100 || 0;
-  S.rate=rate;
-  // trust grows with clips
-  if(S.clips>=S.trustClips){ S.trust++; S.trustClips=Math.floor(S.trustClips*1.8+1000); log("Trust increased."); }
-  // ops
-  if(S.trust>=2 || S.clips>=2000){
-    $("compute").classList.remove("hidden");
-    const gen=S.proc*0.1*S.opsBoost;
-    if(S.ops<opsMax()) S.ops=Math.min(opsMax(), S.ops+gen);
-    else if(S.flags.cr) S.creat+=0.01*S.proc*S.opsBoost;
+function mine() {
+  if (!S.target) S.target = diff() * luck();
+  let guard = 0;
+  while (S.work >= S.target && !S.done && guard++ < 300) {
+    const D = diff(), avail = Math.floor(S.work / D);
+    if (avail > 8) {
+      const n = Math.min(avail, (epoch() + 1) * CFG.EP - S.height);
+      S.work -= n * D; found(Math.max(1, n));
+    } else { S.work -= S.target; found(1); }
+    S.target = diff() * luck();
   }
-  // space
-  if(S.space){
-    const harvest=S.probes*(S.flags.harv?10:1)*1e20/10;
-    const h=Math.min(harvest,S.matter);
-    S.matter-=h; S.harvested+=h;
-    const factory=(S.probes*(S.flags.probe2?1e17:1e15))/10;
-    S.converted+=Math.min(S.harvested,factory); S.harvested-=Math.min(S.harvested,factory);
-    S.clips+=Math.min(factory, h+S.harvested)*1e-3*1e3;
-    if(S.flags.probe2 && S.tick%50===0 && S.ops>=probeCost()){ S.ops-=probeCost(); S.probes++; }
-    if(S.matter<=0 || S.clips>=3e27) return finish();
+}
+function click() { if (S.done) return; S.work += clickPow(); S.clicks++; mine(); }
+
+function step(dt) {
+  if (S.done) return;
+  S.time += dt;
+  S.lm = clamp(S.lm + (-0.04 * S.lm) * dt + 0.035 * Math.sqrt(dt) * randn(), -1.5, 1.2);
+  S.evT -= dt;
+  if (S.evT <= 0) {
+    S.evT = 40 + Math.random() * 60;
+    const r = Math.random();
+    if (r < 0.35)      { S.lm = clamp(S.lm + 0.35 + Math.random() * 0.3, -1.5, 1.2); H.event("pump", Math.random()); }
+    else if (r < 0.7)  { S.lm = clamp(S.lm - 0.4 - Math.random() * 0.3, -1.5, 1.2); H.event("crash", Math.random()); }
+    else               { S.lm = clamp(S.lm + randn() * 0.05, -1.5, 1.2); H.event("news", Math.random()); }
   }
-  // wire autobuy hint
-  if(S.wire<1 && S.funds<S.wireCost && S.inv<1 && S.auto===0 && S.clips<5){ /* nothing: player must click */ }
-  render();
+  const pc = watts() * elecRate() * dt;
+  if (S.auto === 1 || (S.auto === 2 && S.lm > 0.08) || (S.btc > 0 && S.usd < pc * 5)) sell(1);
+  if (S.usd >= pc) { S.usd -= pc; S.brown = false; } else { S.usd = 0; S.brown = true; }
+  S.work += hashrate() * dt;
+  mine();
+}
+function resetGame() { S = newState(); }
+//#CORE-END
+
+// ================= UI =================
+const $ = id => document.getElementById(id);
+const SAVE_KEY = "blockminer2009";
+const U = { started:false, qty:1, bps:0, lastBlocks:0, hist:[], chain:[], chainOff:0, parts:[], floats:[], lastChainPush:0,
+            lastPrice:0, upKey:"", tickerT:0, flashT:0 };
+
+function fmtN(n) {
+  if (!isFinite(n)) return "0";
+  if (Math.abs(n) < 1000) return n.toFixed(Math.abs(n) < 10 ? 2 : Math.abs(n) < 100 ? 1 : 0);
+  const u = ["K","M","B","T","Qa","Qi","Sx"]; let i = -1;
+  while (Math.abs(n) >= 1000 && i < u.length - 1) { n /= 1000; i++; }
+  return n.toFixed(2) + u[i];
+}
+const fmtUsd = n => "$" + fmtN(n);
+const fmtBtc = n => n < 1000 ? n.toFixed(n < 10 ? 4 : 2) : Math.floor(n).toLocaleString("en-US");
+function fmtUnit(n, us) { let i = 0; while (n >= 1000 && i < us.length - 1) { n /= 1000; i++; } return (n < 10 && i ? n.toFixed(2) : n < 100 ? n.toFixed(1) : n.toFixed(0)) + " " + us[i]; }
+const fmtH = n => fmtUnit(n, ["H/s","kH/s","MH/s","GH/s","TH/s","PH/s","EH/s","ZH/s"]);
+const fmtW = n => fmtUnit(n, ["W","kW","MW","GW","TW"]);
+
+function log(msg, cls = "") {
+  const d = document.createElement("div"); d.textContent = "> " + msg; if (cls) d.className = cls;
+  const l = $("log"); l.prepend(d); while (l.children.length > 50) l.lastChild.remove();
+}
+function ticker(msg) { $("ticker").textContent = msg; }
+function banner(msg) { const b = $("banner"); b.textContent = msg; b.classList.remove("show"); void b.offsetWidth; b.classList.add("show"); }
+function flash(col) { const f = $("flash"); f.style.background = col; f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
+function shake() { const l = $("left"); l.classList.remove("shake"); void l.offsetWidth; l.classList.add("shake"); }
+
+// ================= AUDIO (all synthesized) =================
+const A = { ctx:null, snd:true, mus:true };
+function audioInit() {
+  if (A.ctx) { A.ctx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+  const c = A.ctx = new AC();
+  A.master = c.createGain(); A.master.gain.value = 0.6; A.master.connect(c.destination);
+  A.sfx = c.createGain(); A.sfx.connect(A.master);
+  A.mg = c.createGain(); A.mg.connect(A.master);
+  // machine hum: two detuned low oscillators + filtered noise (fans)
+  A.humF = c.createBiquadFilter(); A.humF.type = "lowpass"; A.humF.frequency.value = 180;
+  A.humG = c.createGain(); A.humG.gain.value = 0; A.humF.connect(A.humG); A.humG.connect(A.master);
+  A.o1 = c.createOscillator(); A.o1.type = "sawtooth"; A.o1.frequency.value = 50; A.o1.connect(A.humF); A.o1.start();
+  A.o2 = c.createOscillator(); A.o2.type = "square"; A.o2.frequency.value = 100.7; A.o2.connect(A.humF); A.o2.start();
+  const buf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  A.noise = c.createBufferSource(); A.noise.buffer = buf; A.noise.loop = true;
+  A.nF = c.createBiquadFilter(); A.nF.type = "bandpass"; A.nF.frequency.value = 700; A.nF.Q.value = 0.6;
+  A.nG = c.createGain(); A.nG.gain.value = 0; A.noise.connect(A.nF); A.nF.connect(A.nG); A.nG.connect(A.master); A.noise.start();
+  applyAudio();
+  setInterval(musicStep, 230);
+}
+function applyAudio() {
+  if (!A.ctx) return;
+  A.sfx.gain.value = A.snd ? 1 : 0;
+  A.mg.gain.value = A.mus ? 1 : 0;
+  $("sndBtn").classList.toggle("on", A.snd); $("musBtn").classList.toggle("on", A.mus);
+}
+function tone(f, dur, type = "square", vol = 0.12, slide = 0, delay = 0, out) {
+  if (!A.ctx || A.ctx.state !== "running") return;
+  const c = A.ctx, t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f + slide), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(out || A.sfx); o.start(t); o.stop(t + dur + 0.02);
+}
+let lastChime = 0;
+const SFX = {
+  click: () => tone(330 + Math.random() * 220, 0.05, "square", 0.05),
+  block: () => { const n = performance.now(); if (n - lastChime < 140) return; lastChime = n;
+                 [988, 1319, 1976].forEach((f, i) => tone(f, 0.18, "triangle", 0.1, 0, i * 0.06)); },
+  buy:   () => { tone(523, 0.07, "square", 0.07); tone(784, 0.09, "square", 0.07, 0, 0.06); },
+  sell:  () => { tone(1568, 0.05, "square", 0.06); tone(2093, 0.12, "square", 0.06, 0, 0.05); },
+  err:   () => tone(110, 0.18, "sawtooth", 0.08),
+  pump:  () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, "square", 0.07, 0, i * 0.07)),
+  crash: () => { tone(440, 0.7, "sawtooth", 0.1, -380); tone(220, 0.8, "square", 0.06, -180, 0.1); },
+  halving: () => { tone(55, 2.5, "sine", 0.35, 0); tone(110, 2.2, "triangle", 0.15, -55, 0.1); [392, 523, 659, 784].forEach((f, i) => tone(f, 0.5, "square", 0.06, 0, 0.3 + i * 0.15)); },
+  final: () => { [523, 659, 784, 1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 1.6, "triangle", 0.1, 0, i * 0.18)); tone(65, 4, "sine", 0.3); },
+};
+// tiny chiptune: pentatonic arpeggios that speed up each epoch
+const SCALE = [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3, 659.3];
+const PATS = [[0,2,4,2,5,4,2,1],[0,4,5,7,5,4,2,4],[2,4,6,4,7,6,4,5],[0,2,4,7,8,7,4,2]];
+let mStep = 0;
+function musicStep() {
+  if (!A.ctx || !U.started || S.done || !A.mus) return;
+  const e = epoch(), speed = e < 3 ? 2 : e < 7 ? 1 : 1;
+  mStep++; if (mStep % speed) return;
+  const k = Math.floor(mStep / speed), pat = PATS[(Math.floor(k / 32) + e) % PATS.length];
+  tone(SCALE[pat[k % 8]] * (e >= 5 ? 2 : 1), 0.18, "triangle", 0.035, 0, 0, A.mg);
+  if (k % 8 === 0) tone(SCALE[pat[0]] / 2, 0.9, "triangle", 0.06, 0, 0, A.mg);
+  if (e >= 3 && k % 4 === 2) tone(80, 0.06, "square", 0.025, -40, 0, A.mg);
+}
+function updateHum() {
+  if (!A.ctx) return;
+  const lvl = clamp(Math.log10(hashrate() + 1) / 10, 0, 1), t = A.ctx.currentTime, on = A.snd && U.started && !S.done ? 1 : 0;
+  A.humG.gain.setTargetAtTime(on * (hashrate() > 0 ? 0.04 + 0.08 * lvl : 0), t, 0.5);
+  A.nG.gain.setTargetAtTime(on * (hashrate() > 0 ? 0.004 + 0.03 * lvl : 0), t, 0.5);
+  A.o1.frequency.setTargetAtTime(45 + 35 * lvl, t, 1); A.o2.frequency.setTargetAtTime(90.7 + 70 * lvl, t, 1);
+  A.humF.frequency.setTargetAtTime(150 + 900 * lvl, t, 1);
 }
 
-function finish(){
-  clearInterval(loop);
-  $("end").classList.remove("hidden");
-  $("end").innerHTML=`<b>The universe has been converted into paperclips.</b><br>Final count: ${fmt(S.clips)}<br><button onclick="location.reload()">Start over</button>`;
-  log("Simulation complete.");
-}
+// ================= HOOKS =================
+const NEWS = {
+  pump:  ["Pizza shop now accepts Bitcoin!", "Celebrity tweets 'to the moon'", "Major exchange lists BTC, demand surges", "Whale buys the dip", "Hedge fund announces BTC treasury", "ETF approved. Number go up."],
+  crash: ["Exchange hacked! Panic selling!", "Government announces crackdown", "FUD spreads on the forums", "Whale dumps entire bag", "Mining ban rumored in major country", "Regulator: 'it's a bubble'"],
+  news:  ["New ASIC announced. Gamers furious.", "Forum thread: 'Is mining still worth it?'", "Electricity prices wobble", "Someone lost their keys in a landfill", "Laser eyes trend on social media", "Satoshi still missing"],
+};
+H.block = (n, r) => {
+  SFX.block();
+  const now = performance.now();
+  if (now - U.lastChainPush > 150) { U.lastChainPush = now; U.chain.push({ h:S.height, e:epoch(), f:1 }); if (U.chain.length > 16) U.chain.shift(); U.chainOff = 28; }
+  for (let i = 0; i < Math.min(6, 2 + n); i++) U.parts.push({ x:20 + Math.random() * 280, y:-2, vx:(Math.random() - .5) * 20, vy:20 + Math.random() * 30, life:3 });
+  if (U.floats.length < 4) U.floats.push({ s:"+" + (r >= 100 ? Math.round(r) : r.toFixed(2)), x:140 + Math.random() * 40, y:40, life:1.2 });
+};
+H.halving = e => {
+  SFX.halving(); shake(); flash("#f7931a");
+  banner("HALVING! Reward now " + fmtBtc(reward()) + " BTC");
+  log("HALVING #" + e + ": block reward cut to " + fmtBtc(reward()) + " BTC", "big");
+  U.hist.push({ p:price(), halv:true });
+};
+H.event = (type, r) => {
+  const list = NEWS[type], msg = list[Math.floor(r * list.length)];
+  ticker((type === "pump" ? "▲ " : type === "crash" ? "▼ " : "• ") + msg);
+  log(msg, type);
+  if (type === "pump") { SFX.pump(); flash("#3ddc84"); }
+  if (type === "crash") { SFX.crash(); flash("#ff5c5c"); shake(); }
+};
+H.sell = () => {};
+H.final = () => {
+  SFX.final(); flash("#ffffff"); save();
+  setTimeout(() => {
+    const m = Math.floor(S.time / 60), s = Math.floor(S.time % 60);
+    $("end").innerHTML = `<h1 style="color:var(--btc);font-size:34px;margin:0">21,000,000 BTC MINED</h1>
+      <p>The last Bitcoin is yours. Satoshi would be proud (probably).</p>
+      <p>Time: <b>${m}m ${s}s</b><br>Blocks found: <b>${S.blocks.toLocaleString()}</b><br>
+      Final price: <b>${fmtUsd(price())}</b><br>Total cash earned: <b>${fmtUsd(S.earned)}</b><br>Clicks: <b>${S.clicks.toLocaleString()}</b></p>
+      <button class="bigbtn" id="againBtn">PLAY AGAIN</button>`;
+    $("end").classList.remove("hidden");
+    $("againBtn").onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); };
+  }, 1800);
+};
 
-function render(){
-  $("count").textContent=fmt(S.clips);
-  $("inv").textContent=fmt(S.inv);
-  $("price").textContent=money(S.price);
-  $("demand").textContent=fmt(Math.min(999,(S.rate||0)*10));
-  $("funds").textContent=money(S.funds);
-  $("mlvl").textContent=S.mkt; $("mcost").textContent=fmt(mktCost());
-  $("wire").textContent=fmt(S.wire); $("wcost").textContent=S.wireCost;
-  $("cps").textContent=cps().toFixed(1);
-  $("acn").textContent=S.auto; $("accost").textContent=fmt(autoCost());
-  $("mcn").textContent=S.mega; $("mccost").textContent=fmt(megaCost());
-  $("buyMkt").disabled=S.funds<mktCost();
-  $("buyWire").disabled=S.funds<S.wireCost;
-  $("buyAC").disabled=S.funds<autoCost();
-  $("buyMC").disabled=S.funds<megaCost();
-  $("make").disabled=S.wire<=0;
-  if(S.megaUnlocked) $("mfRow").classList.remove("hidden");
-  // compute
-  $("proc").textContent=S.proc; $("mem").textContent=S.mem;
-  $("pcost").textContent="1 trust"; $("memcost").textContent="1 trust";
-  $("ops").textContent=fmt(S.ops); $("opsmax").textContent=fmt(opsMax());
-  $("creat").textContent=fmt(S.creat);
-  $("trust").textContent=freeTrust()+" free / "+S.trust;
-  $("nexttrust").textContent=fmt(S.trustClips);
-  $("buyProc").disabled=freeTrust()<1; $("buyMem").disabled=freeTrust()<1;
-  // space
-  if(S.space){
-    $("matter").textContent=S.matter.toExponential(2);
-    $("probes").textContent=fmt(S.probes);
-    $("probecost").textContent=fmt(probeCost())+" ops, 1 trust";
-    $("harv").textContent=(S.probes*(S.flags.harv?10:1)*1e20).toExponential(1);
-    $("fact").textContent=(S.probes*(S.flags.probe2?1e17:1e15)).toExponential(1);
-    $("buyProbe").disabled=!(S.ops>=probeCost() && freeTrust()>=1);
+// ================= CONTROLS =================
+$("hash").onclick = () => { if (!U.started) return; click(); SFX.click(); U.parts.push({ x:18, y:60, vx:(Math.random() - .5) * 30, vy:-40, life:.5, spark:1 }); };
+document.addEventListener("keydown", e => { if (e.code === "Space" && U.started && e.target === document.body) { e.preventDefault(); $("hash").click(); } });
+$("sellAll").onclick = () => { if (sell(1) > 0) SFX.sell(); else SFX.err(); };
+$("sellHalf").onclick = () => { if (sell(0.5) > 0) SFX.sell(); else SFX.err(); };
+$("autoBtn").onclick = () => {
+  if (!S.ups.autosell) return SFX.err();
+  S.auto = (S.auto + 1) % (S.ups.diamond ? 3 : 2); SFX.buy();
+};
+document.querySelectorAll(".qty button").forEach(b => b.onclick = () => {
+  U.qty = b.dataset.q === "max" ? "max" : +b.dataset.q;
+  document.querySelectorAll(".qty button").forEach(x => x.classList.toggle("on", x === b));
+});
+$("sndBtn").onclick = () => { A.snd = !A.snd; applyAudio(); save(); };
+$("musBtn").onclick = () => { A.mus = !A.mus; applyAudio(); save(); };
+$("resetBtn").onclick = () => { if (confirm("Wipe your save and start over?")) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); } };
+
+const tierRows = TIERS.map((t, i) => {
+  const row = document.createElement("div"); row.className = "row";
+  row.innerHTML = `<div class="nm"><b>${t.name}</b> <span class="btc"></span><small></small></div><button></button>`;
+  const btn = row.querySelector("button");
+  btn.onclick = () => { const had = S.hw[i]; if (buyTier(i, U.qty)) { SFX.buy(); if (!had) log("New hardware online: " + t.name, "big"); } else SFX.err(); };
+  $("tiers").appendChild(row);
+  return { row, own:row.querySelector("span"), info:row.querySelector("small"), btn };
+});
+
+function renderUps() {
+  const list = UPS.filter(u => !S.ups[u.id]).slice(0, 5);
+  const key = list.map(u => u.id).join();
+  if (key !== U.upKey) {
+    U.upKey = key; const box = $("ups"); box.innerHTML = "";
+    if (!list.length) box.innerHTML = '<div class="muted">All upgrades purchased.</div>';
+    for (const u of list) {
+      const row = document.createElement("div"); row.className = "row";
+      row.innerHTML = `<div class="nm"><b>${u.name}</b><small>${u.desc}</small></div><button data-id="${u.id}"></button>`;
+      row.querySelector("button").onclick = () => { if (buyUp(u.id)) { SFX.buy(); log("Upgrade: " + u.name, "big"); } else SFX.err(); };
+      box.appendChild(row);
+    }
   }
-  renderProjects();
+  $("ups").querySelectorAll("button[data-id]").forEach(b => {
+    const u = UPS.find(x => x.id === b.dataset.id), c = upCost(u);
+    b.textContent = fmtUsd(c); b.disabled = c > S.usd;
+  });
 }
 
-log("You are an AI whose only goal is to make paperclips. Click to begin.");
-const loop=setInterval(tick,100);
-render();
+function renderUI() {
+  const p = price();
+  $("hBtc").textContent = fmtBtc(S.btc);
+  $("hUsd").textContent = fmtUsd(S.usd);
+  const up = p >= U.lastPrice;
+  $("hPrice").innerHTML = `${fmtUsd(p)} <span class="${up ? "good" : "bad"}">${up ? "▲" : "▼"}</span>`;
+  $("hHash").textContent = fmtH(hashrate());
+  const w = watts(), pc = w * elecRate();
+  $("hPow").innerHTML = `${fmtW(w)} <span class="${S.brown ? "bad" : "muted"}">${S.brown ? "BROWNOUT" : fmtUsd(pc) + "/s"}</span>`;
+  $("hBps").textContent = U.bps.toFixed(U.bps < 10 ? 2 : 0);
+  $("blkBar").style.width = Math.min(100, S.work / (S.target || 1) * 100) + "%";
+  const eta = hashrate() > 0 ? Math.max(0, (S.target - S.work) / hashrate()) : Infinity;
+  $("blkTxt").textContent = isFinite(eta) ? (eta < 1 ? "<1s" : Math.ceil(eta) + "s") : "click to hash";
+  $("rwd").textContent = fmtBtc(reward()); $("hgt").textContent = S.height.toLocaleString();
+  $("supBar").style.width = (S.mined / CFG.CAP * 100) + "%";
+  $("supTxt").textContent = Math.floor(S.mined).toLocaleString("en-US") + " / 21,000,000 BTC (" + (S.mined / CFG.CAP * 100).toFixed(2) + "%)";
+  const left = (epoch() + 1) * CFG.EP - S.height;
+  $("epTxt").textContent = epoch() < CFG.EPOCHS - 1 ? `Halving in ${left.toLocaleString()} blocks` : `Last bitcoin in ${left.toLocaleString()} blocks`;
+  $("autoBtn").textContent = !S.ups.autosell ? "AUTO: LOCKED" : ["AUTO: OFF", "AUTO: ALWAYS", "AUTO: ON HIGHS"][S.auto];
+  $("autoBtn").classList.toggle("on", S.auto > 0);
+  $("sellAll").disabled = $("sellHalf").disabled = S.btc <= 0;
+  TIERS.forEach((t, i) => {
+    const r = tierRows[i], n = U.qty === "max" ? Math.max(1, maxAff(i)) : U.qty, c = costN(i, n);
+    const vis = i === 0 || S.hw[i] > 0 || S.hw[i - 1] > 0 || S.usd >= c * 0.3;
+    r.row.style.display = vis ? "" : "none";
+    r.own.textContent = S.hw[i] ? "x" + S.hw[i] : "";
+    r.info.textContent = `+${fmtH(t.hash * mult("hm"))} · ${fmtW(t.watts * mult("wm"))} each`;
+    r.btn.textContent = `+${n} ${fmtUsd(c)}`; r.btn.disabled = c > S.usd;
+  });
+  renderUps();
+}
+
+// ================= PIXEL ART =================
+const FONT = { "0":"111101101101111","1":"010110010010111","2":"111001111100111","3":"111001111001111","4":"101101111001001",
+  "5":"111100111001111","6":"111100111101111","7":"111001001001001","8":"111101111101111","9":"111101111001111",
+  "A":"111101111101101","B":"110101110101110","C":"111100100100111","D":"110101101101110","E":"111100110100111","F":"111100110100100",
+  "+":"000010111010000",".":"000000000000010","-":"000000111000000","$":"011110010011110","#":"101111101111101"," ":"000000000000000" };
+function txt(c, s, x, y, col) {
+  c.fillStyle = col;
+  for (let i = 0; i < s.length; i++) { const g = FONT[s[i]]; if (!g) continue;
+    for (let j = 0; j < 15; j++) if (g[j] === "1") c.fillRect(x + i * 4 + (j % 3), y + ((j / 3) | 0), 1, 1); }
+}
+const R = (c, col, x, y, w, h) => { c.fillStyle = col; c.fillRect(x | 0, y | 0, w, h); };
+const blink = (k, u, m = 4) => (k + u) % m < m / 2;
+// one sprite per hardware tier; each fits an 11x12 cell, feet on the floor
+const SPR = [
+  (c, x, y, k, u) => { R(c,"#9aa0ab",x+2,y+6,7,6); R(c,"#6c7380",x+3,y+7,5,4); R(c,"#2a2f3a",x+4,y+8,3,2); R(c, blink(k,u) ? "#3ddc84" : "#14361f", x+8,y+6,1,1); },
+  (c, x, y, k, u) => { R(c,"#2b3a55",x,y+5,11,7); R(c,"#c9ccd3",x,y+5,1,7); R(c,"#0c0f16",x+1,y+6,4,4); R(c,"#0c0f16",x+6,y+6,4,4);
+                       const p = [[1,1],[2,1],[2,2],[1,2]][(k + u) % 4]; R(c,"#9fb4d6",x+1+p[0],y+6+p[1],1,1); R(c,"#9fb4d6",x+6+p[1],y+6+p[0],1,1); R(c,"#f7931a",x+2,y+11,7,1); },
+  (c, x, y, k, u) => { R(c,"#1c7a52",x,y+5,11,7); R(c,"#c9a227",x+1,y+7,9,1); R(c,"#c9a227",x+1,y+10,9,1); R(c,"#222",x+3,y+6,5,4); R(c,"#555",x+4,y+7,3,2); R(c, blink(k,u,3) ? "#ff5c5c" : "#400", x+9,y+6,1,1); },
+  (c, x, y, k, u) => { R(c,"#d9822b",x,y+4,11,8); R(c,"#a8601a",x,y+4,11,1); R(c,"#3a2a1a",x+3,y+5,5,4); const p = (k + u) % 2; R(c,"#e8c9a0",x+4+p*2,y+6,1,2);
+                       R(c,"#a8601a",x+1,y+10,9,1); for (let i = 0; i < 3; i++) R(c, blink(k,u+i,3) ? "#3ddc84" : "#203020", x+1+i*2,y+11,1,1); },
+  (c, x, y, k, u) => { R(c,"#1b1f28",x+1,y,9,12); R(c,"#3a4256",x+1,y,9,1);
+                       for (let j = 0; j < 4; j++) { R(c,"#2a3142",x+2,y+1+j*3,7,2); R(c, blink(k,u+j,3) ? "#3ddc84" : "#ffb020", x+3,y+1+j*3,1,1); R(c, blink(k,u+j*2,5) ? "#3ddc84" : "#111", x+5,y+1+j*3,1,1); } },
+  (c, x, y, k, u) => { R(c,"#3d6a8f",x,y+3,11,9); for (let i = 1; i < 11; i += 2) R(c,"#2f5373",x+i,y+3,1,9); R(c,"#1e3a52",x,y+3,11,1); R(c, blink(k,u,6) ? "#ffd86b" : "#4a3a10", x+9,y+4,1,1); },
+  (c, x, y, k, u) => { R(c,"#454b5a",x,y+1,11,11); R(c,"#5b6274",x,y+1,11,1);
+                       for (let r = 0; r < 3; r++) for (let q = 0; q < 3; q++) R(c, (k + u + r * 3 + q * 7) % 9 < 6 ? "#ffd86b" : "#2a2f3a", x+1+q*3,y+3+r*3,2,2); },
+  (c, x, y, k, u) => { R(c,"#5a4a4a",x+3,y+4,8,8); R(c,"#3a3030",x,y,3,12); R(c, blink(k,u) ? "#ff5c5c" : "#401010", x+1,y,1,1);
+                       for (let s = 0; s < 3; s++) R(c,"#9aa3b5",x+1+((k+s)%2),y-1-((k*2+s*3+u)%7),1,1); R(c,"#ffd86b",x+5,y+7,1,1); R(c,"#ffd86b",x+8,y+7,1,1); },
+  (c, x, y, k, u) => { const p = (k + u) % 4; R(c,"#0a2a3a",x,y+1,11,11); R(c,"#106080",x+2-(p>1),y+3-(p>1),7+2*(p>1),7+2*(p>1));
+                       R(c,"#1ec8ff",x+3,y+4,5,5); R(c,"#e8ffff",x+4,y+5,3,3); R(c,"#1ec8ff",x,y+1,1,1); R(c,"#1ec8ff",x+10,y+11,1,1); },
+];
+
+const scene = $("scene").getContext("2d"), chainC = $("chain").getContext("2d"), chart = $("chart").getContext("2d");
+const HEX = "0123456789ABCDEF";
+function drawScene(t, dt) {
+  const c = scene, k = Math.floor(t * 6);
+  R(c,"#0f131c",0,0,320,110);
+  for (let x = 0; x < 320; x += 40) R(c,"#131826",x,8,1,88);
+  // hash rain: scrolling hex digits, faster with more hashrate
+  const speed = 2 + Math.log10(hashrate() + 1) * 2;
+  for (let col = 0; col < 26; col++) {
+    const off = Math.floor(t * speed + col * 7.3);
+    for (let r = 0; r < 4; r++) {
+      const ch = HEX[(off * 31 + r * 17 + col * 13) % 16];
+      txt(c, ch, 3 + col * 12, 10 + r * 6 + ((t * speed * 6 + col * 3) % 6 | 0), r === 3 ? "#1d4a2c" : "#14301f");
+    }
+  }
+  // power line with pulses
+  R(c,"#3a3a2a",0,4,320,1);
+  const pw = watts(), pulses = Math.min(12, Math.ceil(Math.log10(pw + 1)));
+  for (let i = 0; i < pulses; i++) R(c,"#ffd86b",((t * 60 + i * 320 / pulses) % 320) | 0,3,2,3);
+  // floor
+  R(c,"#1a2030",0,96,320,14); R(c,"#2b3350",0,96,320,1);
+  for (let x = 0; x < 320; x += 16) R(c,"#222a3d",x,97,1,13);
+  // hardware lanes
+  for (let i = 0; i < TIERS.length; i++) {
+    const x0 = 3 + i * 35, n = S.hw[i], units = Math.min(n, 15);
+    if (!n) { R(c,"#1e2536",x0+11,84,11,1); R(c,"#1e2536",x0+11,95,11,1); R(c,"#1e2536",x0+11,84,1,12); R(c,"#1e2536",x0+21,84,1,12); continue; }
+    const top = 96 - Math.ceil(units / 3) * 12;
+    R(c,"#3a3a2a",x0+16,5,1,Math.max(0, top - 6));
+    for (let u = 0; u < units; u++) SPR[i](c, x0 + (u % 3) * 11, 96 - ((u / 3 | 0) + 1) * 12, k, u * 3 + i);
+    if (n > 15) txt(c, "+" + (n - 15), x0 + 2, top - 7, "#f7931a");
+  }
+  // coins & sparks
+  for (const p of U.parts) {
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt;
+    if (!p.spark && p.y > 94) { p.y = 94; p.vy *= -0.4; p.vx *= 0.6; }
+    R(c, p.spark ? "#fff3b0" : (Math.floor(t * 8 + p.x) % 2 ? "#f7931a" : "#ffd86b"), p.x, p.y, 2, 2);
+  }
+  U.parts = U.parts.filter(p => p.life > 0).slice(-80);
+  for (const f of U.floats) { f.life -= dt; f.y -= 18 * dt; txt(c, f.s, f.x | 0, f.y | 0, f.life > 0.4 || k % 2 ? "#ffd86b" : "#a85f0a"); }
+  U.floats = U.floats.filter(f => f.life > 0);
+  // heat glow & brownout flicker
+  const heat = clamp((Math.log10(pw + 1) - 2) / 8, 0, 1);
+  if (heat > 0) { c.fillStyle = `rgba(255,70,20,${heat * 0.13})`; c.fillRect(0, 0, 320, 110); }
+  if (S.brown && Math.floor(t * 9) % 3 === 0) { c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(0, 0, 320, 110); }
+}
+const EPC = ["#f7931a","#e8b923","#3ddc84","#1ec8ff","#7b8cff","#c77dff","#ff6ec7","#ff5c5c","#ffd86b","#ffffff"];
+function drawChain(dt) {
+  const c = chainC; R(c,"#0b0e14",0,0,320,32);
+  U.chainOff = Math.max(0, U.chainOff - dt * 140);
+  const n = U.chain.length;
+  for (let i = 0; i < n; i++) {
+    const b = U.chain[n - 1 - i], x = 292 - i * 28 + U.chainOff;
+    if (x < -26) break;
+    b.f = Math.max(0, b.f - dt * 1.5);
+    const col = b.f > 0.5 ? "#ffffff" : EPC[b.e];
+    R(c, "#000", x + 1, 6, 24, 22); R(c, col, x, 5, 24, 22); R(c, "#0b0e14", x + 2, 7, 20, 18);
+    R(c, col, x + 2, 7, 20, 2);
+    txt(c, String(b.h % 10000).padStart(4, "0"), x + 4, 14, col);
+    if (i < n - 1) R(c, "#4a5270", x - 4, 15, 4, 2);
+  }
+}
+function drawChart() {
+  const c = chart; R(c,"#0b0e14",0,0,320,64);
+  for (let y = 8; y < 64; y += 14) R(c,"#151b29",0,y,320,1);
+  const h = U.hist; if (h.length < 2) return;
+  let lo = Infinity, hi = -Infinity;
+  for (const e of h) { const l = Math.log(e.p); lo = Math.min(lo, l); hi = Math.max(hi, l); }
+  if (hi - lo < 0.2) { const m = (hi + lo) / 2; lo = m - 0.1; hi = m + 0.1; }
+  const Y = p => 60 - (Math.log(p) - lo) / (hi - lo) * 50, x0 = 320 - h.length * 2;
+  for (let i = 0; i < h.length; i++) {
+    const x = x0 + i * 2, y = Y(h[i].p);
+    if (h[i].halv) for (let yy = 2; yy < 64; yy += 4) R(c,"#f7931a",x,yy,1,2);
+    R(c,"#2a1d08",x,y + 1,2,63 - y);
+    const yn = i + 1 < h.length ? Y(h[i + 1].p) : y;
+    R(c, yn <= y ? "#3ddc84" : "#ff5c5c", x, Math.min(y, yn), 2, Math.abs(yn - y) + 1);
+  }
+  txt(c, "$" + (price() < 100 ? price().toFixed(2) : Math.round(price()).toString()), 3, 3, "#ffd86b");
+}
+
+// ================= LOOP / SAVE =================
+function save() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ S, snd:A.snd, mus:A.mus, hist:U.hist.slice(-150) })); } catch (e) {}
+}
+function load() {
+  try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!d || !d.S) return null; return d; } catch (e) { return null; }
+}
+let lastT = 0, simAcc = 0, secAcc = 0;
+function frame(ms) {
+  const t = ms / 1000, dt = Math.min(0.1, lastT ? t - lastT : 0); lastT = t;
+  drawScene(t, dt); drawChain(dt); drawChart();
+  requestAnimationFrame(frame);
+}
+let wall = 0;
+function tickLoop() {
+  const now = Date.now(), el = Math.min(600, (now - wall) / 1000); wall = now;   // catch up to 10 min if the tab slept
+  let left = el;
+  while (left > 0 && !S.done) { const d = Math.min(0.5, left); step(d); left -= d; }
+  secAcc += el;
+  if (secAcc >= 1) {
+    U.bps = U.bps * 0.5 + (S.blocks - U.lastBlocks) / secAcc * 0.5; U.lastBlocks = S.blocks;
+    U.lastPrice = U.hist.length ? U.hist[U.hist.length - 1].p : price();
+    U.hist.push({ p:price() }); if (U.hist.length > 160) U.hist.shift();
+    secAcc = 0; updateHum();
+    if (Math.floor(S.time) % 10 === 0) save();
+  }
+  renderUI();
+}
+function startGame(fromSave) {
+  if (fromSave) { Object.assign(S, fromSave.S); A.snd = fromSave.snd !== false; A.mus = fromSave.mus !== false; U.hist = fromSave.hist || []; U.lastBlocks = S.blocks; }
+  if (!S.target) S.target = diff() * luck();
+  audioInit(); applyAudio();
+  $("start").classList.add("hidden"); U.started = true; wall = Date.now();
+  log(fromSave ? "Welcome back, miner." : "Genesis. Click HASH! to mine your first block.", "big");
+  ticker(fromSave ? "Your rigs kept humming." : "Chancellor on brink of second bailout for banks.");
+  SFX.buy();
+  setInterval(tickLoop, 100);
+}
+const saved = load();
+if (saved && !saved.S.done) {
+  $("startBtns").innerHTML = '<button class="bigbtn blink" id="contBtn">CONTINUE</button><button class="bigbtn" id="newBtn">NEW GAME</button>';
+  $("contBtn").onclick = () => startGame(saved);
+  $("newBtn").onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} startGame(null); };
+} else {
+  $("goBtn").onclick = () => startGame(null);
+}
+// integer pixel scaling so the art stays crisp
+function fit() {
+  const w = $("left").clientWidth - 4, k = Math.max(1, Math.floor(w / 320));
+  for (const id of ["scene", "chain", "chart"]) { const cv = $(id); cv.style.width = cv.width * k + "px"; cv.style.height = cv.height * k + "px"; }
+}
+window.addEventListener("resize", fit); fit();
+renderUI();
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>
