@@ -56,8 +56,12 @@ async function main(){
      await app.evaluate(({ powerSaveBlocker }) =>
        powerSaveBlocker.isStarted(0) || powerSaveBlocker.isStarted(1)));
 
-  /* The real question: does the camera open without anyone clicking Allow? */
-  await win.click('#btn-start');
+  /* The real question: does the camera open without anyone clicking Allow?
+     Entry is through the title screen's play button, which is the only way in
+     for a real player. */
+  ok('the title screen is up before play', await win.isVisible('#title'));
+  await win.click('#btn-play');
+  ok('pressing play clears the title screen', !(await win.isVisible('#title')));
   await win.waitForTimeout(4200);
   const cap = await win.textContent('#d-cap');
   ok('the camera opens with no permission prompt', /\d+×\d+/.test(cap || ''), cap);

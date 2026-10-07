@@ -21,7 +21,11 @@ The game itself is still one self-contained HTML file at `src/game/index.html`,
 with no build step, no bundler and no network. Electron is a shell around it,
 and `src/main.js` is the whole shell.
 
-Press Start, stand back about two metres. Moving paints. That is the whole game.
+The opening screen performs the title rather than printing it: the words arrive
+one per beat in the paint spectrum, over an attract loop where the game plays
+itself — four drifting painters using the same hue-from-x rule a real player
+gets. The freeze beat is a real freeze; the painters stop too. Press the play
+button, stand back about two metres, and moving paints. That is the whole game.
 **Hold Escape for about a second to quit** — a tap does nothing, so a child
 leaning on the keyboard cannot end the session.
 
