@@ -2,10 +2,14 @@ name: build
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'claude/**']
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: stomp
 
 jobs:
   test:
@@ -17,6 +21,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: stomp/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -37,6 +42,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: stomp/package-lock.json
       - run: npm ci
       # Runs on Windows, so the NSIS installer builds for real - no wine, and
       # the result is the thing that ends up on the laptop.
@@ -45,6 +51,6 @@ jobs:
         with:
           name: Stomp-windows
           path: |
-            dist/*.exe
-            dist/*.zip
+            stomp/dist/*.exe
+            stomp/dist/*.zip
           if-no-files-found: error
