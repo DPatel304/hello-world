@@ -165,6 +165,7 @@
       <div>
         <h3>Latency budget</h3>
         <div class="rows">
+          <div class="row"><span>Frame grab</span><span id="d-grab">&mdash;</span></div>
           <div class="row"><span>Vision</span><span id="d-vis">&mdash;</span></div>
           <div class="row"><span>Draw</span><span id="d-draw">&mdash;</span></div>
           <div class="row"><span>Camera to pixel</span><span id="d-e2e">&mdash;</span></div>
@@ -239,7 +240,7 @@ var mask = new Uint8Array(NPIX);
 var zone = new Float32Array(ZC * ZR);
 var seeded = false, running = false, showMask = false, knocked = false, noBump = false;
 var gain = 1, coverage = 0, activeZones = 0;
-var visMs = 0, drawMs = 0, e2eMs = 0, fps = 0;
+var visMs = 0, grabMs = 0, drawMs = 0, e2eMs = 0, fps = 0;
 var lastFrameAt = 0, frameAcc = 0, frameN = 0;
 var calibrating = 0;
 
@@ -291,6 +292,13 @@ function seed(){
 function vision(){
   var t0 = performance.now();
   grabLuma();
+  /* Timed separately because the two halves scale with different things.
+     Pulling the frame out of the video element ends in getImageData, a
+     GPU-to-CPU readback whose cost is the machine's graphics stack; everything
+     after it is a plain loop over 19,200 bytes and costs the same everywhere.
+     Measured on software rendering the readback is most of the frame, so one
+     combined number would read as the pipeline being slow when it is not. */
+  grabMs = performance.now() - t0;
   if (!seeded){ seed(); visMs = performance.now() - t0; return; }
 
   /* --- illumination normalisation, affine ---
@@ -545,7 +553,7 @@ function render(){
    ============================================================ */
 var el = {};
 function ids(){
-  ['d-cap','d-proc','d-fps','d-vis','d-draw','d-e2e','d-cov','d-gain','d-act',
+  ['d-cap','d-proc','d-fps','d-grab','d-vis','d-draw','d-e2e','d-cov','d-gain','d-act',
    'zones','curtain','error'].forEach(function(id){ el[id] = document.getElementById(id); });
 }
 function grade(node, v, good, mid){
@@ -556,6 +564,7 @@ function diagnostics(now){
   if (now - diagAt < 180) return;
   diagAt = now;
   el['d-fps'].textContent = fps.toFixed(0) + ' fps';
+  el['d-grab'].textContent = grabMs.toFixed(1) + ' ms';
   el['d-vis'].textContent = visMs.toFixed(1) + ' ms';
   el['d-draw'].textContent = drawMs.toFixed(1) + ' ms';
   el['d-e2e'].textContent = e2eMs.toFixed(1) + ' ms';
@@ -691,7 +700,7 @@ function boot(){
   /* a small handle so the pipeline can be driven from a test or a console */
   window.Stomp = {
     vision: function(){ return { coverage:coverage, gain:gain, shift:lightShift, zones:Array.from(zone),
-                                 visMs:visMs, e2eMs:e2eMs, fps:fps, seeded:seeded,
+                                 visMs:visMs, grabMs:grabMs, pixelMs:visMs-grabMs, e2eMs:e2eMs, fps:fps, seeded:seeded,
                                  calibrating:calibrating, highFor:highFor }; },
     zoneAt: function(c, r){ return zone[r * ZC + c]; },
     state: function(){ return { running:running, painted:paintedFraction() }; },

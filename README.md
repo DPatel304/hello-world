@@ -6,10 +6,50 @@ The title is also the warm-up. The screen chants it one word per beat with the
 lights pulsing along, everyone does the action as it is called, and the pause
 before *Again* is a real freeze. Then the loop restarts.
 
-## Where this is
+## Running it
 
-`stomp.html` — a single self-contained file. Open it in a browser, press Start,
-stand back about two metres. Moving paints. That is the whole game.
+It is a desktop app now, not a file you open in a browser.
+
+```
+npm install
+npm start          # play it
+npm test           # 18 assertions against the real app
+npm run build:win  # a Windows installer, on Windows
+```
+
+The game itself is still one self-contained HTML file at `src/game/index.html`,
+with no build step, no bundler and no network. Electron is a shell around it,
+and `src/main.js` is the whole shell.
+
+Press Start, stand back about two metres. Moving paints. That is the whole game.
+**Hold Escape for about a second to quit** — a tap does nothing, so a child
+leaning on the keyboard cannot end the session.
+
+### What the shell is for
+
+A browser tab is the wrong container for this. The shell:
+
+- grants the camera itself, so nobody is asked for permission mid-play, and
+  grants nothing else — no microphone, no USB, no serial
+- opens fullscreen with no menu, no address bar and no tabs
+- holds the display awake. The camera is the controller, so the game can run
+  ten minutes without a key or mouse event, and Windows would blank the screen
+  halfway through a painting
+- swallows the keys that would end the game. Reload, devtools and close are one
+  keystroke away in Chromium and toddlers play a keyboard like a xylophone
+- refuses to navigate anywhere, so the game cannot be replaced by a web page
+
+### Getting a build without a Windows machine
+
+Push a tag and CI builds the installer on a real Windows runner:
+
+```
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The installer lands as a build artifact. Building it on Linux gets as far as a
+working `dist/win-unpacked/Stomp.exe` and a `.zip`, but the NSIS installer step
+needs wine.
 
 No menu, no score, no timer, nothing to lose. Colour is chosen by where you are
 across the room, so moving sideways changes it — the most discoverable mapping a
@@ -24,6 +64,13 @@ device (empty room, one mover, two simultaneous movers, a swinging room light):
 - two movers register simultaneously at 0.96 balance, costing no more time than one
 - a changing room light paints nothing — 0.00%
 - vision 2.1ms, whole frame 2.6ms, comfortably inside a 60fps slot
+
+Timing splits into two halves that scale with different things. Pulling a frame
+out of the video element ends in `getImageData`, a GPU-to-CPU readback that
+costs whatever the machine's graphics stack charges: **5.1ms** under software
+rendering in CI, far less on a real GPU. Everything after it is a flat loop over
+19,200 bytes and costs **0.24ms** anywhere. The panel shows them separately,
+because one combined number reads as the pipeline being slow when it is not.
 
 ## The knocked camera
 
