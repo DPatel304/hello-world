@@ -35,27 +35,42 @@
     font-family:var(--ui);font-size:14px;line-height:1.5;
     -webkit-font-smoothing:antialiased;
   }
+  /* ---------- ten-foot layout ----------
+     This is played on a television from across a room, so the old 1280px
+     column and 13px labels were both wrong: the picture has to fill the screen
+     and everything readable has to survive being three metres away. --safe
+     keeps content off the bezel, since plenty of sets still overscan. */
+  :root{ --safe:clamp(14px,3.2vmin,46px); }
   .app{
-    min-height:100%;max-width:1280px;margin:0 auto;
-    padding-inline:16px;padding-block:16px 28px;
-    display:flex;flex-direction:column;gap:14px;
+    height:100%;max-width:none;margin:0;
+    padding:var(--safe);
+    display:flex;flex-direction:column;gap:clamp(8px,1.4vh,18px);
   }
 
   /* ---------- header ---------- */
   header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
   h1{
-    font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0;color:#e8f0f6;
+    font-size:clamp(18px,2.6vh,30px);font-weight:700;letter-spacing:-.01em;
+    margin:0;color:#e8f0f6;
   }
   h1 em{font-style:normal;color:var(--coral);}
-  .sub{font-size:12.5px;color:var(--dim);}
+  .sub{font-size:clamp(12px,1.6vh,18px);color:var(--dim);}
 
   /* ---------- layout ---------- */
-  .main{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start;}
+  .main{
+    flex:1;min-height:0;
+    display:grid;grid-template-columns:minmax(0,1fr) clamp(240px,21vw,340px);
+    gap:clamp(10px,1.4vw,20px);align-items:stretch;
+  }
+  /* With the numbers put away - which is how it is played - the picture gets
+     the whole screen. */
+  .main.solo{ grid-template-columns:minmax(0,1fr); }
   @media (max-width:860px){ .main{grid-template-columns:minmax(0,1fr);} }
 
   .stage{
     position:relative;background:#06090c;border:1px solid var(--line);
-    aspect-ratio:4/3;overflow:hidden;max-width:100%;
+    aspect-ratio:4/3;overflow:hidden;
+    height:100%;width:auto;max-width:100%;margin:0 auto;
   }
   #view{display:block;width:100%;height:100%;}
   #cam{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
@@ -64,18 +79,18 @@
     position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:rgba(6,9,12,.94);text-align:center;padding:24px;
   }
-  .curtain .inner{max-width:400px;}
-  .curtain h2{font-size:19px;margin:0 0 8px;color:#e8f0f6;}
-  .curtain p{font-size:13.5px;color:var(--dim);margin:0 0 6px;}
+  .curtain .inner{max-width:min(56ch,80%);}
+  .curtain h2{font-size:clamp(22px,4.4vh,46px);margin:0 0 .3em;color:#e8f0f6;}
+  .curtain p{font-size:clamp(14px,2.2vh,24px);color:var(--dim);margin:0 0 .35em;}
   .big{
-    font-family:var(--mono);font-size:54px;color:var(--coral);
+    font-family:var(--mono);font-size:clamp(54px,13vh,150px);color:var(--coral);
     font-variant-numeric:tabular-nums;line-height:1.1;margin-top:8px;
   }
 
   button{
-    font-family:var(--ui);font-size:13px;font-weight:600;
+    font-family:var(--ui);font-size:clamp(13px,1.8vh,19px);font-weight:600;
     background:var(--panel-2);color:var(--text);
-    border:1px solid var(--line);padding:9px 14px;cursor:pointer;
+    border:1px solid var(--line);padding:.6em 1.1em;cursor:pointer;
   }
   button:hover:not(:disabled){border-color:var(--coral);color:#fff;}
   button:focus-visible{outline:2px solid var(--coral);outline-offset:2px;}
@@ -234,11 +249,12 @@
     <button id="btn-clear" type="button" disabled>Clear painting</button>
     <button id="btn-mute" type="button" aria-pressed="false" disabled>Sound on</button>
     <button id="btn-mask" type="button" aria-pressed="false" disabled>Show motion</button>
+    <button id="btn-diag" type="button" aria-pressed="false">Show numbers</button>
   </div>
 
   <div id="error" class="err" hidden></div>
 
-  <div class="main">
+  <div class="main solo" id="main">
     <div class="stage" id="stage">
       <video id="cam" playsinline autoplay muted></video>
       <canvas id="view" width="960" height="720"></canvas>
@@ -252,7 +268,7 @@
       </div>
     </div>
 
-    <aside class="diag">
+    <aside class="diag" id="panel" hidden>
       <div>
         <h3>Camera</h3>
         <div class="rows">
@@ -876,6 +892,18 @@ function boot(){
     this.setAttribute('aria-pressed', String(muted));
     this.textContent = muted ? 'Sound off' : 'Sound on';
   });
+  /* The numbers are for whoever is building this, not for whoever is playing
+     it, so the television shows the picture and nothing else until asked. The
+     panel keeps updating while hidden - it costs nothing and means the figures
+     are already right when it opens. */
+  document.getElementById('btn-diag').addEventListener('click', function(){
+    var panel = document.getElementById('panel');
+    panel.hidden = !panel.hidden;
+    document.getElementById('main').classList.toggle('solo', panel.hidden);
+    this.setAttribute('aria-pressed', String(!panel.hidden));
+    this.textContent = panel.hidden ? 'Show numbers' : 'Hide numbers';
+  });
+
   document.getElementById('btn-mask').addEventListener('click', function(){
     showMask = !showMask;
     this.setAttribute('aria-pressed', String(showMask));

@@ -121,6 +121,26 @@ async function main(){
   await win.waitForTimeout(500);
   ok('a tapped Escape does not quit', app.windows().length === 1);
 
+  /* Played on a television from across a room: the picture gets the screen,
+     the numbers stay out of the way until someone asks for them. */
+  const tv = await win.evaluate(() => {
+    const st = document.getElementById('stage').getBoundingClientRect();
+    return { panelHidden: document.getElementById('panel').hidden,
+             solo: document.getElementById('main').classList.contains('solo'),
+             capRead: document.getElementById('d-cap').textContent,
+             stageH: st.height, vh: innerHeight,
+             hint: parseFloat(getComputedStyle(document.querySelector('.curtain p') ||
+                   document.createElement('p')).fontSize) || 0 };
+  });
+  ok('the numbers are put away by default', tv.panelHidden && tv.solo);
+  ok('the picture fills the height of the screen', tv.stageH > tv.vh * 0.72,
+     Math.round(tv.stageH) + 'px of ' + tv.vh + 'px');
+  ok('the panel still tracks while hidden', /\d+\u00d7\d+/.test(tv.capRead), tv.capRead);
+
+  await win.click('#btn-diag');
+  const shown = await win.evaluate(() => !document.getElementById('panel').hidden);
+  ok('the numbers can be summoned', shown);
+
   ok('no JS errors', errs.length === 0, errs.join('; ') || 'clean');
 
   await app.close();

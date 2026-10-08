@@ -2,6 +2,23 @@
 
 A camera-controlled motion game for one adult and two toddlers.
 
+## It is a television game
+
+Played on a TV, driven from a laptop plugged into it, watched from across a
+room. That decides the layout: the picture takes the whole screen rather than a
+1280px column, type is sized so it survives three metres, and a `--safe` margin
+keeps content off the bezel because plenty of sets still overscan.
+
+The numbers panel is for whoever is building this, not whoever is playing it,
+so it starts put away and the picture gets the screen. **Show numbers** brings
+it back; it keeps updating while hidden, so the figures are already right when
+it opens.
+
+Still outstanding: the camera is asked for 640×480, so on a 16:9 television
+about a quarter of the screen is black down either side. Fixing that means
+capturing 16:9 and reshaping the 160×120 buffer — see the note at the end about
+why that is blocked.
+
 ## Running it
 
 It is a desktop app now, not a file you open in a browser.
@@ -111,3 +128,14 @@ player, two players at full tilt, or a changing light.
 Laptop webcam first, to find out whether the toddlers enjoy any of this before
 spending on hardware. If they do, the capture layer swaps to an Orbbec Femto
 Bolt depth camera and the rest of the code stays put.
+
+
+## The test footage gap
+
+`test/mkclip.py` generates one scenario. The other four clips the vision suites
+use — an empty room, one mover, two movers, a changing light — were made with
+ffmpeg, which is not installed here any more, so they exist only on the machine
+that made them. Three of the four suites therefore cannot run in CI, and the
+same gap blocks the move to 16:9 capture: changing the buffer shape would
+invalidate footage that cannot be regenerated. Teaching `mkclip.py` all five
+scenarios unblocks both.
