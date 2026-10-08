@@ -17,12 +17,14 @@ The game itself is still one self-contained HTML file at `src/game/index.html`,
 with no build step, no bundler and no network. Electron is a shell around it,
 and `src/main.js` is the whole shell.
 
-The opening screen is built out of the game's own rule. Colour comes from
-position, so each letter of the wordmark takes its hue from how far across the
-word it sits, and the whole spectrum drifts — which is exactly what a player's
-paint does. Behind it, eight painters wander and paint by the same rule, so the
-attract loop is a demonstration rather than decoration. The play control is a
-cube, tumbling inside a button whose own box never moves.
+The opening screen is an isometric floor of little cubes rippling in a wave.
+Each tile takes its hue from how far across the floor it sits and its
+brightness from how high the wave has lifted it, so the floor is running the
+game's own rule — colour is position — on itself. It sits low, like a floor,
+which is also what keeps it from fighting the name: laid behind the type the
+wave simply competed with it. A portrait window gets fewer, larger tiles and
+the floor rides higher, because sizing it on width alone left a phone with a
+small floor in the bottom third and nothing above it.
 
 Press play, stand back about two metres, and moving paints. That is the whole
 game.

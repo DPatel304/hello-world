@@ -121,103 +121,73 @@
 
   /* ============================================================
      TITLE SCREEN
-     The wordmark colours itself the way the game does: hue comes from how far
-     across it a letter sits, and the whole spectrum drifts slowly, which is
-     exactly the rule a player's paint follows. Behind it the game plays
-     itself - eight drifting painters using that same rule.
+     An isometric floor of little cubes, rippling in a wave, each tile taking
+     its hue from how far across the floor it sits - the game's rule, which is
+     that colour is position. The floor sits low, like a floor, so the name has
+     clear air above it: laid behind the type the wave simply fought it.
      ============================================================ */
-  @property --h{ syntax:'<number>'; initial-value:0; inherits:false; }
-
   .title{
-    position:fixed; inset:0; z-index:50;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:clamp(22px,4.5vh,50px);
-    background:#0b0e13; overflow:hidden;
-    padding:24px; box-sizing:border-box;
+    position:fixed; inset:0; z-index:50; overflow:hidden;
+    background:#080a0f;
+    display:grid; grid-template-rows:1fr auto auto 1fr;
+    align-items:center; justify-items:center;
+    padding:28px 22px; box-sizing:border-box;
   }
   .title canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
-  /* Keeps the wordmark legible over whatever the painters happen to do. */
-  .title .veil{
-    position:absolute; inset:0;
-    background:radial-gradient(ellipse 66% 56% at 50% 44%,rgba(7,9,13,.62),rgba(7,9,13,.16) 72%,transparent);
-  }
 
   .wordmark{
-    position:relative; display:flex; justify-content:center;
+    position:relative; grid-row:2;
+    display:flex; justify-content:center; flex-wrap:wrap;
     font-weight:900; letter-spacing:-.035em; line-height:1;
-    font-size:clamp(54px,13.5vw,150px);
-    max-width:96vw;
+    font-size:clamp(50px,12.5vw,138px);
+    color:#f3f7fb; max-width:96vw;
+    text-shadow:0 10px 60px rgba(0,0,0,.95), 0 2px 10px rgba(0,0,0,.8);
   }
   .wordmark span{
-    --h:0;
-    opacity:0; transform:translateY(.16em) scale(.82);
-    color:hsl(calc(var(--base) + var(--h) * 1deg) 94% 63%);
-    text-shadow:0 0 38px hsl(calc(var(--base) + var(--h) * 1deg) 94% 60% / .45);
+    opacity:0; transform:translateY(.16em) scale(.84);
     transition:opacity .2s ease-out, transform .42s cubic-bezier(.2,1.7,.45,1);
-    animation:hue 9s linear infinite; animation-play-state:paused;
     will-change:transform,opacity;
   }
-  .wordmark span.on{
-    opacity:1; transform:translateY(0) scale(1);
-    animation-play-state:running;
-  }
-  @keyframes hue{ to{ --h:360; } }
+  .wordmark span.on{ opacity:1; transform:translateY(0) scale(1); }
 
-  /* The play control is a cube, because that is what the thing is called.
-     The cube tumbles inside the button; the button's own box never moves, so
-     it stays a stable, clickable target and costs no permanent layout work. */
+  /* White and square against a floor of coloured diamonds: the one thing on
+     screen that is unmistakably a button. */
   .play{
-    position:relative;
-    width:clamp(152px,21vh,200px); height:clamp(152px,21vh,200px);
-    border:0; background:none; cursor:pointer;
-    display:grid; place-items:center;
-    perspective:720px;
+    position:relative; grid-row:3; margin-top:clamp(20px,4vh,40px);
+    width:clamp(84px,12vh,104px); height:clamp(84px,12vh,104px);
+    border:0; border-radius:26px; cursor:pointer;
+    background:#fff; display:grid; place-items:center;
+    box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 0 0 rgba(255,255,255,.35);
+    transition:transform .18s ease, box-shadow .3s ease;
+    animation:bob 3.4s ease-in-out infinite;
   }
-  /* The cube needs a real length: translateZ() rejects percentages, and a
-     face pushed out by an invalid transform simply stays in the same plane,
-     which collapses the whole cube into one flat quad. */
-  .cube{
-    --sz:clamp(80px,11vh,106px);
-    position:absolute; width:var(--sz); height:var(--sz);
-    transform-style:preserve-3d;
-    animation:tumble 15s linear infinite;
-  }
-  .cube i{
-    position:absolute; inset:0; --d:calc(var(--sz) / 2);
-    border:2px solid hsl(var(--f) 95% 64%);
-    border-radius:9px;
-    background:hsl(var(--f) 95% 58% / .26);
-    box-shadow:0 0 34px hsl(var(--f) 95% 58% / .55), inset 0 0 26px hsl(var(--f) 95% 64% / .34);
-  }
-  @keyframes tumble{
-    0%  { transform:rotateX(-24deg) rotateY(0deg); }
-    100%{ transform:rotateX(-24deg) rotateY(360deg); }
-  }
+  @keyframes bob{ 0%,100%{ box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 0 0 rgba(255,255,255,.30); }
+                  50%{ box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 0 16px rgba(255,255,255,0); } }
   .play .glyph{
-    position:relative; width:0; height:0; margin-left:12%;
-    border-left:clamp(26px,4vh,36px) solid #fff;
-    border-top:clamp(17px,2.7vh,24px) solid transparent;
-    border-bottom:clamp(17px,2.7vh,24px) solid transparent;
-    filter:drop-shadow(0 0 16px rgba(255,255,255,.55));
+    width:0; height:0; margin-left:7px;
+    border-left:clamp(26px,3.6vh,32px) solid #0a0d12;
+    border-top:clamp(17px,2.4vh,21px) solid transparent;
+    border-bottom:clamp(17px,2.4vh,21px) solid transparent;
   }
-  .play:hover .cube{ filter:brightness(1.3); }
-  .play:focus-visible{ outline:4px solid #fff; outline-offset:4px; border-radius:12px; }
+  .play:hover{ transform:scale(1.06); }
+  .play:focus-visible{ outline:4px solid #fff; outline-offset:6px; }
 
   .title .hint{
-    position:relative; margin:0; text-align:center;
+    position:relative; grid-row:4; align-self:start;
+    margin:clamp(18px,3.2vh,30px) 0 0; text-align:center;
     font-size:clamp(13px,1.8vh,16px); color:#c3d2df;
-    text-shadow:0 1px 10px #080b10, 0 0 22px #080b10;
+    text-shadow:0 1px 10px #04060a, 0 0 22px #04060a;
   }
   .title .hint b{ color:#e6eef5; font-weight:600; }
   .title .tiny{
-    position:absolute; bottom:16px; left:0; right:0;
+    position:absolute; bottom:14px; left:0; right:0;
     text-align:center; font-size:12px; color:#7c8d9c;
-    text-shadow:0 1px 10px #080b10, 0 0 20px #080b10;
+    text-shadow:0 1px 10px #04060a, 0 0 20px #04060a;
   }
 
   @media (prefers-reduced-motion:reduce){
-    .wordmark span{ opacity:1; transform:none; transition:none; animation:none; }
-    .cube{ animation:none; transform:rotateX(-24deg) rotateY(38deg); }
+    .wordmark span{ opacity:1; transform:none; transition:none; }
+    .play{ animation:none; }
   }
   .err code{font-family:var(--mono);font-size:12px;color:#ffd9d9;}
 </style>
@@ -225,10 +195,8 @@
 <body>
 <div class="title" id="title">
   <canvas id="attract"></canvas>
-  <div class="veil"></div>
   <h1 class="wordmark" id="wordmark" aria-label="ViveCube"></h1>
   <button class="play" id="btn-play" type="button" aria-label="Play">
-    <span class="cube" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
     <span class="glyph"></span>
   </button>
   <p class="hint">Stand back about <b>two metres</b>. Everybody moves, everybody paints.</p>
@@ -761,96 +729,84 @@ function titleScreen(){
   var ctx  = cv.getContext('2d');
   var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* One letter per span so each can take its own hue. The hue comes from how
-     far across the word the letter sits - the game's own rule, where colour
-     is position - and CSS then drifts the whole spectrum, which is the game's
-     other rule. The wordmark is therefore a demonstration, not a logo. */
+  /* One letter per span so they can arrive one at a time. The letters stay
+     white here: the floor behind already carries the whole spectrum, and two
+     rainbows on one screen simply fight. */
   var NAME = 'ViveCube';
-  var letters = NAME.split('').map(function(ch, i){
+  var letters = NAME.split('').map(function(ch){
     var el = document.createElement('span');
     el.textContent = ch;
-    el.style.setProperty('--base', (i / (NAME.length - 1) * 300).toFixed(0) + 'deg');
     mark.appendChild(el);
     return el;
   });
 
-  /* Six faces, stepped around the same spectrum, assembled into a cube. */
-  var faces = root.querySelectorAll('.cube i');
-  var SIDES = ['translateZ(var(--d))', 'rotateY(180deg) translateZ(var(--d))',
-               'rotateY(90deg) translateZ(var(--d))', 'rotateY(-90deg) translateZ(var(--d))',
-               'rotateX(90deg) translateZ(var(--d))', 'rotateX(-90deg) translateZ(var(--d))'];
-  for (var f = 0; f < faces.length; f++){
-    faces[f].style.setProperty('--f', (f * 58) + 'deg');
-    faces[f].style.setProperty('--d', 'calc(var(--sz) / 2)');
-    faces[f].style.transform = SIDES[f];
-  }
-
-  /* ---- the attract loop: the game playing itself ----
-     Four painters wander and leave glowing trails, coloured by where they
-     are across the room, exactly as a person would be. */
-  var painters = [], W = 0, H = 0;
-  for (var i = 0; i < 8; i++){
-    painters.push({ x:0.2 + Math.random()*0.6, y:0.25 + Math.random()*0.5,
-                    vx:(Math.random()-0.5)*0.009, vy:(Math.random()-0.5)*0.007,
-                    r:0.05 + Math.random()*0.045 });
-  }
+  /* ---- the floor ----
+     An isometric grid of cubes. Hue comes from how far across the floor a tile
+     sits and brightness from how high the wave has lifted it, so the floor is
+     running the game's own rule on itself. */
+  var COLS = 30, ROWS = 15, W = 0, H = 0, DPR = 1;
 
   function size(){
-    W = cv.width  = Math.max(320, root.clientWidth);
-    H = cv.height = Math.max(240, root.clientHeight);
-    ctx.fillStyle = '#0b0e13';
-    ctx.fillRect(0, 0, W, H);
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = root.clientWidth; H = root.clientHeight;
+    cv.width  = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
   size();
   window.addEventListener('resize', size);
 
-  function paint(loop){
-    /* Soft decay rather than a clear, so the trails read as wet paint. */
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(11,14,19,0.020)';
+  function floor(t){
+    ctx.fillStyle = '#080a0f';
     ctx.fillRect(0, 0, W, H);
 
-    ctx.globalCompositeOperation = 'lighter';
-    for (var i = 0; i < painters.length; i++){
-      var p = painters[i];
-      {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0.14 || p.x > 0.86) p.vx *= -1;
-        if (p.y < 0.18 || p.y > 0.82) p.vy *= -1;
-        p.vx += (Math.random()-0.5) * 0.0004;
-        p.vy += (Math.random()-0.5) * 0.0003;
-        /* a speed cap, or the random walk eventually flings them */
-        if (p.vx >  0.011) p.vx =  0.011; if (p.vx < -0.011) p.vx = -0.011;
-        if (p.vy >  0.009) p.vy =  0.009; if (p.vy < -0.009) p.vy = -0.009;
+    /* Tile size follows the viewport so the floor fills a phone and a TV
+       alike, and the grid is anchored low, where a floor belongs. Sizing it on
+       width alone left a tall screen with a small floor sitting in the bottom
+       third and nothing above it, so a portrait window gets fewer, larger
+       tiles and the floor rides higher. */
+    var tall = H > W;
+    var tw = Math.max(30, tall ? W / 11 : W / 18), th = tw * 0.5;
+    var ox = W / 2, oy = H * (tall ? 0.62 : 0.74);
+
+    for (var r = 0; r < ROWS; r++){
+      for (var c = 0; c < COLS; c++){
+        var gx = c - COLS / 2, gy = r - ROWS / 2;
+        var px = ox + (gx - gy) * tw * 0.5;
+        if (px < -tw * 2 || px > W + tw * 2) continue;      /* off-screen column */
+        var lift = Math.sin((gx * 0.5 + gy * 0.4) - t * 0.0016);
+        var py = oy + (gx + gy) * th * 0.5 - lift * (th * 0.8);
+        if (py < -th * 2 || py > H + th * 2) continue;
+        var up = (lift + 1) / 2;                             /* 0..1 up the wave */
+        var hue = (c / COLS) * 300 + t * 0.012;
+        var sz  = tw * 0.30 + up * tw * 0.17;
+        ctx.fillStyle = 'hsla(' + hue + ',92%,' + (32 + up * 28).toFixed(1) +
+                        '%,' + (0.26 + up * 0.60).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(px, py - sz * 0.5);
+        ctx.lineTo(px + sz, py);
+        ctx.lineTo(px, py + sz * 0.5);
+        ctx.lineTo(px - sz, py);
+        ctx.closePath();
+        ctx.fill();
       }
-      var cx = p.x * W, cy = p.y * H, rad = p.r * Math.min(W, H);
-      var hue = 12 + p.x * 300;                 /* the game's rule: hue from x */
-      var g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
-      g.addColorStop(0,   'hsla(' + hue + ',96%,62%,0.34)');
-      g.addColorStop(0.5, 'hsla(' + hue + ',96%,56%,0.11)');
-      g.addColorStop(1,   'hsla(' + hue + ',95%,50%,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, 6.2832); ctx.fill();
     }
-    if (loop) titleRAF = requestAnimationFrame(function(){ paint(true); });
   }
 
-  if (calm){
-    /* Reduced motion still gets a painting, just a finished one: run the
-       loop through without scheduling and leave the result on screen. */
-    for (var k = 0; k < 420; k++) paint(false);
-  } else {
-    titleRAF = requestAnimationFrame(function(){ paint(true); });
+  function loop(now){
+    floor(now);
+    titleRAF = requestAnimationFrame(loop);
   }
 
-  /* ---- the letters arrive, then stay ---- */
   var timers = [];
   function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
 
   if (calm){
     letters.forEach(function(el){ el.classList.add('on'); });
+    floor(0);                       /* one still frame, no loop */
   } else {
     letters.forEach(function(el, i){ later(function(){ el.classList.add('on'); }, 260 + i * 85); });
+    titleRAF = requestAnimationFrame(loop);
   }
 
   return function teardown(){
