@@ -1,0 +1,90 @@
+/* Read from across a living room: everything is sized against viewport height,
+   because a 10-foot interface has no business using fixed pixels. */
+:root{
+  --bg:#0d0b1a; --bg2:#151130; --line:#2c2752;
+  --fg:#f3f0ff; --dim:#9b94c4; --faint:#635c92;
+  --p1:#3da9ff; --p2:#ff8a3d;
+  --good:#53e59a; --bad:#ff5d73; --gold:#ffd24a;
+  --ui:ui-rounded,"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  --safe:clamp(12px,2.6vmin,40px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased;}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;}
+#cam{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;top:0;left:0;}
+#ui{position:fixed;inset:0;pointer-events:none;}
+#ui > *{pointer-events:auto;}
+
+.screen{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:clamp(14px,3vh,40px);
+  padding:var(--safe);text-align:center;
+}
+.screen.dim{background:rgba(9,7,20,.88);}
+h1{font-size:clamp(34px,9vh,110px);font-weight:900;letter-spacing:-.03em;line-height:.92;}
+h1 .jam{color:var(--p2);}
+h2{font-size:clamp(22px,5vh,60px);font-weight:800;letter-spacing:-.02em;}
+.lede{font-size:clamp(14px,2.4vh,26px);color:var(--dim);max-width:46ch;line-height:1.5;}
+
+/* Hover-to-select: every control is a .btn and the ring fills as you dwell. */
+.btn{
+  position:relative;border:3px solid var(--line);background:var(--bg2);color:var(--fg);
+  border-radius:clamp(14px,2.2vh,26px);padding:clamp(12px,2.2vh,26px) clamp(18px,3vw,38px);
+  font:inherit;font-size:clamp(15px,2.6vh,30px);font-weight:800;cursor:pointer;
+  overflow:hidden;transition:transform .12s ease,border-color .12s ease;
+}
+.btn .fill{
+  position:absolute;inset:0;background:currentColor;opacity:.22;
+  transform-origin:left center;transform:scaleX(0);pointer-events:none;
+}
+.btn.hot{border-color:currentColor;transform:scale(1.04);}
+.btn:focus-visible{outline:4px solid var(--fg);outline-offset:4px;}
+
+/* Sized by the cards rather than a fixed column count: with two games a
+   four-column grid shoves them into a corner, and the catalogue grows. */
+.grid{
+  display:grid;gap:clamp(10px,1.8vh,24px);
+  width:min(96vw,1700px);justify-content:center;
+  grid-template-columns:repeat(auto-fit,minmax(clamp(220px,19vw,330px),1fr));
+}
+@media (max-aspect-ratio:1/1){
+  .grid{grid-template-columns:repeat(auto-fit,minmax(clamp(150px,40vw,330px),1fr));}
+}
+.card{
+  display:flex;flex-direction:column;gap:.4em;align-items:flex-start;text-align:left;
+  min-height:clamp(96px,15vh,170px);justify-content:center;
+  border-top-width:9px;border-top-color:var(--accent,var(--p1));
+}
+.card .nm{font-size:clamp(17px,3.1vh,36px);font-weight:900;line-height:1.05;}
+.card .meta{display:flex;gap:.7em;align-items:baseline;font-size:clamp(11px,1.6vh,18px);
+  color:var(--dim);font-weight:700;}
+.stars{color:var(--gold);letter-spacing:.08em;}
+.best{color:var(--faint);}
+
+.topbar{
+  position:absolute;top:var(--safe);left:var(--safe);right:var(--safe);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.topbar .brand{font-size:clamp(18px,3.4vh,40px);font-weight:900;letter-spacing:-.02em;}
+.topbar .tools{display:flex;gap:clamp(6px,1vw,14px);}
+.topbar .btn{padding:clamp(8px,1.4vh,16px) clamp(12px,1.8vw,24px);font-size:clamp(12px,1.8vh,20px);}
+
+.row{display:flex;gap:clamp(10px,2vw,28px);flex-wrap:wrap;justify-content:center;}
+.tally{display:flex;gap:clamp(20px,5vw,80px);flex-wrap:wrap;justify-content:center;}
+.tally div{display:flex;flex-direction:column;gap:.15em;}
+.tally dt{font-size:clamp(11px,1.6vh,18px);letter-spacing:.16em;text-transform:uppercase;color:var(--faint);}
+.tally dd{font-size:clamp(30px,8vh,96px);font-weight:900;line-height:1;font-variant-numeric:tabular-nums;}
+.badge{background:var(--gold);color:#201a00;font-weight:900;padding:.25em .7em;
+  border-radius:999px;font-size:clamp(12px,2vh,24px);}
+.bullets{display:flex;flex-direction:column;gap:.6em;font-size:clamp(14px,2.4vh,28px);
+  text-align:left;max-width:30ch;}
+.bullets li{list-style:none;display:flex;gap:.6em;align-items:baseline;}
+.bullets .ic{font-size:1.2em;}
+.pill{display:inline-flex;align-items:center;gap:.4em;font-weight:800;
+  font-size:clamp(12px,2vh,24px);}
+.dot{width:.8em;height:.8em;border-radius:50%;display:inline-block;}
+.hide{display:none!important;}
+label.slider{display:flex;align-items:center;gap:1em;font-size:clamp(13px,2.2vh,26px);font-weight:700;}
+input[type=range]{width:min(50vw,420px);height:2.2vh;}
