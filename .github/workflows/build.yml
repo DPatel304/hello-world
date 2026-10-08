@@ -9,7 +9,7 @@ on:
 
 defaults:
   run:
-    working-directory: stomp
+    working-directory: vivecube
 
 jobs:
   test:
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: stomp/package-lock.json
+          cache-dependency-path: vivecube/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -42,15 +42,15 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: stomp/package-lock.json
+          cache-dependency-path: vivecube/package-lock.json
       - run: npm ci
       # Runs on Windows, so the NSIS installer builds for real - no wine, and
       # the result is the thing that ends up on the laptop.
       - run: npm run build:win
       - uses: actions/upload-artifact@v4
         with:
-          name: Stomp-windows
+          name: ViveCube-windows
           path: |
-            stomp/dist/*.exe
-            stomp/dist/*.zip
+            vivecube/dist/*.exe
+            vivecube/dist/*.zip
           if-no-files-found: error
