@@ -1,10 +1,6 @@
-# Stomp Stomp Clap Clap Jump Spin Freeze… Again
+# ViveCube
 
-A camera-controlled motion game for one adult and two toddlers. Short name: **Stomp**.
-
-The title is also the warm-up. The screen chants it one word per beat with the
-lights pulsing along, everyone does the action as it is called, and the pause
-before *Again* is a real freeze. Then the loop restarts.
+A camera-controlled motion game for one adult and two toddlers.
 
 ## Running it
 
@@ -21,11 +17,15 @@ The game itself is still one self-contained HTML file at `src/game/index.html`,
 with no build step, no bundler and no network. Electron is a shell around it,
 and `src/main.js` is the whole shell.
 
-The opening screen performs the title rather than printing it: the words arrive
-one per beat in the paint spectrum, over an attract loop where the game plays
-itself — four drifting painters using the same hue-from-x rule a real player
-gets. The freeze beat is a real freeze; the painters stop too. Press the play
-button, stand back about two metres, and moving paints. That is the whole game.
+The opening screen is built out of the game's own rule. Colour comes from
+position, so each letter of the wordmark takes its hue from how far across the
+word it sits, and the whole spectrum drifts — which is exactly what a player's
+paint does. Behind it, eight painters wander and paint by the same rule, so the
+attract loop is a demonstration rather than decoration. The play control is a
+cube, tumbling inside a button whose own box never moves.
+
+Press play, stand back about two metres, and moving paints. That is the whole
+game.
 **Hold Escape for about a second to quit** — a tap does nothing, so a child
 leaning on the keyboard cannot end the session.
 
@@ -52,7 +52,7 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 The installer lands as a build artifact. Building it on Linux gets as far as a
-working `dist/win-unpacked/Stomp.exe` and a `.zip`, but the NSIS installer step
+working `dist/win-unpacked/ViveCube.exe` and a `.zip`, but the NSIS installer step
 needs wine.
 
 No menu, no score, no timer, nothing to lose. Colour is chosen by where you are

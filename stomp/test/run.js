@@ -43,9 +43,9 @@ async function main(){
 
   ok('the app opens a window', !!win);
   ok('it loads the game, not a blank page',
-     (await win.title()).startsWith('Stomp'), await win.title());
+     (await win.title()) === 'ViveCube', await win.title());
   ok('the shell bridge reaches the game',
-     await win.evaluate(() => !!(window.stompShell && window.stompShell.isApp)));
+     await win.evaluate(() => !!(window.viveShell && window.viveShell.isApp)));
   ok('the game has no access to node',
      await win.evaluate(() => typeof require === 'undefined' && typeof process === 'undefined'));
   ok('it starts fullscreen',
@@ -60,6 +60,8 @@ async function main(){
      Entry is through the title screen's play button, which is the only way in
      for a real player. */
   ok('the title screen is up before play', await win.isVisible('#title'));
+  ok('the wordmark spells the name',
+     (await win.textContent('#wordmark')) === 'ViveCube', await win.textContent('#wordmark'));
   await win.click('#btn-play');
   ok('pressing play clears the title screen', !(await win.isVisible('#title')));
   await win.waitForTimeout(4200);
@@ -69,9 +71,9 @@ async function main(){
   const samples = [];
   for (let i = 0; i < 40; i++){
     samples.push(await win.evaluate(() => {
-      const v = window.Stomp.vision();
+      const v = window.ViveCube.vision();
       return { c: v.coverage, ms: v.visMs, grab: v.grabMs, pixel: v.pixelMs,
-               e2e: v.e2eMs, fps: v.fps, painted: window.Stomp.state().painted };
+               e2e: v.e2eMs, fps: v.fps, painted: window.ViveCube.state().painted };
     }));
     await win.waitForTimeout(100);
   }
@@ -92,13 +94,13 @@ async function main(){
   ok('it holds frame rate in the app shell', avg('fps') > 50, avg('fps').toFixed(0) + ' fps');
 
   /* Toddler-proofing: the keys that would end the game are swallowed. */
-  const before = await win.evaluate(() => window.Stomp.state().painted);
+  const before = await win.evaluate(() => window.ViveCube.state().painted);
   for (const k of ['F5', 'Control+r', 'Control+w', 'Control+Shift+I']){
     await win.keyboard.press(k);
   }
   await win.waitForTimeout(600);
   const stillUp = app.windows().length === 1;
-  const after = await win.evaluate(() => window.Stomp.state().painted).catch(() => -1);
+  const after = await win.evaluate(() => window.ViveCube.state().painted).catch(() => -1);
   ok('reload and close keys do not end the game', stillUp && after >= 0,
      stillUp ? 'window survived, painting at ' + (after * 100).toFixed(1) + '%' : 'window gone');
   ok('the painting survived the key mashing', after >= before - 0.02,

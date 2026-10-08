@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Stomp Stomp Clap Clap Jump Spin Freeze... Again</title>
+<title>ViveCube</title>
 <style>
   /* No webfonts and no CDN: this runs from a file:// URL with the network off. */
   :root{
@@ -121,83 +121,87 @@
 
   /* ============================================================
      TITLE SCREEN
-     The title is the warm-up chant - one word per beat - so the
-     opening screen performs it rather than printing it. Behind the
-     words the game plays itself: four drifting painters using the
-     same hue-from-x rule the real game uses, so the attract loop is
-     a demonstration and not decoration.
+     The wordmark colours itself the way the game does: hue comes from how far
+     across it a letter sits, and the whole spectrum drifts slowly, which is
+     exactly the rule a player's paint follows. Behind it the game plays
+     itself - eight drifting painters using that same rule.
      ============================================================ */
+  @property --h{ syntax:'<number>'; initial-value:0; inherits:false; }
+
   .title{
     position:fixed; inset:0; z-index:50;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:clamp(20px,4vh,44px);
+    gap:clamp(22px,4.5vh,50px);
     background:#0b0e13; overflow:hidden;
     padding:24px; box-sizing:border-box;
   }
-  .title canvas{
-    position:absolute; inset:0; width:100%; height:100%;
-    display:block;
-  }
-  /* Keeps the words legible over whatever the painters happen to do. */
+  .title canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  /* Keeps the wordmark legible over whatever the painters happen to do. */
   .title .veil{
     position:absolute; inset:0;
-    background:radial-gradient(ellipse 66% 56% at 50% 46%,rgba(7,9,13,.62),rgba(7,9,13,.16) 72%,transparent);
+    background:radial-gradient(ellipse 66% 56% at 50% 44%,rgba(7,9,13,.62),rgba(7,9,13,.16) 72%,transparent);
   }
 
-  .chant{
-    position:relative;
-    display:flex; flex-wrap:wrap; justify-content:center;
-    gap:.10em .34em;
-    max-width:min(1100px,94vw);
-    font-weight:900; letter-spacing:-.02em; line-height:1;
-    font-size:clamp(34px,8.2vw,96px);
-    text-align:center;
+  .wordmark{
+    position:relative; display:flex; justify-content:center;
+    font-weight:900; letter-spacing:-.035em; line-height:1;
+    font-size:clamp(54px,13.5vw,150px);
+    max-width:96vw;
   }
-  .chant span{
-    opacity:0; transform:translateY(.22em) scale(.72);
-    color:var(--c);
-    text-shadow:0 0 28px color-mix(in srgb,var(--c) 55%,transparent);
-    transition:opacity .16s ease-out, transform .34s cubic-bezier(.2,1.7,.45,1), filter .3s ease;
+  .wordmark span{
+    --h:0;
+    opacity:0; transform:translateY(.16em) scale(.82);
+    color:hsl(calc(var(--base) + var(--h) * 1deg) 94% 63%);
+    text-shadow:0 0 38px hsl(calc(var(--base) + var(--h) * 1deg) 94% 60% / .45);
+    transition:opacity .2s ease-out, transform .42s cubic-bezier(.2,1.7,.45,1);
+    animation:hue 9s linear infinite; animation-play-state:paused;
     will-change:transform,opacity;
   }
-  .chant span.on{ opacity:1; transform:translateY(0) scale(1); }
-  .chant span.beat{ animation:pop .44s cubic-bezier(.2,1.6,.4,1); }
-  @keyframes pop{ 0%{transform:scale(1);} 34%{transform:scale(1.13);} 100%{transform:scale(1);} }
-  /* The freeze beat is a real freeze: the painters stop and the word frosts
-     over. Only that word - frosting the whole line washes the title out to
-     near-white, which is most of what anyone glancing at the screen sees. */
-  .chant.frozen span.frz{ filter:saturate(.2) brightness(1.7); text-shadow:0 0 34px rgba(190,230,255,.85); }
-  .chant .dots{ color:var(--faint); }
-
-  /* The ring turns by animating the gradient's angle rather than rotating the
-     button. A permanent transform keeps the box moving forever, which pins a
-     compositor layer and means the element never settles - enough to stop a
-     test clicking it, and no better for a browser. */
-  @property --ring{ syntax:'<angle>'; initial-value:0deg; inherits:false; }
-  .play{
-    position:relative; --ring:0deg;
-    width:clamp(124px,18vh,172px); height:clamp(124px,18vh,172px);
-    border-radius:50%; border:0; cursor:pointer;
-    display:grid; place-items:center;
-    background:conic-gradient(from var(--ring),#ff4d6d,#ffa63d,#ffe14d,#4ade80,#29d3ff,#7c6cff,#e04bd8,#ff4d6d);
-    box-shadow:0 0 0 6px rgba(255,255,255,.07), 0 18px 50px rgba(0,0,0,.55);
-    animation:ring 14s linear infinite;
+  .wordmark span.on{
+    opacity:1; transform:translateY(0) scale(1);
+    animation-play-state:running;
   }
-  @keyframes ring{ to{ --ring:360deg; } }
-  .play::before{
-    content:""; position:absolute; inset:7px;
-    border-radius:50%; background:#0d1117;
+  @keyframes hue{ to{ --h:360; } }
+
+  /* The play control is a cube, because that is what the thing is called.
+     The cube tumbles inside the button; the button's own box never moves, so
+     it stays a stable, clickable target and costs no permanent layout work. */
+  .play{
+    position:relative;
+    width:clamp(152px,21vh,200px); height:clamp(152px,21vh,200px);
+    border:0; background:none; cursor:pointer;
+    display:grid; place-items:center;
+    perspective:720px;
+  }
+  /* The cube needs a real length: translateZ() rejects percentages, and a
+     face pushed out by an invalid transform simply stays in the same plane,
+     which collapses the whole cube into one flat quad. */
+  .cube{
+    --sz:clamp(80px,11vh,106px);
+    position:absolute; width:var(--sz); height:var(--sz);
+    transform-style:preserve-3d;
+    animation:tumble 15s linear infinite;
+  }
+  .cube i{
+    position:absolute; inset:0; --d:calc(var(--sz) / 2);
+    border:2px solid hsl(var(--f) 95% 64%);
+    border-radius:9px;
+    background:hsl(var(--f) 95% 58% / .26);
+    box-shadow:0 0 34px hsl(var(--f) 95% 58% / .55), inset 0 0 26px hsl(var(--f) 95% 64% / .34);
+  }
+  @keyframes tumble{
+    0%  { transform:rotateX(-24deg) rotateY(0deg); }
+    100%{ transform:rotateX(-24deg) rotateY(360deg); }
   }
   .play .glyph{
-    position:relative; width:0; height:0;
-    margin-left:14%;
-    border-left:clamp(28px,4.4vh,40px) solid #fff;
-    border-top:clamp(19px,3vh,27px) solid transparent;
-    border-bottom:clamp(19px,3vh,27px) solid transparent;
-    filter:drop-shadow(0 0 14px rgba(255,255,255,.45));
+    position:relative; width:0; height:0; margin-left:12%;
+    border-left:clamp(26px,4vh,36px) solid #fff;
+    border-top:clamp(17px,2.7vh,24px) solid transparent;
+    border-bottom:clamp(17px,2.7vh,24px) solid transparent;
+    filter:drop-shadow(0 0 16px rgba(255,255,255,.55));
   }
-  .play:hover{ box-shadow:0 0 0 10px rgba(255,255,255,.12), 0 18px 56px rgba(0,0,0,.6); }
-  .play:focus-visible{ outline:4px solid #fff; outline-offset:6px; }
+  .play:hover .cube{ filter:brightness(1.3); }
+  .play:focus-visible{ outline:4px solid #fff; outline-offset:4px; border-radius:12px; }
 
   .title .hint{
     position:relative; margin:0; text-align:center;
@@ -212,8 +216,8 @@
   }
 
   @media (prefers-reduced-motion:reduce){
-    .chant span{ opacity:1; transform:none; transition:none; }
-    .play{ animation:none; }
+    .wordmark span{ opacity:1; transform:none; transition:none; animation:none; }
+    .cube{ animation:none; transform:rotateX(-24deg) rotateY(38deg); }
   }
   .err code{font-family:var(--mono);font-size:12px;color:#ffd9d9;}
 </style>
@@ -222,8 +226,9 @@
 <div class="title" id="title">
   <canvas id="attract"></canvas>
   <div class="veil"></div>
-  <h1 class="chant" id="chant" aria-label="Stomp Stomp Clap Clap Jump Spin Freeze, Again"></h1>
+  <h1 class="wordmark" id="wordmark" aria-label="ViveCube"></h1>
   <button class="play" id="btn-play" type="button" aria-label="Play">
+    <span class="cube" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
     <span class="glyph"></span>
   </button>
   <p class="hint">Stand back about <b>two metres</b>. Everybody moves, everybody paints.</p>
@@ -233,7 +238,7 @@
 <div class="app">
 
   <header>
-    <h1>Stomp Stomp Clap Clap <em>Jump Spin Freeze</em>… Again</h1>
+    <h1>Vive<em>Cube</em></h1>
     <div class="sub">Camera-controlled play &middot; no controllers &middot; runs entirely on your machine</div>
   </header>
 
@@ -750,34 +755,34 @@ function fail(msg, detail){
 var titleRAF = 0;
 
 function titleScreen(){
-  var root  = document.getElementById('title');
-  var cv    = document.getElementById('attract');
-  var chant = document.getElementById('chant');
-  var ctx   = cv.getContext('2d');
-  var calm  = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var root = document.getElementById('title');
+  var cv   = document.getElementById('attract');
+  var mark = document.getElementById('wordmark');
+  var ctx  = cv.getContext('2d');
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* Each word carries its own hue, stepping across the same spectrum the
-     game paints with, so the title and the play read as one thing. */
-  var WORDS = [
-    { w:'Stomp',  h:  6 }, { w:'Stomp',  h: 30 },
-    { w:'Clap',   h: 50 }, { w:'Clap',   h: 86 },
-    { w:'Jump',   h:150 }, { w:'Spin',   h:192 },
-    { w:'Freeze', h:228, freeze:true },
-    { w:'…', h:  0, dots:true },
-    { w:'Again',  h:300 }
-  ];
-  var spans = WORDS.map(function(it){
+  /* One letter per span so each can take its own hue. The hue comes from how
+     far across the word the letter sits - the game's own rule, where colour
+     is position - and CSS then drifts the whole spectrum, which is the game's
+     other rule. The wordmark is therefore a demonstration, not a logo. */
+  var NAME = 'ViveCube';
+  var letters = NAME.split('').map(function(ch, i){
     var el = document.createElement('span');
-    el.textContent = it.w;
-    if (it.dots){ el.className = 'dots'; }
-    else { el.style.setProperty('--c', 'hsl(' + it.h + ' 92% 62%)'); }
-    if (it.freeze) el.classList.add('frz');
-    chant.appendChild(el);
+    el.textContent = ch;
+    el.style.setProperty('--base', (i / (NAME.length - 1) * 300).toFixed(0) + 'deg');
+    mark.appendChild(el);
     return el;
   });
 
-  if (calm){
-    spans.forEach(function(el){ el.classList.add('on'); });
+  /* Six faces, stepped around the same spectrum, assembled into a cube. */
+  var faces = root.querySelectorAll('.cube i');
+  var SIDES = ['translateZ(var(--d))', 'rotateY(180deg) translateZ(var(--d))',
+               'rotateY(90deg) translateZ(var(--d))', 'rotateY(-90deg) translateZ(var(--d))',
+               'rotateX(90deg) translateZ(var(--d))', 'rotateX(-90deg) translateZ(var(--d))'];
+  for (var f = 0; f < faces.length; f++){
+    faces[f].style.setProperty('--f', (f * 58) + 'deg');
+    faces[f].style.setProperty('--d', 'calc(var(--sz) / 2)');
+    faces[f].style.transform = SIDES[f];
   }
 
   /* ---- the attract loop: the game playing itself ----
@@ -799,7 +804,6 @@ function titleScreen(){
   size();
   window.addEventListener('resize', size);
 
-  var frozen = false;
   function paint(loop){
     /* Soft decay rather than a clear, so the trails read as wet paint. */
     ctx.globalCompositeOperation = 'source-over';
@@ -809,7 +813,7 @@ function titleScreen(){
     ctx.globalCompositeOperation = 'lighter';
     for (var i = 0; i < painters.length; i++){
       var p = painters[i];
-      if (!frozen){
+      {
         p.x += p.vx; p.y += p.vy;
         if (p.x < 0.14 || p.x > 0.86) p.vx *= -1;
         if (p.y < 0.18 || p.y > 0.82) p.vy *= -1;
@@ -839,36 +843,15 @@ function titleScreen(){
     titleRAF = requestAnimationFrame(function(){ paint(true); });
   }
 
-  /* ---- the chant, one word per beat ---- */
-  var BEAT = 420, timers = [];
+  /* ---- the letters arrive, then stay ---- */
+  var timers = [];
   function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
 
-  /* The words arrive one per beat the first time through and then stay put:
-     the complete title is the game's name, and a cycle that wiped it would
-     leave the screen nameless most of the time. After the build the beat
-     carries on as a pulse instead. */
-  function runChant(first){
-    var t = first ? 300 : 0;
-    spans.forEach(function(el, i){
-      var it = WORDS[i];
-      later(function(){
-        el.classList.add('on');
-        el.classList.remove('beat');
-        void el.offsetWidth;                /* restart the pulse */
-        el.classList.add('beat');
-        if (it.freeze){
-          /* The freeze beat stops the painters too, which is the one joke
-             the screen gets to make. */
-          frozen = true;
-          chant.classList.add('frozen');
-          later(function(){ frozen = false; chant.classList.remove('frozen'); }, 950);
-        }
-      }, t);
-      t += it.freeze ? BEAT + 950 : (it.dots ? BEAT * 0.5 : BEAT);
-    });
-    later(function(){ runChant(false); }, t + 1400);
+  if (calm){
+    letters.forEach(function(el){ el.classList.add('on'); });
+  } else {
+    letters.forEach(function(el, i){ later(function(){ el.classList.add('on'); }, 260 + i * 85); });
   }
-  if (!calm) runChant(true);
 
   return function teardown(){
     cancelAnimationFrame(titleRAF);
@@ -948,7 +931,7 @@ function boot(){
   });
 
   /* a small handle so the pipeline can be driven from a test or a console */
-  window.Stomp = {
+  window.ViveCube = {
     vision: function(){ return { coverage:coverage, gain:gain, shift:lightShift, zones:Array.from(zone),
                                  visMs:visMs, grabMs:grabMs, pixelMs:visMs-grabMs, e2eMs:e2eMs, fps:fps, seeded:seeded,
                                  calibrating:calibrating, highFor:highFor }; },
