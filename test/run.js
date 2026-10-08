@@ -63,7 +63,17 @@ async function main(){
   ok('the wordmark spells the name',
      (await win.textContent('#wordmark')) === 'ViveCube', await win.textContent('#wordmark'));
   await win.click('#btn-play');
-  ok('pressing play clears the title screen', !(await win.isVisible('#title')));
+  /* Pressing play is a transition, not a cut: the blocks scatter and the paper
+     darkens to the game's ground before the camera opens. So the title is
+     meant to still be there for a moment - what matters is that it goes, and
+     that it darkens on the way rather than cutting cream to black. */
+  const mid = await win.evaluate(() => {
+    const t = document.getElementById('title');
+    return { leaving: t.classList.contains('leaving'), bg: getComputedStyle(t).backgroundColor };
+  });
+  ok('play starts the handover rather than cutting', mid.leaving, 'background ' + mid.bg);
+  await win.waitForSelector('#title', { state: 'hidden', timeout: 4000 });
+  ok('the title screen gets out of the way', !(await win.isVisible('#title')));
   await win.waitForTimeout(4200);
   const cap = await win.textContent('#d-cap');
   ok('the camera opens with no permission prompt', /\d+×\d+/.test(cap || ''), cap);

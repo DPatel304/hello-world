@@ -121,85 +121,103 @@
 
   /* ============================================================
      TITLE SCREEN
-     An isometric floor of little cubes, rippling in a wave, each tile taking
-     its hue from how far across the floor it sits - the game's rule, which is
-     that colour is position. The floor sits low, like a floor, so the name has
-     clear air above it: laid behind the type the wave simply fought it.
+     Blocks on warm paper. This is the one screen in the whole thing that is
+     meant to read as a toy on a shelf rather than as software, because the
+     people it has to convince are two and four.
+
+     It is light and the game is dark, which would be a jolt, so pressing play
+     is a transition and not a cut: the blocks scatter, the paper darkens to
+     the game's own ground, and the camera opens on the far side of it.
      ============================================================ */
   .title{
     position:fixed; inset:0; z-index:50; overflow:hidden;
-    background:#080a0f;
+    background:#fdf6e9;
     display:grid; grid-template-rows:1fr auto auto 1fr;
     align-items:center; justify-items:center;
     padding:28px 22px; box-sizing:border-box;
+    transition:background-color .46s ease;
   }
-  .title canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .title.leaving{ background:#101419; }
+
+  .shapes{ position:absolute; inset:0; pointer-events:none; }
+  .shapes b{
+    position:absolute; display:block;
+    animation:bob 7s ease-in-out infinite;
+    transition:transform .46s cubic-bezier(.4,0,.8,.2), opacity .4s ease;
+  }
+  @keyframes bob{
+    0%,100%{ transform:translateY(0) rotate(var(--r)); }
+    50%    { transform:translateY(-22px) rotate(calc(var(--r) + 5deg)); }
+  }
+  /* On the way out every block is thrown outward from the middle. */
+  .leaving .shapes b{ animation:none; transform:translate(var(--fx),var(--fy)) scale(.4); opacity:0; }
 
   .wordmark{
-    position:relative; grid-row:2;
-    display:flex; justify-content:center; flex-wrap:wrap;
-    font-weight:900; letter-spacing:-.035em; line-height:1;
-    font-size:clamp(50px,12.5vw,138px);
-    color:#f3f7fb; max-width:96vw;
-    text-shadow:0 10px 60px rgba(0,0,0,.95), 0 2px 10px rgba(0,0,0,.8);
+    position:relative; grid-row:2; text-align:center;
+    font-weight:900; letter-spacing:-.045em; line-height:.86;
+    font-size:clamp(58px,15vw,136px);
+    color:#16181d;
+    transition:opacity .3s ease, transform .4s ease;
   }
   .wordmark span{
-    opacity:0; transform:translateY(.16em) scale(.84);
-    transition:opacity .2s ease-out, transform .42s cubic-bezier(.2,1.7,.45,1);
-    will-change:transform,opacity;
+    display:block; opacity:0; transform:translateY(.14em) scale(.86);
+    transition:opacity .22s ease-out, transform .46s cubic-bezier(.2,1.7,.45,1);
   }
   .wordmark span.on{ opacity:1; transform:translateY(0) scale(1); }
+  .wordmark span + span{ color:#e8422f; }
+  .leaving .wordmark{ opacity:0; transform:scale(.94); }
 
-  /* White and square against a floor of coloured diamonds: the one thing on
-     screen that is unmistakably a button. */
+  /* A block the size of a fist, sitting on its own shadow the way a wooden
+     toy does, so it reads as a thing to press rather than an icon. */
   .play{
-    position:relative; grid-row:3; margin-top:clamp(20px,4vh,40px);
-    width:clamp(84px,12vh,104px); height:clamp(84px,12vh,104px);
-    border:0; border-radius:26px; cursor:pointer;
-    background:#fff; display:grid; place-items:center;
-    box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 0 0 rgba(255,255,255,.35);
-    transition:transform .18s ease, box-shadow .3s ease;
-    animation:bob 3.4s ease-in-out infinite;
+    position:relative; grid-row:3; margin-top:clamp(22px,4.5vh,44px);
+    width:clamp(112px,15vh,138px); height:clamp(112px,15vh,138px);
+    border:0; border-radius:50%; cursor:pointer;
+    background:#16181d; display:grid; place-items:center;
+    box-shadow:0 13px 0 #cdbfa8;
+    transition:transform .12s ease, box-shadow .12s ease, opacity .3s ease;
   }
-  @keyframes bob{ 0%,100%{ box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 0 0 rgba(255,255,255,.30); }
-                  50%{ box-shadow:0 16px 50px rgba(0,0,0,.65), 0 0 0 16px rgba(255,255,255,0); } }
   .play .glyph{
-    width:0; height:0; margin-left:7px;
-    border-left:clamp(26px,3.6vh,32px) solid #0a0d12;
-    border-top:clamp(17px,2.4vh,21px) solid transparent;
-    border-bottom:clamp(17px,2.4vh,21px) solid transparent;
+    width:0; height:0; margin-left:9px;
+    border-left:clamp(32px,4.4vh,40px) solid #fdf6e9;
+    border-top:clamp(21px,2.9vh,26px) solid transparent;
+    border-bottom:clamp(21px,2.9vh,26px) solid transparent;
   }
-  .play:hover{ transform:scale(1.06); }
-  .play:focus-visible{ outline:4px solid #fff; outline-offset:6px; }
+  .play:active{ transform:translateY(9px); box-shadow:0 4px 0 #cdbfa8; }
+  .play:focus-visible{ outline:4px solid #16181d; outline-offset:6px; }
+  .leaving .play{ opacity:0; }
 
   .title .hint{
     position:relative; grid-row:4; align-self:start;
     margin:clamp(18px,3.2vh,30px) 0 0; text-align:center;
-    font-size:clamp(13px,1.8vh,16px); color:#c3d2df;
-    text-shadow:0 1px 10px #04060a, 0 0 22px #04060a;
+    font-size:clamp(14px,2vh,19px); font-weight:700; color:#5d5445;
+    text-shadow:0 1px 3px #fdf6e9, 0 0 12px #fdf6e9, 0 0 20px #fdf6e9;
+    transition:opacity .3s ease;
   }
-  .title .hint b{ color:#e6eef5; font-weight:600; }
   .title .tiny{
     position:absolute; bottom:14px; left:0; right:0;
-    text-align:center; font-size:12px; color:#7c8d9c;
-    text-shadow:0 1px 10px #04060a, 0 0 20px #04060a;
+    text-align:center; font-size:12px; color:#857a68; font-weight:600;
+    text-shadow:0 1px 3px #fdf6e9, 0 0 10px #fdf6e9, 0 0 18px #fdf6e9;
+    transition:opacity .3s ease;
   }
+  .leaving .hint, .leaving .tiny{ opacity:0; }
 
   @media (prefers-reduced-motion:reduce){
     .wordmark span{ opacity:1; transform:none; transition:none; }
-    .play{ animation:none; }
+    .shapes b{ animation:none; }
+    .title, .shapes b, .wordmark, .play{ transition:none; }
   }
   .err code{font-family:var(--mono);font-size:12px;color:#ffd9d9;}
 </style>
 </head>
 <body>
 <div class="title" id="title">
-  <canvas id="attract"></canvas>
+  <div class="shapes" id="shapes" aria-hidden="true"></div>
   <h1 class="wordmark" id="wordmark" aria-label="ViveCube"></h1>
   <button class="play" id="btn-play" type="button" aria-label="Play">
     <span class="glyph"></span>
   </button>
-  <p class="hint">Stand back about <b>two metres</b>. Everybody moves, everybody paints.</p>
+  <p class="hint">Stand back two metres. Then wiggle.</p>
   <p class="tiny">Nothing is recorded and nothing leaves this machine.</p>
 </div>
 
@@ -720,101 +738,79 @@ function fail(msg, detail){
 /* ============================================================
    TITLE SCREEN
    ============================================================ */
-var titleRAF = 0;
 
 function titleScreen(){
-  var root = document.getElementById('title');
-  var cv   = document.getElementById('attract');
-  var mark = document.getElementById('wordmark');
-  var ctx  = cv.getContext('2d');
-  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var root   = document.getElementById('title');
+  var field  = document.getElementById('shapes');
+  var mark   = document.getElementById('wordmark');
+  var calm   = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* One letter per span so they can arrive one at a time. The letters stay
-     white here: the floor behind already carries the whole spectrum, and two
-     rainbows on one screen simply fight. */
-  var NAME = 'ViveCube';
-  var letters = NAME.split('').map(function(ch){
+  /* Two lines, because the name splits cleanly and a toddler reads a stack
+     faster than a long word. textContent still spells the whole name. */
+  var parts = ['Vive', 'Cube'].map(function(txt){
     var el = document.createElement('span');
-    el.textContent = ch;
+    el.textContent = txt;
     mark.appendChild(el);
     return el;
   });
 
-  /* ---- the floor ----
-     An isometric grid of cubes. Hue comes from how far across the floor a tile
-     sits and brightness from how high the wave has lifted it, so the floor is
-     running the game's own rule on itself. */
-  var COLS = 30, ROWS = 15, W = 0, H = 0, DPR = 1;
+  /* A wooden-blocks palette rather than the game's spectrum: this screen is
+     selling the idea of a toy, and the spectrum is what happens once you are
+     inside. Positions are fixed rather than random so the composition is the
+     same every launch and reads as designed, not scattered. */
+  var BLOCKS = [
+    [  5,  9, 170, 'sq', 0], [ 83, 66, 128, 'ci', 1], [ 11, 68, 142, 'ci', 2],
+    [ 79, 12, 198, 'sq', 3], [ 44,  4, 112, 'tr', 4], [ 75, 44,  98, 'ci', 5],
+    [ 18, 30,  88, 'sq', 6], [ 90, 36, 126, 'tr', 0], [  2, 42, 104, 'tr', 1],
+    [ 61, 70, 150, 'sq', 2], [ 20, 90,  96, 'ci', 3], [ 86, 84, 112, 'sq', 4]
+  ];
+  var PAINT = ['#e8422f','#f2a03d','#f6d64a','#4aa96c','#3a9ad9','#7d5ba6','#e8679c'];
 
-  function size(){
-    DPR = Math.min(2, window.devicePixelRatio || 1);
-    W = root.clientWidth; H = root.clientHeight;
-    cv.width  = Math.round(W * DPR);
-    cv.height = Math.round(H * DPR);
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  }
-  size();
-  window.addEventListener('resize', size);
-
-  function floor(t){
-    ctx.fillStyle = '#080a0f';
-    ctx.fillRect(0, 0, W, H);
-
-    /* Tile size follows the viewport so the floor fills a phone and a TV
-       alike, and the grid is anchored low, where a floor belongs. Sizing it on
-       width alone left a tall screen with a small floor sitting in the bottom
-       third and nothing above it, so a portrait window gets fewer, larger
-       tiles and the floor rides higher. */
-    var tall = H > W;
-    var tw = Math.max(30, tall ? W / 11 : W / 18), th = tw * 0.5;
-    var ox = W / 2, oy = H * (tall ? 0.62 : 0.74);
-
-    for (var r = 0; r < ROWS; r++){
-      for (var c = 0; c < COLS; c++){
-        var gx = c - COLS / 2, gy = r - ROWS / 2;
-        var px = ox + (gx - gy) * tw * 0.5;
-        if (px < -tw * 2 || px > W + tw * 2) continue;      /* off-screen column */
-        var lift = Math.sin((gx * 0.5 + gy * 0.4) - t * 0.0016);
-        var py = oy + (gx + gy) * th * 0.5 - lift * (th * 0.8);
-        if (py < -th * 2 || py > H + th * 2) continue;
-        var up = (lift + 1) / 2;                             /* 0..1 up the wave */
-        var hue = (c / COLS) * 300 + t * 0.012;
-        var sz  = tw * 0.30 + up * tw * 0.17;
-        ctx.fillStyle = 'hsla(' + hue + ',92%,' + (32 + up * 28).toFixed(1) +
-                        '%,' + (0.26 + up * 0.60).toFixed(3) + ')';
-        ctx.beginPath();
-        ctx.moveTo(px, py - sz * 0.5);
-        ctx.lineTo(px + sz, py);
-        ctx.lineTo(px, py + sz * 0.5);
-        ctx.lineTo(px - sz, py);
-        ctx.closePath();
-        ctx.fill();
-      }
-    }
-  }
-
-  function loop(now){
-    floor(now);
-    titleRAF = requestAnimationFrame(loop);
-  }
+  BLOCKS.forEach(function(b, i){
+    var el = document.createElement('b');
+    var left = b[0], top = b[1], w = b[2], kind = b[3], col = PAINT[b[4] % PAINT.length];
+    /* Each block is thrown away from the middle on exit, so the direction has
+       to come from where it actually sits. */
+    var fx = (left - 50) * 2.6, fy = (top - 50) * 2.6;
+    /* Sized in vmin, not pixels. Fixed pixel blocks are fine on a laptop and
+       enormous on a phone, where a 170px square crowds the name off its own
+       screen; vmin keeps the composition proportional at any size. The divisor
+       is the 800px-tall screen the layout was drawn against. */
+    var vm = (w / 8).toFixed(1) + 'vmin';
+    el.style.cssText =
+      'left:' + left + '%;top:' + top + '%;width:' + vm + ';height:' + vm + ';' +
+      '--r:' + (((i * 37) % 40) - 20) + 'deg;' +
+      '--fx:' + fx.toFixed(0) + '%;--fy:' + fy.toFixed(0) + '%;' +
+      'animation-delay:' + (-i * 0.74).toFixed(2) + 's;';
+    if (kind === 'ci')      el.style.cssText += 'border-radius:50%;background:' + col + ';';
+    else if (kind === 'sq') el.style.cssText += 'border-radius:22px;background:' + col + ';';
+    else                    el.style.cssText += 'background:' + col +
+                            ';clip-path:polygon(50% 0,100% 100%,0 100%);';
+    field.appendChild(el);
+  });
 
   var timers = [];
   function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
 
-  if (calm){
-    letters.forEach(function(el){ el.classList.add('on'); });
-    floor(0);                       /* one still frame, no loop */
-  } else {
-    letters.forEach(function(el, i){ later(function(){ el.classList.add('on'); }, 260 + i * 85); });
-    titleRAF = requestAnimationFrame(loop);
-  }
+  if (calm) parts.forEach(function(el){ el.classList.add('on'); });
+  else      parts.forEach(function(el, i){ later(function(){ el.classList.add('on'); }, 240 + i * 150); });
 
+  /* Nothing is animating on a rAF here, so there is no loop to cancel - the
+     blocks bob on a CSS animation that stops existing with the element. */
   return function teardown(){
-    cancelAnimationFrame(titleRAF);
     timers.forEach(clearTimeout);
-    window.removeEventListener('resize', size);
     root.hidden = true;
   };
+}
+
+/* The light-to-dark handover. Resolves once the paper has finished darkening,
+   so the camera opens against the game's own ground rather than cutting from
+   cream to black. */
+function leaveTitle(){
+  var root = document.getElementById('title');
+  var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  root.classList.add('leaving');
+  return new Promise(function(done){ setTimeout(done, calm ? 0 : 470); });
 }
 
 function start(){
@@ -870,8 +866,8 @@ function boot(){
      the camera from inside the game. */
   var dropTitle = titleScreen();
   document.getElementById('btn-play').addEventListener('click', function(){
-    dropTitle();
-    start();
+    this.disabled = true;
+    leaveTitle().then(function(){ dropTitle(); start(); });
   });
   document.getElementById('btn-cal').addEventListener('click', function(){ calibrating = 2.2; });
   document.getElementById('btn-clear').addEventListener('click', clearPaint);
