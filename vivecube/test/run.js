@@ -74,6 +74,17 @@ async function main(){
   ok('play starts the handover rather than cutting', mid.leaving, 'background ' + mid.bg);
   await win.waitForSelector('#title', { state: 'hidden', timeout: 4000 });
   ok('the title screen gets out of the way', !(await win.isVisible('#title')));
+
+  /* The shell learns the room, then offers the games. Entering any other way
+     would skip the part a player actually meets. */
+  await win.waitForSelector('.card', { timeout: 14000 });
+  const games = await win.$$eval('.card b', ns => ns.map(n => n.textContent));
+  ok('the menu lists the games once the room is learned', games.length >= 2, games.join(' / '));
+  await win.click('[data-game="paint"]');
+  await win.waitForFunction(() => window.ViveCube.session().phase === 'playing', null,
+                            { timeout: 12000 });
+  ok('picking a game counts in and starts a round',
+     (await win.evaluate(() => window.ViveCube.session().phase)) === 'playing');
   await win.waitForTimeout(4200);
   const cap = await win.textContent('#d-cap');
   ok('the camera opens with no permission prompt', /\d+×\d+/.test(cap || ''), cap);

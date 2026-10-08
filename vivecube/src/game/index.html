@@ -82,6 +82,44 @@
   .curtain .inner{max-width:min(56ch,80%);}
   .curtain h2{font-size:clamp(22px,4.4vh,46px);margin:0 0 .3em;color:#e8f0f6;}
   .curtain p{font-size:clamp(14px,2.2vh,24px);color:var(--dim);margin:0 0 .35em;}
+  /* ---------- session screens ----------
+     The shell's own surfaces - picking a game, counting in, showing what
+     happened. They sit inside the stage so the picture stays the frame and
+     the television never cuts to a different-looking page. */
+  .screen{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:clamp(14px,2.4vh,28px);
+    background:rgba(6,9,12,.92);text-align:center;padding:var(--safe);
+  }
+  .screen h2{
+    font-size:clamp(24px,5.2vh,56px);margin:0;color:#f2f7fb;font-weight:800;
+    letter-spacing:-.02em;
+  }
+  .screen p{font-size:clamp(14px,2.2vh,24px);color:var(--dim);margin:0;max-width:52ch;}
+  .cards{display:flex;gap:clamp(10px,1.6vw,22px);flex-wrap:wrap;justify-content:center;}
+  .card{
+    width:clamp(190px,24vw,320px);padding:clamp(16px,2.6vh,30px);
+    border:2px solid var(--line);background:var(--panel);cursor:pointer;
+    display:flex;flex-direction:column;gap:.5em;text-align:left;
+    border-top:6px solid hsl(var(--g) 90% 58%);
+  }
+  .card:hover,.card:focus-visible{border-color:hsl(var(--g) 90% 62%);outline:none;
+    background:var(--panel-2);}
+  .card b{font-size:clamp(17px,2.8vh,30px);color:#f2f7fb;font-weight:800;}
+  .card span{font-size:clamp(13px,1.8vh,19px);color:var(--dim);line-height:1.45;}
+  .tally{display:flex;gap:clamp(18px,4vw,56px);flex-wrap:wrap;justify-content:center;}
+  .tally div{display:flex;flex-direction:column;gap:.15em;}
+  .tally dt{font-size:clamp(11px,1.5vh,15px);letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);}
+  .tally dd{margin:0;font-family:var(--mono);font-size:clamp(28px,6vh,66px);
+    color:var(--coral);font-variant-numeric:tabular-nums;line-height:1;}
+
+  /* The round clock, top-right of the picture, big enough to read from a sofa. */
+  .clock{
+    position:absolute;top:calc(var(--safe) / 2);right:calc(var(--safe) / 2);
+    font-family:var(--mono);font-size:clamp(20px,4vh,44px);color:#dbe6ef;
+    font-variant-numeric:tabular-nums;text-shadow:0 2px 14px #000;pointer-events:none;
+  }
   .big{
     font-family:var(--mono);font-size:clamp(54px,13vh,150px);color:var(--coral);
     font-variant-numeric:tabular-nums;line-height:1.1;margin-top:8px;
@@ -258,6 +296,8 @@
     <div class="stage" id="stage">
       <video id="cam" playsinline autoplay muted></video>
       <canvas id="view" width="960" height="720"></canvas>
+      <div class="clock" id="clock" hidden></div>
+      <div class="screen" id="screen" hidden></div>
       <div class="curtain" id="curtain">
         <div class="inner">
           <h2>Stand back and press Start</h2>
@@ -635,26 +675,24 @@ function render(){
   vctx.drawImage(proc, 0, 0, W, H);
   vctx.globalAlpha = 1;
 
-  var d = paintImg.data;
-  for (var i = 0, p = 0, q = 0; i < NPIX; i++, p += 3, q += 4){
-    var r = paint[p], g = paint[p+1], b = paint[p+2];
-    d[q]   = r > 255 ? 255 : r;
-    d[q+1] = g > 255 ? 255 : g;
-    d[q+2] = b > 255 ? 255 : b;
-    d[q+3] = 255;
+  /* The shell owns the mirror and the chrome; the picture itself belongs to
+     whichever game is running. Nothing is drawn during the count-in - the
+     canvas is empty anyway and a game's lettering behind a countdown is two
+     things shouting - and the results keep the backdrop without the heads-up
+     display, so Body Paint still shows what was made. */
+  if (game && (PHASE === 'playing' || PHASE === 'results')){
+    game.draw(vctx, W, H, PHASE === 'playing');
   }
-  paintCtx.putImageData(paintImg, 0, 0);
-  vctx.globalCompositeOperation = 'lighter';
-  vctx.imageSmoothingEnabled = true;
-  vctx.drawImage(paintCv, 0, 0, W, H);
-  vctx.globalCompositeOperation = 'source-over';
 
   if (showMask){
-    var m = paintCtx.createImageData(PW, PH), md = m.data;
-    for (var k = 0, mp = 0; k < NPIX; k++, mp += 4){
-      if (mask[k]){ md[mp] = 41; md[mp+1] = 211; md[mp+2] = 255; md[mp+3] = 130; }
+    /* Borrows the paint scratch canvas: whichever game is running rebuilds it
+       from its own buffer next frame, so there is nothing to preserve here. */
+    var md = paintImg.data;
+    for (var mi = 0, mq = 0; mi < NPIX; mi++, mq += 4){
+      var on = mask[mi] ? 255 : 0;
+      md[mq] = on; md[mq+1] = on; md[mq+2] = on; md[mq+3] = on ? 150 : 0;
     }
-    paintCtx.putImageData(m, 0, 0);
+    paintCtx.putImageData(paintImg, 0, 0);
     vctx.imageSmoothingEnabled = false;
     vctx.drawImage(paintCv, 0, 0, W, H);
     vctx.imageSmoothingEnabled = true;
@@ -669,7 +707,7 @@ function render(){
 var el = {};
 function ids(){
   ['d-cap','d-proc','d-fps','d-grab','d-vis','d-draw','d-e2e','d-cov','d-gain','d-act',
-   'zones','curtain','error'].forEach(function(id){ el[id] = document.getElementById(id); });
+   'zones','curtain','error','screen','clock'].forEach(function(id){ el[id] = document.getElementById(id); });
 }
 function grade(node, v, good, mid){
   node.className = v <= good ? 'ok' : (v <= mid ? 'mid' : 'bad');
@@ -693,6 +731,214 @@ function diagnostics(now){
   }
 }
 
+
+/* ============================================================
+   GAMES
+   A game is a plain object. The shell owns the camera, the vision pipeline,
+   calibration, the clock, sound and every screen around the round; a game only
+   says what to do with motion each frame, what to draw, and what the round was
+   worth. Nothing in here reaches back into the shell, so adding the tenth game
+   means adding one more object to this list.
+
+     id, name, blurb, hue   what the menu shows
+     secs                   how long a round lasts
+     start()                called once as the round begins
+     step(dt)               called every frame with fresh vision data
+     draw(c, W, H, live)    called every frame to paint the picture. `live` is
+                            false on the results screen, where the game should
+                            show what was made but not its heads-up display -
+                            a round's big lettering competing with the results
+                            text is just two things shouting.
+     tally()                [{label, value}] for the results screen
+   ============================================================ */
+
+var GAMES = [
+
+/* ---- Body Paint ---------------------------------------------------------
+   Moving lays down colour and the colour comes from where you are standing. */
+{
+  id:'paint', name:'Body Paint', hue:200, secs:120,
+  blurb:'Move and the room fills with colour. Walk sideways and your colour changes.',
+  start: function(){ clearPaint(); },
+  step: function(dt){
+    brush(dt);
+    /* Only take a restore point once the room has been quiet for longer than
+       it takes to confirm a bump: a bump's own coverage dips as the model
+       starts catching up, and that dip was enough to snapshot the flood. */
+    if (coverage < CALM_LEVEL) calmFor += dt; else calmFor = 0;
+    snapAge += dt;
+    if (calmFor > BUMP_HOLD && snapAge > SNAP_EVERY){ snap.set(paint); snapAge = 0; }
+  },
+  onKnock: function(){ paint.set(snap); },
+  draw: function(c, W, H, live){
+    var d = paintImg.data;
+    for (var i = 0, q = 0, pp = 0; i < NPIX; i++, pp += 3, q += 4){
+      var r = paint[pp], g = paint[pp+1], b = paint[pp+2];
+      d[q]   = r > 255 ? 255 : r;
+      d[q+1] = g > 255 ? 255 : g;
+      d[q+2] = b > 255 ? 255 : b;
+      d[q+3] = 255;
+    }
+    paintCtx.putImageData(paintImg, 0, 0);
+    c.imageSmoothingEnabled = true;
+    c.drawImage(paintCv, 0, 0, W, H);
+  },
+  tally: function(){
+    return [{ label:'Canvas covered', value: Math.round(paintedFraction() * 100) + '%' }];
+  }
+},
+
+/* ---- Freeze Dance -------------------------------------------------------
+   The opposite signal. Body Paint rewards motion, so a shell shaped around it
+   would quietly assume motion is always the thing being measured; this one
+   scores holding still, which is what makes it worth having as the second
+   game rather than the tenth.
+
+   STILL is the line between a person standing still and a person moving.
+   Measured here: an empty room reads 0.00% and one person moving reads about
+   9%, so 3.5% sits well clear of both. A real person holding a pose still
+   breathes and sways, which no synthetic clip does, so this is the first
+   number to check against actual footage. */
+{
+  id:'freeze', name:'Freeze Dance', hue:280, secs:100,
+  blurb:'Dance while the lights move. When it says FREEZE, do not move at all.',
+  STILL: 0.035,
+  start: function(){
+    this.phase = 'dance'; this.left = 5.5; this.held = 0; this.rounds = 0;
+    this.energy = 0; this.worst = 0; this.settle = 0; this.flash = 0;
+  },
+  step: function(dt){
+    this.left -= dt;
+    this.flash = Math.max(0, this.flash - dt * 2.2);
+    if (this.phase === 'dance'){
+      this.energy += coverage * dt;
+      if (this.left <= 0){
+        this.phase = 'freeze'; this.left = 3.2; this.settle = 0.7;
+        this.worst = 0; this.rounds++; this.flash = 1;
+        chime(0.95, 0.5);
+      }
+    } else {
+      /* Ignore the first moment: nobody stops dead on the word. */
+      if (this.settle > 0) this.settle -= dt;
+      else if (coverage > this.worst) this.worst = coverage;
+      if (this.left <= 0){
+        if (this.worst < this.STILL){ this.held++; chime(0.75, 0.45); }
+        else chime(0.05, 0.4);
+        this.phase = 'dance';
+        this.left = 4.5 + Math.random() * 4;
+        this.flash = 1;
+      }
+    }
+  },
+  draw: function(c, W, H, live){
+    var frozen = this.phase === 'freeze';
+    if (frozen){
+      /* How still they are, drawn as the thing filling up. */
+      var bad = Math.min(1, this.worst / this.STILL);
+      c.fillStyle = 'hsla(' + (205 - bad * 205) + ',85%,' + (14 + bad * 10) + '%,0.92)';
+      c.fillRect(0, 0, W, H);
+      var barW = W * 0.52, barH = Math.max(10, H * 0.022), bx = (W - barW) / 2, by = H * 0.66;
+      c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(bx, by, barW, barH);
+      c.fillStyle = bad < 1 ? '#7df2a4' : '#f87171';
+      c.fillRect(bx, by, barW * Math.min(1, bad), barH);
+    } else {
+      var lift = Math.min(1, coverage * 4);
+      c.fillStyle = 'hsla(' + ((hueDrift * 3) % 360) + ',80%,' + (8 + lift * 22) + '%,0.92)';
+      c.fillRect(0, 0, W, H);
+    }
+    if (this.flash > 0){
+      c.fillStyle = 'rgba(255,255,255,' + (this.flash * 0.5).toFixed(3) + ')';
+      c.fillRect(0, 0, W, H);
+    }
+    if (!live) return;                    /* backdrop only, once the round is over */
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = '900 ' + Math.round(H * 0.17) + 'px ' + UIFONT;
+    c.fillText(frozen ? 'FREEZE' : 'DANCE', W / 2, H * 0.44);
+    c.font = '600 ' + Math.round(H * 0.045) + 'px ' + UIFONT;
+    c.fillStyle = '#b9c8d6';
+    c.fillText(this.held + ' / ' + this.rounds + ' held', W / 2, H * 0.57);
+    c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+  },
+  tally: function(){
+    return [
+      { label:'Freezes held', value: this.held + ' / ' + this.rounds },
+      { label:'Energy',       value: Math.round(this.energy * 10) }
+    ];
+  }
+}
+
+];
+
+var UIFONT = 'ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+
+/* ============================================================
+   SESSION SHELL
+   One state machine for the whole session, so every game gets the same shape:
+   learn the room, pick, count in, play a round, see what happened, go again.
+   The television never cuts to a differently-shaped page - every screen is
+   drawn inside the picture.
+   ============================================================ */
+var PHASE = 'idle';          /* idle | learning | menu | countin | playing | results */
+var game = null, roundLeft = 0, countIn = 0;
+
+function setPhase(next){
+  PHASE = next;
+  el.clock.hidden = (next !== 'playing');
+  if (next !== 'menu' && next !== 'results' && next !== 'countin') el.screen.hidden = true;
+}
+
+function showMenu(){
+  setPhase('menu');
+  var html = '<h2>Pick a game</h2><div class="cards">';
+  for (var i = 0; i < GAMES.length; i++){
+    var g = GAMES[i];
+    html += '<button class="card" type="button" data-game="' + g.id + '" style="--g:' +
+            g.hue + 'deg"><b>' + g.name + '</b><span>' + g.blurb + '</span></button>';
+  }
+  el.screen.innerHTML = html + '</div>';
+  el.screen.hidden = false;
+  var cards = el.screen.querySelectorAll('.card');
+  for (var k = 0; k < cards.length; k++){
+    cards[k].addEventListener('click', function(){ pick(this.getAttribute('data-game')); });
+  }
+  if (cards.length) cards[0].focus();
+}
+
+function pick(id){
+  for (var i = 0; i < GAMES.length; i++) if (GAMES[i].id === id) game = GAMES[i];
+  if (!game) return;
+  game.start();
+  roundLeft = game.secs;
+  countIn = 3.2;
+  setPhase('countin');
+  el.screen.hidden = false;
+}
+
+function endRound(){
+  setPhase('results');
+  var rows = game.tally();
+  var html = '<h2>' + game.name + '</h2><div class="tally">';
+  for (var i = 0; i < rows.length; i++){
+    html += '<div><dt>' + rows[i].label + '</dt><dd>' + rows[i].value + '</dd></div>';
+  }
+  html += '</div><div class="cards"><button class="card" type="button" id="again" style="--g:' +
+          game.hue + 'deg"><b>Go again</b><span>Same game, fresh round.</span></button>' +
+          '<button class="card" type="button" id="other" style="--g:40deg">' +
+          '<b>Pick another</b><span>Back to the list.</span></button></div>';
+  el.screen.innerHTML = html;
+  el.screen.hidden = false;
+  document.getElementById('again').addEventListener('click', function(){ pick(game.id); });
+  document.getElementById('other').addEventListener('click', showMenu);
+  document.getElementById('again').focus();
+  chime(0.6, 0.5);
+}
+
+function clockText(secs){
+  var t = Math.max(0, Math.ceil(secs));
+  return Math.floor(t / 60) + ':' + ('0' + (t % 60)).slice(-2);
+}
+
 function frame(now){
   if (!running) return;
   var dt = lastFrameAt ? Math.min(0.05, (now - lastFrameAt) / 1000) : 0.016;
@@ -701,47 +947,53 @@ function frame(now){
   if (frameAcc > 0.4){ fps = frameN / frameAcc; frameAcc = 0; frameN = 0; }
 
   var t0 = performance.now();
+
   if (calibrating > 0){
     calibrating -= dt;
     grabLuma(); seed();
     el.curtain.hidden = false;
     el.curtain.innerHTML = '<div class="inner"><h2>' +
       (knocked ? 'Camera moved' : 'Hold still') + '</h2>' +
-      '<p>' + (knocked ? 'Learning the room again. Your painting is safe.'
+      '<p>' + (knocked ? 'Learning the room again. Your game is safe.'
                        : 'Learning the room so it can tell you apart from the furniture.') + '</p>' +
       '<div class="big">' + Math.ceil(calibrating) + '</div></div>';
     highFor = 0; calmFor = 0;
-    if (calibrating <= 0) knocked = false;
+    if (calibrating <= 0){
+      knocked = false;
+      /* The room is learned. Straight to the list the first time; back to
+         whatever was interrupted after a knock. */
+      if (PHASE === 'learning') showMenu();
+    }
   } else {
     if (!el.curtain.hidden) el.curtain.hidden = true;
     vision();
+
     if (!noBump && cameraWasKnocked(dt)){
-      /* Roll the canvas back to before the flood. Confirming a bump takes
-         BUMP_HOLD seconds and paint rises in about three frames, so by now the
-         whole room has been painted over. The snapshot is at most SNAP_EVERY
-         seconds old, so the player loses a moment of their own strokes and
-         gets the rest back. */
-      paint.set(snap);
+      if (game && game.onKnock) game.onKnock();
       calibrating = 1.5;
       knocked = true;
-    } else {
-      brush(dt);
-      /* Only take a restore point once the room has been quiet for longer than
-         it takes to confirm a bump. Being merely below the trip line is not
-         enough: a bump's own coverage dips to 23% as the model starts to catch
-         up, which was enough to snapshot the flood itself. Requiring an
-         unbroken calm stretch means a bump cannot hide inside the snapshot,
-         because a bump never gives you one. */
-      if (coverage < CALM_LEVEL) calmFor += dt; else calmFor = 0;
-      snapAge += dt;
-      if (calmFor > BUMP_HOLD && snapAge > SNAP_EVERY){ snap.set(paint); snapAge = 0; }
+    } else if (PHASE === 'countin'){
+      var was = Math.ceil(countIn);
+      countIn -= dt;
+      var is = Math.ceil(countIn);
+      if (is !== was && is > 0) chime(0.3 + (3 - is) * 0.2, 0.4);
+      el.screen.innerHTML = '<h2>' + game.name + '</h2><div class="big">' +
+                            (is > 0 ? is : 'Go') + '</div>';
+      if (countIn <= 0){ setPhase('playing'); chime(0.9, 0.55); }
+    } else if (PHASE === 'playing'){
+      roundLeft -= dt;
+      game.step(dt);
+      el.clock.textContent = clockText(roundLeft);
+      if (roundLeft <= 0) endRound();
     }
   }
+
   render();
   e2eMs = performance.now() - t0;
   diagnostics(now);
   requestAnimationFrame(frame);
 }
+
 
 /* ============================================================
    CAMERA
@@ -850,6 +1102,7 @@ function start(){
     document.getElementById('btn-start').disabled = true;
     el.error.hidden = true;
     seeded = false; calibrating = 2.2; running = true;
+    setPhase('learning');
     lastFrameAt = 0;
     requestAnimationFrame(frame);
   }).catch(function(e){
@@ -921,6 +1174,13 @@ function boot(){
     settle: function(){ calibrating = 0; },
     clear: clearPaint,
     bumps: function(){ return bumps; },
+    session: function(){
+      return { phase:PHASE, game:game && game.id, secs:game && game.secs, left:roundLeft,
+               clockShown:!document.getElementById('clock').hidden, fps:fps,
+               gamePhase:game && game.phase, rounds:game && game.rounds, held:game && game.held };
+    },
+    endRound: function(){ if (PHASE === 'playing') endRound(); },
+    pick: pick,
     noBump: function(v){ noBump = !!v; },
     config: { PW:PW, PH:PH, ZC:ZC, ZR:ZR, FADE:FADE, RISE:RISE }
   };
