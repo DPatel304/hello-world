@@ -2,7 +2,7 @@
 const { app, BrowserWindow, Menu, powerSaveBlocker, screen, shell } = require('electron');
 const path = require('path');
 
-/* Stomp runs unattended in a living room with small children in front of it, so
+/* ViveCube runs unattended in a living room with small children in front of it, so
    the shell has a different job from a normal desktop app: stay up, stay
    fullscreen, keep the camera, and survive a keyboard being used as a drum. */
 

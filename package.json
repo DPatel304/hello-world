@@ -1,7 +1,7 @@
 {
-  "name": "stomp",
+  "name": "vivecube",
   "version": "0.1.0",
-  "productName": "Stomp",
+  "productName": "ViveCube",
   "description": "A camera-controlled motion game for one adult and two toddlers",
   "main": "src/main.js",
   "private": true,
@@ -18,8 +18,8 @@
     "playwright": "^1.49.0"
   },
   "build": {
-    "appId": "com.stomp.game",
-    "productName": "Stomp",
+    "appId": "com.vivecube.game",
+    "productName": "ViveCube",
     "files": [
       "src/**/*",
       "!**/*.map"
@@ -47,7 +47,7 @@
       "oneClick": true,
       "perMachine": false,
       "createDesktopShortcut": true,
-      "shortcutName": "Stomp"
+      "shortcutName": "ViveCube"
     },
     "linux": {
       "target": [
