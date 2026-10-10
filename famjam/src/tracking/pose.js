@@ -28,8 +28,15 @@ function blank(i){
   };
 }
 
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timed out after ' + (ms/1000) + 's')), ms))
+  ]);
+}
+
 export const pose = {
-  ready:false, usingCamera:false, reason:'',
+  ready:false, usingCamera:false, reason:'', detail:'',
   players:[blank(0), blank(1)],
   personCount:0, fps:0,
 
@@ -54,20 +61,38 @@ export const pose = {
     }
     /* Local copies if `npm run offline` has been run, otherwise the CDN. A
        living-room box should not need the internet, but nobody should have to
-       download 40MB before they can try it either. */
-    const local = await fetch('/wasm/vision_wasm_internal.js', { method:'HEAD' })
-                        .then(r => r.ok).catch(() => false);
+       download 40MB before they can try it either.
+
+       Opened straight off the filesystem there is nothing to probe: a fetch of
+       a sibling file from a file:// page is refused by CORS, which logs an
+       error and tells us nothing. Skip to the CDN. */
+    const local = location.protocol === 'file:' ? false
+      : await fetch('/wasm/vision_wasm_internal.js', { method:'HEAD' })
+              .then(r => r.ok).catch(() => false);
     const wasmDir = local ? '/wasm'
       : 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm';
     const model = local ? '/models/pose_landmarker_lite.task'
       : 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/' +
         'pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
-    const files = await FilesetResolver.forVisionTasks(wasmDir);
-    this.lm = await PoseLandmarker.createFromOptions(files, {
-      baseOptions:{ modelAssetPath: model, delegate:'GPU' },
-      runningMode:'VIDEO', numPoses:2,
-      minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5
-    });
+    /* The runtime is tens of megabytes over somebody else's CDN. If it is slow,
+       blocked or offline, the app used to sit on "Starting the camera…"
+       forever with the camera light on and nothing to show for it. Give it a
+       deadline and say what went wrong instead. */
+    try {
+      const files = await withTimeout(FilesetResolver.forVisionTasks(wasmDir), 25000);
+      this.lm = await withTimeout(PoseLandmarker.createFromOptions(files, {
+        baseOptions:{ modelAssetPath: model, delegate:'GPU' },
+        runningMode:'VIDEO', numPoses:2,
+        minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5
+      }), 40000);
+    } catch (e){
+      this.reason = local ? 'badassets' : 'nonetwork';
+      this.detail = (e && e.message) || String(e);
+      try { video.srcObject.getTracks().forEach(t => t.stop()); } catch (e2) {}
+      this.usingCamera = false;
+      this.enableMouse();
+      return false;
+    }
     this.ready = true; this.usingCamera = true;
     return true;
   },

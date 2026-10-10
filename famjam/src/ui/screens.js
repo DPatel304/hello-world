@@ -47,12 +47,18 @@ export function calibration(onDone){
       if (pose.mouse.active){
         held += dt;
         state.style.color = 'var(--dim)';
-        state.textContent = pose.reason === 'denied'
-          ? 'No camera permission — the mouse will play instead.'
-          : 'No camera — the mouse will play instead.';
+        const why = {
+          denied:   'Camera permission was refused.',
+          nocamera: 'No camera was found.',
+          nonetwork:'The camera works, but the pose runtime could not be downloaded. ' +
+                    'Check the connection, or run `npm run offline` to keep it locally.',
+          badassets:'The local pose runtime would not load. Try `npm run offline` again.',
+          debug:    'Debug mode.'
+        }[pose.reason] || 'No camera.';
+        state.textContent = why + ' The mouse will play instead.';
         title.textContent = 'Mouse mode';
         info.textContent = 'Move the pointer; hold it over a button for a second to press it.';
-        if (held >= 1.2) done();
+        if (held >= 3) done();
         return;
       }
       const full = pose.players.filter(p => pose.fullBody(p)).length;

@@ -5,7 +5,16 @@ Windows laptop plugged into the TV over HDMI. A webcam on top of the TV watches
 the room; everything after launch — menus, settings, games — is driven by moving
 your body. No controller, no keyboard.
 
-## Running it
+## Trying it in thirty seconds
+
+Open `famjam.html` — one self-contained file, no install. It pulls the pose
+runtime from a CDN on first run, so the machine needs to be online that once.
+If the download is blocked the app says so plainly and drops to mouse mode
+rather than sitting on a loading message.
+
+Rebuild it after changing anything with `npm run single`.
+
+## Running it from source
 
 ```
 npm install

@@ -13,6 +13,12 @@ export function menu({ onPlay, onRecalibrate }){
   const bar = h('div', 'topbar');
   bar.append(h('div', 'brand', 'Fam<span style="color:var(--p2)">Jam</span>'));
   const tools = h('div', 'tools');
+  /* A camera that failed is not a one-off message. Without a standing note
+     people land on the menu, wonder why waving does nothing, and have no way
+     back to the reason. */
+  if (pose.mouse.active && pose.reason !== 'debug'){
+    tools.appendChild(h('span', 'warn', '⚠ No camera — mouse only'));
+  }
   const bHelp = onPick(button('Help'), () => help());
   const bSet  = onPick(button('Settings'), () => settings(onRecalibrate));
   tools.append(bHelp, bSet);
