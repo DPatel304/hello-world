@@ -168,8 +168,15 @@ export const pose = {
     h.x = nx; h.y = ny;
   },
 
+  /* No new video frame means no detection ran. Ageing the players here matters:
+     without it a frozen or unplugged camera leaves everyone marked present
+     forever, and the game waits for a motionless person who is not there. */
   _decay(dt){
-    for (const p of this.players){ if (!p.present) continue; p.lostFor += dt; }
+    for (const p of this.players){
+      if (!p.present) continue;
+      p.lostFor += dt;
+      if (p.lostFor > LOST_AFTER * 4) p.present = false;
+    }
   },
 
   _mouseUpdate(dt){
@@ -192,14 +199,17 @@ export const pose = {
     return p.hands.right;
   },
 
-  /* A body counts as fully in frame when head, hips and at least one ankle are
-     visible with room to spare - that is the thing calibration waits for. */
+  /* Enough of a body in frame to play: head, both hips, and a knee or an ankle.
+     Measured against live landmarks rather than guessed - ankle visibility on a
+     standing figure swings between 0.26 and 0.93 frame to frame, so demanding
+     0.5 at both ankles strands people on the calibration screen with the
+     camera plainly working. Knees carry the same information (if a knee is in
+     frame you are standing back far enough) and are steadier. */
   fullBody(p){
     if (!p.lm || !p.present) return false;
-    const seen = (i) => (p.lm[i].v ?? 1) > 0.5;
+    const seen = (i) => (p.lm[i].v ?? 1) > 0.3;
     const inFrame = (i) => p.lm[i].y > 0.02 && p.lm[i].y < 0.99;
-    return seen(L.NOSE) && inFrame(L.NOSE) &&
-           seen(L.L_HIP) && seen(L.R_HIP) &&
-           (seen(L.L_ANKLE) || seen(L.R_ANKLE));
+    const legs = seen(L.L_KNEE) || seen(L.R_KNEE) || seen(L.L_ANKLE) || seen(L.R_ANKLE);
+    return seen(L.NOSE) && inFrame(L.NOSE) && seen(L.L_HIP) && seen(L.R_HIP) && legs;
   }
 };

@@ -31,7 +31,14 @@ export function calibration(onDone){
   const state = h('p', 'lede', '');
   s.append(title, info, state);
 
-  let held = 0;
+  /* A rolling ratio rather than a stopwatch. Detection flickers frame to frame
+     - measured, only about a third of frames clear the gate on a figure the
+     camera can plainly see - so any timer that wants an unbroken run never
+     finishes. Advance when the body was findable for more than half of a
+     couple of seconds, which needs no magic confidence number and survives
+     the flicker by construction. */
+  let good = 0, total = 0, seenFor = 0;
+  const WINDOW = 2.2, NEED = 0.5;
   const skip = onPick(button('Skip'), () => { done(); });
   skip.style.marginTop = '2vh';
   s.appendChild(skip);
@@ -45,7 +52,9 @@ export function calibration(onDone){
       /* With no camera there is no body to find, and waiting for one strands
          the whole app on this screen. Mouse mode passes straight through. */
       if (pose.mouse.active){
-        held += dt;
+        /* Its own counter: the camera path's gate is a ratio of good frames,
+           and there are no frames to rate here. */
+        seenFor += dt;
         state.style.color = 'var(--dim)';
         const why = {
           denied:   'Camera permission was refused.',
@@ -58,23 +67,38 @@ export function calibration(onDone){
         state.textContent = why + ' The mouse will play instead.';
         title.textContent = 'Mouse mode';
         info.textContent = 'Move the pointer; hold it over a button for a second to press it.';
-        if (held >= 3) done();
+        if (seenFor >= 3) done();
         return;
       }
       const full = pose.players.filter(p => pose.fullBody(p)).length;
-      if (full >= 1){
-        held += dt;
-        state.textContent = full === 2
-          ? `Two players — starting in ${Math.max(0, 2 - held).toFixed(1)}s`
-          : `One player — starting in ${Math.max(0, 2 - held).toFixed(1)}s`;
+      const anybody = pose.personCount > 0 || full > 0;
+      seenFor = Math.max(0, seenFor + (anybody ? dt : -dt * 0.5));
+
+      total += dt; if (full >= 1) good += dt;
+      if (total > WINDOW){ const k = WINDOW / total; good *= k; total *= k; }
+      const ratio = total > 0 ? good / total : 0;
+
+      if (ratio > NEED * 0.6){
+        const left = Math.max(0, WINDOW - total) + (ratio > NEED ? 0 : 0.8);
+        state.textContent = (full === 2 ? 'Two players' : 'One player') +
+                            ` — starting in ${left.toFixed(1)}s`;
         state.style.color = 'var(--good)';
-        if (held >= 2) done();
+        if (total >= WINDOW * 0.7 && ratio > NEED) done();
       } else {
-        held = 0;
+        /* Decay rather than reset. Detection flickers - a frame where an arm
+           crosses the body or the figure blurs drops the landmark confidence -
+           and a timer that starts over on every bad frame never finishes even
+           though the camera can plainly see someone. */
         state.style.color = 'var(--dim)';
-        state.textContent = pose.personCount
-          ? 'Almost — step back so your feet are in frame'
+        state.textContent = pose.personCount || ratio > 0.1
+          ? 'Almost — step back so your legs are in frame'
           : (pose.mouse.active ? 'No camera. Move the mouse to play.' : 'Looking for you…');
+      }
+      /* Nobody gets trapped here. If a person has been visible for a while but
+         the gate never quite closes, go anyway and say why. */
+      if (seenFor > 14){
+        state.textContent = 'Close enough — you can always re-calibrate from Settings.';
+        done();
       }
     },
     /* The camera feed with the skeleton on top: proof it can see you, which is

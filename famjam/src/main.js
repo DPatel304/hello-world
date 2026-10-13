@@ -173,6 +173,7 @@ addEventListener('keydown', (e) => {
   s.append(h('p', 'lede', debug ? 'Debug mode — the mouse plays.' : 'Starting the camera…'));
 
   await pose.start(video, { forceMouse: debug });
+  window.__pose = pose; window.__cursor = cursor;   /* a handle for tests; harmless in play */
   audio.resume(); music.start(); music.intensity(0.15);
 
   requestAnimationFrame(tick);
