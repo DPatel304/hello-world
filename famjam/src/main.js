@@ -155,14 +155,46 @@ function tick(now){
   cursor.update(dt, document.getElementById('ui'));
   drawHUD();
   cursor.draw(c, W, H);
+  drawPerf(dt);
 
   requestAnimationFrame(tick);
 }
 
-let showSkeleton = true;
+let showSkeleton = true, showPerf = false;
+let rFps = 0, rN = 0, rAcc = 0;
+
+/* A readout rather than a guess. Pose runs only when the camera hands over a
+   new frame, and the games run on their own clock and interpolate between, so
+   the two numbers are independent - a low pose rate shows up as a laggy
+   cursor long before the picture stutters. */
+function drawPerf(dt){
+  rAcc += dt; rN++;
+  if (rAcc > 0.5){ rFps = rN / rAcc; rN = 0; rAcc = 0; }
+  if (!showPerf) return;
+  const pad = Math.max(12, H * 0.025), lh = Math.max(16, H * 0.028);
+  const rows = [
+    'render   ' + rFps.toFixed(0) + ' fps',
+    'pose     ' + pose.fps.toFixed(0) + ' fps',
+    'inference ' + pose.inferMs.toFixed(1) + ' ms',
+    'players  ' + pose.personCount
+  ];
+  c.save();
+  c.font = `700 ${Math.round(lh * 0.72)}px ui-monospace, monospace`;
+  const w = Math.max(...rows.map(r => c.measureText(r).width)) + pad;
+  c.fillStyle = 'rgba(9,7,20,.82)';
+  c.fillRect(pad / 2, H - pad / 2 - lh * rows.length - pad / 2, w + pad / 2, lh * rows.length + pad / 2);
+  c.textBaseline = 'top';
+  rows.forEach((r, i) => {
+    const slow = (i === 0 && rFps < 40) || (i === 1 && pose.fps < 12);
+    c.fillStyle = slow ? '#ff8a3d' : '#9bffd0';
+    c.fillText(r, pad, H - pad / 2 - lh * (rows.length - i) - pad / 4);
+  });
+  c.restore();
+}
 addEventListener('keydown', (e) => {
   if (e.key === 'f' || e.key === 'F') toggleFullscreen();
   if (e.key === 'k' || e.key === 'K') showSkeleton = !showSkeleton;
+  if (e.key === 'p' || e.key === 'P') showPerf = !showPerf;
 });
 
 /* ---------- keep the screen alive ----------

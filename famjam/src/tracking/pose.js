@@ -38,7 +38,11 @@ function withTimeout(promise, ms){
 export const pose = {
   ready:false, usingCamera:false, reason:'', detail:'',
   players:[blank(0), blank(1)],
-  personCount:0, fps:0,
+  personCount:0,
+  /* Measured, not declared. "Will it run on a Pi" is a question about these
+     three numbers and nothing else, so the app has to be able to answer it on
+     whatever machine it is sitting on. */
+  fps:0, inferMs:0, _hits:0, _since:0,
 
   /* Mouse stands in for a body when there is no camera: the whole interface is
      hover-driven, so a pointer can reach everything a hand can. Without it the
@@ -113,12 +117,25 @@ export const pose = {
     if (!this.ready) return;
     const v = this.video;
     if (v.readyState < 2) return;
+    /* Wall clock, not dt: the loop clamps dt to 50ms so a frame that really
+       took 600ms is reported as 50, which inflated this rate elevenfold and
+       had the readout claiming 20fps next to a 570ms inference. */
+    const wall = performance.now();
+    if (!this._since) this._since = wall;
+    if (wall - this._since > 500){
+      this.fps = this._hits * 1000 / (wall - this._since);
+      this._hits = 0; this._since = wall;
+    }
     if (v.currentTime === this._lastT) { this._decay(dt); return; }
     this._lastT = v.currentTime;
 
     let res;
+    const t0 = performance.now();
     try { res = this.lm.detectForVideo(v, nowMs); }
     catch (e){ return; }
+    /* Smoothed, because a single inference tells you nothing useful. */
+    this.inferMs += (performance.now() - t0 - this.inferMs) * 0.1;
+    this._hits++;
 
     const found = (res && res.landmarks) ? res.landmarks : [];
     /* Left-to-right on screen decides who is P1. Stable, and it matches how
