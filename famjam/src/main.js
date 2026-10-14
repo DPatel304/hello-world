@@ -165,6 +165,22 @@ addEventListener('keydown', (e) => {
   if (e.key === 'k' || e.key === 'K') showSkeleton = !showSkeleton;
 });
 
+/* ---------- keep the screen alive ----------
+   The camera is the controller, so a whole round can pass without a single
+   key or mouse event and the machine decides it is idle. Nobody is sitting at
+   the laptop to nudge it - that is the entire point - so the TV blanks in the
+   middle of a game. The lock is dropped whenever the tab is hidden, so it has
+   to be taken again on the way back. */
+let wake = null;
+async function holdScreen(){
+  if (!('wakeLock' in navigator)) return;
+  try { wake = await navigator.wakeLock.request('screen'); }
+  catch (e) { wake = null; }        /* refused, or not a secure context */
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !wake) holdScreen();
+});
+
 /* ---------- boot ---------- */
 (async function boot(){
   const debug = new URLSearchParams(location.search).has('debug');
@@ -175,6 +191,7 @@ addEventListener('keydown', (e) => {
   await pose.start(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor;   /* a handle for tests; harmless in play */
   audio.resume(); music.start(); music.intensity(0.15);
+  holdScreen();
 
   requestAnimationFrame(tick);
   toCalibration();

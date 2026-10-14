@@ -2,3 +2,4 @@ node_modules/
 dist/
 public/wasm/
 public/models/
+test/.clips/
