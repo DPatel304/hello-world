@@ -92,6 +92,25 @@ function settings(onRecalibrate){
   row.append(down, up, mute);
   s.appendChild(row);
 
+  /* Only worth showing when there is a choice to make. */
+  if (pose.usingCamera){
+    pose.cameras().then(list => {
+      if (list.length < 2) return;
+      s.insertBefore(h('p', 'lede', 'Camera'), row2);
+      const pick = h('div', 'row');
+      list.forEach(cam => {
+        const b = onPick(button(cam.label.slice(0, 34)), async () => {
+          b.querySelector('.lbl').textContent = 'Switching…';
+          try { await pose.use(cam.id); onRecalibrate(); }
+          catch (e){ b.querySelector('.lbl').textContent = 'Could not open that one'; }
+        });
+        if (cam.id === pose.activeId) b.style.borderColor = 'var(--good)';
+        pick.appendChild(b);
+      });
+      s.insertBefore(pick, row2);
+    });
+  }
+
   const row2 = h('div', 'row');
   row2.append(
     onPick(button('Re-calibrate'), () => { s.remove(); onRecalibrate(); }),

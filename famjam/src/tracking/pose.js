@@ -36,7 +36,7 @@ function withTimeout(promise, ms){
 }
 
 export const pose = {
-  ready:false, usingCamera:false, reason:'', detail:'',
+  ready:false, usingCamera:false, reason:'', detail:'', activeId:'',
   players:[blank(0), blank(1)],
   personCount:0,
   /* Measured, not declared. "Will it run on a Pi" is a question about these
@@ -53,9 +53,20 @@ export const pose = {
     this.video = video;
     if (forceMouse){ this.reason = 'debug'; this.enableMouse(); return false; }
     try {
+      /* Ask for the remembered camera by id. The moment a second one exists -
+         a phone running Camo, a USB webcam beside the laptop's built-in -
+         whatever Windows calls default is as likely to be the wrong one, and
+         without this there is no way to say otherwise. An id that has gone
+         away is `ideal`, not `exact`, so an unplugged camera degrades to the
+         default instead of refusing to start. */
+      const want = this.preferred();
       const stream = await navigator.mediaDevices.getUserMedia({
-        video:{ width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} }, audio:false
+        video: Object.assign(
+          { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
+          want ? { deviceId:{ ideal: want } } : {}),
+        audio:false
       });
+      this.activeId = stream.getVideoTracks()[0].getSettings().deviceId || '';
       video.srcObject = stream;
       await video.play();
     } catch (e){
@@ -99,6 +110,35 @@ export const pose = {
     }
     this.ready = true; this.usingCamera = true;
     return true;
+  },
+
+  /* Labels only come back once permission has been granted, which is why the
+     picker lives in Settings rather than in front of the first run. */
+  async cameras(){
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      return all.filter(d => d.kind === 'videoinput')
+                .map((d, i) => ({ id:d.deviceId, label:d.label || ('Camera ' + (i + 1)) }));
+    } catch (e){ return []; }
+  },
+
+  preferred(){
+    try { return localStorage.getItem('famjam_camera') || ''; } catch (e){ return ''; }
+  },
+
+  async use(deviceId){
+    try { localStorage.setItem('famjam_camera', deviceId); } catch (e){}
+    try { this.video.srcObject.getTracks().forEach(t => t.stop()); } catch (e){}
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ deviceId:{ exact: deviceId }, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
+      audio:false
+    });
+    this.video.srcObject = stream;
+    await this.video.play();
+    this.activeId = deviceId;
+    /* The new camera sees a different room: everything learned about the old
+       one is wrong, so start the players over. */
+    for (const p of this.players){ p.lm = null; p.present = false; p.lostFor = 99; }
   },
 
   enableMouse(){
