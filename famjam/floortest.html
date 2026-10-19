@@ -49,7 +49,8 @@
 </div>
 
 <div id="keys">
-  <b>1</b> grid &nbsp; <b>2</b> white &nbsp; <b>3</b> track &nbsp; <b>4</b> game<br>
+  <b>1</b> grid &nbsp; <b>2</b> white &nbsp; <b>3</b> track &nbsp; <b>4</b> game &nbsp; <b>5</b> practice<br>
+  <b>M</b> mirror &nbsp;
   <b>C</b> calibrate &nbsp; <b>T</b> feet/hands &nbsp; <b>H</b> hud &nbsp; <b>V</b> cam &nbsp; <b>F</b> fullscreen
 </div>
 
@@ -91,6 +92,7 @@ let lastVideoTime = -1;
 let poses = [];               // [{ank:{x,y}, lm:[...]}]
 let showCam = true;
 let trackMode = 'hands';          // 'hands' | 'feet'
+let mirror = true;                // uncalibrated fallback flips X
 
 const met = { hits:[], inf:0, fps:0, ankVis:0, jitter:0, frames:0, lastWall:0, wallFrames:0 };
 const jitBuf = [];
@@ -129,7 +131,7 @@ function homography(src, dst){
 }
 
 function project(p){
-  if (!Hm) return { x: p.x * W, y: p.y * H };
+  if (!Hm) return { x: (mirror ? 1 - p.x : p.x) * W, y: p.y * H };
   const d = Hm[6]*p.x + Hm[7]*p.y + Hm[8];
   return { x: (Hm[0]*p.x + Hm[1]*p.y + Hm[2]) / d,
            y: (Hm[3]*p.x + Hm[4]*p.y + Hm[5]) / d };
@@ -177,8 +179,8 @@ function stepGame(dt){
     for (const p of poses){
       for (const q of p.pts){
         const s = project(q);
-        const dx = s.x - b.x*W, dy = s.y - b.y*H;
-        if (dx*dx + dy*dy < b.r*b.r){ hit = true; break; }
+        const dx = s.x - b.x*W, dy = s.y - b.y*H, R = b.r + 20;
+        if (dx*dx + dy*dy < R*R){ hit = true; break; }
       }
       if (hit) break;
     }
@@ -272,16 +274,79 @@ function drawGame(){
     ctx.fillStyle = 'rgba(255,255,255,.35)';
     ctx.beginPath(); ctx.arc(x - b.r*0.3, y - b.r*0.32, b.r*0.22, 0, 6.3); ctx.fill();
   }
-  for (const p of poses){
-    for (const q of p.pts){
-      const s = project(q);
-      ctx.strokeStyle = '#5e9'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 6.3); ctx.stroke();
-    }
-  }
+  drawCursors();
   ctx.fillStyle = '#fff'; ctx.font = '700 44px ui-monospace,monospace';
   ctx.textAlign = 'center';
   ctx.fillText(String(score), W/2, 58);
+}
+
+function drawCursors(){
+  for (const p of poses){
+    for (const q of p.pts){
+      const s = project(q);
+      ctx.fillStyle = 'rgba(94,255,158,.16)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 34, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#5eff9e'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 34, 0, 6.3); ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x-48,s.y); ctx.lineTo(s.x-24,s.y);
+      ctx.moveTo(s.x+24,s.y); ctx.lineTo(s.x+48,s.y);
+      ctx.moveTo(s.x,s.y-48); ctx.lineTo(s.x,s.y-24);
+      ctx.moveTo(s.x,s.y+24); ctx.lineTo(s.x,s.y+48);
+      ctx.stroke();
+    }
+  }
+  if (!poses.length){
+    ctx.fillStyle = '#f55'; ctx.font = '700 20px ui-monospace,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('not seeing you', W/2, H - 60);
+  }
+  if (!Hm){
+    ctx.fillStyle = '#ffd166'; ctx.font = '700 19px ui-monospace,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('NOT CALIBRATED  ·  press C to fix  ·  M flips left/right', W/2, H - 26);
+  }
+}
+
+let practice = [];
+function resetPractice(){
+  practice = []; score = 0;
+  for (let r=0;r<3;r++) for (let c=0;c<3;c++){
+    practice.push({ x:0.20+c*0.30, y:0.20+r*0.30, r:0,
+      rt: Math.min(W,H)*0.085, c: COLORS[(r*3+c)%COLORS.length], flash:0 });
+  }
+}
+function stepPractice(dt){
+  for (const b of practice){
+    b.r += (b.rt - b.r) * Math.min(1, dt*6);
+    if (b.flash > 0) b.flash -= dt*2.2;
+    let hit = false;
+    for (const p of poses){
+      for (const q of p.pts){
+        const s = project(q);
+        const dx = s.x - b.x*W, dy = s.y - b.y*H, R = b.r + 20;
+        if (dx*dx + dy*dy < R*R){ hit = true; break; }
+      }
+      if (hit) break;
+    }
+    if (hit && b.flash <= 0){ b.flash = 1; score++; }
+  }
+}
+function drawPractice(){
+  ctx.fillStyle = '#07040e'; ctx.fillRect(0,0,W,H);
+  for (const b of practice){
+    const x = b.x*W, y = b.y*H;
+    ctx.fillStyle = b.flash > 0 ? '#ffffff' : b.c;
+    ctx.beginPath(); ctx.arc(x, y, b.r * (1 + b.flash*0.18), 0, 6.3); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.arc(x - b.r*0.3, y - b.r*0.32, b.r*0.22, 0, 6.3); ctx.fill();
+  }
+  drawCursors();
+  ctx.fillStyle = '#fff'; ctx.font = '700 40px ui-monospace,monospace';
+  ctx.textAlign = 'center'; ctx.fillText('hits ' + score, W/2, 54);
+  ctx.fillStyle = '#8a93a6'; ctx.font = '600 15px ui-monospace,monospace';
+  ctx.fillText('nine targets, they never expire — move a hand onto one', W/2, 84);
 }
 
 function drawCal(){
@@ -398,7 +463,8 @@ function frame(){
   }
 
   const names = {1:'Grid — measure the image', 2:'White — measure brightness',
-                 3:'Track — pose diagnostics', 4:'Game — stomp the balloons'};
+                 3:'Track — pose diagnostics', 4:'Game — timed balloons',
+                 5:'Practice — nine fixed targets'};
   document.getElementById('modename').textContent =
     cal ? 'Calibrating' : (names[mode] || '');
 
@@ -407,6 +473,7 @@ function frame(){
   else if (mode === 2) drawWhite();
   else if (mode === 3) drawSkeleton();
   else if (mode === 4){ stepGame(dt); drawGame(); }
+  else if (mode === 5){ stepPractice(dt); drawPractice(); }
 
   updateMetrics();
 }
@@ -419,6 +486,8 @@ addEventListener('keydown', e => {
   if (k === '2') mode = 2;
   if (k === '3') mode = 3;
   if (k === '4'){ mode = 4; resetGame(); }
+  if (k === '5'){ mode = 5; resetPractice(); }
+  if (k === 'm') mirror = !mirror;
   if (k === 'c') startCal();
   if (k === 't'){
     trackMode = trackMode === 'feet' ? 'hands' : 'feet';
