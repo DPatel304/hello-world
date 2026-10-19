@@ -39,11 +39,11 @@
   <h1 id="modename">Starting</h1>
   <div class="row"><span class="k">people</span><span class="v" id="m_people">—</span></div>
   <div class="row"><span class="k">detection rate</span><span class="v" id="m_rate">—</span></div>
-  <div class="row"><span class="k" id="k_ank">ankle visibility</span><span class="v" id="m_ank">—</span></div>
+  <div class="row"><span class="k" id="k_ank">wrist visibility</span><span class="v" id="m_ank">—</span></div>
   <div class="row"><span class="k">jitter</span><span class="v" id="m_jit">—</span></div>
   <div class="row"><span class="k">inference</span><span class="v" id="m_inf">—</span></div>
   <div class="row"><span class="k">camera fps</span><span class="v" id="m_fps">—</span></div>
-  <div class="row"><span class="k">tracking</span><span class="v" id="m_mode">feet</span></div>
+  <div class="row"><span class="k">tracking</span><span class="v" id="m_mode">hands</span></div>
   <div class="row"><span class="k">calibrated</span><span class="v" id="m_cal">no</span></div>
   <div id="verdict">starting…</div>
 </div>
@@ -90,7 +90,7 @@ let poser = null, stream = null;
 let lastVideoTime = -1;
 let poses = [];               // [{ank:{x,y}, lm:[...]}]
 let showCam = true;
-let trackMode = 'feet';           // 'feet' | 'hands'
+let trackMode = 'hands';          // 'hands' | 'feet'
 
 const met = { hits:[], inf:0, fps:0, ankVis:0, jitter:0, frames:0, lastWall:0, wallFrames:0 };
 const jitBuf = [];
