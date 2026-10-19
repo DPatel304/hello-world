@@ -39,17 +39,18 @@
   <h1 id="modename">Starting</h1>
   <div class="row"><span class="k">people</span><span class="v" id="m_people">—</span></div>
   <div class="row"><span class="k">detection rate</span><span class="v" id="m_rate">—</span></div>
-  <div class="row"><span class="k">ankle visibility</span><span class="v" id="m_ank">—</span></div>
+  <div class="row"><span class="k" id="k_ank">ankle visibility</span><span class="v" id="m_ank">—</span></div>
   <div class="row"><span class="k">jitter</span><span class="v" id="m_jit">—</span></div>
   <div class="row"><span class="k">inference</span><span class="v" id="m_inf">—</span></div>
   <div class="row"><span class="k">camera fps</span><span class="v" id="m_fps">—</span></div>
+  <div class="row"><span class="k">tracking</span><span class="v" id="m_mode">feet</span></div>
   <div class="row"><span class="k">calibrated</span><span class="v" id="m_cal">no</span></div>
   <div id="verdict">starting…</div>
 </div>
 
 <div id="keys">
   <b>1</b> grid &nbsp; <b>2</b> white &nbsp; <b>3</b> track &nbsp; <b>4</b> game<br>
-  <b>C</b> calibrate &nbsp; <b>H</b> hud &nbsp; <b>V</b> cam &nbsp; <b>F</b> fullscreen
+  <b>C</b> calibrate &nbsp; <b>T</b> feet/hands &nbsp; <b>H</b> hud &nbsp; <b>V</b> cam &nbsp; <b>F</b> fullscreen
 </div>
 
 <div id="msg" class="hide"></div>
@@ -62,7 +63,7 @@ const CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
 const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
             + "pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
 
-const L = { NOSE:0, L_HIP:23, R_HIP:24, L_KNEE:25, R_KNEE:26, L_ANK:27, R_ANK:28 };
+const L = { NOSE:0, L_WRI:15, R_WRI:16, L_HIP:23, R_HIP:24, L_KNEE:25, R_KNEE:26, L_ANK:27, R_ANK:28 };
 
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -89,6 +90,7 @@ let poser = null, stream = null;
 let lastVideoTime = -1;
 let poses = [];               // [{ank:{x,y}, lm:[...]}]
 let showCam = true;
+let trackMode = 'feet';           // 'feet' | 'hands'
 
 const met = { hits:[], inf:0, fps:0, ankVis:0, jitter:0, frames:0, lastWall:0, wallFrames:0 };
 const jitBuf = [];
@@ -171,11 +173,16 @@ function stepGame(dt){
     b.r += (b.rt - b.r) * Math.min(1, dt*6);
     if (b.pop > 0) { b.pop += dt*4; continue; }
     b.life -= dt;
+    let hit = false;
     for (const p of poses){
-      const s = project(p.ank);
-      const dx = s.x - b.x*W, dy = s.y - b.y*H;
-      if (dx*dx + dy*dy < b.r*b.r){ b.pop = 0.01; score += 10; popped++; break; }
+      for (const q of p.pts){
+        const s = project(q);
+        const dx = s.x - b.x*W, dy = s.y - b.y*H;
+        if (dx*dx + dy*dy < b.r*b.r){ hit = true; break; }
+      }
+      if (hit) break;
     }
+    if (hit){ b.pop = 0.01; score += 10; popped++; }
   }
   balloons = balloons.filter(b => b.pop < 1 && b.life > 0);
 }
@@ -229,13 +236,18 @@ function drawSkeleton(){
       ctx.moveTo(la.x*W, la.y*H); ctx.lineTo(lb.x*W, lb.y*H); ctx.stroke();
     }
     ctx.fillStyle = col;
-    for (const i of [L.L_ANK, L.R_ANK, L.L_HIP, L.R_HIP, L.NOSE]){
+    const dots = trackMode === 'feet'
+      ? [L.L_ANK, L.R_ANK, L.L_HIP, L.R_HIP, L.NOSE]
+      : [L.L_WRI, L.R_WRI, L.L_HIP, L.R_HIP, L.NOSE];
+    for (const i of dots){
       const l = p.lm[i]; if (!l) continue;
       ctx.beginPath(); ctx.arc(l.x*W, l.y*H, 7, 0, 6.3); ctx.fill();
     }
-    const s = project(p.ank);
-    ctx.strokeStyle = '#5e9'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(s.x, s.y, 26, 0, 6.3); ctx.stroke();
+    for (const q of p.pts){
+      const s = project(q);
+      ctx.strokeStyle = '#5e9'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 26, 0, 6.3); ctx.stroke();
+    }
   });
   if (!poses.length){
     ctx.fillStyle = '#6b7689'; ctx.font = '600 20px ui-monospace,monospace';
@@ -261,9 +273,11 @@ function drawGame(){
     ctx.beginPath(); ctx.arc(x - b.r*0.3, y - b.r*0.32, b.r*0.22, 0, 6.3); ctx.fill();
   }
   for (const p of poses){
-    const s = project(p.ank);
-    ctx.strokeStyle = '#5e9'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 6.3); ctx.stroke();
+    for (const q of p.pts){
+      const s = project(q);
+      ctx.strokeStyle = '#5e9'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 30, 0, 6.3); ctx.stroke();
+    }
   }
   ctx.fillStyle = '#fff'; ctx.font = '700 44px ui-monospace,monospace';
   ctx.textAlign = 'center';
@@ -279,7 +293,9 @@ function drawCal(){
   ctx.beginPath(); ctx.arc(t.x, t.y, 10, 0, 6.3); ctx.fillStyle='#ffd166'; ctx.fill();
   ctx.fillStyle = '#e8eaf0'; ctx.font = '600 22px ui-monospace,monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('stand on the dot, then press SPACE', W/2, H/2 - 14);
+  ctx.fillText(trackMode === 'feet'
+    ? 'stand on the dot, then press SPACE'
+    : 'touch the dot, then press SPACE', W/2, H/2 - 14);
   ctx.fillStyle = '#8a93a6'; ctx.font = '600 16px ui-monospace,monospace';
   ctx.fillText('corner ' + (cal.i+1) + ' of 4' + (poses.length ? '' : '  —  not seeing you'), W/2, H/2 + 18);
 }
@@ -295,13 +311,17 @@ function updateMetrics(){
   document.getElementById('m_inf').textContent = met.inf.toFixed(0) + ' ms';
   document.getElementById('m_fps').textContent = met.fps.toFixed(1);
   document.getElementById('m_cal').textContent = Hm ? 'yes' : 'no';
+  document.getElementById('m_mode').textContent = trackMode;
+  document.getElementById('k_ank').textContent =
+    trackMode === 'feet' ? 'ankle visibility' : 'wrist visibility';
 
   const v = document.getElementById('verdict');
   let t, c;
   if (met.frames < 40){ t = 'warming up…'; c = '#8a93a6'; }
   else if (rate < 0.6){ t = 'Dropping out — too dark, or you are out of frame'; c = 'var(--bad)'; }
   else if (rate < 0.85){ t = 'Intermittent — try more light or move the camera back'; c = 'var(--warn)'; }
-  else if (met.ankVis < 0.3){ t = 'Feet not visible — lower the camera or step back'; c = 'var(--warn)'; }
+  else if (met.ankVis < 0.3){ t = (trackMode === 'feet' ? 'Feet' : 'Hands')
+      + ' not clearly visible — reposition the camera'; c = 'var(--warn)'; }
   else if (met.jitter > 0.02){ t = 'Position is noisy — tracking unstable'; c = 'var(--warn)'; }
   else { t = 'Tracking cleanly'; c = 'var(--good)'; }
   v.textContent = t; v.style.color = c;
@@ -330,9 +350,17 @@ function frame(){
     poses = [];
     if (res && res.landmarks){
       for (const lm of res.landmarks){
-        const la = lm[L.L_ANK], ra = lm[L.R_ANK];
-        if (!la || !ra) continue;
-        poses.push({ lm, ank: { x: (la.x+ra.x)/2, y: (la.y+ra.y)/2 } });
+        const pts = [];
+        if (trackMode === 'feet'){
+          const la = lm[L.L_ANK], ra = lm[L.R_ANK];
+          if (la && ra) pts.push({ x:(la.x+ra.x)/2, y:(la.y+ra.y)/2 });
+        } else {
+          const lw = lm[L.L_WRI], rw = lm[L.R_WRI];
+          if (lw) pts.push({ x:lw.x, y:lw.y });
+          if (rw) pts.push({ x:rw.x, y:rw.y });
+        }
+        if (!pts.length) continue;
+        poses.push({ lm, pts, ank: pts[0] });
       }
     }
     poses.sort((a,b)=> a.ank.x - b.ank.x);
@@ -343,8 +371,10 @@ function frame(){
 
     if (poses.length){
       const lm = poses[0].lm;
-      const a = lm[L.L_ANK], b = lm[L.R_ANK];
-      met.ankVis = Math.max(a.visibility ?? 0, b.visibility ?? 0);
+      const ia = trackMode === 'feet' ? L.L_ANK : L.L_WRI;
+      const ib = trackMode === 'feet' ? L.R_ANK : L.R_WRI;
+      const a = lm[ia], b = lm[ib];
+      met.ankVis = Math.max(a?.visibility ?? 0, b?.visibility ?? 0);
       jitBuf.push(poses[0].ank);
       if (jitBuf.length > 30) jitBuf.shift();
       if (jitBuf.length > 8){
@@ -390,6 +420,11 @@ addEventListener('keydown', e => {
   if (k === '3') mode = 3;
   if (k === '4'){ mode = 4; resetGame(); }
   if (k === 'c') startCal();
+  if (k === 't'){
+    trackMode = trackMode === 'feet' ? 'hands' : 'feet';
+    Hm = null; cal = null; jitBuf.length = 0;
+    try { localStorage.removeItem('famjam.floortest.H'); } catch(e){}
+  }
   if (k === 'h') hudEl.classList.toggle('hide');
   if (k === 'v'){ showCam = !showCam; camCv.classList.toggle('hide', !showCam); }
   if (k === 'f'){
