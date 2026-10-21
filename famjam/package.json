@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "offline": "node fetch-assets.mjs",
-    "single": "node build-single.mjs"
+    "single": "node build-single.mjs",
+    "test": "node --import ./test/harness/register.mjs --test 'test/**/*.test.mjs'"
   },
   "keywords": [],
   "author": "",
