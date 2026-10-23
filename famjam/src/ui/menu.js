@@ -68,6 +68,8 @@ function help(){
   s.appendChild(onPick(button('Got it'), () => s.remove()));
 }
 
+export { settings as openSettings };
+
 function settings(onRecalibrate){
   const s = overlay();
   s.append(h('h2', '', 'Settings'));

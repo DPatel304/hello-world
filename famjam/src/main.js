@@ -1,6 +1,6 @@
 import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
-import { menu, toggleFullscreen } from './ui/menu.js';
+import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
 import { title } from './ui/title.js';
 import { calibration, splash, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -47,7 +47,15 @@ function toCalibration(){
    obvious way in - not an instruction to stand further back. */
 function toTitle(){
   music.intensity(0.1);
-  go('title', () => title({ onPlay: toCalibration, onSettings: toMenu }));
+  go('title', () => title({
+    /* Straight to the games. Calibration used to sit in the way, which meant
+       the second thing on the television was an instruction to stand further
+       back - and the title screen already answers the only question that
+       screen asked, with a dot that says whether anyone can be seen. It is
+       still there under Settings for when tracking actually needs sorting. */
+    onPlay: toMenu,
+    onSettings: () => { toMenu(); openSettings(toCalibration); }
+  }));
 }
 
 function toSplash(g){
