@@ -4,23 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Block Miner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
   :root { --bg:#ffffff; --fg:#111111; --muted:#8e8e93; --line:#ececec; --soft:#f5f5f5; --accent:#f7931a; --good:#1a9e55; --bad:#d83a3a; color-scheme:light; }
   * { box-sizing:border-box; }
   html, body { margin:0; background:var(--bg); color:var(--fg); }
-  body { font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+  body { padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));
+         font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif; font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
   button { font:inherit; color:inherit; cursor:pointer; background:none; border:1px solid var(--line); border-radius:999px; padding:7px 14px;
            transition:border-color .15s, background .15s, opacity .15s, transform .08s; }
   button:hover:not(:disabled) { border-color:var(--fg); }
   button:active:not(:disabled) { transform:scale(.97); }
   button:disabled { opacity:.35; cursor:default; }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
   [data-reveal]:not(.shown) { display:none !important; }
   .shown { animation:fade .6s ease; }
   @keyframes fade { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
 
-  #hero { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:72px 16px 32px; }
-  body.fresh #hero { min-height:100vh; padding-top:16px; }
+  #hero { display:flex; flex-direction:column; align-items:center; justify-content:center; padding-block:72px 32px; }
+  body.fresh #hero { min-height:calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); padding-top:16px; }
   #balance { text-align:center; margin-bottom:28px; min-height:84px; }
   #bNum { font-size:48px; font-weight:600; letter-spacing:-1.5px; }
   #bUnit { font-size:18px; color:var(--muted); margin-left:4px; }
@@ -43,7 +46,7 @@
   .stat small { display:block; color:var(--muted); font-size:12px; }
   .stat b { font-size:16px; font-weight:500; }
 
-  #grid { max-width:1160px; margin:0 auto; padding:16px 16px 72px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; align-items:flex-start; }
+  #grid { max-width:1160px; margin:0 auto; padding-block:16px 72px; display:flex; flex-wrap:wrap; justify-content:center; gap:20px; align-items:flex-start; }
   .card { flex:1 1 300px; max-width:360px; border:1px solid var(--line); border-radius:16px; padding:22px; min-width:0; }
   .card-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; min-height:30px; }
   .card h3 { margin:0; font-size:14px; font-weight:600; }
@@ -69,10 +72,10 @@
   #news { margin-top:12px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; color:var(--muted); min-height:20px; }
   .brown { color:var(--bad); }
 
-  #ctl { position:fixed; top:14px; right:14px; display:flex; gap:4px; z-index:5; }
+  #ctl { position:fixed; top:calc(14px + env(safe-area-inset-top, 0px)); right:calc(14px + env(safe-area-inset-right, 0px)); display:flex; gap:4px; z-index:5; }
   #ctl button { border:0; font-size:12px; color:var(--muted); padding:6px 10px; }
   #ctl button.on { color:var(--fg); }
-  #toasts { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center; z-index:6; pointer-events:none; width:calc(100% - 32px); }
+  #toasts { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom, 0px)); transform:translateX(-50%); display:flex; flex-direction:column; gap:8px; align-items:center; z-index:6; pointer-events:none; width:calc(100% - 32px); }
   .toast { background:var(--fg); color:#fff; padding:9px 16px; border-radius:999px; font-size:13px; animation:toast 4s ease forwards; max-width:460px; text-align:center; }
   .toast.big { background:var(--accent); }
   @keyframes toast { 0% { opacity:0; transform:translateY(6px); } 8%, 85% { opacity:1; transform:none; } 100% { opacity:0; } }
@@ -80,8 +83,9 @@
   #end .card { flex:none; width:100%; max-width:400px; background:#fff; text-align:center; padding:32px 28px; box-shadow:0 20px 60px rgba(0,0,0,.08); }
   #end h2 { margin:16px 0 4px; font-size:24px; font-weight:600; letter-spacing:-.5px; }
   #end .kv { text-align:left; }
-  #foot { text-align:center; padding:0 16px 40px; }
+  #foot { text-align:center; padding-block:0 40px; }
   #foot button { border:0; color:var(--muted); font-size:12px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
   @media (max-width:420px) { #bNum { font-size:40px; } #stats { gap:22px; } #hero { padding-top:56px; } }
 </style>
 </head>
@@ -422,7 +426,7 @@ H.final = () => {
       <div class="kv"><span>Clicks</span><span>${S.clicks.toLocaleString()}</span></div>
       <button id="againBtn" style="margin-top:20px;width:100%;background:var(--fg);color:#fff;border-color:var(--fg);padding:11px">Play again</button></div>`;
     e.style.display = "";
-    $("againBtn").onclick = () => { try { localStorage.removeItem(SAVE_KEY); } catch (err) {} location.reload(); };
+    $("againBtn").onclick = resetAll;
   }, 1500);
 };
 
@@ -452,7 +456,19 @@ $("qtySeg").querySelectorAll("button").forEach(b => b.onclick = () => {
 });
 $("sndBtn").onclick = () => { A.snd = !A.snd; applyAudio(); updateHum(); save(); };
 $("musBtn").onclick = () => { A.mus = !A.mus; applyAudio(); save(); };
-$("resetBtn").onclick = () => { if (confirm("Reset all progress and start over?")) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); } };
+// start over in place (no browser dialogs: some hosts block confirm() and reload)
+function resetAll() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  Object.assign(S, newState()); U.hist = []; U.upKey = ""; U.peakShare = 0;
+  $("end").style.display = "none"; $("news").textContent = "";
+  checkReveal(); renderUI(); window.scrollTo(0, 0);
+}
+let resetArmed = 0;
+$("resetBtn").onclick = () => {
+  if (Date.now() - resetArmed < 4000) { resetArmed = 0; $("resetBtn").textContent = "Reset progress"; resetAll(); return; }
+  resetArmed = Date.now(); $("resetBtn").textContent = "Tap again to erase all progress";
+  setTimeout(() => { if (resetArmed && Date.now() - resetArmed >= 3900) { resetArmed = 0; $("resetBtn").textContent = "Reset progress"; } }, 4000);
+};
 
 const tierRows = TIERS.map((t, i) => {
   const row = document.createElement("div"); row.className = "row";
