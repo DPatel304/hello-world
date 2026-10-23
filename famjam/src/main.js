@@ -1,6 +1,7 @@
 import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen } from './ui/menu.js';
+import { title } from './ui/title.js';
 import { calibration, splash, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
 import { audio, music, sfx } from './audio/sound.js';
@@ -39,6 +40,14 @@ function toMenu(){
 
 function toCalibration(){
   go('calibrate', () => calibration(toMenu));
+}
+
+/* The front door. Shown once on boot rather than dropping straight into
+   calibration, so the first thing on the television is the name and one
+   obvious way in - not an instruction to stand further back. */
+function toTitle(){
+  music.intensity(0.1);
+  go('title', () => title({ onPlay: toCalibration, onSettings: toMenu }));
 }
 
 function toSplash(g){
@@ -226,5 +235,5 @@ document.addEventListener('visibilitychange', () => {
   holdScreen();
 
   requestAnimationFrame(tick);
-  toCalibration();
+  toTitle();
 })();

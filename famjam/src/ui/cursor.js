@@ -56,7 +56,11 @@ export const cursor = {
       if (el){
         seen.add(el);
         el.classList.add('hot');
-        el.style.color = PLAYER_COLORS[i];
+        /* A custom property rather than `color`, so each button decides where
+           the player's colour lands. Driving text colour directly put blue
+           letters on the green Play button, which was unreadable from the
+           sofa - the thing this whole interface is meant to survive. */
+        el.style.setProperty('--who', PLAYER_COLORS[i]);
         const f = el.querySelector('.fill');
         const k = Math.min(1, s.t / DWELL);
         if (f) f.style.transform = `scaleX(${k.toFixed(3)})`;

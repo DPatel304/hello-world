@@ -36,10 +36,10 @@ h2{font-size:clamp(22px,5vh,60px);font-weight:800;letter-spacing:-.02em;}
   overflow:hidden;transition:transform .12s ease,border-color .12s ease;
 }
 .btn .fill{
-  position:absolute;inset:0;background:currentColor;opacity:.22;
+  position:absolute;inset:0;background:var(--who,currentColor);opacity:.22;
   transform-origin:left center;transform:scaleX(0);pointer-events:none;
 }
-.btn.hot{border-color:currentColor;transform:scale(1.04);}
+.btn.hot{border-color:var(--who,currentColor);transform:scale(1.04);}
 .btn:focus-visible{outline:4px solid var(--fg);outline-offset:4px;}
 
 /* Sized by the cards rather than a fixed column count: with two games a
@@ -94,4 +94,57 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
   background:#3a1f12;color:#ffb37a;border:2px solid #7a3f1e;
   border-radius:999px;padding:clamp(7px,1.3vh,14px) clamp(12px,1.7vw,22px);
   font-size:clamp(11px,1.7vh,19px);font-weight:800;
+}
+
+
+/* ---------- title screen ----------
+   A ten-foot front door. One target, corners kept clear, and type big enough
+   that the name is the first thing anyone sees from the sofa. */
+.screen.title{ justify-content:flex-start; padding-top:clamp(18px,5vh,70px); gap:clamp(8px,1.6vh,22px); }
+
+.brandblock{ display:flex; flex-direction:column; align-items:center; gap:0; }
+.wordmark{ display:flex; line-height:.86; }
+.wordmark .ch{
+  font-size:clamp(46px,15vh,190px); font-weight:900; letter-spacing:.01em;
+  -webkit-text-stroke:clamp(3px,.9vh,10px) #fff; paint-order:stroke fill;
+  text-shadow:0 clamp(4px,1vh,12px) 0 rgba(0,0,0,.35);
+  animation:bob 2.6s ease-in-out infinite;
+}
+.wordmark .sp{ width:.3em; }
+@keyframes bob{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-.06em) } }
+
+/* The one thing on this screen you are meant to hit. Nearly the full width,
+   because a hand at three metres has no business aiming. */
+.btn.huge{
+  width:min(78vw,1100px); padding:clamp(20px,5vh,56px) 0;
+  font-size:clamp(30px,8vh,96px); font-weight:900; letter-spacing:.06em;
+  border-width:clamp(4px,.7vh,8px); border-color:var(--good);
+  background:linear-gradient(180deg,#1c7f52,#15603e);
+  margin-top:clamp(10px,3vh,46px);
+  box-shadow:0 clamp(6px,1.4vh,16px) 0 rgba(0,0,0,.4);
+}
+.btn.huge.hot{ transform:scale(1.03); }
+/* White sweep on the green: the player's colour goes to the border, where it
+   identifies who is choosing without fighting the label for contrast. */
+.btn.huge .fill{ background:#fff; opacity:.3; }
+.hint{ font-size:clamp(13px,2.1vh,24px); color:var(--dim); letter-spacing:.02em; }
+
+/* Corner furniture: deliberately small and far out, so a hand reaching for
+   Play can never clip it. */
+.btn.corner{
+  position:absolute; top:var(--safe); right:var(--safe);
+  width:clamp(44px,7vh,80px); height:clamp(44px,7vh,80px); padding:0;
+  border-radius:50%; font-size:clamp(18px,3.2vh,38px); opacity:.55;
+}
+.btn.corner.hot{ opacity:1; }
+
+.camstatus{
+  position:absolute; top:var(--safe); left:var(--safe);
+  display:flex; align-items:center; gap:.6em;
+  font-size:clamp(12px,1.9vh,22px); font-weight:700; color:var(--dim);
+}
+.camstatus .dot{
+  width:clamp(10px,1.5vh,18px); height:clamp(10px,1.5vh,18px);
+  border-radius:50%; background:var(--gold);
+  box-shadow:0 0 0 clamp(3px,.5vh,6px) rgba(255,255,255,.10);
 }

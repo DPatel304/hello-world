@@ -17,6 +17,18 @@ class ClassList {
   }
 }
 
+/* Real CSSStyleDeclaration has setProperty alongside the camelCase props, and
+   cursor.js uses it to hand buttons a player colour. A plain object silently
+   has neither, so this is both. */
+function makeStyle(){
+  const st = {};
+  const def = (name, value) => Object.defineProperty(st, name, { value, enumerable:false });
+  def('setProperty', (k, v) => { st[k] = String(v); });
+  def('getPropertyValue', (k) => st[k] ?? '');
+  def('removeProperty', (k) => { const v = st[k]; delete st[k]; return v ?? ''; });
+  return st;
+}
+
 class FakeEl {
   constructor(tag){
     this.tagName = String(tag).toUpperCase();
@@ -24,7 +36,7 @@ class FakeEl {
     this.parent = null;
     this.id = '';
     this.disabled = false;
-    this.style = {};
+    this.style = makeStyle();
     this._class = '';
     this._text = '';
     this._listeners = Object.create(null);
