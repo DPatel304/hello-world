@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FamJam Floor Test</title>
+<style>
+  :root{ --ink:#e8eaf0; --bg:#000; --accent:#6cf; --warn:#fc3; --bad:#f55; --good:#5e9; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);overflow:hidden;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
+  canvas{display:block;position:absolute;inset:0;width:100%;height:100%}
+  #hud{position:absolute;left:14px;top:14px;z-index:10;background:rgba(0,0,0,.72);
+    border:1px solid #2a2f3a;border-radius:10px;padding:12px 14px;font-size:13px;
+    line-height:1.55;min-width:280px;pointer-events:none}
+  #hud h1{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8a93a6;
+    margin-bottom:8px;font-weight:600}
+  .row{display:flex;justify-content:space-between;gap:18px}
+  .k{color:#8a93a6}
+  .v{color:var(--ink);font-variant-numeric:tabular-nums}
+  #verdict{margin-top:9px;padding-top:9px;border-top:1px solid #2a2f3a;font-size:13px}
+  #keys{position:absolute;left:14px;bottom:14px;z-index:10;background:rgba(0,0,0,.72);
+    border:1px solid #2a2f3a;border-radius:10px;padding:10px 13px;font-size:12px;
+    color:#8a93a6;line-height:1.7;pointer-events:none}
+  #keys b{color:var(--ink);font-weight:600}
+  #cam{position:absolute;right:14px;top:14px;width:240px;z-index:10;border-radius:10px;
+    border:1px solid #2a2f3a;background:#000}
+  #msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    z-index:20;font-size:22px;text-align:center;padding:40px;pointer-events:none}
+  .hide{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<canvas id="cam" width="240" height="135"></canvas>
+<video id="v" playsinline muted autoplay style="display:none"></video>
+
+<div id="hud">
+  <h1 id="modename">Starting</h1>
+  <div class="row"><span class="k">people</span><span class="v" id="m_people">—</span></div>
+  <div class="row"><span class="k">detection rate</span><span class="v" id="m_rate">—</span></div>
+  <div class="row"><span class="k" id="k_ank">wrist visibility</span><span class="v" id="m_ank">—</span></div>
+  <div class="row"><span class="k">jitter</span><span class="v" id="m_jit">—</span></div>
+  <div class="row"><span class="k">inference</span><span class="v" id="m_inf">—</span></div>
+  <div class="row"><span class="k">camera fps</span><span class="v" id="m_fps">—</span></div>
+  <div class="row"><span class="k">tracking</span><span class="v" id="m_mode">hands</span></div>
+  <div class="row"><span class="k">calibrated</span><span class="v" id="m_cal">no</span></div>
+  <div id="verdict">starting…</div>
+</div>
+
+<div id="keys">
+  <b>1</b> grid &nbsp; <b>2</b> white &nbsp; <b>3</b> track &nbsp; <b>4</b> game &nbsp; <b>5</b> practice<br>
+  <b>M</b> mirror &nbsp;
+  <b>C</b> calibrate &nbsp; <b>T</b> feet/hands &nbsp; <b>H</b> hud &nbsp; <b>V</b> cam &nbsp; <b>F</b> fullscreen
+</div>
+
+<div id="msg" class="hide"></div>
+
+<script type="module">
+import { FilesetResolver, PoseLandmarker }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/"
+            + "pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+
+const L = { NOSE:0, L_WRI:15, R_WRI:16, L_HIP:23, R_HIP:24, L_KNEE:25, R_KNEE:26, L_ANK:27, R_ANK:28 };
+
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const camCv = document.getElementById('cam');
+const camCtx = camCv.getContext('2d');
+const vid = document.getElementById('v');
+const msgEl = document.getElementById('msg');
+const hudEl = document.getElementById('hud');
+
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', resize); resize();
+
+function say(t){ msgEl.textContent = t; msgEl.classList.toggle('hide', !t); }
+
+/* ---------- state ---------- */
+let mode = 1;                 // 1 grid 2 white 3 track 4 game
+let poser = null, stream = null;
+let lastVideoTime = -1;
+let poses = [];               // [{ank:{x,y}, lm:[...]}]
+let showCam = true;
+let trackMode = 'hands';          // 'hands' | 'feet'
+let mirror = true;                // uncalibrated fallback flips X
+
+const met = { hits:[], inf:0, fps:0, ankVis:0, jitter:0, frames:0, lastWall:0, wallFrames:0 };
+const jitBuf = [];
+
+/* ---------- homography ---------- */
+let Hm = null;
+try { const s = localStorage.getItem('famjam.floortest.H'); if (s) Hm = JSON.parse(s); } catch(e){}
+
+function solve(A, b, n){
+  const M = A.map((r,i)=>r.concat([b[i]]));
+  for (let col=0; col<n; col++){
+    let piv = col;
+    for (let r=col+1;r<n;r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+    if (Math.abs(M[piv][col]) < 1e-12) return null;
+    const t = M[col]; M[col] = M[piv]; M[piv] = t;
+    for (let r=0;r<n;r++){
+      if (r === col) continue;
+      const f = M[r][col] / M[col][col];
+      for (let k=col;k<=n;k++) M[r][k] -= f * M[col][k];
+    }
+  }
+  const x = new Array(n);
+  for (let i=0;i<n;i++) x[i] = M[i][n] / M[i][i];
+  return x;
+}
+
+function homography(src, dst){
+  const A = [], b = [];
+  for (let i=0;i<4;i++){
+    const {x,y} = src[i], {x:u,y:v} = dst[i];
+    A.push([x,y,1,0,0,0,-u*x,-u*y]); b.push(u);
+    A.push([0,0,0,x,y,1,-v*x,-v*y]); b.push(v);
+  }
+  const h = solve(A, b, 8);
+  return h ? h.concat([1]) : null;
+}
+
+function project(p){
+  if (!Hm) return { x: (mirror ? 1 - p.x : p.x) * W, y: p.y * H };
+  const d = Hm[6]*p.x + Hm[7]*p.y + Hm[8];
+  return { x: (Hm[0]*p.x + Hm[1]*p.y + Hm[2]) / d,
+           y: (Hm[3]*p.x + Hm[4]*p.y + Hm[5]) / d };
+}
+
+/* ---------- calibration ---------- */
+let cal = null;  // {i, src:[], dst:[]}
+function startCal(){
+  const m = 0.14;
+  cal = { i:0, src:[], dst:[
+    {x:W*m, y:H*m}, {x:W*(1-m), y:H*m},
+    {x:W*(1-m), y:H*(1-m)}, {x:W*m, y:H*(1-m)}
+  ]};
+}
+function calCapture(){
+  if (!cal || !poses.length) return;
+  cal.src.push({ x: poses[0].ank.x, y: poses[0].ank.y });
+  cal.i++;
+  if (cal.i >= 4){
+    const h = homography(cal.src, cal.dst);
+    if (h){ Hm = h; try{ localStorage.setItem('famjam.floortest.H', JSON.stringify(h)); }catch(e){} }
+    cal = null;
+  }
+}
+
+/* ---------- game ---------- */
+let balloons = [], score = 0, popped = 0, spawnT = 0;
+const COLORS = ['#ff5a8a','#ffd166','#6ee7b7','#8ab4ff','#c792ea'];
+function resetGame(){ balloons = []; score = 0; popped = 0; spawnT = 0; }
+function stepGame(dt){
+  spawnT -= dt;
+  if (spawnT <= 0 && balloons.length < 7){
+    spawnT = 0.75 + Math.random()*0.8;
+    balloons.push({
+      x: 0.12 + Math.random()*0.76, y: 0.14 + Math.random()*0.72,
+      r: 0, rt: Math.min(W,H) * (0.055 + Math.random()*0.03),
+      c: COLORS[(Math.random()*COLORS.length)|0], life: 9, pop: 0
+    });
+  }
+  for (const b of balloons){
+    b.r += (b.rt - b.r) * Math.min(1, dt*6);
+    if (b.pop > 0) { b.pop += dt*4; continue; }
+    b.life -= dt;
+    let hit = false;
+    for (const p of poses){
+      for (const q of p.pts){
+        const s = project(q);
+        const dx = s.x - b.x*W, dy = s.y - b.y*H, R = b.r + 20;
+        if (dx*dx + dy*dy < R*R){ hit = true; break; }
+      }
+      if (hit) break;
+    }
+    if (hit){ b.pop = 0.01; score += 10; popped++; }
+  }
+  balloons = balloons.filter(b => b.pop < 1 && b.life > 0);
+}
+
+/* ---------- drawing ---------- */
+function drawGrid(){
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0,0,W,H);
+  const n = 8, cw = W/n, ch = H/n;
+  ctx.lineWidth = 1; ctx.strokeStyle = '#1b2433';
+  for (let i=0;i<=n;i++){
+    ctx.beginPath(); ctx.moveTo(i*cw,0); ctx.lineTo(i*cw,H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*ch); ctx.lineTo(W,i*ch); ctx.stroke();
+  }
+  ctx.strokeStyle = '#3d9bff'; ctx.lineWidth = 3;
+  ctx.strokeRect(1.5,1.5,W-3,H-3);
+  ctx.beginPath(); ctx.moveTo(W/2,0); ctx.lineTo(W/2,H);
+  ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  const s = Math.min(W,H)*0.08;
+  ctx.strokeStyle = '#ff5a8a'; ctx.lineWidth = 6;
+  for (const [cx,cy,ax,ay] of [[0,0,1,1],[W,0,-1,1],[W,H,-1,-1],[0,H,1,-1]]){
+    ctx.beginPath(); ctx.moveTo(cx+ax*s, cy); ctx.lineTo(cx, cy);
+    ctx.lineTo(cx, cy+ay*s); ctx.stroke();
+  }
+  ctx.fillStyle = '#6b7689';
+  ctx.font = '600 16px ui-monospace,monospace'; ctx.textAlign = 'center';
+  ctx.fillText('measure edge to edge — this frame is the full image', W/2, H/2 - 18);
+  ctx.fillText('8 x 8 cells', W/2, H/2 + 30);
+}
+
+function drawWhite(){
+  ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+  const bw = W/5;
+  const steps = ['#ffffff','#bfbfbf','#808080','#404040','#000000'];
+  for (let i=0;i<5;i++){ ctx.fillStyle = steps[i]; ctx.fillRect(i*bw, H*0.78, bw, H*0.22); }
+  ctx.fillStyle = '#000'; ctx.font = '600 15px ui-monospace,monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('lux meter at centre of the white field', 20, 30);
+}
+
+function drawSkeleton(){
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0,0,W,H);
+  const pairs = [[11,12],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],
+                 [11,13],[13,15],[12,14],[14,16]];
+  poses.forEach((p, idx) => {
+    const col = idx === 0 ? '#6cf' : '#fc8';
+    ctx.strokeStyle = col; ctx.lineWidth = 4;
+    for (const [a,b] of pairs){
+      const la = p.lm[a], lb = p.lm[b];
+      if (!la || !lb) continue;
+      ctx.beginPath();
+      ctx.moveTo(la.x*W, la.y*H); ctx.lineTo(lb.x*W, lb.y*H); ctx.stroke();
+    }
+    ctx.fillStyle = col;
+    const dots = trackMode === 'feet'
+      ? [L.L_ANK, L.R_ANK, L.L_HIP, L.R_HIP, L.NOSE]
+      : [L.L_WRI, L.R_WRI, L.L_HIP, L.R_HIP, L.NOSE];
+    for (const i of dots){
+      const l = p.lm[i]; if (!l) continue;
+      ctx.beginPath(); ctx.arc(l.x*W, l.y*H, 7, 0, 6.3); ctx.fill();
+    }
+    for (const q of p.pts){
+      const s = project(q);
+      ctx.strokeStyle = '#5e9'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 26, 0, 6.3); ctx.stroke();
+    }
+  });
+  if (!poses.length){
+    ctx.fillStyle = '#6b7689'; ctx.font = '600 20px ui-monospace,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('no one detected', W/2, H/2);
+  }
+}
+
+function drawGame(){
+  ctx.fillStyle = '#07040e'; ctx.fillRect(0,0,W,H);
+  for (const b of balloons){
+    const x = b.x*W, y = b.y*H;
+    if (b.pop > 0){
+      ctx.globalAlpha = Math.max(0, 1 - b.pop);
+      ctx.strokeStyle = b.c; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(x, y, b.r * (1 + b.pop*1.1), 0, 6.3); ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    ctx.fillStyle = b.c;
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, 6.3); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.arc(x - b.r*0.3, y - b.r*0.32, b.r*0.22, 0, 6.3); ctx.fill();
+  }
+  drawCursors();
+  ctx.fillStyle = '#fff'; ctx.font = '700 44px ui-monospace,monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(String(score), W/2, 58);
+}
+
+function drawCursors(){
+  for (const p of poses){
+    for (const q of p.pts){
+      const s = project(q);
+      ctx.fillStyle = 'rgba(94,255,158,.16)';
+      ctx.beginPath(); ctx.arc(s.x, s.y, 34, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#5eff9e'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 34, 0, 6.3); ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x-48,s.y); ctx.lineTo(s.x-24,s.y);
+      ctx.moveTo(s.x+24,s.y); ctx.lineTo(s.x+48,s.y);
+      ctx.moveTo(s.x,s.y-48); ctx.lineTo(s.x,s.y-24);
+      ctx.moveTo(s.x,s.y+24); ctx.lineTo(s.x,s.y+48);
+      ctx.stroke();
+    }
+  }
+  if (!poses.length){
+    ctx.fillStyle = '#f55'; ctx.font = '700 20px ui-monospace,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('not seeing you', W/2, H - 60);
+  }
+  if (!Hm){
+    ctx.fillStyle = '#ffd166'; ctx.font = '700 19px ui-monospace,monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('NOT CALIBRATED  ·  press C to fix  ·  M flips left/right', W/2, H - 26);
+  }
+}
+
+let practice = [];
+function resetPractice(){
+  practice = []; score = 0;
+  for (let r=0;r<3;r++) for (let c=0;c<3;c++){
+    practice.push({ x:0.20+c*0.30, y:0.20+r*0.30, r:0,
+      rt: Math.min(W,H)*0.085, c: COLORS[(r*3+c)%COLORS.length], flash:0 });
+  }
+}
+function stepPractice(dt){
+  for (const b of practice){
+    b.r += (b.rt - b.r) * Math.min(1, dt*6);
+    if (b.flash > 0) b.flash -= dt*2.2;
+    let hit = false;
+    for (const p of poses){
+      for (const q of p.pts){
+        const s = project(q);
+        const dx = s.x - b.x*W, dy = s.y - b.y*H, R = b.r + 20;
+        if (dx*dx + dy*dy < R*R){ hit = true; break; }
+      }
+      if (hit) break;
+    }
+    if (hit && b.flash <= 0){ b.flash = 1; score++; }
+  }
+}
+function drawPractice(){
+  ctx.fillStyle = '#07040e'; ctx.fillRect(0,0,W,H);
+  for (const b of practice){
+    const x = b.x*W, y = b.y*H;
+    ctx.fillStyle = b.flash > 0 ? '#ffffff' : b.c;
+    ctx.beginPath(); ctx.arc(x, y, b.r * (1 + b.flash*0.18), 0, 6.3); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.arc(x - b.r*0.3, y - b.r*0.32, b.r*0.22, 0, 6.3); ctx.fill();
+  }
+  drawCursors();
+  ctx.fillStyle = '#fff'; ctx.font = '700 40px ui-monospace,monospace';
+  ctx.textAlign = 'center'; ctx.fillText('hits ' + score, W/2, 54);
+  ctx.fillStyle = '#8a93a6'; ctx.font = '600 15px ui-monospace,monospace';
+  ctx.fillText('nine targets, they never expire — move a hand onto one', W/2, 84);
+}
+
+function drawCal(){
+  ctx.fillStyle = '#05070c'; ctx.fillRect(0,0,W,H);
+  const t = cal.dst[cal.i];
+  const pulse = 1 + 0.12*Math.sin(performance.now()/180);
+  ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.arc(t.x, t.y, 52*pulse, 0, 6.3); ctx.stroke();
+  ctx.beginPath(); ctx.arc(t.x, t.y, 10, 0, 6.3); ctx.fillStyle='#ffd166'; ctx.fill();
+  ctx.fillStyle = '#e8eaf0'; ctx.font = '600 22px ui-monospace,monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(trackMode === 'feet'
+    ? 'stand on the dot, then press SPACE'
+    : 'touch the dot, then press SPACE', W/2, H/2 - 14);
+  ctx.fillStyle = '#8a93a6'; ctx.font = '600 16px ui-monospace,monospace';
+  ctx.fillText('corner ' + (cal.i+1) + ' of 4' + (poses.length ? '' : '  —  not seeing you'), W/2, H/2 + 18);
+}
+
+/* ---------- metrics ---------- */
+function updateMetrics(){
+  const rate = met.hits.length
+    ? met.hits.reduce((a,b)=>a+b,0) / met.hits.length : 0;
+  document.getElementById('m_people').textContent = String(poses.length);
+  document.getElementById('m_rate').textContent = (rate*100).toFixed(0) + '%';
+  document.getElementById('m_ank').textContent = met.ankVis.toFixed(2);
+  document.getElementById('m_jit').textContent = (met.jitter*100).toFixed(2) + '%';
+  document.getElementById('m_inf').textContent = met.inf.toFixed(0) + ' ms';
+  document.getElementById('m_fps').textContent = met.fps.toFixed(1);
+  document.getElementById('m_cal').textContent = Hm ? 'yes' : 'no';
+  document.getElementById('m_mode').textContent = trackMode;
+  document.getElementById('k_ank').textContent =
+    trackMode === 'feet' ? 'ankle visibility' : 'wrist visibility';
+
+  const v = document.getElementById('verdict');
+  let t, c;
+  if (met.frames < 40){ t = 'warming up…'; c = '#8a93a6'; }
+  else if (rate < 0.6){ t = 'Dropping out — too dark, or you are out of frame'; c = 'var(--bad)'; }
+  else if (rate < 0.85){ t = 'Intermittent — try more light or move the camera back'; c = 'var(--warn)'; }
+  else if (met.ankVis < 0.3){ t = (trackMode === 'feet' ? 'Feet' : 'Hands')
+      + ' not clearly visible — reposition the camera'; c = 'var(--warn)'; }
+  else if (met.jitter > 0.02){ t = 'Position is noisy — tracking unstable'; c = 'var(--warn)'; }
+  else { t = 'Tracking cleanly'; c = 'var(--good)'; }
+  v.textContent = t; v.style.color = c;
+}
+
+/* ---------- main loop ---------- */
+let prev = performance.now();
+function frame(){
+  requestAnimationFrame(frame);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - prev)/1000); prev = now;
+
+  if (poser && vid.readyState >= 2 && vid.currentTime !== lastVideoTime){
+    lastVideoTime = vid.currentTime;
+    const t0 = performance.now();
+    let res = null;
+    try { res = poser.detectForVideo(vid, now); } catch(e){}
+    met.inf = met.inf * 0.9 + (performance.now() - t0) * 0.1;
+
+    met.wallFrames++;
+    if (now - met.lastWall > 1000){
+      met.fps = met.wallFrames * 1000 / (now - met.lastWall);
+      met.wallFrames = 0; met.lastWall = now;
+    }
+
+    poses = [];
+    if (res && res.landmarks){
+      for (const lm of res.landmarks){
+        const pts = [];
+        if (trackMode === 'feet'){
+          const la = lm[L.L_ANK], ra = lm[L.R_ANK];
+          if (la && ra) pts.push({ x:(la.x+ra.x)/2, y:(la.y+ra.y)/2 });
+        } else {
+          const lw = lm[L.L_WRI], rw = lm[L.R_WRI];
+          if (lw) pts.push({ x:lw.x, y:lw.y });
+          if (rw) pts.push({ x:rw.x, y:rw.y });
+        }
+        if (!pts.length) continue;
+        poses.push({ lm, pts, ank: pts[0] });
+      }
+    }
+    poses.sort((a,b)=> a.ank.x - b.ank.x);
+
+    met.frames++;
+    met.hits.push(poses.length ? 1 : 0);
+    if (met.hits.length > 120) met.hits.shift();
+
+    if (poses.length){
+      const lm = poses[0].lm;
+      const ia = trackMode === 'feet' ? L.L_ANK : L.L_WRI;
+      const ib = trackMode === 'feet' ? L.R_ANK : L.R_WRI;
+      const a = lm[ia], b = lm[ib];
+      met.ankVis = Math.max(a?.visibility ?? 0, b?.visibility ?? 0);
+      jitBuf.push(poses[0].ank);
+      if (jitBuf.length > 30) jitBuf.shift();
+      if (jitBuf.length > 8){
+        const mx = jitBuf.reduce((s,p)=>s+p.x,0)/jitBuf.length;
+        const my = jitBuf.reduce((s,p)=>s+p.y,0)/jitBuf.length;
+        const vx = jitBuf.reduce((s,p)=>s+(p.x-mx)**2,0)/jitBuf.length;
+        const vy = jitBuf.reduce((s,p)=>s+(p.y-my)**2,0)/jitBuf.length;
+        met.jitter = Math.sqrt(vx+vy);
+      }
+    }
+  }
+
+  if (showCam && vid.readyState >= 2){
+    camCtx.drawImage(vid, 0, 0, camCv.width, camCv.height);
+    camCtx.strokeStyle = '#6cf'; camCtx.lineWidth = 2;
+    for (const p of poses){
+      camCtx.beginPath();
+      camCtx.arc(p.ank.x*camCv.width, p.ank.y*camCv.height, 6, 0, 6.3);
+      camCtx.stroke();
+    }
+  }
+
+  const names = {1:'Grid — measure the image', 2:'White — measure brightness',
+                 3:'Track — pose diagnostics', 4:'Game — timed balloons',
+                 5:'Practice — nine fixed targets'};
+  document.getElementById('modename').textContent =
+    cal ? 'Calibrating' : (names[mode] || '');
+
+  if (cal) drawCal();
+  else if (mode === 1) drawGrid();
+  else if (mode === 2) drawWhite();
+  else if (mode === 3) drawSkeleton();
+  else if (mode === 4){ stepGame(dt); drawGame(); }
+  else if (mode === 5){ stepPractice(dt); drawPractice(); }
+
+  updateMetrics();
+}
+
+/* ---------- keys ---------- */
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k === ' ' && cal){ e.preventDefault(); calCapture(); return; }
+  if (k === '1') mode = 1;
+  if (k === '2') mode = 2;
+  if (k === '3') mode = 3;
+  if (k === '4'){ mode = 4; resetGame(); }
+  if (k === '5'){ mode = 5; resetPractice(); }
+  if (k === 'm') mirror = !mirror;
+  if (k === 'c') startCal();
+  if (k === 't'){
+    trackMode = trackMode === 'feet' ? 'hands' : 'feet';
+    Hm = null; cal = null; jitBuf.length = 0;
+    try { localStorage.removeItem('famjam.floortest.H'); } catch(e){}
+  }
+  if (k === 'h') hudEl.classList.toggle('hide');
+  if (k === 'v'){ showCam = !showCam; camCv.classList.toggle('hide', !showCam); }
+  if (k === 'f'){
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(()=>{});
+  }
+});
+
+/* ---------- boot ---------- */
+async function boot(){
+  say('Starting camera…');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} }, audio:false
+    });
+    vid.srcObject = stream;
+    await vid.play();
+  } catch(err){
+    say('Camera blocked: ' + err.name + '\nServe over http://localhost and allow the camera.');
+    return;
+  }
+
+  say('Loading pose model…');
+  try {
+    const fs = await FilesetResolver.forVisionTasks(CDN);
+    poser = await PoseLandmarker.createFromOptions(fs, {
+      baseOptions: { modelAssetPath: MODEL, delegate: 'GPU' },
+      runningMode: 'VIDEO', numPoses: 2
+    });
+  } catch(err){
+    say('Could not load the pose model.\nCheck your internet connection.\n' + err.message);
+    return;
+  }
+
+  met.lastWall = performance.now();
+  say('');
+  frame();
+}
+boot();
+</script>
+</body>
+</html>

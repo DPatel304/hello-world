@@ -1,0 +1,272 @@
+import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
+
+/* Landmark indices we actually use. MediaPipe gives 33; naming the handful
+   that matter keeps the game code readable. */
+export const L = {
+  NOSE:0, L_EYE:2, R_EYE:5,
+  L_SHOULDER:11, R_SHOULDER:12, L_ELBOW:13, R_ELBOW:14, L_WRIST:15, R_WRIST:16,
+  L_HIP:23, R_HIP:24, L_KNEE:25, R_KNEE:26, L_ANKLE:27, R_ANKLE:28
+};
+
+/* Drawn skeleton: pairs of landmark indices. */
+export const BONES = [
+  [11,12],[11,13],[13,15],[12,14],[14,16],
+  [11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]
+];
+
+const SMOOTH = 0.45;        /* lerp per detection; higher follows faster, jitters more */
+const LOST_AFTER = 0.6;     /* seconds without a detection before a player counts as gone */
+
+export const PLAYER_COLORS = ['#3da9ff', '#ff8a3d'];
+
+function blank(i){
+  return {
+    id:i, color:PLAYER_COLORS[i], present:false, lostFor:99,
+    lm:null, raw:null,
+    hands:{ left:{x:.5,y:.5,vx:0,vy:0,speed:0}, right:{x:.5,y:.5,vx:0,vy:0,speed:0} },
+    centre:{x:.5,y:.5}, scale:0.3
+  };
+}
+
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timed out after ' + (ms/1000) + 's')), ms))
+  ]);
+}
+
+export const pose = {
+  ready:false, usingCamera:false, reason:'', detail:'', activeId:'',
+  players:[blank(0), blank(1)],
+  personCount:0,
+  /* Measured, not declared. "Will it run on a Pi" is a question about these
+     three numbers and nothing else, so the app has to be able to answer it on
+     whatever machine it is sitting on. */
+  fps:0, inferMs:0, _hits:0, _since:0,
+
+  /* Mouse stands in for a body when there is no camera: the whole interface is
+     hover-driven, so a pointer can reach everything a hand can. Without it the
+     app is untestable on any machine that cannot see a person. */
+  mouse:{ active:false, x:.5, y:.5 },
+
+  async start(video, { forceMouse = false } = {}){
+    this.video = video;
+    if (forceMouse){ this.reason = 'debug'; this.enableMouse(); return false; }
+    try {
+      /* Ask for the remembered camera by id. The moment a second one exists -
+         a phone running Camo, a USB webcam beside the laptop's built-in -
+         whatever Windows calls default is as likely to be the wrong one, and
+         without this there is no way to say otherwise. An id that has gone
+         away is `ideal`, not `exact`, so an unplugged camera degrades to the
+         default instead of refusing to start. */
+      const want = this.preferred();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: Object.assign(
+          { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
+          want ? { deviceId:{ ideal: want } } : {}),
+        audio:false
+      });
+      this.activeId = stream.getVideoTracks()[0].getSettings().deviceId || '';
+      video.srcObject = stream;
+      await video.play();
+    } catch (e){
+      this.reason = (e && e.name) === 'NotAllowedError' ? 'denied' : 'nocamera';
+      this.enableMouse();
+      return false;
+    }
+    /* Local copies if `npm run offline` has been run, otherwise the CDN. A
+       living-room box should not need the internet, but nobody should have to
+       download 40MB before they can try it either.
+
+       Opened straight off the filesystem there is nothing to probe: a fetch of
+       a sibling file from a file:// page is refused by CORS, which logs an
+       error and tells us nothing. Skip to the CDN. */
+    const local = location.protocol === 'file:' ? false
+      : await fetch('/wasm/vision_wasm_internal.js', { method:'HEAD' })
+              .then(r => r.ok).catch(() => false);
+    const wasmDir = local ? '/wasm'
+      : 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm';
+    const model = local ? '/models/pose_landmarker_lite.task'
+      : 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/' +
+        'pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+    /* The runtime is tens of megabytes over somebody else's CDN. If it is slow,
+       blocked or offline, the app used to sit on "Starting the camera…"
+       forever with the camera light on and nothing to show for it. Give it a
+       deadline and say what went wrong instead. */
+    try {
+      const files = await withTimeout(FilesetResolver.forVisionTasks(wasmDir), 25000);
+      this.lm = await withTimeout(PoseLandmarker.createFromOptions(files, {
+        baseOptions:{ modelAssetPath: model, delegate:'GPU' },
+        runningMode:'VIDEO', numPoses:2,
+        minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5
+      }), 40000);
+    } catch (e){
+      this.reason = local ? 'badassets' : 'nonetwork';
+      this.detail = (e && e.message) || String(e);
+      try { video.srcObject.getTracks().forEach(t => t.stop()); } catch (e2) {}
+      this.usingCamera = false;
+      this.enableMouse();
+      return false;
+    }
+    this.ready = true; this.usingCamera = true;
+    return true;
+  },
+
+  /* Labels only come back once permission has been granted, which is why the
+     picker lives in Settings rather than in front of the first run. */
+  async cameras(){
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      return all.filter(d => d.kind === 'videoinput')
+                .map((d, i) => ({ id:d.deviceId, label:d.label || ('Camera ' + (i + 1)) }));
+    } catch (e){ return []; }
+  },
+
+  preferred(){
+    try { return localStorage.getItem('famjam_camera') || ''; } catch (e){ return ''; }
+  },
+
+  async use(deviceId){
+    try { localStorage.setItem('famjam_camera', deviceId); } catch (e){}
+    try { this.video.srcObject.getTracks().forEach(t => t.stop()); } catch (e){}
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ deviceId:{ exact: deviceId }, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
+      audio:false
+    });
+    this.video.srcObject = stream;
+    await this.video.play();
+    this.activeId = deviceId;
+    /* The new camera sees a different room: everything learned about the old
+       one is wrong, so start the players over. */
+    for (const p of this.players){ p.lm = null; p.present = false; p.lostFor = 99; }
+  },
+
+  enableMouse(){
+    if (this.mouse.active) return;
+    this.mouse.active = true;
+    addEventListener('pointermove', (e) => {
+      this.mouse.x = e.clientX / innerWidth;
+      this.mouse.y = e.clientY / innerHeight;
+    });
+  },
+
+  /* Called once per animation frame. Detection runs only when the video has a
+     new frame, so games keep their own smooth cadence even if pose dips. */
+  update(nowMs, dt){
+    if (this.mouse.active) return this._mouseUpdate(dt);
+    if (!this.ready) return;
+    const v = this.video;
+    if (v.readyState < 2) return;
+    /* Wall clock, not dt: the loop clamps dt to 50ms so a frame that really
+       took 600ms is reported as 50, which inflated this rate elevenfold and
+       had the readout claiming 20fps next to a 570ms inference. */
+    const wall = performance.now();
+    if (!this._since) this._since = wall;
+    if (wall - this._since > 500){
+      this.fps = this._hits * 1000 / (wall - this._since);
+      this._hits = 0; this._since = wall;
+    }
+    if (v.currentTime === this._lastT) { this._decay(dt); return; }
+    this._lastT = v.currentTime;
+
+    let res;
+    const t0 = performance.now();
+    try { res = this.lm.detectForVideo(v, nowMs); }
+    catch (e){ return; }
+    /* Smoothed, because a single inference tells you nothing useful. */
+    this.inferMs += (performance.now() - t0 - this.inferMs) * 0.1;
+    this._hits++;
+
+    const found = (res && res.landmarks) ? res.landmarks : [];
+    /* Left-to-right on screen decides who is P1. Stable, and it matches how
+       people describe themselves ("I'm on the left"). After mirroring, screen
+       left is the player's own left as they face the TV. */
+    const sorted = found
+      .map(lm => ({ lm, cx: 1 - (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2 }))
+      .sort((a,b) => a.cx - b.cx)
+      .slice(0,2);
+
+    this.personCount = sorted.length;
+    for (let i = 0; i < 2; i++){
+      const p = this.players[i], hit = sorted[i];
+      if (!hit){ p.lostFor += dt; if (p.lostFor > LOST_AFTER) p.present = false; continue; }
+      const mirrored = hit.lm.map(k => ({ x: 1 - k.x, y: k.y, z: k.z, v: k.visibility }));
+      this._apply(p, mirrored, dt);
+      p.lostFor = 0; p.present = true;
+    }
+  },
+
+  _apply(p, lm, dt){
+    if (!p.lm){ p.lm = lm.map(k => ({...k})); }
+    else {
+      for (let i = 0; i < lm.length; i++){
+        p.lm[i].x += (lm[i].x - p.lm[i].x) * SMOOTH;
+        p.lm[i].y += (lm[i].y - p.lm[i].y) * SMOOTH;
+        p.lm[i].v  = lm[i].v;
+      }
+    }
+    const hip = { x:(p.lm[L.L_HIP].x + p.lm[L.R_HIP].x)/2, y:(p.lm[L.L_HIP].y + p.lm[L.R_HIP].y)/2 };
+    const sh  = { x:(p.lm[L.L_SHOULDER].x + p.lm[L.R_SHOULDER].x)/2,
+                  y:(p.lm[L.L_SHOULDER].y + p.lm[L.R_SHOULDER].y)/2 };
+    p.centre = { x:(hip.x + sh.x)/2, y:(hip.y + sh.y)/2 };
+    p.scale  = Math.max(0.08, Math.hypot(hip.x - sh.x, hip.y - sh.y) * 2.4);
+
+    this._hand(p.hands.left,  p.lm[L.L_WRIST], dt);
+    this._hand(p.hands.right, p.lm[L.R_WRIST], dt);
+  },
+
+  /* Speed is what Fruit Fury and Bubble Keeper read, so it is kept in
+     screen-widths per second rather than pixels: the same swing scores the
+     same on any size of television. */
+  _hand(h, k, dt){
+    const nx = k.x, ny = k.y, d = Math.max(dt, 1/120);
+    h.vx = (nx - h.x) / d; h.vy = (ny - h.y) / d;
+    h.speed = Math.hypot(h.vx, h.vy);
+    h.x = nx; h.y = ny;
+  },
+
+  /* No new video frame means no detection ran. Ageing the players here matters:
+     without it a frozen or unplugged camera leaves everyone marked present
+     forever, and the game waits for a motionless person who is not there. */
+  _decay(dt){
+    for (const p of this.players){
+      if (!p.present) continue;
+      p.lostFor += dt;
+      if (p.lostFor > LOST_AFTER * 4) p.present = false;
+    }
+  },
+
+  _mouseUpdate(dt){
+    const p = this.players[0];
+    p.present = true; p.lostFor = 0;
+    this._hand(p.hands.right, { x:this.mouse.x, y:this.mouse.y }, dt);
+    p.hands.left.x = this.mouse.x; p.hands.left.y = this.mouse.y;
+    p.centre = { x:this.mouse.x, y:Math.min(0.9, this.mouse.y + 0.2) };
+    p.scale = 0.3;
+    this.players[1].present = false;
+    this.personCount = 1;
+  },
+
+  /* The cursor hand. Right wrist by default, but a hand that has gone missing
+     should not drag the cursor into a corner, so fall back to the other. */
+  cursorHand(p){
+    const r = p.lm ? p.lm[L.R_WRIST] : null, l = p.lm ? p.lm[L.L_WRIST] : null;
+    if (this.mouse.active) return p.hands.right;
+    if (r && l) return (r.v ?? 1) >= (l.v ?? 1) ? p.hands.right : p.hands.left;
+    return p.hands.right;
+  },
+
+  /* Enough of a body in frame to play: head, both hips, and a knee or an ankle.
+     Measured against live landmarks rather than guessed - ankle visibility on a
+     standing figure swings between 0.26 and 0.93 frame to frame, so demanding
+     0.5 at both ankles strands people on the calibration screen with the
+     camera plainly working. Knees carry the same information (if a knee is in
+     frame you are standing back far enough) and are steadier. */
+  fullBody(p){
+    if (!p.lm || !p.present) return false;
+    const seen = (i) => (p.lm[i].v ?? 1) > 0.3;
+    const inFrame = (i) => p.lm[i].y > 0.02 && p.lm[i].y < 0.99;
+    const legs = seen(L.L_KNEE) || seen(L.R_KNEE) || seen(L.L_ANKLE) || seen(L.R_ANKLE);
+    return seen(L.NOSE) && inFrame(L.NOSE) && seen(L.L_HIP) && seen(L.R_HIP) && legs;
+  }
+};
