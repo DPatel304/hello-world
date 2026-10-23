@@ -24,6 +24,7 @@ const html = `<!doctype html>
 <body>
 <canvas id="stage"></canvas>
 <div id="ui"></div>
+<canvas id="over"></canvas>
 <video id="cam" playsinline autoplay muted></video>
 <script>${js}</script>
 </body>

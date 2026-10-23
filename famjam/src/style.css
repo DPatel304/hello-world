@@ -15,6 +15,8 @@ body{font-family:var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased;}
 #stage{position:fixed;inset:0;width:100%;height:100%;display:block;}
 #cam{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;top:0;left:0;}
 #ui{position:fixed;inset:0;pointer-events:none;}
+/* The dwell ring lives above the interface, not behind it. */
+#over{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9;}
 #ui > *{pointer-events:auto;}
 
 .screen{
@@ -148,3 +150,72 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
   border-radius:50%; background:var(--gold);
   box-shadow:0 0 0 clamp(3px,.5vh,6px) rgba(255,255,255,.10);
 }
+
+/* ---------- game picker ----------
+   Eight bright tiles on the same park as the title. Sized so the whole
+   catalogue is on screen at once: a child who has to scroll to find a game
+   picks whichever one is already visible. */
+.screen.picker{
+  justify-content:center; gap:clamp(8px,1.8vh,22px);
+  padding:clamp(60px,11vh,130px) var(--safe) var(--safe);
+}
+
+.minibrand{
+  position:absolute; top:var(--safe); left:var(--safe);
+  display:flex; flex-direction:column; align-items:flex-start; gap:0;
+}
+.minibrand .wordmark .ch{
+  font-size:clamp(15px,3.1vh,34px);
+  -webkit-text-stroke:clamp(1.5px,.35vh,4px) #fff;
+  text-shadow:0 clamp(1px,.3vh,4px) 0 rgba(0,0,0,.35);
+  animation:none;                      /* it bobs on the title; here it is furniture */
+}
+
+.corners{
+  position:absolute; top:var(--safe); right:var(--safe);
+  display:flex; gap:clamp(8px,1.2vw,16px);
+}
+.corners .btn.corner{ position:static; }
+
+.warnstrip{
+  background:rgba(255,93,115,.16); border:2px solid rgba(255,93,115,.5);
+  color:#ffb3bd; font-weight:800; border-radius:999px;
+  padding:.35em 1em; font-size:clamp(11px,1.8vh,20px);
+}
+.pickline{
+  font-size:clamp(18px,4.4vh,52px); font-weight:900; letter-spacing:-.02em;
+}
+
+.tiles{
+  display:grid; gap:clamp(8px,1.5vh,20px);
+  grid-template-columns:repeat(4,1fr);
+  width:min(94vw,1680px);
+}
+@media (max-aspect-ratio:1/1){ .tiles{ grid-template-columns:repeat(2,1fr); } }
+
+/* The accent carries the identity, so a child learns a game by its colour
+   long before they can read its name. */
+.btn.tile{
+  display:flex; flex-direction:column; gap:.3em;
+  align-items:flex-start; text-align:left; justify-content:flex-end;
+  min-height:clamp(78px,15vh,180px);
+  padding:clamp(10px,2vh,24px) clamp(12px,1.6vw,26px);
+  border-color:var(--accent); border-width:clamp(3px,.5vh,6px);
+  background:
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--accent) 34%, #15112c),
+      color-mix(in srgb, var(--accent) 12%, #120f26));
+}
+.btn.tile.hot{ transform:scale(1.05); }
+.btn.tile .fill{ background:#fff; opacity:.26; }
+.btn.tile .nm{
+  font-size:clamp(14px,2.9vh,34px); font-weight:900; line-height:1.03;
+  text-shadow:0 2px 6px rgba(0,0,0,.45);
+}
+.btn.tile .meta{
+  display:flex; gap:.6em; align-items:baseline;
+  font-size:clamp(9px,1.4vh,16px); font-weight:800;
+}
+.btn.tile .stars{ color:rgba(255,255,255,.22); letter-spacing:.06em; }
+.btn.tile .stars b{ color:#ffe08a; font-weight:inherit; }
+.btn.tile .best{ color:rgba(255,255,255,.6); }

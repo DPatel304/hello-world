@@ -4,48 +4,60 @@ import { button, onPick } from './cursor.js';
 import { screen, h, clearUI } from './screens.js';
 import { audio } from '../audio/sound.js';
 import { pose } from '../tracking/pose.js';
+import { drawPark } from './backdrop.js';
+import { wordmark } from './title.js';
 
-const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+/* Filled and hollow glyphs render near-identically at tile size, so the
+   difficulty is carried by colour instead: lit stars gold, the rest faint. */
+const stars = (n) => `<b>${'★'.repeat(n)}</b>${'★'.repeat(5 - n)}`;
 
 export function menu({ onPlay, onRecalibrate }){
   clearUI();
-  const s = screen();
-  const bar = h('div', 'topbar');
-  bar.append(h('div', 'brand', 'Fam<span style="color:var(--p2)">Jam</span>'));
-  const tools = h('div', 'tools');
-  /* A camera that failed is not a one-off message. Without a standing note
-     people land on the menu, wonder why waving does nothing, and have no way
-     back to the reason. */
-  if (pose.mouse.active && pose.reason !== 'debug'){
-    tools.appendChild(h('span', 'warn', '⚠ No camera — mouse only'));
-  }
-  const bHelp = onPick(button('Help'), () => help());
-  const bSet  = onPick(button('Settings'), () => settings(onRecalibrate));
-  tools.append(bHelp, bSet);
-  bar.append(tools);
-  s.appendChild(bar);
+  const s = screen('picker');
 
-  s.appendChild(h('h1', '', 'Pick a game'));
+  /* The same park as the title, stepped back so eight bright tiles can sit on
+     top of it. Two screens in one place rather than two designs. */
+  const brand = h('div', 'minibrand');
+  brand.append(wordmark('ASTRA'), wordmark('PARK'));
+  s.appendChild(brand);
+
+  const tools = h('div', 'corners');
+  tools.append(
+    onPick(button('?', 'corner'), () => help()),
+    onPick(button('\u2699', 'corner'), () => settings(onRecalibrate))
+  );
+  s.appendChild(tools);
+
+  /* A camera that failed is not a one-off message. Without a standing note
+     people land here, wonder why waving does nothing, and have no way back to
+     the reason. */
+  if (pose.mouse.active && pose.reason !== 'debug'){
+    s.appendChild(h('div', 'warnstrip', '\u26a0 No camera \u2014 the mouse is playing'));
+  }
 
   const n = Math.max(1, Math.min(2, pose.personCount || 1));
-  const note = h('p', 'lede', n === 2
-    ? 'Two players detected — these are head to head.'
-    : 'One player detected. A second person can step in at any time.');
-  s.appendChild(note);
+  s.appendChild(h('p', 'pickline', n === 2
+    ? 'Two players \u2014 pick a game'
+    : 'Pick a game'));
 
-  const grid = h('div', 'grid');
+  const grid = h('div', 'tiles');
   for (const g of GAMES){
-    const card = button('', 'card');
+    const card = button('', 'tile');
     card.style.setProperty('--accent', g.accent);
     card.querySelector('.lbl').innerHTML =
       `<span class="nm">${g.name}</span>` +
       `<span class="meta"><span class="stars">${stars(g.stars)}</span>` +
-      `<span class="best">Best ${scores.best(g.id, n) || '—'}</span></span>`;
+      `<span class="best">${scores.best(g.id, n) ? 'Best ' + scores.best(g.id, n) : ''}</span></span>`;
     onPick(card, () => onPlay(g));
     grid.appendChild(card);
   }
   s.appendChild(grid);
-  return { tick(){}, draw(){} };
+
+  let t = 0;
+  return {
+    tick(dt){ t += dt; },
+    draw(c, W, H){ drawPark(c, W, H, t, 0.55); }
+  };
 }
 
 function overlay(){

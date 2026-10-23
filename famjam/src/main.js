@@ -11,6 +11,8 @@ import { PLAYER_COLORS } from './tracking/pose.js';
 const stage = document.getElementById('stage');
 const c = stage.getContext('2d');
 const video = document.getElementById('cam');
+const over = document.getElementById('over');
+const oc = over.getContext('2d');
 
 let W = 0, H = 0, dpr = 1;
 function resize(){
@@ -18,6 +20,8 @@ function resize(){
   W = innerWidth; H = innerHeight;
   stage.width = Math.round(W * dpr); stage.height = Math.round(H * dpr);
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  over.width = stage.width; over.height = stage.height;
+  oc.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 addEventListener('resize', resize); resize();
 
@@ -171,7 +175,8 @@ function tick(now){
   checkLost();
   cursor.update(dt, document.getElementById('ui'));
   drawHUD();
-  cursor.draw(c, W, H);
+  oc.clearRect(0, 0, W, H);
+  cursor.draw(oc, W, H);
   drawPerf(dt);
 
   requestAnimationFrame(tick);
