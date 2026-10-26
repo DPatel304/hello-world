@@ -9,19 +9,26 @@ INSTALL (once)
    "Run anyway". It says that about anything downloaded that isn't from a
    big publisher.
 3. An "Astra Park" icon appears on your desktop and in the Start menu.
+   That's the last time you need to install anything: see UPDATES below.
 
 PLAY
 - Double-click "Astra Park". It opens full screen, ready to go: no camera
   question, and the music starts by itself.
 - The laptop needs to be online when the game starts, because it downloads
   the body-tracking model.
+- A small black window may flash for a moment when it starts. That's the
+  launcher checking for updates.
 - Choose things by holding a hand over them for a second.
 - Pause: both hands above your head.
 - Leave full screen: F11.   Quit: Alt+F4.
 
-UPDATE
-Unzip the new version and run "Set up Astra Park" again. Scores and settings
-are kept.
+UPDATES
+Automatic. Each time the icon starts the game, it checks GitHub for a newer
+version and installs it first - a new version is picked up within about a
+minute of being published. If the laptop is offline it just opens the copy
+it already has. To see what happened on the last start, open
+%LOCALAPPDATA%\AstraPark\last-update.txt.
+Scores and settings are kept across updates.
 
 REMOVE
 Delete the "Astra Park" icon from the desktop and the Start menu, then paste

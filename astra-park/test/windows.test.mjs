@@ -8,20 +8,22 @@ import { readFileSync } from 'node:fs';
    cmd.exe misreads a batch file with bare LF line endings. */
 const read = (f) => readFileSync(new URL(`../windows/${f}`, import.meta.url));
 
-test('setup.ps1 is plain ASCII', () => {
-  const bad = [...read('setup.ps1')].findIndex(b => b > 0x7f);
-  assert.equal(bad, -1, `non-ASCII byte at offset ${bad}`);
+test('the PowerShell scripts are plain ASCII', () => {
+  for (const f of ['setup.ps1', 'launch.ps1']){
+    const bad = [...read(f)].findIndex(b => b > 0x7f);
+    assert.equal(bad, -1, `${f}: non-ASCII byte at offset ${bad}`);
+  }
 });
 
 test('the batch file and read-me use CRLF line endings', () => {
-  for (const f of ['Set up Astra Park.bat', 'Read me.txt', 'setup.ps1']){
+  for (const f of ['Set up Astra Park.bat', 'Read me.txt', 'setup.ps1', 'launch.ps1']){
     const s = read(f).toString('latin1');
     assert.ok(!/[^\r]\n/.test(s), `${f} has a bare LF`);
   }
 });
 
-test('the shortcut opens the game the way it is meant to', () => {
-  const s = read('setup.ps1').toString();
+test('the launcher opens the game the way it is meant to', () => {
+  const s = read('launch.ps1').toString();
   for (const flag of ['--user-data-dir=', '--app=', '--start-fullscreen',
                       '--autoplay-policy=no-user-gesture-required',
                       '--use-fake-ui-for-media-stream', '--no-first-run']){
@@ -29,5 +31,15 @@ test('the shortcut opens the game the way it is meant to', () => {
   }
   /* $PROFILE is a PowerShell automatic variable, and names are not case
      sensitive: a variable called $profile would shadow it. */
-  assert.ok(!/\$profile\b/i.test(s), 'uses $profile, which collides with $PROFILE');
+  for (const f of ['setup.ps1', 'launch.ps1']){
+    assert.ok(!/\$profile\b/i.test(read(f).toString()), `${f} uses $profile, which collides with $PROFILE`);
+  }
+});
+
+test('the launcher only installs a download that is plainly the game', () => {
+  const s = read('launch.ps1').toString();
+  const title = readFileSync(new URL('../build-single.mjs', import.meta.url), 'utf8').match(/<title>[^<]+<\/title>/)[0];
+  assert.ok(s.includes(`'${title}'`), `launcher should check for ${title}, the title the build writes`);
+  assert.ok(s.includes("'__REPO__'") && s.includes("'__BRANCH__'"),
+    'the repo copy keeps its placeholders; package.mjs fills them per build');
 });
