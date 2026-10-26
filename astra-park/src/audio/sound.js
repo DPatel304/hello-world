@@ -571,16 +571,20 @@ const band = {
 };
 
 /* What the rest of the game talks to. With songs in the music folder it
-   plays those - straight through, louder in a round than on the menu, slowed
+   plays those - straight through, building in volume across a round, slowed
    like a tape for slow motion - and otherwise the generated band above. */
 export const music = {
   start(){
-    if (songs.available){ songs.setVolume(state.vol, state.muted); songs.start(); }
+    /* Quiet from the first note, rather than starting loud and sinking. */
+    if (songs.available){ songs.setVolume(state.vol, state.muted); songs.level(0.3); songs.start(); }
     else band.start();
   },
   stop(){ songs.stop(); band.stop(); },
+  /* A song starts a round quietly - about 40% - and swells with the round
+     to full volume for the balloon storm, the same arc the generated band
+     follows by adding instruments. */
   intensity(v){
-    if (songs.available) songs.level(0.75 + 0.25 * v);
+    if (songs.available) songs.level(0.3 + 0.7 * v);
     else band.intensity(v);
   },
   grid(div){ return band.grid(div); },

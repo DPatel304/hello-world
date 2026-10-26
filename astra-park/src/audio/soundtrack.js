@@ -11,6 +11,9 @@
    through Web Audio. Volume is set on the element directly. */
 
 const FADE = 1.5;
+/* Seconds for the volume to follow a change of level, so the build through
+   a round is a swell and the drop at the end of one isn't a jolt. */
+const EASE = 1.5;
 
 export function shuffle(list, rand = Math.random){
   const a = list.slice();
@@ -40,10 +43,16 @@ export function playlist(tracks, rand = Math.random){
 
 export function createSoundtrack({ tracks = [], makeAudio = (src) => new Audio(src), now = () => performance.now() / 1000 } = {}){
   const list = playlist(tracks);
-  let el = null, level = 1, master = 0.7, muted = false, started = false;
+  let el = null, level = 1, shown = null, eased = 0, master = 0.7, muted = false, started = false;
   let fadeFrom = 0, fadeTo = 0, fadeStart = 0, fadeLen = 0, timer = null;
 
-  const target = () => (muted ? 0 : master * level * 0.6);
+  const target = () => {
+    /* Level follows its setting smoothly rather than jumping to it. */
+    const t = now();
+    shown = shown == null ? level : shown + (level - shown) * Math.min(1, (t - eased) / EASE);
+    eased = t;
+    return muted ? 0 : master * shown * 0.6;
+  };
   const apply = () => {
     if (!el) return;
     const t = fadeLen ? Math.min(1, (now() - fadeStart) / fadeLen) : 1;
@@ -79,7 +88,7 @@ export function createSoundtrack({ tracks = [], makeAudio = (src) => new Audio(s
       playNext();
       timer = setInterval(apply, 100);
     },
-    /* How loud the songs sit for what's on screen, 0..1. */
+    /* How loud the songs sit for what's on screen, 0..1; eased toward. */
     level(v){ level = Math.max(0, Math.min(1, v)); apply(); },
     setVolume(v, isMuted){ master = v; muted = isMuted; apply(); },
     /* Slow motion: the song slows like a tape, then comes back up to speed. */

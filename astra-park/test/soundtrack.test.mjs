@@ -68,3 +68,32 @@ test('slow motion slows the song like a tape, then lets it back up to speed', as
   assert.equal(st.current.playbackRate, 1);
   st.stop();
 });
+
+test('a change of level swells in over a second or two rather than jumping', () => {
+  let t = 0;
+  const st = createSoundtrack({ tracks: ['one.mp3'], makeAudio: fakeAudio([]), now: () => t });
+  st.setVolume(1, false);
+  st.level(0.4);
+  st.start();
+  t = 5; st.level(0.4);                    /* settled, and past the fade-in */
+  const quiet = st.current.volume;
+  st.level(1);
+  assert.ok(st.current.volume < quiet * 1.05, 'no jump the moment the level changes');
+  t = 5.5; st.level(1);
+  const partway = st.current.volume;
+  assert.ok(partway > quiet && partway < quiet * 2.5, 'part of the way there after half a second');
+  t = 9; st.level(1);
+  assert.ok(Math.abs(st.current.volume - quiet * 2.5) < 0.02, 'all the way there after a few seconds');
+  st.stop();
+});
+
+test('the first note is already quiet when the level is set before starting', () => {
+  let t = 0;
+  const st = createSoundtrack({ tracks: ['one.mp3'], makeAudio: fakeAudio([]), now: () => t });
+  st.setVolume(1, false);
+  st.level(0.3);
+  st.start();
+  t = 2; st.level(0.3);
+  assert.ok(Math.abs(st.current.volume - 0.3 * 0.6) < 1e-6, `volume ${st.current.volume} should sit at the quiet level`);
+  st.stop();
+});
