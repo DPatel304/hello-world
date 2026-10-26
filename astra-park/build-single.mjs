@@ -34,6 +34,9 @@ const html = `<!doctype html>
 <div id="ui"></div>
 <canvas id="over"></canvas>
 <video id="cam" playsinline autoplay muted></video>
+<!-- Written by the Windows launcher: the songs in the family's music
+     folder. Missing when the game is opened any other way, which is fine. -->
+<script src="playlist.js"></script>
 <script>${js}</script>
 </body>
 </html>`;

@@ -268,7 +268,7 @@ document.addEventListener('visibilitychange', () => {
   s.append(h('p', 'lede', debug ? 'Debug mode — the mouse plays.' : 'Starting the camera…'));
 
   await pose.start(video, { forceMouse: debug });
-  window.__pose = pose; window.__cursor = cursor;   /* a handle for tests; harmless in play */
+  window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
   audio.resume(); music.start(); music.intensity(0.15);
   holdScreen();
 

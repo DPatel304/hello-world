@@ -9,7 +9,13 @@ INSTALL (once)
    "Run anyway". It says that about anything downloaded that isn't from a
    big publisher.
 3. An "Astra Park" icon appears on your desktop and in the Start menu.
-   That's the last time you need to install anything: see UPDATES below.
+   That's the last time you need to install anything: see MUSIC
+Setup puts an "Astra Park Music" folder shortcut on your desktop. Drop any
+songs in it - MP3, M4A, WAV, FLAC or OGG - and the game plays them,
+shuffled, the next time it starts. Remove a song by deleting it. With no
+songs there, the game plays its own built-in music.
+
+UPDATES below.
 
 PLAY
 - Double-click "Astra Park". It opens full screen, ready to go: no camera

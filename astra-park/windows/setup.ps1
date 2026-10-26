@@ -55,6 +55,15 @@ foreach ($dir in $places) {
     $link.Save()
 }
 
+# The soundtrack folder: any songs put here play in the game.
+$music = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'Astra Park'
+New-Item -ItemType Directory -Force -Path $music | Out-Null
+$link = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Astra Park Music.lnk'))
+$link.TargetPath  = $music
+$link.Description = 'Songs for Astra Park'
+$link.Save()
+
 Write-Host ''
 Write-Host "Installed to $install"
 Write-Host "Using $browser"
+Write-Host "Put songs for the game in $music"

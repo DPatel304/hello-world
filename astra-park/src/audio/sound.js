@@ -1,6 +1,8 @@
 /* Every sound in Astra Park is made here. No files, no fetches: a handful of
    oscillators and a noise buffer, which also means the whole app works with
    the network unplugged. */
+import { createSoundtrack } from './soundtrack.js';
+
 let AC = null, master = null, musicGain = null;
 let state = { vol: 0.7, muted: false };
 
@@ -8,6 +10,11 @@ try {
   const saved = JSON.parse(localStorage.getItem('astrapark_audio') || 'null');
   if (saved) state = { ...state, ...saved };
 } catch (e) {}
+
+/* Songs from the family's music folder, if the launcher found any. */
+const songs = createSoundtrack({
+  tracks: typeof window !== 'undefined' && Array.isArray(window.ASTRA_MUSIC) ? window.ASTRA_MUSIC : []
+});
 
 function save(){
   try { localStorage.setItem('astrapark_audio', JSON.stringify(state)); } catch (e) {}
@@ -112,7 +119,9 @@ export const sfx = {
     blip({ freq: f, to: f * 0.35, dur: 0.09 + size * 0.06, type: 'sine', gain: 0.34 });
     const ch = music.chord().slice().sort((a, b) => a - b);
     const n = ch[combo % 3] + 12 + 12 * Math.min(1, Math.floor(combo / 3));
-    pluck(n, Math.max(ctx().currentTime + 0.012, music.grid(1)), { kind: 'lead', gain: 0.4, verb: 0.2, dest: master });
+    /* Softer over a real song, whose key the game doesn't know. */
+    pluck(n, Math.max(ctx().currentTime + 0.012, music.grid(1)),
+          { kind: 'lead', gain: songs.available ? 0.22 : 0.4, verb: 0.2, dest: master });
   },
   /* A glockenspiel run up through the chord. */
   rainbow(){
@@ -507,7 +516,7 @@ function schedule(){
   }
 }
 
-export const music = {
+const band = {
   start(){
     if (loopTimer) return;
     ctx();
@@ -561,10 +570,32 @@ export const music = {
   parade(secs){ if (AC) paradeUntil = AC.currentTime + secs; }
 };
 
+/* What the rest of the game talks to. With songs in the music folder it
+   plays those - straight through, louder in a round than on the menu, slowed
+   like a tape for slow motion - and otherwise the generated band above. */
+export const music = {
+  start(){
+    if (songs.available){ songs.setVolume(state.vol, state.muted); songs.start(); }
+    else band.start();
+  },
+  stop(){ songs.stop(); band.stop(); },
+  intensity(v){
+    if (songs.available) songs.level(0.75 + 0.25 * v);
+    else band.intensity(v);
+  },
+  grid(div){ return band.grid(div); },
+  chord(){ return band.chord(); },
+  dream(secs){ if (songs.available) songs.slow(secs); else band.dream(secs); },
+  parade(secs){ band.parade(secs); },
+  get songs(){ return songs.available; },
+  /* The <audio> element playing now, if any: a handle for checks. */
+  get track(){ return songs.current; }
+};
+
 export const audio = {
   get volume(){ return state.vol; },
   get muted(){ return state.muted; },
-  setVolume(v){ state.vol = Math.max(0, Math.min(1, v)); if (master) master.gain.value = state.muted ? 0 : state.vol; save(); },
-  toggleMute(){ state.muted = !state.muted; if (master) master.gain.value = state.muted ? 0 : state.vol; save(); return state.muted; },
+  setVolume(v){ state.vol = Math.max(0, Math.min(1, v)); if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); },
+  toggleMute(){ state.muted = !state.muted; if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); return state.muted; },
   resume(){ ctx(); }
 };

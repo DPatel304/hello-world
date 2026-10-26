@@ -43,3 +43,12 @@ test('the launcher only installs a download that is plainly the game', () => {
   assert.ok(s.includes("'__REPO__'") && s.includes("'__BRANCH__'"),
     'the repo copy keeps its placeholders; package.mjs fills them per build');
 });
+
+test('the launcher lists the music folder into playlist.js for the game', () => {
+  const s = read('launch.ps1').toString();
+  assert.ok(s.includes("GetFolderPath('MyMusic')") && s.includes("'Astra Park'"), 'reads Music\\Astra Park');
+  assert.ok(s.includes('window.ASTRA_MUSIC') && s.includes("'playlist.js'"), 'writes the playlist the game reads');
+  for (const ext of ['mp3', 'm4a', 'wav', 'flac', 'ogg']) assert.ok(s.includes(ext), `accepts .${ext}`);
+  const build = readFileSync(new URL('../build-single.mjs', import.meta.url), 'utf8');
+  assert.ok(build.includes('src="playlist.js"'), 'the built game loads the playlist');
+});

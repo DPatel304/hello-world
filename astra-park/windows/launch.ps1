@@ -82,6 +82,21 @@ function Update-Game {
 }
 
 try { $result = Update-Game } catch { $result = "update skipped: $($_.Exception.Message)" }
+
+# The soundtrack: every song in the family's "Astra Park" music folder,
+# listed into playlist.js beside the game, which reads it as it starts.
+# Re-listed on every launch, so adding or removing a song is all it takes.
+$musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'Astra Park'
+$songs = @()
+if (Test-Path -LiteralPath $musicDir) {
+    $songs = Get-ChildItem -LiteralPath $musicDir -File |
+        Where-Object { $_.Extension -match '^\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$' } |
+        Sort-Object Name |
+        ForEach-Object { '"' + ([System.Uri]$_.FullName).AbsoluteUri + '"' }
+}
+# AbsoluteUri escapes spaces and accented letters, so this stays ASCII.
+"window.ASTRA_MUSIC = [$($songs -join ',')];" |
+    Set-Content -LiteralPath (Join-Path $here 'playlist.js') -Encoding ASCII
 "$(Get-Date -Format s)  $result" | Set-Content -LiteralPath (Join-Path $here 'last-update.txt') -Encoding ASCII
 
 # The window is hidden, so there is nowhere to show an error; setup already
