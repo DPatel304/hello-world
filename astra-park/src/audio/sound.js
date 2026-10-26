@@ -96,6 +96,17 @@ export const sfx = {
       blip({ freq: 1046.5 * Math.pow(2, s / 12), dur: 0.16, type: 'triangle', gain: 0.11, delay: i * 0.045 }));
     hiss({ dur: 0.5, gain: 0.07, hp: 7000 });
   },
+  /* A slap on the giant: a rubbery boing, a little higher each time. */
+  boing(n = 1){
+    const f = 150 * Math.pow(2, n / 6);
+    blip({ freq: f, to: f * 1.9, dur: 0.22, type: 'triangle', gain: 0.32 });
+    blip({ freq: f * 0.5, dur: 0.12, type: 'sine', gain: 0.25 });
+  },
+  /* The giant balloon: a deep thump under the ordinary pop. */
+  boom(){
+    blip({ freq: 110, to: 32, dur: 0.7, type: 'sine', gain: 0.6 });
+    hiss({ dur: 0.45, gain: 0.35, hp: 900, type: 'lowpass', q: 0.5 });
+  },
   /* A rising swoosh into a bright chord, a step higher for each level. */
   combo(level = 1){
     hiss({ dur: 0.35, gain: 0.16, hp: 400, sweep: 5000 });

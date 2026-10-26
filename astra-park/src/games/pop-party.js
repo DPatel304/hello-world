@@ -8,18 +8,39 @@ import { drawHills } from '../ui/backdrop.js';
    in it punishes: no lives, nothing to avoid, only things to chase. */
 export default {
   id:'pop-party', name:'Pop Party', stars:1, accent:'#ff5d9e', secs:60,
-  howto:['Touch a balloon to pop it', 'Little balloons are worth more', 'Rainbow balloons are worth five'],
+  howto:['Touch a balloon to pop it', 'The tinier the balloon, the more it is worth', 'Rainbow balloons are worth five'],
   create(n){ return new PopParty(n); }
 };
 
-/* Three sizes rather than a continuous range, so a child can learn that the
-   little quick ones are worth chasing. Radius is a fraction of screen
-   height; rise is screen heights per second. */
+/* Size classes rather than a continuous range, so a child can learn that the
+   little ones are worth chasing. The first is a rare teeny one, a fifth of an
+   ordinary balloon. Radius is a fraction of screen height; rise is screen
+   heights per second. */
 export const SIZES = [
-  { w:0.22, r:[0.040, 0.050], rise:[0.17, 0.24], worth:3 },
-  { w:0.53, r:[0.058, 0.072], rise:[0.12, 0.18], worth:1 },
-  { w:0.25, r:[0.082, 0.098], rise:[0.08, 0.12], worth:1 }
+  { w:0.05, r:[0.011, 0.014], rise:[0.13, 0.18], worth:10 },
+  { w:0.20, r:[0.034, 0.046], rise:[0.16, 0.23], worth:3 },
+  { w:0.45, r:[0.056, 0.076], rise:[0.11, 0.17], worth:1 },
+  { w:0.30, r:[0.088, 0.125], rise:[0.07, 0.11], worth:1 }
 ];
+
+/* Big enough to cover a quarter of a 16:9 screen: this balloon shape has an
+   area of 2.46 r², which is a quarter of the screen at r = 0.425 - about 85%
+   of the screen height, top to bottom. */
+export const GIANT_R = 0.425;
+export const GIANT_EVERY = 180;
+/* Something that size would pop the instant any hand reached it, before
+   anyone had seen it. Instead it takes slaps - separate ones, so a hand
+   resting on it counts once - and counts them down on its face. */
+export const GIANT_SLAPS = 6;
+
+/* The giant comes round on play time, counted across every round since the
+   page was opened, so it stays an event rather than a feature of each round.
+   An object so tests can wind it. */
+export const giantClock = { played: 0, next: GIANT_EVERY };
+
+/* Teeny balloons are tiny to look at but not to catch: a hand that lands
+   anywhere near one counts. */
+const MIN_REACH = 0.04;
 
 const tri = (x) => { const f = x - Math.floor(x); return f < 0.5 ? f * 4 - 1 : 3 - f * 4; };
 
@@ -64,22 +85,35 @@ class PopParty {
     this.t += dt;
     this.j.step(dt);
 
-    /* Difficulty ramps across the round rather than sitting flat, and the
-       last ten seconds are a storm, so the end feels like the end. */
+    /* The sky fills up as the round goes: a couple of balloons to start, so
+       the first seconds are about learning to reach, building to a dozen,
+       then a storm for the last ten seconds so the end feels like the end. */
     const storm = this.t >= FINALE;
     if (storm && this.t - dt < FINALE) this._announce('BALLOON STORM!', '#fff', 2);
-    const ramp = (1 + this.t / 50) * (storm ? 1.6 : 1);
-    this.spawn -= dt * ramp;
-    if (this.spawn <= 0){
-      this.spawn = 0.45 + Math.random() * 0.45;
-      if (Math.random() < 0.08) this._bunch();
+    const want = this.target();
+    const ramp = 1 + Math.min(1, this.t / FINALE) * 0.3 + (storm ? 0.25 : 0);
+    const alive = this.balloons.filter(b => !b.giant).length;
+    this.spawn -= dt;
+    if (this.spawn <= 0 && alive < want){
+      this.spawn = storm ? 0.18 : 0.5;
+      if (want >= 7 && alive + 4 <= want + 1 && Math.random() < 0.1) this._bunch();
       else this.balloons.push(this._make());
     }
 
+    giantClock.played += dt;
+    /* Not so late in the round that it would still be rising at the whistle;
+       if the moment comes then, it waits for the start of the next one. */
+    if (giantClock.played >= giantClock.next && this.t < FINALE - 5){
+      giantClock.next = giantClock.played + GIANT_EVERY;
+      this.balloons.unshift(this._giant());
+      this._announce('GIANT BALLOON!', '#ffe066', 1);
+    }
+
     this.wind = Math.sin(this.t * 0.21) * 0.012 + Math.sin(this.t * 0.07 + 1) * 0.01;
-    const lift = 0.85 + ramp * 0.15;
+    const lift = ramp;
     for (const b of this.balloons){
       b.age += dt;
+      if (b.wob) b.wob *= Math.pow(0.03, dt);
       b.by -= b.rise * lift * dt;
       b.wx += this.wind * dt;
       const [ox, oy] = MOTIONS[b.motion].at(b, b.age);
@@ -98,16 +132,24 @@ class PopParty {
     for (let i = 0; i < this.players; i++){
       const p = pose.players[i];
       if (!p.present) continue;
-      for (const hand of [p.hands.left, p.hands.right]){
+      /* The mouse drives both hands at once; counting both would make every
+         touch on the giant a double slap. */
+      const hands = pose.mouse.active ? [p.hands.right] : [p.hands.left, p.hands.right];
+      for (const hand of hands){
         for (const b of this.balloons){
           if (b.dead) continue;
           const d = Math.hypot((hand.x - b.x) * (W / H), hand.y - b.y);
-          if (d < b.r * 1.15) this._hit(b, i, W, H);
+          if (b.giant){
+            const key = hand === p.hands.left ? i * 2 : i * 2 + 1;
+            if (d < b.r * 0.85){
+              if (!b.inside.has(key)){ b.inside.add(key); this._slap(b, i, W, H); }
+            } else b.inside.delete(key);
+          } else if (d < Math.max(b.r * 1.15, MIN_REACH)) this._hit(b, i, W, H);
         }
       }
     }
 
-    this.balloons = this.balloons.filter(b => !b.dead && b.y > -0.3);
+    this.balloons = this.balloons.filter(b => !b.dead && b.y > -0.2 - b.r * 3);
     this._stepFx(dt, H);
     if (this.banner){ this.banner.age += dt; if (this.banner.age > 1.6) this.banner = null; }
   }
@@ -129,6 +171,27 @@ class PopParty {
       motion, dir, f: 1.2 + Math.random() * 1.4, ph: Math.random() * 6.28,
       kind: rainbow ? 'rainbow' : 'normal', age: 0, dead: false, str: []
     };
+  }
+
+  target(){
+    if (this.t >= FINALE) return 18;
+    return 2 + 10 * Math.pow(this.t / FINALE, 1.5);
+  }
+
+  _giant(){
+    const b = this._make(0.5 + (Math.random() - 0.5) * 0.2);
+    Object.assign(b, { giant: true, kind: 'normal', r: GIANT_R, rise: 0.075, worth: 25,
+                       motion: 'float', f: 0.5, by: 1.05 + GIANT_R,
+                       slaps: 0, inside: new Set(), wob: 0 });
+    return b;
+  }
+
+  _slap(b, who, W, H){
+    b.slaps++; b.wob = 1;
+    if (b.slaps >= GIANT_SLAPS) return this._hit(b, who, W, H);
+    sfx.boing(b.slaps);
+    this.j.kick(6);
+    this.fx.push({ k:'ring', x:b.x * W, y:b.y * H, r:b.r * H * 0.5, age:0, life:0.3 });
   }
 
   /* Every so often a bunch comes up together, close enough to sweep in one
@@ -195,6 +258,11 @@ class PopParty {
         age:0, life:0.5 + Math.random() * 0.3 });
     }
     if (b.kind === 'rainbow') this._confetti(px, py, H);
+    if (b.giant){
+      for (let k = 0; k < 3; k++) this._confetti(px + (k - 1) * r * 0.6, py, H);
+      sfx.boom(); this.j.kick(34);
+      this._announce('MEGA POP!', '#ffe066', 3);
+    }
     if (b.str.length) this.fx.push({ k:'string', pts:b.str.map(p => ({ ...p })), age:0, life:0.9 });
 
     const label = mult > 1 ? `+${pts}  x${mult}` : '+' + pts;
@@ -254,7 +322,7 @@ class PopParty {
   _balloon(c, b, W, H){
     const x = b.x * W, y = b.y * H, r = b.r * H;
     /* A slow breath in the rubber, out of step between balloons. */
-    const br = 1 + Math.sin(this.t * 2.6 + b.ph) * 0.018;
+    const br = 1 + Math.sin(this.t * 2.6 + b.ph) * 0.018 + (b.wob ? Math.sin(this.t * 32) * 0.07 * b.wob : 0);
     c.save(); c.translate(x, y); c.rotate(b.tilt); c.scale(br, 2 - br);
 
     let fill;
@@ -282,6 +350,22 @@ class PopParty {
     c.beginPath(); c.ellipse(-r * 0.38, -r * 0.42, r * 0.13, r * 0.26, 0.5, 0, 6.2832); c.fill();
     c.beginPath(); c.arc(-r * 0.2, -r * 0.7, r * 0.05, 0, 6.2832); c.fill();
     c.restore();
+
+    if (b.giant){
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.font = `900 ${Math.round(r * 0.75)}px ui-rounded, system-ui, sans-serif`;
+      c.lineWidth = Math.max(6, r * 0.06); c.strokeStyle = 'rgba(30,15,60,.6)';
+      const left = String(GIANT_SLAPS - b.slaps);
+      c.strokeText(left, x, y - r * 0.1); c.fillStyle = '#fff'; c.fillText(left, x, y - r * 0.1);
+      c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+    }
+
+    if (b.r < SIZES[1].r[0]){
+      const pulse = 0.5 + 0.5 * Math.sin(this.t * 6 + b.ph);
+      c.strokeStyle = `rgba(255,255,255,${0.45 + pulse * 0.4})`;
+      c.lineWidth = Math.max(2, H * 0.003);
+      c.beginPath(); c.arc(x, y, r * (2.2 + pulse * 0.6), 0, 6.2832); c.stroke();
+    }
   }
 
   _drawFx(c, H){

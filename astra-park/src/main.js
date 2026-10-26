@@ -1,7 +1,7 @@
 import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
-import { title } from './ui/title.js';
+import { title, wordmark } from './ui/title.js';
 import { calibration, splash, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
 import { audio, music, sfx } from './audio/sound.js';
@@ -251,7 +251,9 @@ document.addEventListener('visibilitychange', () => {
 (async function boot(){
   const debug = new URLSearchParams(location.search).has('debug');
   const s = screen('dim');
-  s.append(h('h1', '', 'Fam<span class="jam">Jam</span>'));
+  const brand = h('div', 'brandblock');
+  brand.append(wordmark('ASTRA'), wordmark('PARK'));
+  s.append(brand);
   s.append(h('p', 'lede', debug ? 'Debug mode — the mouse plays.' : 'Starting the camera…'));
 
   await pose.start(video, { forceMouse: debug });
