@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_EVERY, GIANT_SLAPS, giantClock } from '../src/games/pop-party.js';
+import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_EVERY, GIANT_SLAPS, giantClock,
+  SLOW, SLOW_SECS, PARADE_N, PARADE_BONUS, DOG_WORTH, EVENTS, planEvents } from '../src/games/pop-party.js';
 import { pose } from '../src/tracking/pose.js';
 
 function onePlayer(hand = { x:-1, y:-1 }){
@@ -95,6 +96,7 @@ test('a streak ends if you pause too long', () => {
 test('the sky starts nearly empty and fills up as the round goes', () => {
   onePlayer();
   const inst = popParty.create(1);
+  inst.events = [];   /* a parade would hold regular spawns back on purpose */
   const count = () => inst.balloons.filter(b => !b.giant).length;
   for (let i = 0; i < 5 * 60; i++) inst.step(1 / 60, 1920, 1080);
   const early = count();
@@ -188,4 +190,116 @@ test('with the mouse playing, one touch on the giant is one slap', () => {
     inst.step(1 / 60, 1920, 1080);
     assert.equal(g.slaps, 1);
   } finally { pose.mouse.active = false; }
+});
+
+/* ---------- events ---------- */
+
+function quiet(){
+  onePlayer();
+  const inst = popParty.create(1);
+  inst.events = []; inst.spawn = 99;
+  return inst;
+}
+const run = (inst, secs) => { for (let i = 0; i < Math.round(secs * 60); i++) inst.step(1 / 60, 1920, 1080); };
+
+test('popping the giant slows the world, but not the round clock', () => {
+  const inst = quiet();
+  inst._hit(inst._giant(), 0, 1920, 1080);
+  run(inst, 0.5);   /* let it ease in */
+
+  const b = parked(inst, 0.5, 0.8); b.rise = 0.2; inst.balloons.push(b);
+  const y0 = b.by, t0 = inst.t;
+  run(inst, 1);
+  const slowRise = y0 - b.by;
+  assert.ok(Math.abs(inst.t - t0 - 1) < 1e-6, 'the round clock should keep real time');
+  assert.ok(slowRise < 0.2 * SLOW * 1.4, `rose ${slowRise.toFixed(3)} in a slowed second`);
+
+  run(inst, SLOW_SECS);
+  const y1 = b.by;
+  run(inst, 1);
+  assert.ok(y1 - b.by > 0.2 * 0.95, 'speed should be back to normal afterwards');
+});
+
+test('the parade is a rainbow line that marches across, not up', () => {
+  const inst = quiet();
+  inst._parade();
+  const line = inst.balloons.filter(b => b.parade);
+  assert.equal(line.length, PARADE_N);
+  const hues = line.map(b => b.hue);
+  assert.deepEqual(hues, [...hues].sort((a, b) => a - b), 'hues should run in rainbow order');
+
+  run(inst, 4);
+  const ys = line.map(b => b.y), xs = line.map(b => b.x);
+  assert.ok(Math.max(...ys) - Math.min(...ys) < 0.12, 'the line should stay level, give or take its wave');
+  assert.ok(xs.some(x => x > 0.2 && x < 0.8), 'the head of the parade should be on screen by now');
+
+  run(inst, 20);
+  assert.equal(inst.balloons.filter(b => b.parade).length, 0, 'the parade should have marched off');
+  assert.equal(inst.parade.escaped, PARADE_N);
+  assert.equal(inst.hud().score[0], 0);
+});
+
+test('popping the whole parade earns the bonus', () => {
+  const inst = quiet();
+  inst._parade();
+  for (const b of inst.balloons.filter(b => b.parade)) inst._hit(b, 0, 1920, 1080);
+  /* 12 pops at 2, the 5th to 9th doubled and the 10th onwards tripled by
+     the streak, plus the bonus. */
+  const expected = 2 * (4 + 5 * 2 + 3 * 3) + PARADE_BONUS;
+  assert.equal(inst.hud().score[0], expected);
+});
+
+test('the balloon dog trots across and leaves if nobody catches it', () => {
+  const inst = quiet();
+  inst._dog();
+  const d = inst.dog, x0 = d.x;
+  run(inst, 3);
+  assert.ok(inst.dog && Math.abs(inst.dog.x - x0) > 0.2, 'the dog should be on its way');
+  run(inst, 15);
+  assert.equal(inst.dog, null, 'the dog should have trotted off');
+  assert.equal(inst.hud().score[0], 0);
+});
+
+test('touching the balloon dog pops it, part by part', () => {
+  const inst = quiet();
+  inst._dog();
+  inst.dog.x = 0.5; inst.dog.dir = 1;
+  run(inst, 1 / 60);
+  Object.assign(pose.players[0].hands.left, { x: inst.dog.x, y: inst.dog.y });
+  run(inst, 1 / 60);
+  assert.equal(inst.hud().score[0], DOG_WORTH);
+  run(inst, 1 / 60);
+  assert.ok(inst.dog && inst.dog.popped >= 1 && inst.dog.popped <= 2,
+    `the parts should pop in sequence, not all at once (popped ${inst.dog?.popped})`);
+  run(inst, 2);
+  assert.equal(inst.dog, null);
+  assert.equal(inst.hud().score[0], DOG_WORTH, 'a dog should only score once');
+});
+
+test('surprises are spread out, mid-round, and not every round', () => {
+  const N = 4000, seen = { parade: 0, dog: 0 };
+  for (let i = 0; i < N; i++){
+    const plan = planEvents();
+    for (const e of plan){
+      seen[e.kind]++;
+      assert.ok(e.at >= 10 && e.at <= 44, `${e.kind} at ${e.at.toFixed(1)}s, outside 10-44s`);
+    }
+    if (plan.length === 2) assert.ok(Math.abs(plan[0].at - plan[1].at) >= 10, 'two surprises too close together');
+  }
+  for (const [kind, chance] of Object.entries(EVENTS)){
+    const rate = seen[kind] / N;
+    assert.ok(Math.abs(rate - chance) < 0.05, `${kind} came ${(rate * 100).toFixed(0)}% of rounds, meant ${chance * 100}%`);
+  }
+});
+
+test('a planned surprise actually happens on time', () => {
+  const inst = quiet();
+  inst.events = [{ kind:'parade', at:1, done:false }, { kind:'dog', at:2, done:false }];
+  run(inst, 0.9);
+  assert.equal(inst.balloons.filter(b => b.parade).length, 0);
+  run(inst, 0.2);
+  assert.equal(inst.balloons.filter(b => b.parade).length, PARADE_N);
+  assert.equal(inst.dog, null);
+  run(inst, 1);
+  assert.ok(inst.dog, 'the dog should have arrived');
 });

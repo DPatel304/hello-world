@@ -13,7 +13,7 @@ function save(){
   try { localStorage.setItem('astrapark_audio', JSON.stringify(state)); } catch (e) {}
 }
 
-let delaySend = null;
+let delaySend = null, musicFilter = null;
 function ctx(){
   if (!AC){
     AC = new (window.AudioContext || window.webkitAudioContext)();
@@ -27,7 +27,10 @@ function ctx(){
     master.connect(comp); comp.connect(AC.destination);
     musicGain = AC.createGain();
     musicGain.gain.value = 0.6;
-    musicGain.connect(master);
+    /* Wide open normally; slow motion closes it to sound underwater. */
+    musicFilter = AC.createBiquadFilter();
+    musicFilter.type = 'lowpass'; musicFilter.frequency.value = 20000;
+    musicGain.connect(musicFilter); musicFilter.connect(master);
     /* Dotted-eighth echo on the lead only. */
     delaySend = AC.createDelay(1);
     delaySend.delayTime.value = SIXTEENTH * 3;
@@ -101,6 +104,41 @@ export const sfx = {
     const f = 150 * Math.pow(2, n / 6);
     blip({ freq: f, to: f * 1.9, dur: 0.22, type: 'triangle', gain: 0.32 });
     blip({ freq: f * 0.5, dur: 0.12, type: 'sine', gain: 0.25 });
+  },
+  /* Into slow motion: everything sags downward. */
+  slowmo(){
+    blip({ freq: 700, to: 70, dur: 1.0, type: 'sine', gain: 0.32 });
+    blip({ freq: 1050, to: 105, dur: 1.0, type: 'triangle', gain: 0.1 });
+  },
+  /* And back out: the same sweep, quick and upward. */
+  speedup(){
+    blip({ freq: 90, to: 800, dur: 0.45, type: 'sine', gain: 0.28 });
+    hiss({ dur: 0.4, gain: 0.12, hp: 500, sweep: 4000 });
+  },
+  /* A little marching fanfare. */
+  parade(){
+    [0, 4, 7, 12, 7, 12, 16].forEach((s, i) =>
+      blip({ freq: 523.25 * Math.pow(2, s / 12), dur: i === 6 ? 0.4 : 0.13,
+             type: 'square', gain: 0.07, delay: i * 0.12 }));
+    [0, 0.24, 0.48, 0.72].forEach(d => hiss({ dur: 0.08, gain: 0.18, hp: 1800, type: 'bandpass', q: 0.7, delay: d }));
+  },
+  /* Woof woof: a falling, nasal yelp twice over. */
+  bark(){
+    const c = ctx();
+    [0, 0.2].forEach((d) => {
+      const t = c.currentTime + d;
+      const o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(420, t);
+      o.frequency.exponentialRampToValueAtTime(170, t + 0.14);
+      f.type = 'bandpass'; f.frequency.value = 950; f.Q.value = 1.6;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.5, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(f); f.connect(g); g.connect(master);
+      o.start(t); o.stop(t + 0.18);
+      hiss({ dur: 0.05, gain: 0.12, hp: 1200, type: 'bandpass', q: 1, delay: d });
+    });
   },
   /* The giant balloon: a deep thump under the ordinary pop. */
   boom(){
@@ -262,6 +300,17 @@ export const music = {
     loopTimer = setInterval(schedule, 25);
   },
   stop(){ clearInterval(loopTimer); loopTimer = null; },
+  /* Muffles the band for a while, then opens it back up on its own - booked
+     on the audio clock, so it cannot be left stuck if the round ends first. */
+  muffle(secs){
+    if (!musicFilter) return;
+    const t = AC.currentTime, f = musicFilter.frequency;
+    f.cancelScheduledValues(t);
+    f.setValueAtTime(f.value, t);
+    f.exponentialRampToValueAtTime(450, t + 0.4);
+    f.setValueAtTime(450, t + secs);
+    f.exponentialRampToValueAtTime(20000, t + secs + 0.5);
+  },
   intensity(v){ intensity = Math.max(0, Math.min(1, v)); }
 };
 

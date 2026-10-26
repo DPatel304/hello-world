@@ -1,6 +1,6 @@
 import { Juice, clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
-import { sfx } from '../audio/sound.js';
+import { sfx, music } from '../audio/sound.js';
 import { drawHills } from '../ui/backdrop.js';
 
 /* Pop Party. Balloons rise, hands pop them. The gentlest game in the set and
@@ -58,6 +58,19 @@ export const MOTIONS = {
 };
 
 const HUES = [0, 28, 48, 135, 175, 215, 270, 325];
+
+/* Popping the giant slows the world to this fraction for SLOW_SECS. */
+export const SLOW = 0.3, SLOW_SECS = 5;
+
+/* The parade: a line of balloons in rainbow order marching across the sky,
+   worth a bonus to whoever pops every one. */
+export const PARADE_N = 12, PARADE_BONUS = 20;
+const PARADE_SPEED = 0.16, PARADE_GAP = 0.075;
+
+/* The balloon dog trots across the lower sky; one touch pops it, part by
+   part, nose last. */
+export const DOG_WORTH = 15;
+const DOG_SPEED = 0.1, DOG_REACH = 0.14, DOG_SIZE = 0.17;
 const STR_N = 7;
 const FINALE = 50;
 
@@ -79,21 +92,43 @@ class PopParty {
     this.banner = null;
     this.j = new Juice();
     this.t = 0; this.spawn = 0; this.wind = 0; this.over = false;
+    this.slowT = 0; this.scale = 1;
+    this.parade = null; this.dog = null;
+    this.events = planEvents();
   }
 
   step(dt, W, H){
     this.t += dt;
-    this.j.step(dt);
+
+    /* Slow motion stretches the world, not the round: balloons, the dog, the
+       spawner and the effects run on scaled time while the clock and the
+       storm keep real time. Eased in and out so it reads as slowing down
+       rather than a jump. */
+    if (this.slowT > 0){
+      this.slowT = Math.max(0, this.slowT - dt);
+      if (!this.slowT) sfx.speedup();
+    }
+    this.scale += ((this.slowT > 0 ? SLOW : 1) - this.scale) * Math.min(1, dt * 4);
+    const sdt = dt * this.scale;
+    this.j.step(sdt);
+
+    for (const e of this.events){
+      if (e.done || this.t < e.at) continue;
+      e.done = true;
+      if (e.kind === 'parade') this._parade();
+      else if (e.kind === 'dog') this._dog();
+    }
 
     /* The sky fills up as the round goes: a couple of balloons to start, so
        the first seconds are about learning to reach, building to a dozen,
        then a storm for the last ten seconds so the end feels like the end. */
     const storm = this.t >= FINALE;
     if (storm && this.t - dt < FINALE) this._announce('BALLOON STORM!', '#fff', 2);
-    const want = this.target();
+    /* A parade wants the sky to itself, near enough. */
+    const want = this.parade && this._paradeOn() ? Math.min(this.target(), 4) : this.target();
     const ramp = 1 + Math.min(1, this.t / FINALE) * 0.3 + (storm ? 0.25 : 0);
     const alive = this.balloons.filter(b => !b.giant).length;
-    this.spawn -= dt;
+    this.spawn -= sdt;
     if (this.spawn <= 0 && alive < want){
       this.spawn = storm ? 0.18 : 0.5;
       if (want >= 7 && alive + 4 <= want + 1 && Math.random() < 0.1) this._bunch();
@@ -112,13 +147,21 @@ class PopParty {
     this.wind = Math.sin(this.t * 0.21) * 0.012 + Math.sin(this.t * 0.07 + 1) * 0.01;
     const lift = ramp;
     for (const b of this.balloons){
-      b.age += dt;
+      b.age += sdt;
       if (b.wob) b.wob *= Math.pow(0.03, dt);
-      b.by -= b.rise * lift * dt;
-      b.wx += this.wind * dt;
+      if (b.parade){
+        const { dir, idx } = b.parade, wave = b.age * 2.4 - idx * 0.55;
+        b.x = b.x0 + dir * PARADE_SPEED * b.age;
+        b.y = b.by + Math.sin(wave) * 0.05;
+        b.tilt = Math.cos(wave) * 0.12;
+        this._string(b, W, H);
+        continue;
+      }
+      b.by -= b.rise * lift * sdt;
+      b.wx += this.wind * sdt;
       const [ox, oy] = MOTIONS[b.motion].at(b, b.age);
       const nx = clamp(b.x0 + ox + b.wx, 0.04, 0.96);
-      const vx = b.x == null ? 0 : (nx - b.x) / Math.max(dt, 1e-3);
+      const vx = b.x == null ? 0 : (nx - b.x) / Math.max(sdt, 1e-3);
       b.x = nx; b.y = b.by + oy;
       /* Leans into its own sideways motion, eased so it sways rather than
          snaps. */
@@ -128,6 +171,7 @@ class PopParty {
     }
 
     for (let i = 0; i < 2; i++) this.comboT[i] = Math.max(0, this.comboT[i] - dt);
+    this._stepDog(sdt, W, H);
 
     for (let i = 0; i < this.players; i++){
       const p = pose.players[i];
@@ -146,11 +190,23 @@ class PopParty {
             } else b.inside.delete(key);
           } else if (d < Math.max(b.r * 1.15, MIN_REACH)) this._hit(b, i, W, H);
         }
+        const dog = this.dog;
+        if (dog && dog.popT < 0 && Math.hypot((hand.x - dog.x) * (W / H), hand.y - dog.y) < DOG_REACH){
+          this._hitDog(i, W, H);
+        }
       }
     }
 
-    this.balloons = this.balloons.filter(b => !b.dead && b.y > -0.2 - b.r * 3);
-    this._stepFx(dt, H);
+    this.balloons = this.balloons.filter(b => {
+      if (b.dead) return false;
+      if (b.parade){
+        const gone = b.parade.dir > 0 ? b.x > 1.15 : b.x < -0.15;
+        if (gone) this.parade.escaped++;
+        return !gone;
+      }
+      return b.y > -0.2 - b.r * 3;
+    });
+    this._stepFx(sdt, H);
     if (this.banner){ this.banner.age += dt; if (this.banner.age > 1.6) this.banner = null; }
   }
 
@@ -261,12 +317,19 @@ class PopParty {
     if (b.giant){
       for (let k = 0; k < 3; k++) this._confetti(px + (k - 1) * r * 0.6, py, H);
       sfx.boom(); this.j.kick(34);
-      this._announce('MEGA POP!', '#ffe066', 3);
+      this.slowT = SLOW_SECS;
+      sfx.slowmo(); music.muffle(SLOW_SECS);
+      this._announce('SLOW MOTION!', '#9fe3ff', null);
     }
     if (b.str.length) this.fx.push({ k:'string', pts:b.str.map(p => ({ ...p })), age:0, life:0.9 });
 
     const label = mult > 1 ? `+${pts}  x${mult}` : '+' + pts;
     this.j.pop(px, py, label, PLAYER_COLORS[who]);
+
+    if (b.parade && ++this.parade.popped === this.parade.total){
+      this.score[who] += PARADE_BONUS;
+      this._announce(`PERFECT PARADE! +${PARADE_BONUS}`, PLAYER_COLORS[who], 3);
+    }
   }
 
   _confetti(x, y, H){
@@ -284,9 +347,74 @@ class PopParty {
       s:r * (0.12 + Math.random() * 0.12), age:0, life:0.5 });
   }
 
+  /* level is the size of the fanfare; null when the event brings its own
+     sound. */
   _announce(text, color, level){
     this.banner = { text, color, age:0 };
-    sfx.combo(level);
+    if (level != null) sfx.combo(level);
+  }
+
+  _paradeOn(){ return this.balloons.some(b => b.parade); }
+
+  _parade(){
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    this.parade = { total: PARADE_N, popped: 0, escaped: 0 };
+    for (let i = 0; i < PARADE_N; i++){
+      const b = this._make();
+      /* Red at the head through to violet at the tail. */
+      Object.assign(b, { parade: { dir, idx: i }, kind: 'normal', r: 0.06, worth: 2, rise: 0,
+        hue: Math.round(i * 290 / (PARADE_N - 1)),
+        x0: dir > 0 ? -0.06 - i * PARADE_GAP : 1.06 + i * PARADE_GAP, by: 0.38 });
+      b.x = b.x0; b.y = b.by;
+      this.balloons.push(b);
+    }
+    this._announce('BALLOON PARADE!', '#fff', null);
+    sfx.parade();
+  }
+
+  _dog(){
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    this.dog = { dir, x: dir > 0 ? -0.15 : 1.15, y0: 0.58 + Math.random() * 0.08, y: 0.6,
+                 age: 0, hue: HUES[(Math.random() * HUES.length) | 0], popT: -1, popped: 0 };
+    this._announce('BALLOON DOG!', '#fff', null);
+    sfx.bark();
+  }
+
+  _stepDog(sdt, W, H){
+    const d = this.dog;
+    if (!d) return;
+    d.age += sdt;
+    if (d.popT < 0){
+      d.x += d.dir * DOG_SPEED * sdt;
+      d.y = d.y0 - Math.abs(Math.sin(d.age * 4.2)) * 0.06;
+      if (d.dir > 0 ? d.x > 1.2 : d.x < -0.2) this.dog = null;
+      return;
+    }
+    /* Popping runs through the parts one after another, tail to nose. */
+    d.popT += sdt;
+    const parts = dogParts(d, W, H);
+    while (d.popped < parts.length && d.popT >= d.popped * 0.08){
+      const p = parts[d.popped];
+      const mx = (p.a[0] + p.b[0]) / 2, my = (p.a[1] + p.b[1]) / 2;
+      this.fx.push({ k:'ring', x:mx, y:my, r:p.w * 0.8, age:0, life:0.3 });
+      for (let i = 0; i < 5; i++){
+        const a = Math.random() * 6.2832, sp = (160 + Math.random() * 220) * (H / 1080);
+        this.fx.push({ k:'shard', x:mx, y:my, vx:Math.cos(a) * sp, vy:Math.sin(a) * sp - 120,
+          rot:a, vr:(Math.random() - 0.5) * 18, s:p.w * 0.35, col:p.far ? dogFar(d) : dogCol(d),
+          age:0, life:0.6 });
+      }
+      sfx.pop(0.2, d.popped);
+      d.popped++;
+    }
+    if (d.popped >= parts.length && d.popT > parts.length * 0.08 + 0.3) this.dog = null;
+  }
+
+  _hitDog(who, W, H){
+    const d = this.dog;
+    d.popT = 0;
+    this.score[who] += DOG_WORTH;
+    sfx.bark(); this.j.kick(10);
+    this.j.pop(d.x * W, d.y * H - H * 0.12, `WOOF! +${DOG_WORTH}`, PLAYER_COLORS[who]);
   }
 
   _stepFx(dt, H){
@@ -313,9 +441,11 @@ class PopParty {
     c.lineWidth = Math.max(1.5, H * 0.0022);
     for (const b of this.balloons) rope(c, b.str);
     for (const b of this.balloons) this._balloon(c, b, W, H);
+    if (this.dog) drawDog(c, this.dog, W, H);
     this._drawFx(c, H);
     this.j.draw(c, H);
     if (shook) c.restore();
+    this._drawSlow(c, W, H);
     this._drawBanner(c, W, H);
   }
 
@@ -402,6 +532,16 @@ class PopParty {
     c.globalAlpha = 1;
   }
 
+  /* A cool vignette, as strong as the slow-down is deep. */
+  _drawSlow(c, W, H){
+    const k = (1 - this.scale) / (1 - SLOW);
+    if (k < 0.02) return;
+    const g = c.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.05);
+    g.addColorStop(0, `rgba(120,200,255,${0.1 * k})`);
+    g.addColorStop(1, `rgba(50,100,210,${0.62 * k})`);
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+
   _drawBanner(c, W, H){
     const b = this.banner;
     if (!b) return;
@@ -437,6 +577,74 @@ class PopParty {
     return this.score[0] > this.score[1] ? 0 : 1;
   }
   value(){ return Math.max(...this.score.slice(0, this.players)); }
+}
+
+/* Surprises are planned when the round starts so they never pile up: each at
+   a random moment between 10s and 44s, at least 10s from any other, and not
+   every round gets every one. */
+export const EVENTS = { parade: 0.7, dog: 0.6 };
+export function planEvents(){
+  const out = [];
+  for (const [kind, chance] of Object.entries(EVENTS)){
+    if (Math.random() >= chance) continue;
+    for (let tries = 0; tries < 20; tries++){
+      const at = 10 + Math.random() * 34;
+      if (out.every(e => Math.abs(e.at - at) >= 10)){ out.push({ kind, at, done: false }); break; }
+    }
+  }
+  return out;
+}
+
+const dogCol = (d) => `hsl(${d.hue} 85% 60%)`;
+const dogFar = (d) => `hsl(${d.hue} 72% 46%)`;
+
+/* A twisted-balloon dog as a list of sausages in screen pixels, in drawing
+   order: the far legs and ear first, the snout last. That is also the order
+   they pop in. Units are fractions of the dog's size, facing right. */
+function dogParts(d, W, H){
+  const s = DOG_SIZE * H, cx = d.x * W, cy = d.y * H;
+  const sw = Math.sin(d.age * 9) * 0.13;
+  const tail = -2.2 + Math.sin(d.age * 14) * 0.35;
+  const P = (x, y) => [cx + d.dir * x * s, cy + y * s];
+  return [
+    { a:P(-0.42, -0.02), b:P(-0.42 + Math.cos(tail) * 0.45, -0.02 + Math.sin(tail) * 0.45), w:0.19 * s },
+    { a:P(-0.38, 0.04), b:P(-0.38 + sw, 0.5), w:0.21 * s, far:true },
+    { a:P(0.34, 0.04),  b:P(0.34 - sw, 0.5),  w:0.21 * s, far:true },
+    { a:P(0.5, -0.44),  b:P(0.62, -0.86),     w:0.21 * s, far:true },
+    { a:P(-0.42, 0),    b:P(0.38, 0),         w:0.30 * s },
+    { a:P(-0.38, 0.04), b:P(-0.38 - sw, 0.5), w:0.21 * s },
+    { a:P(0.34, 0.04),  b:P(0.34 + sw, 0.5),  w:0.21 * s },
+    { a:P(0.38, 0),     b:P(0.5, -0.44),      w:0.26 * s },
+    { a:P(0.5, -0.44),  b:P(0.42, -0.86),     w:0.21 * s },
+    { a:P(0.5, -0.44),  b:P(0.92, -0.38),     w:0.26 * s, snout:true, eye:P(0.62, -0.5), nose:P(0.95, -0.38) }
+  ];
+}
+
+function drawDog(c, d, W, H){
+  const parts = dogParts(d, W, H);
+  c.lineCap = 'round';
+  for (let i = d.popped; i < parts.length; i++){
+    const p = parts[i], col = p.far ? dogFar(d) : dogCol(d);
+    const [x1, y1] = p.a, [x2, y2] = p.b;
+    c.strokeStyle = `hsl(${d.hue} 70% 30%)`; c.lineWidth = p.w + Math.max(3, H * 0.004);
+    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    c.strokeStyle = col; c.lineWidth = p.w;
+    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    /* A streak of shine along the top of each twist. */
+    c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = p.w * 0.2;
+    c.beginPath();
+    c.moveTo(x1 + (x2 - x1) * 0.2, y1 + (y2 - y1) * 0.2 - p.w * 0.2);
+    c.lineTo(x1 + (x2 - x1) * 0.65, y1 + (y2 - y1) * 0.65 - p.w * 0.2);
+    c.stroke();
+    if (p.snout){
+      const s = DOG_SIZE * H;
+      c.fillStyle = '#1d1430';
+      c.beginPath(); c.arc(p.nose[0], p.nose[1], s * 0.055, 0, 6.2832); c.fill();
+      c.beginPath(); c.arc(p.eye[0], p.eye[1], s * 0.045, 0, 6.2832); c.fill();
+      c.fillStyle = '#fff';
+      c.beginPath(); c.arc(p.eye[0] + s * 0.015, p.eye[1] - s * 0.015, s * 0.015, 0, 6.2832); c.fill();
+    }
+  }
 }
 
 function balloonPath(c, r){
