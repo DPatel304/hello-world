@@ -58,6 +58,7 @@ export function createSoundtrack({ tracks = [], makeAudio = (src) => new Audio(s
     const t = fadeLen ? Math.min(1, (now() - fadeStart) / fadeLen) : 1;
     el.volume = Math.max(0, Math.min(1, (fadeFrom + (fadeTo - fadeFrom) * t) * target()));
     if (t >= 1 && fadeTo === 0 && el._leaving){ el.pause(); el = null; playNext(); }
+    else if (t >= 1 && fadeTo === 0 && el._stopping){ el.pause(); el = null; clearInterval(timer); }
   };
   const fade = (from, to, secs) => { fadeFrom = from; fadeTo = to; fadeStart = now(); fadeLen = secs; apply(); };
 
@@ -85,6 +86,8 @@ export function createSoundtrack({ tracks = [], makeAudio = (src) => new Audio(s
     start(){
       if (started || !tracks.length) return;
       started = true;
+      /* A song still fading out from the last stop is cut off cleanly. */
+      clearInterval(timer); if (el) el.pause(); el = null;
       playNext();
       timer = setInterval(apply, 100);
     },
@@ -100,6 +103,12 @@ export function createSoundtrack({ tracks = [], makeAudio = (src) => new Audio(s
     },
     /* Fade the current song out and move on. */
     skip(){ if (el){ el._leaving = true; fade(1, 0, FADE); } },
-    stop(){ clearInterval(timer); if (el) el.pause(); el = null; started = false; }
+    /* With a fade time, the song fades out first; either way the next
+       start() begins a fresh song. */
+    stop(fadeSecs = 0){
+      started = false;
+      if (el && fadeSecs > 0){ el._stopping = true; fade(1, 0, fadeSecs); return; }
+      clearInterval(timer); if (el) el.pause(); el = null;
+    }
   };
 }

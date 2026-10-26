@@ -15,5 +15,6 @@ export const sfx = recorder();
 export const music = recorder();
 export const audio = Object.assign(recorder(), {
   get volume(){ return 0.7; },
-  get muted(){ return false; }
+  get muted(){ return false; },
+  get popStyle(){ return 'soft'; }
 });

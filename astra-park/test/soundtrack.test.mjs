@@ -97,3 +97,36 @@ test('the first note is already quiet when the level is set before starting', ()
   assert.ok(Math.abs(st.current.volume - 0.3 * 0.6) < 1e-6, `volume ${st.current.volume} should sit at the quiet level`);
   st.stop();
 });
+
+test('stopping fades the song out, and the next start begins a fresh song', () => {
+  let t = 0;
+  const log = [];
+  const st = createSoundtrack({ tracks: ['one.mp3', 'two.mp3'], makeAudio: fakeAudio(log), now: () => t });
+  st.setVolume(1, false); st.level(1);
+  st.start();
+  t = 5; st.level(1);
+  const playing = st.current, loud = playing.volume;
+  st.stop(1.2);
+  t = 5.6; st.level(1);
+  assert.ok(playing.volume < loud && playing.volume > 0, 'fading, not cut');
+  t = 7; st.level(1);
+  assert.ok(playing.paused && st.current === null, 'stopped once faded');
+
+  st.start();
+  assert.equal(log.length, 2, 'a new song starts');
+  assert.notEqual(st.current, playing);
+  st.stop();
+});
+
+test('starting again mid-fade cuts the old song cleanly', () => {
+  let t = 0;
+  const st = createSoundtrack({ tracks: ['one.mp3', 'two.mp3'], makeAudio: fakeAudio([]), now: () => t });
+  st.start();
+  const first = st.current;
+  st.stop(1.2);
+  t = 0.3;
+  st.start();
+  assert.ok(first.paused, 'the fading song should stop');
+  assert.notEqual(st.current, first);
+  st.stop();
+});

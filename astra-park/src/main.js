@@ -37,8 +37,10 @@ function go(next, build){
   scene = build ? build() : null;
 }
 
+/* The menus are quiet: music belongs to playing, so it starts when a game is
+   picked and fades away on the way back out. */
 function toMenu(){
-  music.intensity(0.15);
+  music.stop();
   go('menu', () => menu({ onPlay: toSplash, onRecalibrate: toCalibration }));
 }
 
@@ -50,7 +52,7 @@ function toCalibration(){
    calibration, so the first thing on the television is the name and one
    obvious way in - not an instruction to stand further back. */
 function toTitle(){
-  music.intensity(0.1);
+  music.stop();
   go('title', () => title({
     /* Straight to the games. Calibration used to sit in the way, which meant
        the second thing on the television was an instruction to stand further
@@ -65,7 +67,7 @@ function toTitle(){
 function toSplash(g){
   game = g;
   players = Math.max(1, Math.min(2, pose.personCount || 1));
-  music.intensity(0.15);
+  music.start(); music.intensity(0.15);
   go('splash', () => splash(g, players, startRound));
 }
 
@@ -269,7 +271,7 @@ document.addEventListener('visibilitychange', () => {
 
   await pose.start(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
-  audio.resume(); music.start(); music.intensity(0.15);
+  audio.resume();
   holdScreen();
 
   requestAnimationFrame(tick);
