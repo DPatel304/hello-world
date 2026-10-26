@@ -4,7 +4,7 @@
 import { createSoundtrack } from './soundtrack.js';
 
 let AC = null, master = null, musicGain = null;
-let state = { vol: 0.7, muted: false, pop: 'soft' };
+let state = { vol: 0.7, muted: false };
 
 try {
   const saved = JSON.parse(localStorage.getItem('astrapark_audio') || 'null');
@@ -106,51 +106,8 @@ function hiss({ dur = 0.18, gain = 0.25, hp = 900, delay = 0, sweep = 0, type = 
   s.start(t); s.stop(t + dur + 0.02);
 }
 
-/* The pop sounds, picked in Settings. Bigger balloons are lower and heavier
-   in all of them; a streak nudges the pitch up a little at a time. */
+/* A streak nudges each pop's pitch up a little at a time. */
 const lift = (combo) => Math.pow(2, Math.min(combo, 12) / 24);
-const POPS = {
-  /* A gentle, rounded bloop with the faintest click: the cozy one. */
-  soft(size, combo){
-    const f = (560 - size * 300) * lift(combo);
-    blip({ freq: f, to: f * 0.38, dur: 0.1 + size * 0.06, type: 'sine', gain: 0.32 });
-    hiss({ dur: 0.012, gain: 0.08, hp: 3200, type: 'bandpass', q: 1.2 });
-    verbHit(0.12);
-  },
-  /* What a rubber balloon really does: a split-second broadband burst, a
-     low thump of air, and the room answering. */
-  real(size, combo){
-    const c = ctx(), t = c.currentTime;
-    const s = noise(), hp = c.createBiquadFilter(), g = c.createGain();
-    hp.type = 'highpass'; hp.frequency.value = 500 - size * 250;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.9, t + 0.001);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05 + size * 0.05);
-    s.connect(hp); hp.connect(g); g.connect(master);
-    const v = c.createGain(); v.gain.value = 0.35; g.connect(v); v.connect(reverbIn);
-    s.start(t); s.stop(t + 0.12);
-    hiss({ dur: 0.06, gain: 0.35, hp: 260, type: 'lowpass', q: 0.7 });
-  },
-  /* A bouncy cartoon plop that springs upward. */
-  cartoon(size, combo){
-    const f = (300 - size * 120) * lift(combo);
-    blip({ freq: f, to: f * 3.2, dur: 0.07 + size * 0.03, type: 'sine', gain: 0.34 });
-    hiss({ dur: 0.02, gain: 0.12, hp: 2400, type: 'bandpass', q: 1 });
-  },
-  /* The original: a crack, a bloop, and a note from the chord that climbs
-     through a streak. */
-  chime(size, combo){
-    hiss({ dur: 0.05, gain: 0.5, hp: 2800 - size * 1500, type: 'bandpass', q: 0.8 });
-    const f = 780 - size * 430;
-    blip({ freq: f, to: f * 0.35, dur: 0.09 + size * 0.06, type: 'sine', gain: 0.34 });
-    const ch = music.chord().slice().sort((a, b) => a - b);
-    const n = ch[combo % 3] + 12 + 12 * Math.min(1, Math.floor(combo / 3));
-    /* Softer over a real song, whose key the game doesn't know. */
-    pluck(n, Math.max(ctx().currentTime + 0.012, music.grid(1)),
-          { kind: 'lead', gain: songs.available ? 0.22 : 0.4, verb: 0.2, dest: master });
-  }
-};
-export const POP_STYLES = Object.keys(POPS);
 
 /* A short burst of noise into the room, for a touch of space around a hit. */
 function verbHit(amount){
@@ -161,10 +118,14 @@ function verbHit(amount){
 
 export const sfx = {
   tick(){ blip({ freq: 1500, dur: 0.05, type: 'square', gain: 0.10 }); },
-  /* size 0 is the smallest balloon, 1 the biggest; combo is how far into a
-     streak the pop is. The sound itself is a family setting - see POPS. */
+  /* A gentle, rounded bloop with the faintest click and a touch of room.
+     size 0 is the smallest balloon, 1 the biggest - bigger is lower and
+     longer; combo is how far into a streak it is. */
   pop(size = 0.5, combo = 0){
-    (POPS[state.pop] || POPS.soft)(size, combo);
+    const f = (560 - size * 300) * lift(combo);
+    blip({ freq: f, to: f * 0.38, dur: 0.1 + size * 0.06, type: 'sine', gain: 0.32 });
+    hiss({ dur: 0.012, gain: 0.08, hp: 3200, type: 'bandpass', q: 1.2 });
+    verbHit(0.12);
   },
   /* A glockenspiel run up through the chord. */
   rainbow(){
@@ -643,8 +604,6 @@ export const music = {
 export const audio = {
   get volume(){ return state.vol; },
   get muted(){ return state.muted; },
-  get popStyle(){ return state.pop; },
-  setPopStyle(name){ if (POPS[name]){ state.pop = name; save(); } },
   setVolume(v){ state.vol = Math.max(0, Math.min(1, v)); if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); },
   toggleMute(){ state.muted = !state.muted; if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); return state.muted; },
   resume(){ ctx(); }

@@ -2,7 +2,7 @@ import { GAMES } from '../games/index.js';
 import { scores } from '../games/common.js';
 import { button, onPick } from './cursor.js';
 import { screen, h, clearUI } from './screens.js';
-import { audio, sfx } from '../audio/sound.js';
+import { audio } from '../audio/sound.js';
 import { pose } from '../tracking/pose.js';
 import { drawPark } from './backdrop.js';
 import { wordmark } from './title.js';
@@ -106,21 +106,6 @@ function settings(onRecalibrate){
   const up   = onPick(button('Louder'),  () => { audio.setVolume(audio.volume + 0.1); sl.value = audio.volume; });
   row.append(down, up, mute);
   s.appendChild(row);
-
-  /* Which pop sound the balloons make. Each press moves to the next and
-     plays it, so it can be chosen by ear from the sofa. */
-  const POP_NAMES = { soft: 'Soft', real: 'Real', cartoon: 'Cartoon', chime: 'Chime' };
-  const styles = Object.keys(POP_NAMES);
-  const popLabel = () => 'Pop sound: ' + (POP_NAMES[audio.popStyle] || 'Soft');
-  const pop = onPick(button(popLabel()), () => {
-    const i = styles.indexOf(audio.popStyle);
-    audio.setPopStyle(styles[(i + 1) % styles.length]);
-    pop.querySelector('.lbl').textContent = popLabel();
-    sfx.pop(0.5, 0);
-  });
-  const popRow = h('div', 'row');
-  popRow.appendChild(pop);
-  s.appendChild(popRow);
 
   /* Only worth showing when there is a choice to make. */
   if (pose.usingCamera){
