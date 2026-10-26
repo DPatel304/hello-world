@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_EVERY, GIANT_SLAPS, giantClock,
+import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_WINDOW, GIANT_SLAPS,
   SLOW, SLOW_SECS, PARADE_N, PARADE_BONUS, DOG_WORTH, EVENTS, EVENT_GAP, planEvents,
   ROUND, FINALE, OPENING } from '../src/games/pop-party.js';
 import { pose } from '../src/tracking/pose.js';
@@ -130,9 +130,8 @@ test('teeny balloons are a fifth of an ordinary one, and still catchable', () =>
   assert.equal(inst.balloons.length, 0, 'teeny balloon should have popped');
 });
 
-test('a five-minute round brings one giant, three minutes in', () => {
+test('every round brings one giant, at a moment that varies', () => {
   onePlayer();
-  giantClock.played = 0; giantClock.next = GIANT_EVERY;
   const inst = popParty.create(1);
   const giants = new Set();
   let roundT = null;
@@ -140,21 +139,17 @@ test('a five-minute round brings one giant, three minutes in', () => {
     inst.step(1 / 60, 1920, 1080);
     for (const b of inst.balloons) if (b.giant && !giants.has(b)){ giants.add(b); roundT ??= inst.t; }
   }
-  assert.equal(giants.size, 1);
-  assert.ok(Math.abs(roundT - GIANT_EVERY) < 0.1, `giant came at ${roundT?.toFixed(1)}s, not ${GIANT_EVERY}s`);
-});
+  assert.equal(giants.size, 1, 'one giant a round');
+  assert.ok(roundT >= GIANT_WINDOW[0] && roundT <= GIANT_WINDOW[1] + 0.1,
+    `giant at ${roundT?.toFixed(1)}s, outside ${GIANT_WINDOW.join('-')}s`);
 
-test('a giant due in the last seconds of a round waits for the next one', () => {
-  onePlayer();
-  const first = popParty.create(1);
-  first.events = []; first.t = FINALE - 3;
-  giantClock.played = 0; giantClock.next = 1.5;   /* falls due at FINALE - 1.5 */
-  for (let i = 0; i < 3 * 60; i++) first.step(1 / 60, 1920, 1080);
-  assert.ok(!first.balloons.some(b => b.giant), 'too late to rise into view; should have waited');
-
-  const next = popParty.create(1);
-  next.step(1 / 60, 1920, 1080);
-  assert.ok(next.balloons.some(b => b.giant), 'should launch at the start of the next round');
+  /* Across many rounds it should land all over its window - not stuck at
+     three minutes, and never in the opening. */
+  const at = Array.from({ length: 3000 }, () => planEvents(FINALE).find(e => e.kind === 'giant').at);
+  assert.ok(Math.min(...at) >= GIANT_WINDOW[0] && Math.max(...at) <= GIANT_WINDOW[1]);
+  assert.ok(Math.min(...at) < GIANT_WINDOW[0] + 15 && Math.max(...at) > GIANT_WINDOW[1] - 15, 'should use the whole window');
+  const nearThree = at.filter(t => Math.abs(t - 180) < 5).length / at.length;
+  assert.ok(nearThree < 0.1, `${(nearThree * 100).toFixed(0)}% of giants within 5s of 3:00`);
 });
 
 test('the giant covers about a quarter of a 16:9 screen', () => {

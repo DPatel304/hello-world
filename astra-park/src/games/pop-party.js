@@ -34,16 +34,13 @@ export const SIZES = [
    area of 2.46 r², which is a quarter of the screen at r = 0.425 - about 85%
    of the screen height, top to bottom. */
 export const GIANT_R = 0.425;
-export const GIANT_EVERY = 180;
+/* One giant a round, at a random moment in this window: never in the calm
+   opening, and early enough to rise into view well before the storm. */
+export const GIANT_WINDOW = [75, 255];
 /* Something that size would pop the instant any hand reached it, before
    anyone had seen it. Instead it takes slaps - separate ones, so a hand
    resting on it counts once - and counts them down on its face. */
 export const GIANT_SLAPS = 6;
-
-/* The giant comes round on play time, counted across every round since the
-   page was opened, so it stays an event rather than a feature of each round.
-   An object so tests can wind it. */
-export const giantClock = { played: 0, next: GIANT_EVERY };
 
 /* Teeny balloons are tiny to look at but not to catch: a hand that lands
    anywhere near one counts. */
@@ -123,6 +120,10 @@ class PopParty {
       e.done = true;
       if (e.kind === 'parade') this._parade();
       else if (e.kind === 'dog') this._dog();
+      else if (e.kind === 'giant'){
+        this.balloons.unshift(this._giant());
+        this._announce('GIANT BALLOON!', '#ffe066', 1);
+      }
     }
 
     /* The sky fills up as the round goes: a couple of balloons to start, so
@@ -139,15 +140,6 @@ class PopParty {
       this.spawn = storm ? 0.18 : 0.5;
       if (want >= 7 && alive + 4 <= want + 1 && Math.random() < 0.1) this._bunch();
       else this.balloons.push(this._make());
-    }
-
-    giantClock.played += dt;
-    /* Not so late in the round that it would still be rising at the whistle;
-       if the moment comes then, it waits for the start of the next one. */
-    if (giantClock.played >= giantClock.next && this.t < FINALE - 5){
-      giantClock.next = giantClock.played + GIANT_EVERY;
-      this.balloons.unshift(this._giant());
-      this._announce('GIANT BALLOON!', '#ffe066', 1);
     }
 
     this.wind = Math.sin(this.t * 0.21) * 0.012 + Math.sin(this.t * 0.07 + 1) * 0.01;
@@ -593,14 +585,15 @@ class PopParty {
    cut into windows of
    about a minute; in each, every kind has its own chance of turning up at a
    random moment, at least EVENT_GAP from any other surprise. Over five
-   minutes that is a couple of parades and a couple of dogs on average, and
-   never the same round twice. */
+   minutes that is the one giant, a couple of parades and a couple of dogs
+   on average, and never the same round twice. */
 export const EVENTS = { parade: 0.5, dog: 0.45 };
 export const EVENT_GAP = 15;
 export function planEvents(finale){
   const from = OPENING + 5, to = finale - 15;
   const n = Math.max(1, Math.round((to - from) / 60)), span = (to - from) / n;
-  const out = [];
+  /* The giant is placed first, so the smaller surprises make room for it. */
+  const out = [{ kind: 'giant', at: GIANT_WINDOW[0] + Math.random() * (GIANT_WINDOW[1] - GIANT_WINDOW[0]), done: false }];
   for (let w = 0; w < n; w++){
     for (const [kind, chance] of Object.entries(EVENTS)){
       if (Math.random() >= chance) continue;
