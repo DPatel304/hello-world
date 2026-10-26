@@ -57,6 +57,9 @@ export function title({ onPlay, onSettings }){
   status.append(dot, h('span', 'txt', ''));
   s.appendChild(status);
 
+  /* Defined by build-single.mjs; absent when running from the dev server. */
+  s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
+
   let t = 0;
   return {
     tick(dt){

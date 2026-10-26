@@ -145,6 +145,12 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
   display:flex; align-items:center; gap:.6em;
   font-size:clamp(12px,1.9vh,22px); font-weight:700; color:var(--dim);
 }
+.buildstamp{
+  position:absolute; bottom:var(--safe); left:var(--safe);
+  font-size:clamp(11px,1.6vh,18px); font-weight:700; color:#fff; opacity:.75;
+  text-shadow:0 1px 3px rgba(0,0,0,.6);
+  font-variant-numeric:tabular-nums;
+}
 .camstatus .dot{
   width:clamp(10px,1.5vh,18px); height:clamp(10px,1.5vh,18px);
   border-radius:50%; background:var(--gold);

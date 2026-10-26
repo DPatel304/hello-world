@@ -7,7 +7,7 @@ your body. No controller, no keyboard.
 
 ## Trying it in thirty seconds
 
-Open `famjam.html` — one self-contained file, no install. It pulls the pose
+Open `astra-park.html` — one self-contained file, no install. It pulls the pose
 runtime from a CDN on first run, so the machine needs to be online that once.
 If the download is blocked the app says so plainly and drops to mouse mode
 rather than sitting on a loading message.
