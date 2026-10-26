@@ -194,8 +194,8 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 
 .tiles{
   display:grid; gap:clamp(8px,1.5vh,20px);
-  grid-template-columns:repeat(4,1fr);
-  width:min(94vw,1680px);
+  grid-template-columns:repeat(var(--cols,4),1fr);
+  width:min(94vw, calc(var(--cols,4) * 420px));
 }
 @media (max-aspect-ratio:1/1){ .tiles{ grid-template-columns:repeat(2,1fr); } }
 

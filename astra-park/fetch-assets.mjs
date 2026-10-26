@@ -1,4 +1,4 @@
-/* Pulls the pose model and the MediaPipe WASM into public/ so FamJam runs with
+/* Pulls the pose model and the MediaPipe WASM into public/ so Astra Park runs with
    the network unplugged. Optional: without it the app falls back to the CDN,
    which is fine on a laptop that stays online. */
 import { mkdir, writeFile, cp } from 'node:fs/promises';
@@ -17,4 +17,4 @@ if (!existsSync('public/models/pose_landmarker_lite.task')){
 } else console.log('model already here');
 
 await cp('node_modules/@mediapipe/tasks-vision/wasm', 'public/wasm', { recursive: true });
-console.log('wasm copied — FamJam will now run offline');
+console.log('wasm copied — Astra Park will now run offline');

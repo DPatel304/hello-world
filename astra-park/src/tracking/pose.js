@@ -123,11 +123,11 @@ export const pose = {
   },
 
   preferred(){
-    try { return localStorage.getItem('famjam_camera') || ''; } catch (e){ return ''; }
+    try { return localStorage.getItem('astrapark_camera') || ''; } catch (e){ return ''; }
   },
 
   async use(deviceId){
-    try { localStorage.setItem('famjam_camera', deviceId); } catch (e){}
+    try { localStorage.setItem('astrapark_camera', deviceId); } catch (e){}
     try { this.video.srcObject.getTracks().forEach(t => t.stop()); } catch (e){}
     const stream = await navigator.mediaDevices.getUserMedia({
       video:{ deviceId:{ exact: deviceId }, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
@@ -215,7 +215,7 @@ export const pose = {
     this._hand(p.hands.right, p.lm[L.R_WRIST], dt);
   },
 
-  /* Speed is what Fruit Fury and Bubble Keeper read, so it is kept in
+  /* Speed is for games that care how hard a hand moves, so it is kept in
      screen-widths per second rather than pixels: the same swing scores the
      same on any size of television. */
   _hand(h, k, dt){

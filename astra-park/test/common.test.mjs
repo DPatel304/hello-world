@@ -24,33 +24,33 @@ test('a best score is only replaced by a better one', () => {
 /* One and two player rounds are not comparable, so they keep separate bests. */
 test('player counts keep separate bests', () => {
   localStorage.clear();
-  scores.record('star-snatch', 1, 50);
-  scores.record('star-snatch', 2, 300);
-  assert.equal(scores.best('star-snatch', 1), 50);
-  assert.equal(scores.best('star-snatch', 2), 300);
+  scores.record('pop-party', 1, 50);
+  scores.record('pop-party', 2, 300);
+  assert.equal(scores.best('pop-party', 1), 50);
+  assert.equal(scores.best('pop-party', 2), 300);
 });
 
 test('games keep separate bests', () => {
   localStorage.clear();
   scores.record('pop-party', 1, 10);
-  scores.record('star-snatch', 1, 99);
+  scores.record('another-game', 1, 99);
   assert.equal(scores.best('pop-party', 1), 10);
-  assert.equal(scores.best('star-snatch', 1), 99);
+  assert.equal(scores.best('another-game', 1), 99);
 });
 
 test('reset clears scores and nothing else', () => {
   localStorage.clear();
   scores.record('pop-party', 1, 10);
-  scores.record('star-snatch', 2, 20);
-  localStorage.setItem('famjam_camera', 'cam-abc');
-  localStorage.setItem('famjam_audio', '{"vol":0.4}');
+  scores.record('pop-party', 2, 20);
+  localStorage.setItem('astrapark_camera', 'cam-abc');
+  localStorage.setItem('astrapark_audio', '{"vol":0.4}');
 
   scores.reset();
 
   assert.equal(scores.best('pop-party', 1), 0);
-  assert.equal(scores.best('star-snatch', 2), 0);
-  assert.equal(localStorage.getItem('famjam_camera'), 'cam-abc', 'camera choice must survive');
-  assert.equal(localStorage.getItem('famjam_audio'), '{"vol":0.4}', 'volume must survive');
+  assert.equal(scores.best('pop-party', 2), 0);
+  assert.equal(localStorage.getItem('astrapark_camera'), 'cam-abc', 'camera choice must survive');
+  assert.equal(localStorage.getItem('astrapark_audio'), '{"vol":0.4}', 'volume must survive');
 });
 
 test('a wiped storage does not throw', () => {

@@ -1,5 +1,5 @@
 /* A DOM small enough to read in one sitting and large enough for the parts of
-   FamJam that touch one. jsdom would do this too, but it is a dependency, and
+   Astra Park that touch one. jsdom would do this too, but it is a dependency, and
    the point of these tests is that `npm test` works on a clean checkout with
    nothing installed. */
 
@@ -52,7 +52,7 @@ class FakeEl {
   get textContent(){ return this._text; }
   set textContent(v){ this._text = String(v == null ? '' : v); this.children = []; }
 
-  /* Only the markup FamJam actually writes: a flat run of single-depth tags.
+  /* Only the markup Astra Park actually writes: a flat run of single-depth tags.
      Enough for button(), which is the one place innerHTML builds structure. */
   get innerHTML(){ return this._text; }
   set innerHTML(html){

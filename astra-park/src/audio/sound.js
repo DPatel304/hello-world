@@ -1,16 +1,16 @@
-/* Every sound in FamJam is made here. No files, no fetches: a handful of
+/* Every sound in Astra Park is made here. No files, no fetches: a handful of
    oscillators and a noise buffer, which also means the whole app works with
    the network unplugged. */
 let AC = null, master = null, musicGain = null;
 let state = { vol: 0.7, muted: false };
 
 try {
-  const saved = JSON.parse(localStorage.getItem('famjam_audio') || 'null');
+  const saved = JSON.parse(localStorage.getItem('astrapark_audio') || 'null');
   if (saved) state = { ...state, ...saved };
 } catch (e) {}
 
 function save(){
-  try { localStorage.setItem('famjam_audio', JSON.stringify(state)); } catch (e) {}
+  try { localStorage.setItem('astrapark_audio', JSON.stringify(state)); } catch (e) {}
 }
 
 function ctx(){

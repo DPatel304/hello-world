@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FamJam Floor Test</title>
+<title>Astra Park Floor Test</title>
 <style>
   :root{ --ink:#e8eaf0; --bg:#000; --accent:#6cf; --warn:#fc3; --bad:#f55; --good:#5e9; }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -99,7 +99,7 @@ const jitBuf = [];
 
 /* ---------- homography ---------- */
 let Hm = null;
-try { const s = localStorage.getItem('famjam.floortest.H'); if (s) Hm = JSON.parse(s); } catch(e){}
+try { const s = localStorage.getItem('astrapark.floortest.H'); if (s) Hm = JSON.parse(s); } catch(e){}
 
 function solve(A, b, n){
   const M = A.map((r,i)=>r.concat([b[i]]));
@@ -152,7 +152,7 @@ function calCapture(){
   cal.i++;
   if (cal.i >= 4){
     const h = homography(cal.src, cal.dst);
-    if (h){ Hm = h; try{ localStorage.setItem('famjam.floortest.H', JSON.stringify(h)); }catch(e){} }
+    if (h){ Hm = h; try{ localStorage.setItem('astrapark.floortest.H', JSON.stringify(h)); }catch(e){} }
     cal = null;
   }
 }
@@ -492,7 +492,7 @@ addEventListener('keydown', e => {
   if (k === 't'){
     trackMode = trackMode === 'feet' ? 'hands' : 'feet';
     Hm = null; cal = null; jitBuf.length = 0;
-    try { localStorage.removeItem('famjam.floortest.H'); } catch(e){}
+    try { localStorage.removeItem('astrapark.floortest.H'); } catch(e){}
   }
   if (k === 'h') hudEl.classList.toggle('hide');
   if (k === 'v'){ showCam = !showCam; camCv.classList.toggle('hide', !showCam); }

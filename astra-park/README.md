@@ -1,4 +1,4 @@
-# FamJam
+# Astra Park
 
 A body-controlled party game box for the living room. It runs in a browser on a
 Windows laptop plugged into the TV over HDMI. A webcam on top of the TV watches
@@ -24,7 +24,7 @@ npm run offline    # optional: pull the model + WASM so it runs with no network
 ```
 
 The pose model and MediaPipe runtime load from a CDN by default. `npm run
-offline` copies both into `public/` — about 43MB — after which FamJam works with
+offline` copies both into `public/` — about 43MB — after which Astra Park works with
 the network unplugged, which is what you want for a box that lives in a living
 room.
 
@@ -84,10 +84,8 @@ screen around the round, so adding a game is one file and one line in
 
 - Tracking, calibration, hand cursor, menu, settings, help, splash, results,
   pause gesture, lost-player handling, score persistence, generated audio.
-- **Pop Party** and **Star Snatch**.
-
-Still to come: Mole Mash, Fruit Fury, Bubble Keeper, Dodge Storm, Goal Guard,
-Copycat Groove.
+- **Pop Party**: pop balloons with your hands. It is the only game for now, so
+  the rest of the shell can be tuned against one well-understood round.
 
 ## What has and has not been verified
 

@@ -1,7 +1,7 @@
 /* Shared bits every game leans on: score storage, timers, and the little
    flourishes that make a hit feel like a hit. */
 
-const KEY = (id, n) => `famjam_best_${id}_${n}p`;
+const KEY = (id, n) => `astrapark_best_${id}_${n}p`;
 
 export const scores = {
   best(id, n){ try { return +(localStorage.getItem(KEY(id, n)) || 0); } catch (e){ return 0; } },
@@ -12,7 +12,7 @@ export const scores = {
   },
   reset(){
     try {
-      Object.keys(localStorage).filter(k => k.startsWith('famjam_best_'))
+      Object.keys(localStorage).filter(k => k.startsWith('astrapark_best_'))
         .forEach(k => localStorage.removeItem(k));
     } catch (e){}
   }

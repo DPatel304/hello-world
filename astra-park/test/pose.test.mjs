@@ -175,6 +175,6 @@ test('mouse mode drives player one and leaves player two absent', () => {
 test('preferred camera round-trips through storage', () => {
   localStorage.clear();
   assert.equal(pose.preferred(), '');
-  localStorage.setItem('famjam_camera', 'cam-abc');
+  localStorage.setItem('astrapark_camera', 'cam-abc');
   assert.equal(pose.preferred(), 'cam-abc');
 });

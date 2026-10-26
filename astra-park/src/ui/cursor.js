@@ -1,7 +1,7 @@
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 
-/* Hover-to-select. Every button in FamJam is a DOM .btn; the cursor finds the
+/* Hover-to-select. Every button in Astra Park is a DOM .btn; the cursor finds the
    one under each player's hand and fills a bar across it. One second of dwell
    is long enough not to fire on a passing wave and short enough that nobody
    thinks it is broken. */

@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GAMES, byId } from '../src/games/index.js';
 import { pose, L } from '../src/tracking/pose.js';
-import { classify, SHAPES } from '../src/games/copycat-groove.js';
 
 /* Canvas is the one thing in a game module with no behaviour worth asserting
    on, so it is stubbed wholesale. What matters is that draw() survives a
@@ -53,7 +52,7 @@ function setPlayers(n, lm = standing()){
 /* ---------- the catalogue ---------- */
 
 test('every game declares the metadata the shell reads', () => {
-  assert.ok(GAMES.length >= 8, 'expected a full catalogue, got ' + GAMES.length);
+  assert.ok(GAMES.length >= 1, 'the catalogue is empty');
   for (const g of GAMES){
     assert.match(g.id, /^[a-z0-9-]+$/, `${g.id}: id should be a slug`);
     assert.ok(g.name && g.name.length < 24, `${g.id}: name missing or too long for a tile`);
@@ -137,102 +136,9 @@ for (const g of GAMES){
       }
     }, `${g.id}: threw with nobody present`);
     /* Exactly zero, not merely finite. The first version of this assertion
-       accepted any number, which made it pass against a Dodge Storm that
+       accepted any number, which made it pass against a game that
        awarded survival points to an empty room. */
     assert.deepEqual(inst.hud().score.slice(0, 2).map(Math.floor), [0, 0],
       `${g.id}: scored with nobody playing`);
   });
 }
-
-/* ---------- Copycat Groove's pose reader ---------- */
-
-test('classify reads both arms up', () => {
-  const p = { present:true, lm: body({
-    L_SHOULDER:{ x:0.42, y:0.35 }, R_SHOULDER:{ x:0.58, y:0.35 },
-    L_WRIST:{ x:0.40, y:0.12 },    R_WRIST:{ x:0.60, y:0.12 }
-  })};
-  assert.equal(classify(p), 'both-up');
-});
-
-test('classify reads arms out wide', () => {
-  const p = { present:true, lm: body({
-    L_SHOULDER:{ x:0.42, y:0.35 }, R_SHOULDER:{ x:0.58, y:0.35 },
-    L_WRIST:{ x:0.18, y:0.36 },    R_WRIST:{ x:0.82, y:0.36 }
-  })};
-  assert.equal(classify(p), 'arms-out');
-});
-
-/* Screen sides, not anatomical ones: after mirroring, the arm the child sees
-   on their own left is the one on screen-left. */
-test('classify tells the two single-arm poses apart', () => {
-  const left = { present:true, lm: body({
-    L_SHOULDER:{ x:0.42, y:0.35 }, R_SHOULDER:{ x:0.58, y:0.35 },
-    L_WRIST:{ x:0.38, y:0.12 },    R_WRIST:{ x:0.60, y:0.60 }
-  })};
-  assert.equal(classify(left), 'left-up');
-
-  const right = { present:true, lm: body({
-    L_SHOULDER:{ x:0.42, y:0.35 }, R_SHOULDER:{ x:0.58, y:0.35 },
-    L_WRIST:{ x:0.40, y:0.60 },    R_WRIST:{ x:0.62, y:0.12 }
-  })};
-  assert.equal(classify(right), 'right-up');
-});
-
-test('classify returns nothing for a resting body', () => {
-  assert.equal(classify({ present:true, lm: standing() }), null);
-});
-
-test('classify refuses to guess when it cannot see a body', () => {
-  assert.equal(classify(null), null);
-  assert.equal(classify({ present:false, lm: standing() }), null);
-  assert.equal(classify({ present:true, lm: null }), null);
-  /* Turned side-on: the shoulders collapse together and nothing is readable. */
-  assert.equal(classify({ present:true, lm: body({
-    L_SHOULDER:{ x:0.50, y:0.35 }, R_SHOULDER:{ x:0.505, y:0.35 },
-    L_WRIST:{ x:0.50, y:0.10 },    R_WRIST:{ x:0.50, y:0.10 }
-  })}), null);
-});
-
-/* Scale-invariance is the whole reason the thresholds are shoulder-relative:
-   the same pose has to read at two metres and at six. */
-test('classify holds at any distance from the camera', () => {
-  for (const sw of [0.05, 0.16, 0.34]){
-    const mid = 0.5, sy = 0.35;
-    const p = { present:true, lm: body({
-      L_SHOULDER:{ x:mid - sw/2, y:sy }, R_SHOULDER:{ x:mid + sw/2, y:sy },
-      L_WRIST:{ x:mid - sw/2, y:sy - sw * 0.9 },
-      R_WRIST:{ x:mid + sw/2, y:sy - sw * 0.9 }
-    })};
-    assert.equal(classify(p), 'both-up', `failed at shoulder width ${sw}`);
-  }
-});
-
-test('every shape the game can ask for is one classify can return', () => {
-  const reachable = new Set(['both-up','arms-out','left-up','right-up']);
-  for (const sh of SHAPES) assert.ok(reachable.has(sh), `${sh} can never be matched`);
-});
-
-
-/* Fruit Fury is the only game that reads hand *speed*, and that is the whole
-   point of it - without this the swing threshold could be deleted and every
-   other test would still pass. */
-test('fruit fury needs a swing, not a resting hand', () => {
-  setPlayers(1);
-  const inst = byId('fruit-fury').create(1);
-  for (let i = 0; i < 180 && !inst.items.some(it => !it.bomb); i++)
-    inst.step(1 / 60, 1920, 1080);
-
-  const target = inst.items.find(it => !it.bomb && !it.cut);
-  assert.ok(target, 'expected fruit in the air after three seconds');
-
-  const h = pose.players[0].hands.right;
-  const onTarget = (speed) => { h.x = target.x; h.y = target.y; h.speed = speed; };
-
-  onTarget(0.25);                       /* a hand drifting, not swinging */
-  inst.step(1 / 60, 1920, 1080);
-  assert.equal(inst.hud().score[0], 0, 'a resting hand should not cut');
-
-  onTarget(2.0);                        /* a deliberate swipe */
-  inst.step(1 / 60, 1920, 1080);
-  assert.ok(inst.hud().score[0] > 0, 'a swing should cut');
-});

@@ -15,8 +15,8 @@ export function menu({ onPlay, onRecalibrate }){
   clearUI();
   const s = screen('picker');
 
-  /* The same park as the title, stepped back so eight bright tiles can sit on
-     top of it. Two screens in one place rather than two designs. */
+  /* The same park as the title, stepped back so the tiles can sit on top of
+     it. Two screens in one place rather than two designs. */
   const brand = h('div', 'minibrand');
   brand.append(wordmark('ASTRA'), wordmark('PARK'));
   s.appendChild(brand);
@@ -41,6 +41,7 @@ export function menu({ onPlay, onRecalibrate }){
     : 'Pick a game'));
 
   const grid = h('div', 'tiles');
+  grid.style.setProperty('--cols', Math.min(4, GAMES.length));
   for (const g of GAMES){
     const card = button('', 'tile');
     card.style.setProperty('--accent', g.accent);
