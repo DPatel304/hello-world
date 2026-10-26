@@ -3,11 +3,18 @@ import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx, music } from '../audio/sound.js';
 import { drawHills } from '../ui/backdrop.js';
 
+/* Five-minute rounds; the storm is always the last ten seconds. */
+export const ROUND = 300;
+export const FINALE = ROUND - 10;
+/* The opening: one balloon at a time, so the first thing anyone learns is
+   simply to reach for it. */
+export const OPENING = 30;
+
 /* Pop Party. Balloons rise, hands pop them. The gentlest game in the set and
    the one a two-year-old can play without being told anything - so nothing
    in it punishes: no lives, nothing to avoid, only things to chase. */
 export default {
-  id:'pop-party', name:'Pop Party', stars:1, accent:'#ff5d9e', secs:60,
+  id:'pop-party', name:'Pop Party', stars:1, accent:'#ff5d9e', secs:ROUND,
   howto:['Touch a balloon to pop it', 'The tinier the balloon, the more it is worth', 'Rainbow balloons are worth five'],
   create(n){ return new PopParty(n); }
 };
@@ -72,7 +79,6 @@ const PARADE_SPEED = 0.16, PARADE_GAP = 0.075;
 export const DOG_WORTH = 15;
 const DOG_SPEED = 0.1, DOG_REACH = 0.14, DOG_SIZE = 0.17;
 const STR_N = 7;
-const FINALE = 50;
 
 function pick(table){
   let r = Math.random() * table.reduce((s, e) => s + e.w, 0);
@@ -94,7 +100,7 @@ class PopParty {
     this.t = 0; this.spawn = 0; this.wind = 0; this.over = false;
     this.slowT = 0; this.scale = 1;
     this.parade = null; this.dog = null;
-    this.events = planEvents();
+    this.events = planEvents(FINALE);
   }
 
   step(dt, W, H){
@@ -230,8 +236,11 @@ class PopParty {
   }
 
   target(){
+    /* One at a time through the opening - the next waits until the last is
+       popped or gone - then a steady climb to a dozen by the storm. */
     if (this.t >= FINALE) return 18;
-    return 2 + 10 * Math.pow(this.t / FINALE, 1.5);
+    if (this.t < OPENING) return 1;
+    return 1 + 11 * (this.t - OPENING) / (FINALE - OPENING);
   }
 
   _giant(){
@@ -579,20 +588,29 @@ class PopParty {
   value(){ return Math.max(...this.score.slice(0, this.players)); }
 }
 
-/* Surprises are planned when the round starts so they never pile up: each at
-   a random moment between 10s and 44s, at least 10s from any other, and not
-   every round gets every one. */
-export const EVENTS = { parade: 0.7, dog: 0.6 };
-export function planEvents(){
+/* Surprises are planned when the round starts so they never pile up. The
+   round from just after the opening to fifteen seconds before the storm is
+   cut into windows of
+   about a minute; in each, every kind has its own chance of turning up at a
+   random moment, at least EVENT_GAP from any other surprise. Over five
+   minutes that is a couple of parades and a couple of dogs on average, and
+   never the same round twice. */
+export const EVENTS = { parade: 0.5, dog: 0.45 };
+export const EVENT_GAP = 15;
+export function planEvents(finale){
+  const from = OPENING + 5, to = finale - 15;
+  const n = Math.max(1, Math.round((to - from) / 60)), span = (to - from) / n;
   const out = [];
-  for (const [kind, chance] of Object.entries(EVENTS)){
-    if (Math.random() >= chance) continue;
-    for (let tries = 0; tries < 20; tries++){
-      const at = 10 + Math.random() * 34;
-      if (out.every(e => Math.abs(e.at - at) >= 10)){ out.push({ kind, at, done: false }); break; }
+  for (let w = 0; w < n; w++){
+    for (const [kind, chance] of Object.entries(EVENTS)){
+      if (Math.random() >= chance) continue;
+      for (let tries = 0; tries < 20; tries++){
+        const at = from + (w + Math.random()) * span;
+        if (out.every(e => Math.abs(e.at - at) >= EVENT_GAP)){ out.push({ kind, at, done: false }); break; }
+      }
     }
   }
-  return out;
+  return out.sort((a, b) => a.at - b.at);
 }
 
 const dogCol = (d) => `hsl(${d.hue} 85% 60%)`;

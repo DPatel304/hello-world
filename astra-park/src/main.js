@@ -138,11 +138,13 @@ function drawHUD(){
   c.textAlign = 'center';
   c.font = `900 ${Math.round(H * 0.062)}px ui-monospace, monospace`;
   const t = Math.max(0, Math.ceil(roundLeft));
-  pill(c, W / 2, pad, c.measureText(String(t)).width, H * 0.062, 'center');
+  /* Minutes and seconds once a round runs past one; plain seconds below. */
+  const clock = t >= 60 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}` : String(t);
+  pill(c, W / 2, pad, c.measureText(clock).width, H * 0.062, 'center');
   c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
-  c.strokeText(String(t), W / 2, pad);
+  c.strokeText(clock, W / 2, pad);
   c.fillStyle = t <= 10 ? '#ff5d73' : '#f3f0ff';
-  c.fillText(String(t), W / 2, pad);
+  c.fillText(clock, W / 2, pad);
   c.textAlign = 'start'; c.textBaseline = 'alphabetic';
 }
 
