@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_WINDOW, GIANT_SLAPS,
-  SLOW, SLOW_SECS, PARADE_N, PARADE_BONUS, DOG_WORTH, EVENTS, EVENT_GAP, planEvents,
+import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_WINDOWS, GIANT_SLAPS,
+  SLOW, SLOW_SECS, PARADE_N, PARADE_BONUS, ANIMAL_WORTH, EVENTS, EVENT_GAP, planEvents,
   ROUND, FINALE, OPENING } from '../src/games/pop-party.js';
 import { pose } from '../src/tracking/pose.js';
+import { ANIMALS } from '../src/games/pop-party-animals.js';
 
 function onePlayer(hand = { x:-1, y:-1 }){
   pose.mouse.active = false;
@@ -130,26 +131,66 @@ test('teeny balloons are a fifth of an ordinary one, and still catchable', () =>
   assert.equal(inst.balloons.length, 0, 'teeny balloon should have popped');
 });
 
-test('every round brings one giant, at a moment that varies', () => {
+test('every round brings two giants, each at a moment that varies', () => {
   onePlayer();
   const inst = popParty.create(1);
-  const giants = new Set();
-  let roundT = null;
+  const seen = [];
   for (let i = 0; i < ROUND * 60; i++){
     inst.step(1 / 60, 1920, 1080);
-    for (const b of inst.balloons) if (b.giant && !giants.has(b)){ giants.add(b); roundT ??= inst.t; }
+    for (const b of inst.balloons) if (b.giant && !seen.some(s => s.b === b)) seen.push({ b, t: inst.t });
   }
-  assert.equal(giants.size, 1, 'one giant a round');
-  assert.ok(roundT >= GIANT_WINDOW[0] && roundT <= GIANT_WINDOW[1] + 0.1,
-    `giant at ${roundT?.toFixed(1)}s, outside ${GIANT_WINDOW.join('-')}s`);
+  assert.equal(seen.length, 2, 'two giants a round');
+  seen.forEach(({ t }, k) => {
+    const [a, b] = GIANT_WINDOWS[k];
+    assert.ok(t >= a && t <= b + 0.5, `giant ${k + 1} at ${t.toFixed(1)}s, outside ${a}-${b}s`);
+  });
+  assert.equal(inst.banner, null, 'no banner announces a giant');
 
-  /* Across many rounds it should land all over its window - not stuck at
-     three minutes, and never in the opening. */
-  const at = Array.from({ length: 3000 }, () => planEvents(FINALE).find(e => e.kind === 'giant').at);
-  assert.ok(Math.min(...at) >= GIANT_WINDOW[0] && Math.max(...at) <= GIANT_WINDOW[1]);
-  assert.ok(Math.min(...at) < GIANT_WINDOW[0] + 15 && Math.max(...at) > GIANT_WINDOW[1] - 15, 'should use the whole window');
-  const nearThree = at.filter(t => Math.abs(t - 180) < 5).length / at.length;
-  assert.ok(nearThree < 0.1, `${(nearThree * 100).toFixed(0)}% of giants within 5s of 3:00`);
+  /* Across many rounds each lands all over its window. */
+  const plans = Array.from({ length: 3000 }, () => planEvents(FINALE).filter(e => e.kind === 'giant').map(e => e.at));
+  assert.ok(plans.every(p => p.length === 2));
+  GIANT_WINDOWS.forEach(([a, b], k) => {
+    const at = plans.map(p => p[k]);
+    assert.ok(Math.min(...at) >= a && Math.max(...at) <= b);
+    assert.ok(Math.min(...at) < a + 10 && Math.max(...at) > b - 10, `giant ${k + 1} should use its whole window`);
+  });
+});
+
+test('slaps count while the giant rises, but it only pops once fully on screen', () => {
+  onePlayer({ x:0.5, y:0.8 });
+  const inst = popParty.create(1);
+  inst.spawn = 99; inst.events = [];
+  const g = inst._giant();
+  Object.assign(g, { by:0.8, rise:0, f:0, ph:0 });   /* bottom half still below the screen */
+  inst.balloons.push(g);
+  const hand = pose.players[0].hands.left;
+  for (let n = 0; n < GIANT_SLAPS + 4; n++){
+    hand.x = -1; inst.step(1 / 60, 1920, 1080);
+    hand.x = 0.5; inst.step(1 / 60, 1920, 1080);
+  }
+  assert.ok(!g.dead, 'should not pop while any of it is still below the screen');
+  assert.equal(g.slaps, GIANT_SLAPS + 4, 'every slap should still count');
+
+  g.by = 0.5;                                          /* now all of it is up */
+  hand.x = -1; inst.step(1 / 60, 1920, 1080);
+  hand.y = 0.5; hand.x = 0.5; inst.step(1 / 60, 1920, 1080);
+  assert.ok(g.dead, 'the next slap once it is up should pop it');
+});
+
+test('once fully on screen, the giant slows down to hover', () => {
+  const inst = popParty.create(1);
+  inst.spawn = 99; inst.events = [];
+  onePlayer();
+  const g = inst._giant();
+  Object.assign(g, { rise: 0.1, f: 0, ph: 0 });
+  inst.balloons.push(g);
+  g.by = 0.9; inst.step(1 / 60, 1920, 1080);
+  let y0 = g.by; for (let i = 0; i < 60; i++) inst.step(1 / 60, 1920, 1080);
+  const rising = y0 - g.by;
+  g.by = 0.5; inst.step(1 / 60, 1920, 1080);
+  y0 = g.by; for (let i = 0; i < 60; i++) inst.step(1 / 60, 1920, 1080);
+  const hovering = y0 - g.by;
+  assert.ok(hovering < rising * 0.6, `rose ${rising.toFixed(3)}/s below, ${hovering.toFixed(3)}/s once up`);
 });
 
 test('the giant covers about a quarter of a 16:9 screen', () => {
@@ -259,51 +300,80 @@ test('popping the whole parade earns the bonus', () => {
   assert.equal(inst.hud().score[0], expected);
 });
 
-test('the balloon dog trots across and leaves if nobody catches it', () => {
+for (const kind of Object.keys(ANIMALS)){
+  test(`the balloon ${kind} walks across, unannounced, and leaves if nobody catches it`, () => {
+    const inst = quiet();
+    inst._animal(kind);
+    assert.equal(inst.banner, null, 'no text for a balloon animal');
+    const x0 = inst.animal.x;
+    run(inst, 3);
+    assert.ok(inst.animal && Math.abs(inst.animal.x - x0) > 0.15, 'it should be on its way');
+    run(inst, 25);
+    assert.equal(inst.animal, null, 'it should have walked off');
+    assert.equal(inst.hud().score[0], 0);
+  });
+
+  test(`touching the balloon ${kind} pops it, part by part`, () => {
+    const inst = quiet();
+    inst._animal(kind);
+    inst.animal.x = 0.5; inst.animal.dir = 1;
+    run(inst, 1 / 60);
+    Object.assign(pose.players[0].hands.left, { x: inst.animal.x, y: inst.animal.y });
+    run(inst, 1 / 60);
+    assert.equal(inst.hud().score[0], ANIMAL_WORTH);
+    run(inst, 1 / 60);
+    assert.ok(inst.animal && inst.animal.popped >= 1 && inst.animal.popped <= 2,
+      `the parts should pop in sequence, not all at once (popped ${inst.animal?.popped})`);
+    run(inst, 2);
+    assert.equal(inst.animal, null);
+    assert.equal(inst.hud().score[0], ANIMAL_WORTH, 'it should only score once');
+  });
+}
+
+test('a hand nowhere near a balloon animal leaves it alone', () => {
   const inst = quiet();
-  inst._dog();
-  const d = inst.dog, x0 = d.x;
-  run(inst, 3);
-  assert.ok(inst.dog && Math.abs(inst.dog.x - x0) > 0.2, 'the dog should be on its way');
-  run(inst, 15);
-  assert.equal(inst.dog, null, 'the dog should have trotted off');
+  inst._animal('giraffe');
+  inst.animal.x = 0.5;
+  Object.assign(pose.players[0].hands.left, { x: 0.1, y: 0.2 });
+  run(inst, 0.5);
   assert.equal(inst.hud().score[0], 0);
 });
 
-test('touching the balloon dog pops it, part by part', () => {
+test('the parade comes unannounced', () => {
   const inst = quiet();
-  inst._dog();
-  inst.dog.x = 0.5; inst.dog.dir = 1;
-  run(inst, 1 / 60);
-  Object.assign(pose.players[0].hands.left, { x: inst.dog.x, y: inst.dog.y });
-  run(inst, 1 / 60);
-  assert.equal(inst.hud().score[0], DOG_WORTH);
-  run(inst, 1 / 60);
-  assert.ok(inst.dog && inst.dog.popped >= 1 && inst.dog.popped <= 2,
-    `the parts should pop in sequence, not all at once (popped ${inst.dog?.popped})`);
-  run(inst, 2);
-  assert.equal(inst.dog, null);
-  assert.equal(inst.hud().score[0], DOG_WORTH, 'a dog should only score once');
+  inst._parade();
+  assert.equal(inst.banner, null);
+});
+
+test('a second animal waits for the first to leave', () => {
+  const inst = quiet();
+  inst.events = [{ kind:'dog', at:1, done:false }, { kind:'elephant', at:2, done:false }];
+  run(inst, 2.5);
+  assert.equal(inst.animal.kind, 'dog', 'the elephant should not replace the dog mid-walk');
+  run(inst, 30);
+  assert.ok(inst.events.every(e => e.done), 'the elephant should have had its turn once the dog left');
 });
 
 test('surprises are spread through the round, never crowded, and vary', () => {
-  const N = 3000, total = { parade: 0, dog: 0 }, none = { parade: 0, dog: 0 };
+  const N = 3000, total = {}, none = {};
   for (let i = 0; i < N; i++){
     const plan = planEvents(FINALE);
     for (const e of plan){
-      total[e.kind]++;
+      total[e.kind] = (total[e.kind] || 0) + 1;
       assert.ok(e.at > OPENING && e.at <= FINALE - 15, `${e.kind} at ${e.at.toFixed(1)}s, in the opening or too near the storm`);
     }
     for (let k = 1; k < plan.length; k++){
       assert.ok(plan[k].at - plan[k - 1].at >= EVENT_GAP, 'two surprises too close together');
     }
-    for (const kind of Object.keys(EVENTS)) if (!plan.some(e => e.kind === kind)) none[kind]++;
+    for (const kind of Object.keys(EVENTS)) if (!plan.some(e => e.kind === kind)) none[kind] = (none[kind] || 0) + 1;
   }
-  for (const kind of Object.keys(EVENTS)){
-    const mean = total[kind] / N;
-    assert.ok(mean >= 1.4 && mean <= 2.5, `${kind}: ${mean.toFixed(2)} a round on average, meant about two`);
-    const rare = none[kind] / N;
-    assert.ok(rare > 0.01 && rare < 0.15, `${kind}: missing from ${(rare * 100).toFixed(0)}% of rounds`);
+  /* Four windows of about a minute, each with its own chance per kind;
+     crowding near the giants trims a little off. */
+  for (const [kind, chance] of Object.entries(EVENTS)){
+    const mean = (total[kind] || 0) / N, expected = 4 * chance;
+    assert.ok(mean >= expected * 0.7 && mean <= expected * 1.05, `${kind}: ${mean.toFixed(2)} a round, expected about ${expected}`);
+    const rare = (none[kind] || 0) / N;
+    assert.ok(rare > 0.01 && rare < 0.5, `${kind}: missing from ${(rare * 100).toFixed(0)}% of rounds`);
   }
 });
 
@@ -314,9 +384,9 @@ test('a planned surprise actually happens on time', () => {
   assert.equal(inst.balloons.filter(b => b.parade).length, 0);
   run(inst, 0.2);
   assert.equal(inst.balloons.filter(b => b.parade).length, PARADE_N);
-  assert.equal(inst.dog, null);
+  assert.equal(inst.animal, null);
   run(inst, 1);
-  assert.ok(inst.dog, 'the dog should have arrived');
+  assert.ok(inst.animal && inst.animal.kind === 'dog', 'the dog should have arrived');
 });
 
 test('the opening never sends a bunch, even when the dice say so', () => {

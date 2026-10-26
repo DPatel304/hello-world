@@ -13,7 +13,7 @@ function save(){
   try { localStorage.setItem('astrapark_audio', JSON.stringify(state)); } catch (e) {}
 }
 
-let delaySend = null, musicFilter = null, padBus = null, reverbIn = null;
+let musicFilter = null, ukeBus = null, reverbIn = null;
 
 /* A room for the music to sit in: a burst of noise dying away over a couple
    of seconds is all a convolution reverb needs to sound like a hall. */
@@ -37,23 +37,21 @@ function ctx(){
     comp.attack.value = 0.004; comp.release.value = 0.18;
     master.connect(comp); comp.connect(AC.destination);
     musicGain = AC.createGain();
-    musicGain.gain.value = 0.6;
+    musicGain.gain.value = 0.6 * 0.5;
     /* Wide open normally; slow motion softens the top end. */
     musicFilter = AC.createBiquadFilter();
     musicFilter.type = 'lowpass'; musicFilter.frequency.value = 20000;
     musicGain.connect(musicFilter); musicFilter.connect(master);
-    /* Dotted-eighth echo on the lead only. */
-    delaySend = AC.createDelay(1);
-    delaySend.delayTime.value = SIXTEENTH * 3;
-    const fb = AC.createGain(), wet = AC.createGain();
-    fb.gain.value = 0.3; wet.gain.value = 0.28;
-    delaySend.connect(fb); fb.connect(delaySend);
-    delaySend.connect(wet); wet.connect(musicGain);
-    /* The pad and chord stabs share a bus the kick can duck. */
-    padBus = AC.createGain();
-    padBus.connect(musicGain);
+    /* The ukulele's body: a little warmth low down, the harshest top taken
+       off, the way a small wooden box colours a string. */
+    ukeBus = AC.createGain();
+    const body = AC.createBiquadFilter(), top = AC.createBiquadFilter();
+    body.type = 'peaking'; body.frequency.value = 280; body.Q.value = 1; body.gain.value = 3;
+    top.type = 'lowpass'; top.frequency.value = 5000;
+    ukeBus.connect(body); body.connect(top); top.connect(musicGain);
+    /* A small warm room rather than a hall. */
     const verb = AC.createConvolver(), verbOut = AC.createGain();
-    verb.buffer = impulse(AC, 2.4);
+    verb.buffer = impulse(AC, 1.6);
     reverbIn = AC.createGain();
     verbOut.gain.value = 0.32;
     reverbIn.connect(verb); verb.connect(verbOut); verbOut.connect(musicGain);
@@ -113,14 +111,14 @@ export const sfx = {
     const f = 780 - size * 430;
     blip({ freq: f, to: f * 0.35, dur: 0.09 + size * 0.06, type: 'sine', gain: 0.34 });
     const ch = music.chord().slice().sort((a, b) => a - b);
-    const n = ch[combo % 3] + 24 + 12 * Math.min(1, Math.floor(combo / 3));
-    const wait = Math.max(0.012, music.grid(1) - ctx().currentTime);
-    blip({ freq: mtof(n), dur: 0.22, type: 'triangle', gain: 0.12, delay: wait });
+    const n = ch[combo % 3] + 12 + 12 * Math.min(1, Math.floor(combo / 3));
+    pluck(n, Math.max(ctx().currentTime + 0.012, music.grid(1)), { kind: 'lead', gain: 0.4, verb: 0.2, dest: master });
   },
+  /* A glockenspiel run up through the chord. */
   rainbow(){
-    [0, 4, 7, 12, 16, 19, 24].forEach((s, i) =>
-      blip({ freq: 1046.5 * Math.pow(2, s / 12), dur: 0.16, type: 'triangle', gain: 0.11, delay: i * 0.045 }));
-    hiss({ dur: 0.5, gain: 0.07, hp: 7000 });
+    const t = ctx().currentTime, ch = music.chord();
+    [0, 1, 2, 3, 4, 5].forEach(i => bell(ch[i % 3] + 12 * (1 + Math.floor(i / 3)), t + i * 0.05, 0.09, 0.35, master));
+    hiss({ dur: 0.5, gain: 0.05, hp: 7000 });
   },
   /* A slap on the giant: a rubbery boing, a little higher each time. */
   boing(n = 1){
@@ -138,12 +136,41 @@ export const sfx = {
     blip({ freq: 90, to: 800, dur: 0.45, type: 'sine', gain: 0.28 });
     hiss({ dur: 0.4, gain: 0.12, hp: 500, sweep: 4000 });
   },
-  /* A little marching fanfare. */
+  /* A little marching fanfare on the glockenspiel, with a snare. */
   parade(){
-    [0, 4, 7, 12, 7, 12, 16].forEach((s, i) =>
-      blip({ freq: 523.25 * Math.pow(2, s / 12), dur: i === 6 ? 0.4 : 0.13,
-             type: 'square', gain: 0.07, delay: i * 0.12 }));
-    [0, 0.24, 0.48, 0.72].forEach(d => hiss({ dur: 0.08, gain: 0.18, hp: 1800, type: 'bandpass', q: 0.7, delay: d }));
+    const t = ctx().currentTime;
+    [0, 4, 7, 12, 7, 12, 16].forEach((s, i) => bell(72 + s, t + i * 0.12, 0.08, 0.3, master));
+    [0, 0.24, 0.48, 0.72].forEach(d => hiss({ dur: 0.08, gain: 0.14, hp: 1800, type: 'bandpass', q: 0.7, delay: d }));
+  },
+  /* The giraffe: the squeak of a twisted balloon, twice. */
+  squeak(){
+    const c = ctx();
+    [0, 0.22].forEach(d => {
+      const t = c.currentTime + d, o = c.createOscillator(), g = c.createGain(), lfo = c.createOscillator(), w = c.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(850, t); o.frequency.linearRampToValueAtTime(1350, t + 0.1);
+      o.frequency.linearRampToValueAtTime(1000, t + 0.18);
+      lfo.frequency.value = 28; w.gain.value = 45; lfo.connect(w); w.connect(o.frequency);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      o.connect(g); g.connect(master);
+      o.start(t); lfo.start(t); o.stop(t + 0.22); lfo.stop(t + 0.22);
+    });
+  },
+  /* The elephant: a trumpeting toot that rises and wavers. */
+  trumpet(){
+    const c = ctx(), t = c.currentTime;
+    const o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain(), lfo = c.createOscillator(), w = c.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(240, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.25);
+    o.frequency.exponentialRampToValueAtTime(360, t + 0.7);
+    lfo.frequency.value = 7; w.gain.value = 12; lfo.connect(w); w.connect(o.frequency);
+    f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 2.5;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.45, t + 0.08);
+    g.gain.setValueAtTime(0.45, t + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+    o.connect(f); f.connect(g); g.connect(master);
+    o.start(t); lfo.start(t); o.stop(t + 0.82); lfo.stop(t + 0.82);
+    hiss({ dur: 0.3, gain: 0.06, hp: 1500, type: 'bandpass', q: 0.8 });
   },
   /* Woof woof, on the beat. */
   bark(){
@@ -182,12 +209,12 @@ export const sfx = {
     blip({ freq: 110, to: 32, dur: 0.7, type: 'sine', gain: 0.6 });
     hiss({ dur: 0.45, gain: 0.35, hp: 900, type: 'lowpass', q: 0.5 });
   },
-  /* A rising swoosh into a bright chord, a step higher for each level. */
+  /* A swoosh into a bright strummed chord, a step higher for each level. */
   combo(level = 1){
-    hiss({ dur: 0.35, gain: 0.16, hp: 400, sweep: 5000 });
-    const root = 523.25 * Math.pow(2, (2 * (level - 1)) / 12);
-    [0, 4, 7, 12].forEach((s, i) =>
-      blip({ freq: root * Math.pow(2, s / 12), dur: 0.42, type: 'square', gain: 0.07, delay: 0.22 + i * 0.03 }));
+    hiss({ dur: 0.35, gain: 0.14, hp: 400, sweep: 5000 });
+    const t = ctx().currentTime + 0.22, ch = music.chord().map(m => m + 12 + 2 * (level - 1));
+    [...ch, ch[0] + 12].forEach((m, i) => pluck(m, t + i * 0.018, { kind: 'lead', gain: 0.3, verb: 0.25, dest: master }));
+    bell(ch[0] + 24, t + 0.08, 0.08, 0.4, master);
   },
   slice(){ hiss({ dur: 0.2, gain: 0.3, hp: 700, sweep: 5200 }); },
   thud(){ blip({ freq: 180, to: 60, dur: 0.22, type: 'sine', gain: 0.42 });
@@ -207,25 +234,38 @@ export const sfx = {
 };
 
 /* ---------- music ----------
-   A song in C, about ninety seconds before it comes round again: verse,
-   chorus, verse, chorus, bridge, chorus. It is played by a look-ahead
-   scheduler against the audio clock - a timer wakes every 25ms and books the
-   next 120ms of notes at exact times - so the beat holds even when a frame
-   stalls under the pose model.
+   A cozy acoustic song in C: ukulele, a plucked bass, a whistled tune, and
+   hand percussion. The strings are Karplus-Strong - a burst of noise fed
+   round a delay line one string-length long, softened a little each time
+   round - which is how a plucked string actually behaves, and why it sounds
+   like wood and nylon rather than a beeping chip.
 
-   intensity (0..1) decides who is playing. The menu hears a pad and slow
-   bass; a round starts at 0.45 with the groove and builds a layer roughly
-   every minute; at full intensity the song moves up a whole tone for the
-   storm. Events lay their own parts over the top: a marching snare and
-   glockenspiel for the parade, a drumless, bell-washed version for slow
-   motion. */
-const BPM = 126, SIXTEENTH = 60 / BPM / 4;
-const C_ = [48, 52, 55], G_ = [43, 47, 50], Am = [45, 48, 52], F_ = [41, 45, 48], Em = [40, 43, 47];
+   The song runs verse, chorus, verse, chorus, bridge, chorus, about a
+   minute and a half before it comes round. A look-ahead scheduler books
+   notes against the audio clock, so the beat holds when a frame stalls.
+
+   intensity (0..1) decides who is playing, and how loud. A round opens on
+   quiet fingerpicking; strumming and bass join, then shaker, the tune, finger
+   snaps, the cajon, a whistle, tambourine and glockenspiel, roughly a layer a
+   minute; the storm doubles the strumming and moves everything up a whole
+   tone. Events lay their own parts on top: glockenspiel and a marching snare
+   for the parade, bells and fingerpicking for slow motion. */
+const BPM = 104, SIXTEENTH = 60 / BPM / 4;
+
+/* Ukulele shapes in its re-entrant GCEA tuning, listed in the order a down
+   strum meets the strings; a bass root; and the triad pops are drawn from. */
+const CH = {
+  C:  { uke: [67, 60, 64, 72], root: 36, tri: [60, 64, 67] },
+  G:  { uke: [67, 62, 67, 71], root: 43, tri: [55, 59, 62] },
+  Am: { uke: [69, 60, 64, 69], root: 45, tri: [57, 60, 64] },
+  F:  { uke: [69, 60, 65, 69], root: 41, tri: [53, 57, 60] },
+  Em: { uke: [67, 64, 67, 71], root: 40, tri: [52, 55, 59] }
+};
 
 /* [sixteenth, midi note, length in sixteenths], one row per bar. */
 const SECTIONS = {
-  /* Verse: the original tune. */
-  A: { chords: [C_, G_, Am, F_, C_, G_, Am, F_], melody: [
+  /* Verse. */
+  A: { chords: ['C', 'G', 'Am', 'F', 'C', 'G', 'Am', 'F'], melody: [
     [[0,76,2],[2,76,1],[3,79,3],[6,81,2],[8,79,2],[10,76,2],[12,72,2],[14,74,2]],
     [[0,74,2],[2,74,1],[3,79,3],[6,79,2],[8,83,2],[10,81,2],[12,79,4]],
     [[0,76,2],[2,76,1],[3,81,3],[6,84,2],[8,83,2],[10,81,2],[12,79,2],[14,76,2]],
@@ -235,8 +275,8 @@ const SECTIONS = {
     [[0,81,2],[2,84,2],[4,88,2],[6,86,2],[8,84,2],[10,81,2],[12,84,4]],
     [[0,81,2],[2,79,2],[4,77,2],[6,76,2],[8,74,2],[10,76,2],[12,79,2],[14,83,2]]
   ] },
-  /* Chorus: IV V iii vi | IV V I I, long notes reaching up. */
-  B: { chords: [F_, G_, Em, Am, F_, G_, C_, C_], melody: [
+  /* Chorus: long notes reaching up. */
+  B: { chords: ['F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'C'], melody: [
     [[0,81,4],[4,84,4],[8,81,2],[10,79,2],[12,77,4]],
     [[0,79,4],[4,83,4],[8,86,4],[12,83,4]],
     [[0,79,3],[3,76,3],[6,79,2],[8,83,4],[12,79,4]],
@@ -246,8 +286,8 @@ const SECTIONS = {
     [[0,88,6],[6,86,2],[8,84,4],[12,79,4]],
     [[0,84,8],[12,79,2],[14,83,2]]
   ] },
-  /* Bridge: vi IV I V, call and answer. */
-  C: { chords: [Am, F_, C_, G_, Am, F_, G_, G_], melody: [
+  /* Bridge: call and answer. */
+  C: { chords: ['Am', 'F', 'C', 'G', 'Am', 'F', 'G', 'G'], melody: [
     [[0,76,2],[2,81,2],[4,84,6],[12,83,2],[14,81,2]],
     [[0,77,4],[4,81,4],[8,77,8]],
     [[0,79,2],[2,84,2],[4,88,6],[12,86,2],[14,84,2]],
@@ -260,47 +300,106 @@ const SECTIONS = {
 };
 const SONG = ['A', 'B', 'A', 'B', 'C', 'B'];
 const STEPS = SONG.length * 8 * 16;
-const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-
-/* The note two scale steps below, for the harmony line. */
-function thirdBelow(m){
-  const pc = ((m % 12) + 12) % 12, i = MAJOR.indexOf(pc);
-  if (i < 0) return m - 3;
-  const j = (i + 5) % 7;
-  return m - (pc - MAJOR[j] + (j > i ? 12 : 0));
-}
 
 let loopTimer = null, nextT = 0, pos = 0, intensity = 0;
 let key = 0, dreamUntil = 0, paradeUntil = 0;
 
 function at(p){
   const sec = SECTIONS[SONG[Math.floor(p / 128) % SONG.length]], bar = Math.floor(p / 16) % 8;
-  return { sec, bar, s: p % 16, chord: sec.chords[bar].map(m => m + key) };
+  return { sec, bar, s: p % 16, ch: CH[sec.chords[bar]] };
 }
 
-function tone(m, t, dur, { type = 'triangle', gain = 0.1, cutoff = 0, attack = 0.008, echo = false,
-                           verb = 0, bus = null, detune = 0 } = {}){
-  const o = AC.createOscillator(), g = AC.createGain();
-  o.type = type; o.frequency.setValueAtTime(mtof(m), t);
-  if (detune) o.detune.value = detune;
-  let head = o;
-  if (cutoff){
-    const f = AC.createBiquadFilter();
-    f.type = 'lowpass'; f.frequency.value = cutoff;
-    o.connect(f); head = f;
+/* ---- plucked strings ---- */
+
+/* loss: how much is kept each trip round the string - higher rings longer.
+   soft: how hard the excitation is smoothed - a thumb rather than a pick. */
+const STRINGS = {
+  uke:  { secs: 1.6, loss: 0.996, soft: 0.5 },
+  lead: { secs: 1.6, loss: 0.998, soft: 0.65 },
+  bass: { secs: 1.6, loss: 0.998, soft: 0.2 }
+};
+const strings = new Map();
+
+function stringBuffer(m, kind){
+  const id = kind + m;
+  if (strings.has(id)) return strings.get(id);
+  const spec = STRINGS[kind], sr = AC.sampleRate;
+  const n = Math.floor(sr * spec.secs), buf = AC.createBuffer(1, n, sr), d = buf.getChannelData(0);
+  /* The averaging below adds half a sample of delay, so take it off here. */
+  const N = Math.max(2, Math.round(sr / mtof(m) - 0.5)), line = new Float32Array(N);
+  let lp = 0, mean = 0;
+  for (let i = 0; i < N; i++){ lp += (Math.random() * 2 - 1 - lp) * spec.soft; line[i] = lp; mean += lp; }
+  mean /= N;
+  for (let i = 0; i < N; i++) line[i] -= mean;
+  let i = 0, peak = 1e-6;
+  for (let k = 0; k < n; k++){
+    const a = line[i], b = line[i + 1 === N ? 0 : i + 1];
+    d[k] = a;
+    line[i] = spec.loss * (a + b) * 0.5;
+    if (Math.abs(a) > peak) peak = Math.abs(a);
+    i = i + 1 === N ? 0 : i + 1;
   }
+  const tail = Math.min(800, n >> 2);
+  for (let k = 0; k < n; k++) d[k] = d[k] / peak * (k > n - tail ? (n - k) / tail : 1);
+  strings.set(id, buf);
+  return buf;
+}
+
+function pluck(m, t, { kind = 'uke', gain = 0.2, dur = 0, verb = 0.15, dest = null } = {}){
+  const c = ctx();
+  const src = c.createBufferSource(), g = c.createGain();
+  src.buffer = stringBuffer(m, kind);
+  g.gain.setValueAtTime(gain, t);
+  /* A hand coming down on the strings, for the shorter bass notes. */
+  if (dur){ g.gain.setValueAtTime(gain, t + dur); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.08); }
+  src.connect(g); g.connect(dest || ukeBus);
+  if (verb){ const v = c.createGain(); v.gain.value = verb; g.connect(v); v.connect(reverbIn); }
+  src.start(t); src.stop(t + (dur ? dur + 0.1 : STRINGS[kind].secs));
+}
+
+/* A strum is the four strings a few milliseconds apart; an up-strum meets
+   them the other way round, lighter, and often misses the bottom string. */
+function strum(ch, t, up, vel){
+  const order = up ? [3, 2, 1] : [0, 1, 2, 3], gap = up ? 0.011 : 0.016;
+  order.forEach((s, k) => pluck(ch.uke[s] + key, t + k * gap,
+    { gain: vel * (up ? 0.6 : 1) * (0.85 + Math.random() * 0.3), verb: 0.12 }));
+}
+
+function bell(m, t, gain = 0.05, verb = 0.5, dest = null){
+  tone(m, t, 1.4, { type: 'sine', gain, attack: 0.003, verb, dest });
+  tone(m + 19, t, 0.4, { type: 'sine', gain: gain * 0.2, attack: 0.002, verb, dest });
+}
+
+/* A whistled note: sine, a slightly slow breath in, and a gentle wobble. */
+function whistle(m, t, dur, gain){
+  const o = AC.createOscillator(), g = AC.createGain(), lfo = AC.createOscillator(), depth = AC.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(mtof(m), t);
+  lfo.frequency.value = 5.2; depth.gain.value = mtof(m) * 0.008;
+  lfo.connect(depth); depth.connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.06);
+  g.gain.setValueAtTime(gain, t + Math.max(0.06, dur * 0.7));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+  o.connect(g); g.connect(musicGain);
+  const v = AC.createGain(); v.gain.value = 0.35; g.connect(v); v.connect(reverbIn);
+  o.start(t); lfo.start(t); o.stop(t + dur + 0.1); lfo.stop(t + dur + 0.1);
+}
+
+function tone(m, t, dur, { type = 'sine', gain = 0.1, attack = 0.008, verb = 0, dest = null } = {}){
+  const o = ctx().createOscillator(), g = AC.createGain();
+  o.type = type; o.frequency.setValueAtTime(mtof(m), t);
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + attack);
-  g.gain.setValueAtTime(gain, t + Math.max(attack, dur * 0.6));
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  head.connect(g); g.connect(bus || musicGain);
-  if (echo) g.connect(delaySend);
+  o.connect(g); g.connect(dest || musicGain);
   if (verb){ const v = AC.createGain(); v.gain.value = verb; g.connect(v); v.connect(reverbIn); }
   o.start(t); o.stop(t + dur + 0.02);
 }
 
-function drum(t, { dur, gain, freq, type = 'highpass', q = 1, verb = 0 }){
+/* ---- hand percussion ---- */
+
+function noiseHit(t, { dur, gain, freq, type = 'bandpass', q = 1, verb = 0 }){
   const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
   s.buffer = noiseBuffer(); s.loop = true;
   f.type = type; f.frequency.value = freq; f.Q.value = q;
@@ -310,109 +409,89 @@ function drum(t, { dur, gain, freq, type = 'highpass', q = 1, verb = 0 }){
   if (verb){ const v = AC.createGain(); v.gain.value = verb; g.connect(v); v.connect(reverbIn); }
   s.start(t); s.stop(t + dur + 0.02);
 }
+const shaker = (t, g) => noiseHit(t, { dur: 0.05, gain: g, freq: 6500, q: 0.8 });
+const snap = (t) => noiseHit(t, { dur: 0.03, gain: 0.32, freq: 2600, q: 4, verb: 0.25 });
+const tambourine = (t, g) => { for (const d of [0, 0.012, 0.03]) noiseHit(t + d, { dur: 0.09, gain: g, freq: 8000, type: 'highpass' }); };
 
-function kick(t){
+/* The cajon: a wooden box, low thump in the middle and a slap at the edge. */
+function cajonLow(t){
   const o = AC.createOscillator(), g = AC.createGain();
-  o.frequency.setValueAtTime(150, t);
-  o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
-  g.gain.setValueAtTime(0.75, t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-  o.connect(g); g.connect(musicGain);
-  o.start(t); o.stop(t + 0.3);
-  /* The pad ducks under every kick and swells back: the pulse that makes it
-     feel like it is breathing with the beat. */
-  padBus.gain.setValueAtTime(0.35, t);
-  padBus.gain.linearRampToValueAtTime(1, t + 0.24);
+  o.frequency.setValueAtTime(100, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+  g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+  o.connect(g); g.connect(musicGain); o.start(t); o.stop(t + 0.22);
+  noiseHit(t, { dur: 0.05, gain: 0.12, freq: 400, type: 'lowpass' });
 }
-
-function snare(t, gain = 0.3){
-  drum(t, { dur: 0.14, gain, freq: 1800, type: 'bandpass', q: 0.7, verb: 0.15 });
-  tone(55, t, 0.08, { type: 'triangle', gain: gain * 0.4 });
+function cajonSlap(t, gain = 0.24){
+  noiseHit(t, { dur: 0.1, gain, freq: 1900, q: 0.7, verb: 0.15 });
+  tone(57, t, 0.06, { type: 'triangle', gain: gain * 0.4 });
 }
-
-/* Three quick slaps and a tail, the shape of a real clap. */
 function clap(t){
-  for (const d of [0, 0.011, 0.023]) drum(t + d, { dur: 0.03, gain: 0.28, freq: 1150, type: 'bandpass', q: 1.2 });
-  drum(t + 0.03, { dur: 0.2, gain: 0.14, freq: 1150, type: 'bandpass', q: 0.8, verb: 0.3 });
+  for (const d of [0, 0.011, 0.023]) noiseHit(t + d, { dur: 0.03, gain: 0.24, freq: 1150, q: 1.2 });
+  noiseHit(t + 0.03, { dur: 0.18, gain: 0.1, freq: 1150, q: 0.8, verb: 0.3 });
 }
 
-/* Square plus a sine an octave down, through a filter that sweeps closed on
-   every note once the song is in full flow. */
-function bass(m, t, dur, sweep){
-  const f = AC.createBiquadFilter(), g = AC.createGain();
-  f.type = 'lowpass'; f.Q.value = sweep ? 6 : 1;
-  f.frequency.setValueAtTime(sweep ? 2600 : 700, t);
-  f.frequency.exponentialRampToValueAtTime(260, t + dur);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.1, t + 0.006);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  for (const [type, mm] of [['square', m], ['sine', m - 12]]){
-    const o = AC.createOscillator();
-    o.type = type; o.frequency.setValueAtTime(mtof(mm), t);
-    o.connect(type === 'sine' ? g : f);
-    o.start(t); o.stop(t + dur + 0.02);
-  }
-  f.connect(g); g.connect(musicGain);
-}
-
-function bell(m, t, gain = 0.05, verb = 0.6){
-  tone(m, t, 1.4, { type: 'sine', gain, attack: 0.004, verb });
-  tone(m + 19, t, 0.5, { type: 'sine', gain: gain * 0.25, attack: 0.002, verb });
-}
+/* Strum pattern, on sixteenths: down, down-up, up-down-up. */
+const STRUM = { 0: 'D', 4: 'D', 6: 'U', 10: 'U', 12: 'D', 14: 'U' };
+/* Fingerpicking, on eighths: thumb on the C string, then up and across. */
+const PICK = [1, 2, 3, 2, 0, 2, 3, 2];
 
 function play(p, t){
-  const { sec, bar, s, chord } = at(p), I = intensity;
-  const root = chord[0], dream = t < dreamUntil, parade = t < paradeUntil;
+  const { sec, bar, s, ch } = at(p), I = intensity;
+  const dream = t < dreamUntil, parade = t < paradeUntil;
+  const melody = sec.melody[bar].filter(([st]) => st === s);
 
-  /* Pad: three detuned saws a voice, so it sounds wide rather than thin. */
-  if (s === 0) chord.forEach(m => {
-    for (const d of [-14, 0, 14]) tone(m + 12, t, SIXTEENTH * 16,
-      { type: 'sawtooth', gain: dream ? 0.022 : 0.014, cutoff: dream ? 1600 : 1100, attack: 0.3, verb: 0.35, bus: padBus, detune: d });
-  });
+  /* A very soft warm bed under it all. */
+  if (s === 0 && I > 0.08) ch.tri.forEach(m => tone(m + key, t, SIXTEENTH * 16, { gain: 0.012, attack: 0.5, verb: 0.3 }));
 
   if (dream){
-    /* Slow motion: no drums, a low root, and bells drifting through the chord. */
-    if (s % 8 === 0) tone(root - 12, t, SIXTEENTH * 8, { type: 'sine', gain: 0.16, attack: 0.05 });
-    if (s % 2 === 0) bell(chord[(s / 2) % 3] + 24 + (s % 8 === 4 ? 12 : 0), t);
+    /* Slow motion: fingerpicking at half the pace, bells, nothing else. */
+    if (s % 4 === 0) pluck(ch.uke[PICK[s / 2]] + key, t, { gain: 0.2, verb: 0.4 });
+    if (s % 8 === 0) pluck(ch.root + key, t, { kind: 'bass', gain: 0.35, dur: SIXTEENTH * 7 });
+    for (const [, m] of melody) bell(m + key + 12, t, 0.045, 0.6);
     return;
   }
 
+  /* Ukulele: fingerpicked while it's quiet, strummed once it gets going,
+     double-time in the storm. */
   if (I < 0.25){
-    if (s % 8 === 0) tone(root - 12, t, SIXTEENTH * 7, { gain: 0.2 });
-  } else if (s % 2 === 0){
-    bass(root - 12 + (s % 4 === 2 ? 12 : 0), t, SIXTEENTH * 1.8, I > 0.7);
+    if (s % 2 === 0) pluck(ch.uke[PICK[s / 2]] + key, t, { gain: 0.3, verb: 0.25 });
+  } else if (I >= 0.97){
+    strum(ch, t, s % 2 === 1, s % 4 === 0 ? 0.24 : 0.16);
+  } else if (STRUM[s]){
+    strum(ch, t, STRUM[s] === 'U', s % 4 === 0 ? 0.22 : 0.17);
   }
 
-  if (I > 0.25 && s % 2 === 0) drum(t, { dur: 0.035, gain: s % 4 === 2 ? 0.06 : 0.035, freq: 7500 });
-  if (I > 0.3){
-    if (s % 4 === 0) kick(t);
-    if (s % 4 === 2) chord.forEach(m => tone(m + 12, t, SIXTEENTH * 1.3,
-      { type: 'square', gain: 0.026, cutoff: 1800, verb: 0.15, bus: padBus }));
-  }
-
-  if (I > 0.5){
-    if (s === 4 || s === 12) clap(t);
-    if (bar === 7 && s >= 12) snare(t, 0.16);
-    for (const [st, m, len] of sec.melody[bar]){
-      if (st !== s) continue;
-      const dur = SIXTEENTH * len * 0.92;
-      for (const d of [-8, 8]) tone(m + key, t, dur, { type: 'square', gain: 0.03, cutoff: 3200, echo: true, verb: 0.2, detune: d });
-      tone(m + key + 12, t, dur, { type: 'triangle', gain: 0.02 });
-      if (I > 0.85) tone(thirdBelow(m) + key, t, dur, { type: 'triangle', gain: 0.03, verb: 0.2 });
-      if (parade) bell(m + key + 12, t, 0.04, 0.3);
+  /* Bass: roots on one and three, then a walking bounce. */
+  if (I >= 0.12){
+    const bounce = I >= 0.45 ? [0, 6, 8, 14] : [0, 8];
+    if (bounce.includes(s)){
+      const m = ch.root + key + (s === 6 || s === 14 ? 7 : 0);
+      pluck(m, t, { kind: 'bass', gain: 0.42, dur: SIXTEENTH * (s % 8 === 0 ? 5 : 2), verb: 0.05 });
     }
   }
 
-  /* A shaker on every sixteenth, leaning on the off-beats. */
-  if (I > 0.62) drum(t, { dur: 0.04, gain: s % 2 ? 0.035 : 0.018, freq: 9500 });
-  /* A plucked arpeggio running through the chord. */
-  if (I > 0.62 && (s % 2 === 0 || I > 0.95)) tone(chord[s % 3] + 24, t, SIXTEENTH * 1.6,
-    { type: 'triangle', gain: 0.035, attack: 0.004, verb: 0.25 });
-  if (I > 0.7 && bar === 0 && s === 0) drum(t, { dur: 1.6, gain: 0.08, freq: 6000, verb: 0.3 });
-  if (I > 0.8 && s % 4 === 2) drum(t, { dur: 0.14, gain: 0.04, freq: 6000 });
+  if (I >= 0.3 && (s % 2 === 0 || I >= 0.7)) shaker(t, s % 4 === 2 ? 0.05 : 0.025);
 
-  /* The parade's marching snare: a drum-corps cadence over everything. */
-  if (parade && [0, 2, 3, 4, 6, 8, 10, 11, 12, 14].includes(s)) snare(t, s % 4 === 0 ? 0.2 : 0.1);
+  if (I >= 0.5 && I < 0.55 && (s === 4 || s === 12)) snap(t);
+  if (I >= 0.55){
+    if (s === 0 || s === 8 || s === 7) cajonLow(t);
+    if (s === 4 || s === 12) cajonSlap(t);
+    if (bar === 7 && s >= 12) cajonSlap(t, 0.12);
+  }
+  if (I >= 0.75 && (s === 4 || s === 12 || s % 4 === 2)) tambourine(t, s % 4 === 2 ? 0.025 : 0.04);
+  if (I >= 0.97 && (s === 4 || s === 12)) clap(t);
+
+  /* The tune: picked on the ukulele, whistled along with later, a
+     glockenspiel sparkle on top near the end - and always for the parade. */
+  if (I >= 0.4 || parade) for (const [, m, len] of melody){
+    const dur = SIXTEENTH * len * 0.95;
+    pluck(m + key, t, { kind: 'lead', gain: 0.3, verb: 0.2, dest: musicGain });
+    if (I >= 0.65) whistle(m + key, t, dur, 0.05);
+    if (I >= 0.85 || parade) bell(m + key + 12, t, 0.035, 0.3);
+  }
+
+  /* The parade's marching snare. */
+  if (parade && [0, 2, 3, 4, 6, 8, 10, 11, 12, 14].includes(s)) cajonSlap(t, s % 4 === 0 ? 0.2 : 0.09);
 }
 
 function schedule(){
@@ -433,11 +512,27 @@ export const music = {
   start(){
     if (loopTimer) return;
     ctx();
+    /* Build every string up front: a few dozen short buffers, cheaper now
+       than as a hitch the first time each note is needed. */
+    for (const c of Object.values(CH)){
+      for (const k of [0, 2]){
+        c.uke.forEach(m => stringBuffer(m + k, 'uke'));
+        stringBuffer(c.root + k, 'bass'); stringBuffer(c.root + k + 7, 'bass');
+      }
+    }
+    for (const sec of Object.values(SECTIONS))
+      for (const row of sec.melody) for (const [, m] of row) for (const k of [0, 2]) stringBuffer(m + k, 'lead');
     nextT = AC.currentTime + 0.05;
     loopTimer = setInterval(schedule, 25);
   },
   stop(){ clearInterval(loopTimer); loopTimer = null; },
-  intensity(v){ intensity = Math.max(0, Math.min(1, v)); },
+  /* Louder as well as fuller: the opening is meant to be quiet. */
+  intensity(v){
+    v = Math.max(0, Math.min(1, v));
+    if (AC && musicGain && Math.abs(v - intensity) > 0.005)
+      musicGain.gain.setTargetAtTime(0.6 * (0.45 + 0.55 * v), AC.currentTime, 0.8);
+    intensity = v;
+  },
 
   /* The next point on the song's grid, every `div` sixteenths, so a sound
      can land on the beat. Now, if the music isn't running. */
@@ -448,10 +543,10 @@ export const music = {
     const step = SIXTEENTH * div, base = nextT - (pos % div) * SIXTEENTH;
     return base + Math.ceil((now - base) / step) * step;
   },
-  /* The chord sounding now, as MIDI notes in the current key. */
-  chord(){ return at((pos + STEPS - 1) % STEPS).chord; },
+  /* The triad sounding now, as MIDI notes in the current key. */
+  chord(){ return at((pos + STEPS - 1) % STEPS).ch.tri.map(m => m + key); },
 
-  /* Slow motion: drums out, bells in, the top end softened, all of it
+  /* Slow motion: percussion out, bells in, the top end softened, all of it
      booked on the audio clock so it ends itself even if the round does
      first. */
   dream(secs){

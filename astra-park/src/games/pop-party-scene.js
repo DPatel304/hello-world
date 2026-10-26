@@ -5,7 +5,7 @@ import { sfx } from '../audio/sound.js';
 
    - the round's progress, which moves the sun from morning to sunset and
      brings the storm in at dusk;
-   - the wind, which the trees, grass and kite lean into;
+   - the wind, which the trees and grass lean into;
    - how well someone is doing, which makes the sun grin;
    - where the players stand, which shifts the layers a little against each
      other, like looking through a window;
@@ -52,16 +52,20 @@ const GROUND = {
 /* Deterministic scatter, so the landscape holds still between frames. */
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
 
-const PEAKS_FAR  = Array.from({ length: 11 }, (_, i) => ({ x: -0.1 + i * 0.12 + hash(i, 3) * 0.05, y: 0.40 + hash(i, 5) * 0.16 }));
-const PEAKS_NEAR = Array.from({ length: 9 },  (_, i) => ({ x: -0.12 + i * 0.16 + hash(i, 7) * 0.06, y: 0.53 + hash(i, 11) * 0.10 }));
+const PEAKS_FAR  = Array.from({ length: 11 }, (_, i) => ({ x: -0.1 + i * 0.12 + hash(i, 3) * 0.05, y: 0.47 + hash(i, 5) * 0.12 }));
+const PEAKS_NEAR = Array.from({ length: 9 },  (_, i) => ({ x: -0.12 + i * 0.16 + hash(i, 7) * 0.06, y: 0.58 + hash(i, 11) * 0.08 }));
 const CLOUDS = Array.from({ length: 9 }, (_, i) => ({
   seed: (i * 0.618) % 1, y: 0.06 + ((i * 0.37) % 1) * 0.36,
   s: i % 3 === 0 ? 1.4 : (i % 3 === 1 ? 1 : 0.65), speed: i % 3 === 0 ? 0.012 : (i % 3 === 1 ? 0.008 : 0.005)
 }));
-const TREES = [[0.07,0.76,1,0],[0.17,0.82,1.3,1],[0.30,0.78,0.85,0],[0.70,0.80,1.1,1],[0.86,0.76,0.95,0],[0.95,0.83,1.25,1]];
+const TREES = [[0.07,0.775,0.7,0],[0.17,0.85,0.95,1],[0.30,0.785,0.6,0],[0.70,0.845,0.85,1],[0.86,0.775,0.65,0],[0.95,0.855,0.95,1]];
 const TUFTS = Array.from({ length: 44 }, (_, i) => ({ x: -0.06 + hash(i, 13) * 1.12, y: 0.935 + hash(i, 17) * 0.065,
                                                        h: 0.022 + hash(i, 19) * 0.022, ph: hash(i, 23) * 6.28 }));
-const HILLS = [{ y:0.70, h:0.10, n:3, depth:0.035 }, { y:0.79, h:0.13, n:4, depth:0.045 }, { y:0.89, h:0.16, n:3, depth:0.055 }];
+/* Each band of hills fades toward the horizon's colour by its haze: the
+   way distance looks, and what lets the bright balloons sit in front. */
+const HILLS = [{ y:0.74, h:0.07, n:3, depth:0.03, haze:0.40 },
+               { y:0.82, h:0.10, n:4, depth:0.042, haze:0.20 },
+               { y:0.90, h:0.14, n:3, depth:0.055, haze:0.04 }];
 const FRONT = 0.055;
 
 export class Scene {
@@ -72,8 +76,6 @@ export class Scene {
     this.flock = null; this.nextFlock = 6 + Math.random() * 10;
     this.butterflies = Array.from({ length: 3 }, (_, i) => ({
       x: 0.2 + i * 0.3, y: 0.8, vx: 0.04, vy: 0, hue: [320, 45, 190][i], ph: i * 2 }));
-    this.airships = [{ x: 0.25, y: 0.42, s: 0.032, speed: 0.004, a: '#ff6b6b', b: '#ffe066' },
-                     { x: 0.78, y: 0.33, s: 0.024, speed: 0.003, a: '#6bc6ff', b: '#ffffff' }];
     this.leaves = Array.from({ length: 34 }, () => this._leaf(true));
     this.rainbow = 0;
     /* One unprompted rainbow a round, besides the parade's. */
@@ -120,11 +122,6 @@ export class Scene {
       if (b.x < 0.04 || b.x > 0.96) b.vx *= -1;
       if (b.y < 0.74 || b.y > 0.92) b.vy *= -1;
       b.x = Math.max(0.04, Math.min(0.96, b.x)); b.y = Math.max(0.74, Math.min(0.92, b.y));
-    }
-
-    for (const a of this.airships){
-      a.x += a.speed * dt * (1 + this.wind * 0.3);
-      if (a.x > 1.15) a.x = -0.15; if (a.x < -0.15) a.x = 1.15;
     }
 
     if (this.storm > 0.3) for (const l of this.leaves){
@@ -174,11 +171,11 @@ export class Scene {
     if (this.storm > 0.02) this._stormClouds(c, W, H);
     if (this.rainbow > 0.01) this._rainbow(c, W, H);
     this._mountains(c, W, H, L, ground);
-    if (!this.lite) this._airships(c, W, H, ground);
+    this._mist(c, W, H, L, 0.5, 0.76, 0.6);
     if (this.flock) this._birds(c, W, H);
     if (this.bolt && this.flash > 0.25) this._bolt(c, W, H);
     this._clouds(c, W, H, L, 0.8, 9);
-    this._hills(c, W, H, ground);
+    this._hills(c, W, H, ground, L);
   }
 
   drawFront(c, W, H){
@@ -280,8 +277,8 @@ export class Scene {
   }
 
   _mountains(c, W, H, L, ground){
-    for (const [peaks, base, haze, depth, snow] of [[PEAKS_FAR, GROUND.farPeak, 0.45, 0.015, true],
-                                                    [PEAKS_NEAR, GROUND.nearPeak, 0.25, 0.025, false]]){
+    for (const [peaks, base, haze, depth, snow] of [[PEAKS_FAR, GROUND.farPeak, 0.7, 0.012, true],
+                                                    [PEAKS_NEAR, GROUND.nearPeak, 0.5, 0.02, false]]){
       const dx = this._shift(depth, W);
       const col = ground(mix(base, L.low, haze));
       c.fillStyle = rgb(col);
@@ -293,38 +290,29 @@ export class Scene {
       }
       c.lineTo(W * 1.2, H * 0.8); c.closePath(); c.fill();
       if (snow){
-        c.fillStyle = rgb(mix([255, 255, 255], col, 0.25));
+        c.fillStyle = rgb(mix([255, 255, 255], col, 0.5));
         for (const p of peaks){
-          if (p.y > 0.46) continue;
-          const x = p.x * W + dx, y = p.y * H, w = H * 0.035;
+          if (p.y > 0.52) continue;
+          const x = p.x * W + dx, y = p.y * H, w = H * 0.025;
           c.beginPath(); c.moveTo(x, y); c.lineTo(x - w, y + w * 0.9); c.lineTo(x + w, y + w * 0.9); c.closePath(); c.fill();
         }
       }
     }
   }
 
-  _airships(c, W, H, ground){
-    const vis = 1 - this.storm;
-    if (vis < 0.05) return;
-    c.globalAlpha = 0.9 * vis;
-    for (const a of this.airships){
-      const x = a.x * W + this._shift(0.02, W), y = a.y * H + Math.sin(this.t * 0.6 + a.x * 9) * H * 0.008;
-      const r = a.s * H, A = rgb(ground(hex(a.a))), B = rgb(ground(hex(a.b)));
-      c.fillStyle = A; c.beginPath(); c.ellipse(x, y, r * 0.82, r, 0, 0, 6.2832); c.fill();
-      c.fillStyle = B; c.beginPath(); c.ellipse(x, y, r * 0.45, r, 0, 0, 6.2832); c.fill();
-      c.fillStyle = A; c.beginPath(); c.ellipse(x, y, r * 0.15, r, 0, 0, 6.2832); c.fill();
-      c.strokeStyle = 'rgba(80,60,40,.8)'; c.lineWidth = Math.max(1, r * 0.06);
-      c.beginPath(); c.moveTo(x - r * 0.4, y + r * 0.85); c.lineTo(x - r * 0.18, y + r * 1.35);
-      c.moveTo(x + r * 0.4, y + r * 0.85); c.lineTo(x + r * 0.18, y + r * 1.35); c.stroke();
-      c.fillStyle = '#8a5a32'; c.fillRect(x - r * 0.2, y + r * 1.32, r * 0.4, r * 0.3);
-    }
-    c.globalAlpha = 1;
+  /* A band of haze in the horizon's colour, thickest near its bottom edge. */
+  _mist(c, W, H, L, from, to, strength){
+    const g = c.createLinearGradient(0, H * from, 0, H * to);
+    g.addColorStop(0, rgb(L.low, 0));
+    g.addColorStop(0.75, rgb(L.low, strength));
+    g.addColorStop(1, rgb(L.low, 0));
+    c.fillStyle = g; c.fillRect(0, H * from, W, H * (to - from));
   }
 
   _birds(c, W, H){
-    const f = this.flock, w = H * 0.018;
+    const f = this.flock, w = H * 0.013;
     const pos = [[0, 0], [-1, -1], [-1, 1], [-2, -2], [-2, 2]];
-    c.strokeStyle = 'rgba(40,40,70,.75)'; c.lineWidth = Math.max(2, H * 0.003); c.lineCap = 'round';
+    c.strokeStyle = 'rgba(40,40,70,.45)'; c.lineWidth = Math.max(1.5, H * 0.0024); c.lineCap = 'round';
     c.beginPath();
     pos.forEach(([bx, by], i) => {
       const x = f.x * W + f.dir * bx * W * 0.03 + this._shift(0.01, W), y = f.y * H + by * H * 0.025;
@@ -343,10 +331,11 @@ export class Scene {
     c.stroke();
   }
 
-  _hills(c, W, H, ground){
+  _hills(c, W, H, ground, L){
     HILLS.forEach((band, b) => {
       const dx = this._shift(band.depth, W), m = W * 0.08;
-      c.fillStyle = rgb(ground(GROUND.hills[b]));
+      const far = (col) => rgb(mix(ground(col), L.low, band.haze));
+      c.fillStyle = far(GROUND.hills[b]);
       c.beginPath(); c.moveTo(-m + dx, H); c.lineTo(-m + dx, H * band.y);
       const span = (W + m * 2) / band.n;
       for (let i = 0; i < band.n; i++){
@@ -360,48 +349,15 @@ export class Scene {
         if (onBand !== b) continue;
         const x = W * fx + dx, y = H * fy, sc = (H / 900) * fs;
         const sway = (Math.sin(this.t * 1.3 + fx * 20) * 0.25 + this.wind * 0.5) * 6 * sc;
-        c.fillStyle = rgb(ground(GROUND.trunk)); c.fillRect(x - 5 * sc, y, 10 * sc, 42 * sc);
-        c.fillStyle = rgb(ground(GROUND.leaf));
+        c.fillStyle = far(GROUND.trunk); c.fillRect(x - 5 * sc, y, 10 * sc, 42 * sc);
+        c.fillStyle = far(GROUND.leaf);
         c.beginPath(); c.arc(x + sway, y - 10 * sc, 34 * sc, 0, 6.2832); c.fill();
-        c.fillStyle = rgb(ground(GROUND.leafLit));
+        c.fillStyle = far(GROUND.leafLit);
         c.beginPath(); c.arc(x + sway * 1.3 - 10 * sc, y - 22 * sc, 22 * sc, 0, 6.2832); c.fill();
       }
-
-      /* The kite flies from the far hill. */
-      if (b === 0) this._kite(c, W, H, dx);
+      /* A thinner veil of mist between the far hills and the nearer ones. */
+      if (b === 0) this._mist(c, W, H, L, 0.7, 0.84, 0.3);
     });
-  }
-
-  _kite(c, W, H, dx){
-    /* Anchored a third of the way along, where the sun's path stays well
-       above it: low left in the morning, low right at sunset, high between. */
-    const ax = W * 0.24 + dx, ay = H * 0.71;
-    const wild = 1 + this.storm * 3;
-    const kx = ax + W * (0.08 + this.wind * 0.012 + Math.sin(this.t * 0.7) * 0.015 * wild);
-    const ky = H * (0.36 + Math.sin(this.t * 1.1) * 0.025 * wild);
-    const k = H * 0.04, tilt = Math.sin(this.t * 1.7) * 0.25 * wild;
-    c.strokeStyle = 'rgba(60,50,80,.6)'; c.lineWidth = Math.max(1, H * 0.0015);
-    c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo((ax + kx) / 2, (ay + ky) / 2 + H * 0.06, kx, ky + k); c.stroke();
-    /* Tail: a ribbon with bows, waving. */
-    c.beginPath(); c.moveTo(kx, ky + k);
-    const tail = [];
-    for (let i = 1; i <= 6; i++){
-      const tx = kx - i * k * 0.35, ty = ky + k + i * k * 0.4 + Math.sin(this.t * 6 - i) * k * 0.2;
-      c.lineTo(tx, ty); tail.push([tx, ty]);
-    }
-    c.stroke();
-    c.fillStyle = '#ff5d9e';
-    for (const [tx, ty] of tail.filter((_, i) => i % 2)){
-      c.beginPath(); c.moveTo(tx - k * 0.15, ty - k * 0.1); c.lineTo(tx + k * 0.15, ty + k * 0.1);
-      c.lineTo(tx + k * 0.15, ty - k * 0.1); c.lineTo(tx - k * 0.15, ty + k * 0.1); c.closePath(); c.fill();
-    }
-    c.save(); c.translate(kx, ky); c.rotate(tilt);
-    const quads = [['#ff5d5d', [0, -k], [k * 0.7, 0]], ['#ffd84d', [k * 0.7, 0], [0, k]],
-                   ['#ff5d5d', [0, k], [-k * 0.7, 0]], ['#ffd84d', [-k * 0.7, 0], [0, -k]]];
-    for (const [col, a, b] of quads){
-      c.fillStyle = col; c.beginPath(); c.moveTo(0, 0); c.lineTo(...a); c.lineTo(...b); c.closePath(); c.fill();
-    }
-    c.restore();
   }
 
   _grass(c, W, H, ground){

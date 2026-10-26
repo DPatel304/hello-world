@@ -2,6 +2,7 @@ import { Juice, clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx, music } from '../audio/sound.js';
 import { Scene } from './pop-party-scene.js';
+import { ANIMALS, animalParts, animalCol, touches, drawAnimal } from './pop-party-animals.js';
 
 /* Five-minute rounds; the storm is always the last ten seconds. */
 export const ROUND = 300;
@@ -34,12 +35,14 @@ export const SIZES = [
    area of 2.46 r², which is a quarter of the screen at r = 0.425 - about 85%
    of the screen height, top to bottom. */
 export const GIANT_R = 0.425;
-/* One giant a round, at a random moment in this window: never in the calm
-   opening, and early enough to rise into view well before the storm. */
-export const GIANT_WINDOW = [75, 255];
+/* Two giants a round, one at a random moment in each window: never in the
+   calm opening, and early enough to rise into view well before the storm. */
+export const GIANT_WINDOWS = [[75, 140], [175, 250]];
 /* Something that size would pop the instant any hand reached it, before
    anyone had seen it. Instead it takes slaps - separate ones, so a hand
-   resting on it counts once - and counts them down on its face. */
+   resting on it counts once - and counts them down on its face. However
+   many it gets, it cannot pop until the whole balloon is on screen, and
+   once it is, it slows to hover there a while. */
 export const GIANT_SLAPS = 6;
 
 /* Teeny balloons are tiny to look at but not to catch: a hand that lands
@@ -71,10 +74,10 @@ export const SLOW = 0.3, SLOW_SECS = 5;
 export const PARADE_N = 12, PARADE_BONUS = 20;
 const PARADE_SPEED = 0.16, PARADE_GAP = 0.075;
 
-/* The balloon dog trots across the lower sky; one touch pops it, part by
-   part, nose last. */
-export const DOG_WORTH = 15;
-const DOG_SPEED = 0.1, DOG_REACH = 0.14, DOG_SIZE = 0.17;
+/* A balloon animal walks across the lower sky; one touch pops it, part by
+   part, face last. */
+export const ANIMAL_WORTH = 15;
+const ANIMAL_SOUNDS = { dog: 'bark', giraffe: 'squeak', elephant: 'trumpet' };
 const STR_N = 7;
 
 function pick(table){
@@ -96,7 +99,7 @@ class PopParty {
     this.j = new Juice();
     this.t = 0; this.spawn = 0; this.wind = 0; this.over = false;
     this.slowT = 0; this.scale = 1;
-    this.parade = null; this.dog = null;
+    this.parade = null; this.animal = null;
     this.events = planEvents(FINALE);
     this.scene = new Scene();
   }
@@ -104,7 +107,7 @@ class PopParty {
   step(dt, W, H){
     this.t += dt;
 
-    /* Slow motion stretches the world, not the round: balloons, the dog, the
+    /* Slow motion stretches the world, not the round: balloons, animals, the
        spawner and the effects run on scaled time while the clock and the
        storm keep real time. Eased in and out so it reads as slowing down
        rather than a jump. */
@@ -118,13 +121,16 @@ class PopParty {
 
     for (const e of this.events){
       if (e.done || this.t < e.at) continue;
+      /* One animal at a time: a second waits for the first to leave. */
+      if (ANIMALS[e.kind] && this.animal){
+        e.at += 3;
+        if (e.at > FINALE - 10) e.done = true;   /* too late now; skip it */
+        continue;
+      }
       e.done = true;
       if (e.kind === 'parade') this._parade();
-      else if (e.kind === 'dog') this._dog();
-      else if (e.kind === 'giant'){
-        this.balloons.unshift(this._giant());
-        this._announce('GIANT BALLOON!', '#ffe066', 1);
-      }
+      else if (e.kind === 'giant') this.balloons.unshift(this._giant());
+      else if (ANIMALS[e.kind]) this._animal(e.kind);
     }
 
     /* The sky fills up as the round goes: a couple of balloons to start, so
@@ -161,7 +167,7 @@ class PopParty {
         this._string(b, W, H);
         continue;
       }
-      b.by -= b.rise * lift * sdt;
+      b.by -= b.rise * lift * sdt * (b.giant && this._giantUp(b) ? 0.45 : 1);
       b.wx += this.wind * sdt;
       const [ox, oy] = MOTIONS[b.motion].at(b, b.age);
       const nx = clamp(b.x0 + ox + b.wx, 0.04, 0.96);
@@ -175,7 +181,7 @@ class PopParty {
     }
 
     for (let i = 0; i < 2; i++) this.comboT[i] = Math.max(0, this.comboT[i] - dt);
-    this._stepDog(sdt, W, H);
+    this._stepAnimal(sdt, W, H);
 
     for (let i = 0; i < this.players; i++){
       const p = pose.players[i];
@@ -194,10 +200,8 @@ class PopParty {
             } else b.inside.delete(key);
           } else if (d < Math.max(b.r * 1.15, MIN_REACH)) this._hit(b, i, W, H);
         }
-        const dog = this.dog;
-        if (dog && dog.popT < 0 && Math.hypot((hand.x - dog.x) * (W / H), hand.y - dog.y) < DOG_REACH){
-          this._hitDog(i, W, H);
-        }
+        const an = this.animal;
+        if (an && an.popT < 0 && touches(an, hand.x, hand.y, W, H)) this._hitAnimal(i, W, H);
       }
     }
 
@@ -249,10 +253,13 @@ class PopParty {
     return b;
   }
 
+  /* The whole balloon on screen, bottom edge and all. */
+  _giantUp(b){ return b.y != null && b.y + b.r <= 0.98; }
+
   _slap(b, who, W, H){
     b.slaps++; b.wob = 1;
-    if (b.slaps >= GIANT_SLAPS) return this._hit(b, who, W, H);
-    sfx.boing(b.slaps);
+    if (b.slaps >= GIANT_SLAPS && this._giantUp(b)) return this._hit(b, who, W, H);
+    sfx.boing(Math.min(b.slaps, GIANT_SLAPS));
     this.j.kick(6);
     this.fx.push({ k:'ring', x:b.x * W, y:b.y * H, r:b.r * H * 0.5, age:0, life:0.3 });
   }
@@ -337,7 +344,8 @@ class PopParty {
 
     if (b.parade && ++this.parade.popped === this.parade.total){
       this.score[who] += PARADE_BONUS;
-      this._announce(`PERFECT PARADE! +${PARADE_BONUS}`, PLAYER_COLORS[who], 3);
+      this.j.pop(px, py - H * 0.08, '+' + PARADE_BONUS, PLAYER_COLORS[who]);
+      sfx.combo(3);
     }
   }
 
@@ -387,54 +395,54 @@ class PopParty {
       b.x = b.x0; b.y = b.by;
       this.balloons.push(b);
     }
-    this._announce('BALLOON PARADE!', '#fff', null);
     sfx.parade(); music.parade(PARADE_N * PARADE_GAP / PARADE_SPEED + 6);
   }
 
-  _dog(){
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    this.dog = { dir, x: dir > 0 ? -0.15 : 1.15, y0: 0.58 + Math.random() * 0.08, y: 0.6,
-                 age: 0, hue: HUES[(Math.random() * HUES.length) | 0], popT: -1, popped: 0 };
-    this._announce('BALLOON DOG!', '#fff', null);
-    sfx.bark();
+  _animal(kind){
+    const def = ANIMALS[kind], dir = Math.random() < 0.5 ? 1 : -1;
+    this.animal = { kind, dir, x: dir > 0 ? -0.2 : 1.2, age: 0, popT: -1, popped: 0,
+                    y0: def.y0[0] + Math.random() * (def.y0[1] - def.y0[0]), y: def.y0[0],
+                    hue: def.hues[(Math.random() * def.hues.length) | 0] };
+    sfx[ANIMAL_SOUNDS[kind]]();
   }
 
-  _stepDog(sdt, W, H){
-    const d = this.dog;
-    if (!d) return;
-    d.age += sdt;
-    if (d.popT < 0){
-      d.x += d.dir * DOG_SPEED * sdt;
-      d.y = d.y0 - Math.abs(Math.sin(d.age * 4.2)) * 0.06;
-      if (d.dir > 0 ? d.x > 1.2 : d.x < -0.2) this.dog = null;
+  _stepAnimal(sdt, W, H){
+    const an = this.animal;
+    if (!an) return;
+    const def = ANIMALS[an.kind];
+    an.age += sdt;
+    if (an.popT < 0){
+      an.x += an.dir * def.speed * sdt;
+      an.y = an.y0 - def.bob(an.age);
+      if (an.dir > 0 ? an.x > 1.25 : an.x < -0.25) this.animal = null;
       return;
     }
-    /* Popping runs through the parts one after another, tail to nose. */
-    d.popT += sdt;
-    const parts = dogParts(d, W, H);
-    while (d.popped < parts.length && d.popT >= d.popped * 0.08){
-      const p = parts[d.popped];
+    /* Popping runs through the parts one after another, face last. */
+    an.popT += sdt;
+    const parts = animalParts(an, W, H);
+    while (an.popped < parts.length && an.popT >= an.popped * 0.08){
+      const p = parts[an.popped];
       const mx = (p.a[0] + p.b[0]) / 2, my = (p.a[1] + p.b[1]) / 2;
       this.fx.push({ k:'ring', x:mx, y:my, r:p.w * 0.8, age:0, life:0.3 });
       for (let i = 0; i < 5; i++){
         const a = Math.random() * 6.2832, sp = (160 + Math.random() * 220) * (H / 1080);
         this.fx.push({ k:'shard', x:mx, y:my, vx:Math.cos(a) * sp, vy:Math.sin(a) * sp - 120,
-          rot:a, vr:(Math.random() - 0.5) * 18, s:p.w * 0.35, col:p.far ? dogFar(d) : dogCol(d),
+          rot:a, vr:(Math.random() - 0.5) * 18, s:p.w * 0.35, col:animalCol(an, p.far),
           age:0, life:0.6 });
       }
-      sfx.pop(0.2, d.popped);
-      d.popped++;
+      sfx.pop(0.2, an.popped);
+      an.popped++;
     }
-    if (d.popped >= parts.length && d.popT > parts.length * 0.08 + 0.3) this.dog = null;
+    if (an.popped >= parts.length && an.popT > parts.length * 0.08 + 0.3) this.animal = null;
   }
 
-  _hitDog(who, W, H){
-    const d = this.dog;
-    d.popT = 0;
-    this.score[who] += DOG_WORTH;
-    this.scene.pop(d.x, d.hue);
-    sfx.bark(); this.j.kick(10);
-    this.j.pop(d.x * W, d.y * H - H * 0.12, `WOOF! +${DOG_WORTH}`, PLAYER_COLORS[who]);
+  _hitAnimal(who, W, H){
+    const an = this.animal;
+    an.popT = 0;
+    this.score[who] += ANIMAL_WORTH;
+    this.scene.pop(an.x, an.hue);
+    sfx[ANIMAL_SOUNDS[an.kind]](); this.j.kick(10);
+    this.j.pop(an.x * W, an.y * H - H * 0.12, '+' + ANIMAL_WORTH, PLAYER_COLORS[who]);
   }
 
   _stepFx(dt, H){
@@ -461,7 +469,7 @@ class PopParty {
     c.lineWidth = Math.max(1.5, H * 0.0022);
     for (const b of this.balloons) rope(c, b.str);
     for (const b of this.balloons) this._balloon(c, b, W, H);
-    if (this.dog) drawDog(c, this.dog, W, H);
+    if (this.animal) drawAnimal(c, this.animal, W, H);
     /* Grass and flowers stand in front of the balloons, so a new one rises
        from behind the meadow rather than appearing over it. */
     this.scene.drawFront(c, W, H);
@@ -508,7 +516,8 @@ class PopParty {
       c.textAlign = 'center'; c.textBaseline = 'middle';
       c.font = `900 ${Math.round(r * 0.75)}px ui-rounded, system-ui, sans-serif`;
       c.lineWidth = Math.max(6, r * 0.06); c.strokeStyle = 'rgba(30,15,60,.6)';
-      const left = String(GIANT_SLAPS - b.slaps);
+      /* Never below 1 while it can't pop yet: one more, once it's up. */
+      const left = String(Math.max(1, GIANT_SLAPS - b.slaps));
       c.strokeText(left, x, y - r * 0.1); c.fillStyle = '#fff'; c.fillText(left, x, y - r * 0.1);
       c.textAlign = 'start'; c.textBaseline = 'alphabetic';
     }
@@ -604,18 +613,17 @@ class PopParty {
 
 /* Surprises are planned when the round starts so they never pile up. The
    round from just after the opening to fifteen seconds before the storm is
-   cut into windows of
-   about a minute; in each, every kind has its own chance of turning up at a
-   random moment, at least EVENT_GAP from any other surprise. Over five
-   minutes that is the one giant, a couple of parades and a couple of dogs
-   on average, and never the same round twice. */
-export const EVENTS = { parade: 0.5, dog: 0.45 };
+   cut into windows of about a minute; in each, every kind has its own
+   chance of turning up at a random moment, at least EVENT_GAP from any other
+   surprise. Over five minutes that is the two giants, a couple of parades and
+   three or so balloon animals on average, and never the same round twice. */
+export const EVENTS = { parade: 0.5, dog: 0.3, giraffe: 0.25, elephant: 0.25 };
 export const EVENT_GAP = 15;
 export function planEvents(finale){
   const from = OPENING + 5, to = finale - 15;
   const n = Math.max(1, Math.round((to - from) / 60)), span = (to - from) / n;
-  /* The giant is placed first, so the smaller surprises make room for it. */
-  const out = [{ kind: 'giant', at: GIANT_WINDOW[0] + Math.random() * (GIANT_WINDOW[1] - GIANT_WINDOW[0]), done: false }];
+  /* The giants are placed first, so the smaller surprises make room. */
+  const out = GIANT_WINDOWS.map(([a, b]) => ({ kind: 'giant', at: a + Math.random() * (b - a), done: false }));
   for (let w = 0; w < n; w++){
     for (const [kind, chance] of Object.entries(EVENTS)){
       if (Math.random() >= chance) continue;
@@ -626,58 +634,6 @@ export function planEvents(finale){
     }
   }
   return out.sort((a, b) => a.at - b.at);
-}
-
-const dogCol = (d) => `hsl(${d.hue} 85% 60%)`;
-const dogFar = (d) => `hsl(${d.hue} 72% 46%)`;
-
-/* A twisted-balloon dog as a list of sausages in screen pixels, in drawing
-   order: the far legs and ear first, the snout last. That is also the order
-   they pop in. Units are fractions of the dog's size, facing right. */
-function dogParts(d, W, H){
-  const s = DOG_SIZE * H, cx = d.x * W, cy = d.y * H;
-  const sw = Math.sin(d.age * 9) * 0.13;
-  const tail = -2.2 + Math.sin(d.age * 14) * 0.35;
-  const P = (x, y) => [cx + d.dir * x * s, cy + y * s];
-  return [
-    { a:P(-0.42, -0.02), b:P(-0.42 + Math.cos(tail) * 0.45, -0.02 + Math.sin(tail) * 0.45), w:0.19 * s },
-    { a:P(-0.38, 0.04), b:P(-0.38 + sw, 0.5), w:0.21 * s, far:true },
-    { a:P(0.34, 0.04),  b:P(0.34 - sw, 0.5),  w:0.21 * s, far:true },
-    { a:P(0.5, -0.44),  b:P(0.62, -0.86),     w:0.21 * s, far:true },
-    { a:P(-0.42, 0),    b:P(0.38, 0),         w:0.30 * s },
-    { a:P(-0.38, 0.04), b:P(-0.38 - sw, 0.5), w:0.21 * s },
-    { a:P(0.34, 0.04),  b:P(0.34 + sw, 0.5),  w:0.21 * s },
-    { a:P(0.38, 0),     b:P(0.5, -0.44),      w:0.26 * s },
-    { a:P(0.5, -0.44),  b:P(0.42, -0.86),     w:0.21 * s },
-    { a:P(0.5, -0.44),  b:P(0.92, -0.38),     w:0.26 * s, snout:true, eye:P(0.62, -0.5), nose:P(0.95, -0.38) }
-  ];
-}
-
-function drawDog(c, d, W, H){
-  const parts = dogParts(d, W, H);
-  c.lineCap = 'round';
-  for (let i = d.popped; i < parts.length; i++){
-    const p = parts[i], col = p.far ? dogFar(d) : dogCol(d);
-    const [x1, y1] = p.a, [x2, y2] = p.b;
-    c.strokeStyle = `hsl(${d.hue} 70% 30%)`; c.lineWidth = p.w + Math.max(3, H * 0.004);
-    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
-    c.strokeStyle = col; c.lineWidth = p.w;
-    c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
-    /* A streak of shine along the top of each twist. */
-    c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = p.w * 0.2;
-    c.beginPath();
-    c.moveTo(x1 + (x2 - x1) * 0.2, y1 + (y2 - y1) * 0.2 - p.w * 0.2);
-    c.lineTo(x1 + (x2 - x1) * 0.65, y1 + (y2 - y1) * 0.65 - p.w * 0.2);
-    c.stroke();
-    if (p.snout){
-      const s = DOG_SIZE * H;
-      c.fillStyle = '#1d1430';
-      c.beginPath(); c.arc(p.nose[0], p.nose[1], s * 0.055, 0, 6.2832); c.fill();
-      c.beginPath(); c.arc(p.eye[0], p.eye[1], s * 0.045, 0, 6.2832); c.fill();
-      c.fillStyle = '#fff';
-      c.beginPath(); c.arc(p.eye[0] + s * 0.015, p.eye[1] - s * 0.015, s * 0.015, 0, 6.2832); c.fill();
-    }
-  }
 }
 
 function balloonPath(c, r){
