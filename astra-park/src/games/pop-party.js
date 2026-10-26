@@ -41,9 +41,9 @@ export const GIANT_R = 0.425;
 export const GIANT_WINDOWS = [[75, 140], [175, 250]];
 /* Something that size would pop the instant any hand reached it, before
    anyone had seen it. Instead it takes slaps - separate ones, so a hand
-   resting on it counts once - and counts them down on its face. However
-   many it gets, it cannot pop until the whole balloon is on screen, and
-   once it is, it slows to hover there a while. */
+   resting on it counts once - each one answered with a wobble and a boing
+   a step higher. However many it gets, it cannot pop until the whole
+   balloon is on screen, and once it is, it slows to hover there a while. */
 export const GIANT_SLAPS = 6;
 
 /* Teeny balloons are tiny to look at but not to catch: a hand that lands
@@ -145,9 +145,12 @@ class PopParty {
        the first seconds are about learning to reach, building to a dozen,
        then a storm for the last ten seconds so the end feels like the end. */
     const storm = this.t >= FINALE;
-    /* No words for anything: the storm arrives on a gust that sweeps the
-       screen, and the scene darkens behind it. */
-    if (storm && this.t - dt < FINALE){ this._gust(W, H); sfx.whoosh(); sfx.combo(2); }
+    /* No words for anything: the balloon storm starts with confetti
+       showering down from the top of the screen. */
+    if (storm && this.t - dt < FINALE){
+      for (let k = 0; k < 6; k++) this._confetti(W * (0.1 + k * 0.16), H * 0.02, H);
+      sfx.combo(2);
+    }
     /* A parade wants the sky to itself, near enough. */
     const want = this.parade && this._paradeOn() ? Math.min(this.target(), 4) : this.target();
     const ramp = 1 + Math.min(1, this.t / FINALE) * 0.3 + (storm ? 0.25 : 0);
@@ -467,14 +470,6 @@ class PopParty {
     }
   }
 
-  /* Wind streaks racing across the screen. */
-  _gust(W, H){
-    for (let i = 0; i < 46; i++){
-      this.fx.push({ k:'gust', x: -W * (0.1 + Math.random() * 0.6), y: H * (0.05 + Math.random() * 0.85),
-        vx: W * (1.4 + Math.random() * 0.9), len: W * (0.06 + Math.random() * 0.12), age: 0, life: 1.6 });
-    }
-  }
-
   _paradeOn(){ return this.balloons.some(b => b.parade); }
 
   /* Where the players stand, averaged, for the scene's parallax. */
@@ -561,7 +556,6 @@ class PopParty {
         f.x += (f.vx + Math.sin(f.age * 9 + f.ph) * 40) * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
       }
       else if (f.k === 'string'){ for (const p of f.pts){ p.vy = (p.vy || 0) + g * 0.6 * dt; p.y += p.vy * dt; } }
-      else if (f.k === 'gust') f.x += f.vx * dt;
     }
     this.fx = this.fx.filter(f => f.age < f.life);
   }
@@ -623,16 +617,6 @@ class PopParty {
     c.beginPath(); c.arc(-r * 0.2, -r * 0.7, r * 0.05, 0, 6.2832); c.fill();
     c.restore();
 
-    if (b.giant){
-      c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.font = `900 ${Math.round(r * 0.75)}px ui-rounded, system-ui, sans-serif`;
-      c.lineWidth = Math.max(6, r * 0.06); c.strokeStyle = 'rgba(30,15,60,.6)';
-      /* Never below 1 while it can't pop yet: one more, once it's up. */
-      const left = String(Math.max(1, GIANT_SLAPS - b.slaps));
-      c.strokeText(left, x, y - r * 0.1); c.fillStyle = '#fff'; c.fillText(left, x, y - r * 0.1);
-      c.textAlign = 'start'; c.textBaseline = 'alphabetic';
-    }
-
     if (b.r < SIZES[1].r[0] && !b.bouquet){
       const pulse = 0.5 + 0.5 * Math.sin(this.t * 6 + b.ph);
       c.strokeStyle = `rgba(255,255,255,${0.45 + pulse * 0.4})`;
@@ -670,10 +654,6 @@ class PopParty {
         c.globalAlpha = 1 - k;
         c.strokeStyle = 'rgba(70,60,110,.55)'; c.lineWidth = Math.max(1.5, H * 0.0022);
         rope(c, f.pts);
-      } else if (f.k === 'gust'){
-        c.globalAlpha = 0.55 * Math.sin(Math.PI * k);
-        c.strokeStyle = '#fff'; c.lineWidth = Math.max(2, H * 0.004);
-        c.beginPath(); c.moveTo(f.x, f.y); c.lineTo(f.x - f.len, f.y + f.len * 0.04); c.stroke();
       } else if (f.k === 'ripple' && f.age > 0){
         c.globalAlpha = 0.6 * (1 - k);
         c.strokeStyle = '#bfe8ff'; c.lineWidth = Math.max(3, H * 0.008 * (1 - k));

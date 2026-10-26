@@ -203,20 +203,6 @@ export const sfx = {
       hiss({ dur: 0.05, gain: 0.12, hp: 1200, type: 'bandpass', q: 1, delay: d });
     });
   },
-  /* Thunder for the storm: a crack, then a rumble rolling away. */
-  thunder(delay = 0.3){
-    const c = ctx(), t = c.currentTime + delay;
-    const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
-    s.buffer = noiseBuffer(); s.loop = true;
-    f.type = 'lowpass';
-    f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(110, t + 2.2);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.55, t + 0.08);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6);
-    s.connect(f); f.connect(g); g.connect(master);
-    s.start(t); s.stop(t + 2.7);
-    hiss({ dur: 0.12, gain: 0.25, hp: 2500, delay });
-  },
   /* The giant balloon: a deep thump under the ordinary pop. */
   boom(){
     blip({ freq: 110, to: 32, dur: 0.7, type: 'sine', gain: 0.6 });

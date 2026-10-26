@@ -5,15 +5,12 @@ import { Scene, lighting } from '../src/games/pop-party-scene.js';
 const calm = (over = {}) => ({ t: 0, p: 0, storm: false, wind: 0, joy: 0, look: 0.5, rainbow: false, ...over });
 const sum = (c) => c[0] + c[1] + c[2];
 
-test('the sky runs from morning through sunset, and the storm darkens it', () => {
-  const morning = lighting(0, 0), noon = lighting(0.35, 0), sunset = lighting(1, 0), storm = lighting(1, 1);
+test('the sky runs from morning through sunset', () => {
+  const morning = lighting(0), noon = lighting(0.35), sunset = lighting(1);
   assert.ok(noon.top[2] > noon.top[0], 'midday sky should be blue');
   assert.ok(sunset.low[0] > sunset.low[2] + 60, 'the sunset horizon should be warm');
   assert.ok(sum(sunset.top) < sum(morning.top), 'the sky should darken towards sunset');
-  assert.ok(sum(storm.mid) < sum(sunset.mid) * 0.6, 'the storm should be much darker again');
-  assert.ok(storm.dark > sunset.dark, 'and dim the ground');
 });
-
 test('every pop grows a flower of that colour where it happened', () => {
   const sc = new Scene();
   sc.pop(0.3, 120);
@@ -26,21 +23,27 @@ test('every pop grows a flower of that colour where it happened', () => {
   assert.ok(sc.flowers.length <= 60, 'the meadow keeps its newest flowers only');
 });
 
-test('lightning comes with the storm and never before it', () => {
-  const sc = new Scene();
-  let flashed = false;
-  for (let i = 0; i < 60 * 30; i++){
-    sc.step(1 / 60, calm({ t: i / 60, p: i / 1800 }));
-    flashed ||= sc.flash > 0.5;
-  }
-  assert.equal(flashed, false, 'no lightning in fair weather');
-  for (let i = 0; i < 60 * 10; i++){
-    sc.step(1 / 60, calm({ t: 30 + i / 60, p: 1, storm: true }));
-    flashed ||= sc.flash > 0.5;
-  }
-  assert.ok(flashed, 'lightning within ten seconds of storm');
+test('the balloon storm brings no weather: same sky, no lightning, no dark clouds', () => {
+  const stops = (storm) => {
+    const sc = new Scene(), seen = [];
+    for (let i = 0; i < 60 * 8; i++) sc.step(1 / 60, calm({ t: 290 + i / 60, p: 1, storm }));
+    const c = new Proxy({}, {
+      get(t, k){
+        if (k in t) return t[k];
+        if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop: (o, col) => seen.push(col) });
+        return () => {};
+      },
+      set(t, k, v){ if (k === 'fillStyle' && typeof v === 'string') seen.push(v); t[k] = v; return true; }
+    });
+    sc.drawBack(c, 1920, 1080); sc.drawFront(c, 1920, 1080);
+    return { seen, sc };
+  };
+  const fair = stops(false), finale = stops(true);
+  assert.deepEqual(finale.seen.slice(0, 3), fair.seen.slice(0, 3), 'the sky colours should not change for the finale');
+  assert.ok(!finale.seen.some(col => /rgba\(235,240,255/.test(col)), 'no lightning flash');
+  assert.ok(!finale.seen.some(col => /rgba\(40,42,70/.test(col)), 'no storm clouds');
+  assert.equal('flash' in finale.sc || 'bolt' in finale.sc, false);
 });
-
 test('the world shifts against where the players stand', () => {
   const left = new Scene(), right = new Scene();
   for (let i = 0; i < 300; i++){
@@ -61,18 +64,12 @@ test('a rainbow shows during the parade and fades after', () => {
   assert.ok(sc.rainbow < 0.05);
 });
 
-test('birds fly by in fair weather, not in the storm', () => {
-  const fair = new Scene(), storm = new Scene();
-  let fairBirds = 0, stormBirds = 0;
-  for (let i = 0; i < 60 * 60; i++){
-    fair.step(1 / 60, calm({ t: i / 60 }));
-    storm.step(1 / 60, calm({ t: i / 60, p: 1, storm: true }));
-    fairBirds += !!fair.flock; stormBirds += !!storm.flock && storm.storm > 0.5;
-  }
-  assert.ok(fairBirds > 0, 'a minute of fair weather should bring birds');
-  assert.equal(stormBirds, 0);
+test('birds fly by now and then', () => {
+  const sc = new Scene();
+  let birds = 0;
+  for (let i = 0; i < 60 * 60; i++){ sc.step(1 / 60, calm({ t: i / 60 })); birds += !!sc.flock; }
+  assert.ok(birds > 0, 'a minute should bring birds');
 });
-
 test('the sun grins when someone is on a streak', () => {
   const sc = new Scene();
   for (let i = 0; i < 120; i++) sc.step(1 / 60, calm({ joy: 1 }));

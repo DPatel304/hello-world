@@ -1,18 +1,17 @@
-import { sfx } from '../audio/sound.js';
-
 /* The world Pop Party happens in. The game owns the balloons; this owns
    everything around them, and is told just enough to react:
 
-   - the round's progress, which moves the sun from morning to sunset and
-     brings the storm in at dusk;
-   - the wind, which the trees and grass lean into;
+   - the round's progress, which moves the sun from morning to sunset;
+   - the wind, which the trees and grass lean into - harder through the
+     balloon storm at the end, which is balloons, not weather: no dark
+     clouds, rain or lightning;
    - how well someone is doing, which makes the sun grin;
    - where the players stand, which shifts the layers a little against each
      other, like looking through a window;
    - every pop, which grows a flower of that colour in the meadow.
 
-   drawBack paints what sits behind the balloons, drawFront the grass,
-   flowers and weather in front of them. Nothing here is an image file, and
+   drawBack paints what sits behind the balloons, drawFront the grass and
+   flowers in front of them. Nothing here is an image file, and
    the per-frame cost is kept to a few dozen shapes plus a couple of batched
    strokes, since the pose model is sharing the same laptop. */
 
@@ -21,24 +20,22 @@ const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
 const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 const BLACK = [0, 0, 0];
 
-/* Time of day across the round, by progress 0..1, then the storm laid over
-   the top. light/amt tint the ground; dark dims it. */
+/* Time of day across the round, by progress 0..1. light/amt tint the
+   ground; dark dims it. */
 const DAY = [
   { p:0,    top:'#5ab8ff', mid:'#a8dcff', low:'#ffe9cf', light:'#ffe2c8', amt:0.10, dark:0.00, sun:'#fff1b0', cloud:'#ffffff' },
   { p:0.35, top:'#2f9bf5', mid:'#7cc9ff', low:'#d6f1ff', light:'#ffffff', amt:0.00, dark:0.00, sun:'#fff4b8', cloud:'#ffffff' },
   { p:0.72, top:'#3a74d6', mid:'#f2b07a', low:'#ffd98a', light:'#ffb35c', amt:0.22, dark:0.04, sun:'#ffd36b', cloud:'#ffeedd' },
   { p:1,    top:'#2a2f78', mid:'#e0668c', low:'#ffad66', light:'#ff7a5c', amt:0.30, dark:0.20, sun:'#ff9a55', cloud:'#ffc8b4' }
 ].map(k => ({ ...k, ...Object.fromEntries(['top','mid','low','light','sun','cloud'].map(f => [f, hex(k[f])])) }));
-const STORM = { top:hex('#14162e'), mid:hex('#33355a'), low:hex('#5d6185'), light:hex('#3a4170'),
-                amt:0.45, dark:0.38, sun:hex('#ff9a55'), cloud:hex('#5a5e80') };
 
-export function lighting(p, storm){
+export function lighting(p){
   let i = 0;
   while (i < DAY.length - 2 && p > DAY[i + 1].p) i++;
   const a = DAY[i], b = DAY[i + 1], t = Math.min(1, Math.max(0, (p - a.p) / (b.p - a.p)));
   const L = {};
-  for (const f of ['top','mid','low','light','sun','cloud']) L[f] = mix(mix(a[f], b[f], t), STORM[f], storm);
-  for (const f of ['amt','dark']) L[f] = a[f] + (b[f] - a[f]) * t + (STORM[f] - (a[f] + (b[f] - a[f]) * t)) * storm;
+  for (const f of ['top','mid','low','light','sun','cloud']) L[f] = mix(a[f], b[f], t);
+  for (const f of ['amt','dark']) L[f] = a[f] + (b[f] - a[f]) * t;
   return L;
 }
 
@@ -71,12 +68,8 @@ const FRONT = 0.055;
 export class Scene {
   constructor(){
     this.t = 0; this.p = 0; this.storm = 0; this.wind = 0; this.joy = 0; this.look = 0;
-    this.flash = 0; this.bolt = null; this.boltT = 1.5;
     this.flowers = [];
     this.flock = null; this.nextFlock = 6 + Math.random() * 10;
-    this.butterflies = Array.from({ length: 3 }, (_, i) => ({
-      x: 0.2 + i * 0.3, y: 0.8, vx: 0.04, vy: 0, hue: [320, 45, 190][i], ph: i * 2 }));
-    this.leaves = Array.from({ length: 34 }, () => this._leaf(true));
     this.rainbow = 0;
     /* One unprompted rainbow a round, besides the parade's. */
     this.rainbowAt = 70 + Math.random() * 140;
@@ -86,7 +79,8 @@ export class Scene {
     this.lite = false; this.frame = 1 / 60; this.slowFor = 0;
   }
 
-  /* s: { t, p, storm (bool), wind, joy 0..1, look 0..1, rainbow (bool) } */
+  /* s: { t, p, storm (bool: the finale, which only stiffens the breeze), wind,
+        joy 0..1, look 0..1, rainbow (bool) } */
   step(dt, s){
     this.t = s.t; this.p = Math.min(1, s.p);
     this.frame += (dt - this.frame) * 0.05;
@@ -101,7 +95,7 @@ export class Scene {
     this.wind = s.wind / 0.022 + gust;
 
     const wantBow = s.rainbow || (this.t >= this.rainbowAt && this.t < this.rainbowAt + 25);
-    this.rainbow += ((wantBow && this.storm < 0.3 ? 0.42 : 0) - this.rainbow) * Math.min(1, dt * 0.8);
+    this.rainbow += ((wantBow ? 0.42 : 0) - this.rainbow) * Math.min(1, dt * 0.8);
 
     for (const f of this.flowers) f.age += dt;
     if (this.flowers.length > 60) this.flowers.splice(0, this.flowers.length - 60);
@@ -109,44 +103,11 @@ export class Scene {
     if (this.flock){
       this.flock.x += this.flock.dir * this.flock.speed * dt;
       if (this.flock.dir > 0 ? this.flock.x > 1.2 : this.flock.x < -0.2) this.flock = null;
-    } else if (this.storm < 0.2 && (this.nextFlock -= dt) <= 0){
+    } else if ((this.nextFlock -= dt) <= 0){
       const dir = Math.random() < 0.5 ? 1 : -1;
       this.flock = { dir, x: dir > 0 ? -0.15 : 1.15, y: 0.12 + Math.random() * 0.22, speed: 0.055 + Math.random() * 0.03 };
       this.nextFlock = 18 + Math.random() * 22;
     }
-
-    for (const b of this.butterflies){
-      b.vx += (Math.random() - 0.5) * dt * 0.8; b.vy += (Math.random() - 0.5) * dt * 0.8;
-      b.vx = Math.max(-0.07, Math.min(0.07, b.vx)); b.vy = Math.max(-0.05, Math.min(0.05, b.vy));
-      b.x += b.vx * dt; b.y += b.vy * dt;
-      if (b.x < 0.04 || b.x > 0.96) b.vx *= -1;
-      if (b.y < 0.74 || b.y > 0.92) b.vy *= -1;
-      b.x = Math.max(0.04, Math.min(0.96, b.x)); b.y = Math.max(0.74, Math.min(0.92, b.y));
-    }
-
-    if (this.storm > 0.3) for (const l of this.leaves){
-      l.x -= l.vx * dt * (0.6 + this.storm); l.y += (l.vy + Math.sin(this.t * 3 + l.ph) * 0.08) * dt;
-      l.rot += l.vr * dt;
-      if (l.x < -0.05 || l.y > 1.05) Object.assign(l, this._leaf(false));
-    }
-
-    /* Lightning, once the storm has properly arrived. */
-    this.flash *= Math.pow(0.002, dt);
-    if (this.storm > 0.6 && (this.boltT -= dt) <= 0){
-      this.boltT = 1.8 + Math.random() * 2.6;
-      this.flash = 1;
-      const x0 = 0.15 + Math.random() * 0.7, pts = [[x0, 0.05]];
-      for (let y = 0.05; y < 0.66; y += 0.07) pts.push([pts[pts.length - 1][0] + (Math.random() - 0.5) * 0.06, y + 0.07]);
-      this.bolt = pts;
-      sfx.thunder(0.15 + Math.random() * 0.4);
-    }
-  }
-
-  _leaf(scatter){
-    return { x: scatter ? Math.random() * 1.1 : 1.05 + Math.random() * 0.1, y: Math.random() * 0.8,
-             vx: 0.35 + Math.random() * 0.35, vy: 0.04 + Math.random() * 0.08,
-             rot: Math.random() * 6, vr: (Math.random() - 0.5) * 9, ph: Math.random() * 6,
-             col: ['#d98b2b', '#e7b13a', '#7cb342', '#c0562c'][(Math.random() * 4) | 0] };
   }
 
   /* A flower comes up in the meadow under every pop, in the balloon's
@@ -159,7 +120,7 @@ export class Scene {
   _shift(depth, W){ return -(this.look + Math.sin(this.t * 0.04) * 0.08) * depth * W; }
 
   drawBack(c, W, H){
-    const L = lighting(this.p, this.storm);
+    const L = lighting(this.p);
     const ground = (base) => mix(mix(base, L.light, L.amt), BLACK, L.dark);
 
     const sky = c.createLinearGradient(0, 0, 0, H * 0.8);
@@ -168,39 +129,28 @@ export class Scene {
 
     this._sun(c, W, H, L);
     this._clouds(c, W, H, L, 0, 0.8);
-    if (this.storm > 0.02) this._stormClouds(c, W, H);
     if (this.rainbow > 0.01) this._rainbow(c, W, H);
     this._mountains(c, W, H, L, ground);
     this._mist(c, W, H, L, 0.5, 0.76, 0.6);
     if (this.flock) this._birds(c, W, H);
-    if (this.bolt && this.flash > 0.25) this._bolt(c, W, H);
     this._clouds(c, W, H, L, 0.8, 9);
     this._hills(c, W, H, ground, L);
   }
 
   drawFront(c, W, H){
-    const L = lighting(this.p, this.storm);
+    const L = lighting(this.p);
     const ground = (base) => mix(mix(base, L.light, L.amt), BLACK, L.dark);
     if (!this.lite) this._grass(c, W, H, ground);
     this._flowers(c, W, H);
-    if (!this.lite && this.storm < 0.95) this._butterflies(c, W, H);
-    if (this.storm > 0.3) this._leaves(c, W, H);
-    if (this.flash > 0.02){
-      c.fillStyle = `rgba(235,240,255,${this.flash * 0.45})`;
-      c.fillRect(0, 0, W, H);
-    }
   }
 
   /* ---------- layers ---------- */
 
   _sun(c, W, H, L){
-    const vis = 1 - this.storm;
-    if (vis < 0.02) return;
     /* Rises on the left, high at midday, low on the right by sunset. */
     const sx = W * (0.12 + this.p * 0.76) + this._shift(0.01, W);
     const sy = H * (0.62 - Math.sin(Math.PI * (0.1 + 0.8 * this.p)) * 0.48);
     const sr = H * 0.065 * (1 + this.joy * 0.12);
-    c.globalAlpha = vis;
     /* The glow is a gradient worked out for every pixel it covers, so it
        covers only where it can be seen, and lite mode goes without. */
     if (!this.lite){
@@ -251,16 +201,6 @@ export class Scene {
       const x = ((cl.seed + this.t * cl.speed * (1 + Math.max(0, this.wind) * 0.4)) % 1) * (W + w * 2) - w
                 + this._shift(0.012 * cl.s, W);
       cloud(c, x, H * cl.y, w, col, 0.55 + cl.s * 0.3);
-    }
-  }
-
-  _stormClouds(c, W, H){
-    const col = `rgba(40,42,70,${0.9 * this.storm})`;
-    for (let i = 0; i < 7; i++){
-      const w = H * (0.42 + hash(i, 29) * 0.25);
-      const x = ((hash(i, 31) + this.t * 0.03) % 1) * (W + w * 2) - w;
-      const y = H * (0.02 + hash(i, 37) * 0.18) - (1 - this.storm) * H * 0.3;
-      cloud(c, x, y, w, col, 1);
     }
   }
 
@@ -320,14 +260,6 @@ export class Scene {
       c.moveTo(x - w, y - flap); c.quadraticCurveTo(x - w * 0.5, y - w * 0.4, x, y);
       c.quadraticCurveTo(x + w * 0.5, y - w * 0.4, x + w, y - flap);
     });
-    c.stroke();
-  }
-
-  _bolt(c, W, H){
-    c.strokeStyle = `rgba(255,255,230,${Math.min(1, this.flash * 1.3)})`;
-    c.lineWidth = Math.max(3, H * 0.006); c.lineJoin = 'round';
-    c.beginPath();
-    this.bolt.forEach(([x, y], i) => i ? c.lineTo(x * W, y * H) : c.moveTo(x * W, y * H));
     c.stroke();
   }
 
@@ -409,33 +341,6 @@ export class Scene {
     c.fill();
   }
 
-  _butterflies(c, W, H){
-    const dx = this._shift(FRONT, W), s = H * 0.016;
-    c.globalAlpha = 1 - this.storm;
-    for (const b of this.butterflies){
-      const x = b.x * W + dx, y = b.y * H, flap = Math.abs(Math.sin(this.t * 16 + b.ph));
-      c.fillStyle = `hsl(${b.hue} 85% 68%)`;
-      for (const side of [-1, 1]){
-        c.beginPath(); c.ellipse(x + side * s * 0.6 * flap, y - s * 0.3, s * 0.65 * flap + 0.5, s * 0.8, side * 0.4, 0, 6.2832); c.fill();
-        c.beginPath(); c.ellipse(x + side * s * 0.45 * flap, y + s * 0.45, s * 0.45 * flap + 0.5, s * 0.5, -side * 0.4, 0, 6.2832); c.fill();
-      }
-      c.fillStyle = '#3b2a4a';
-      c.fillRect(x - s * 0.08, y - s * 0.7, s * 0.16, s * 1.4);
-    }
-    c.globalAlpha = 1;
-  }
-
-  _leaves(c, W, H){
-    c.globalAlpha = Math.min(1, (this.storm - 0.3) * 2);
-    const s = H * 0.012;
-    for (const l of this.leaves){
-      c.save(); c.translate(l.x * W, l.y * H); c.rotate(l.rot);
-      c.fillStyle = l.col;
-      c.beginPath(); c.ellipse(0, 0, s, s * 0.5, 0, 0, 6.2832); c.fill();
-      c.restore();
-    }
-    c.globalAlpha = 1;
-  }
 }
 
 function cloud(c, x, y, w, col, alpha){

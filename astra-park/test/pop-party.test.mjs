@@ -496,3 +496,20 @@ test('bouquet balloons are never mistaken for teeny ones', () => {
   const biggest = Math.max(...rings) / 1080;
   assert.ok(biggest < g.items[0].r * 2, `a ring ${(biggest / g.items[0].r).toFixed(1)}x the balloon was drawn`);
 });
+
+test('the giant carries no number', () => {
+  const inst = popParty.create(1);
+  const g = inst._giant(); g.x = 0.5; g.y = 0.5; g.slaps = 3;
+  const texts = [];
+  const c = new Proxy({}, {
+    get(t, k){
+      if (k in t) return t[k];
+      if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop(){} });
+      if (k === 'fillText' || k === 'strokeText') return (txt) => texts.push(txt);
+      return () => {};
+    },
+    set(t, k, v){ t[k] = v; return true; }
+  });
+  inst._balloon(c, g, 1920, 1080);
+  assert.deepEqual(texts, []);
+});
