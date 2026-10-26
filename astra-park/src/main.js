@@ -195,13 +195,13 @@ function tick(now){
   cursor.update(dt, document.getElementById('ui'));
   drawHUD();
   oc.clearRect(0, 0, W, H);
-  cursor.draw(oc, W, H);
+  if (mode !== 'play' || paused || lost) cursor.draw(oc, W, H);
   drawPerf(dt);
 
   requestAnimationFrame(tick);
 }
 
-let showSkeleton = true, showPerf = false;
+let showSkeleton = false, showPerf = false;
 let rFps = 0, rN = 0, rAcc = 0;
 
 /* A readout rather than a guess. Pose runs only when the camera hands over a

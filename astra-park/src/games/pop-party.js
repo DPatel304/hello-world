@@ -2,6 +2,7 @@ import { Juice, clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx, music } from '../audio/sound.js';
 import { Scene } from './pop-party-scene.js';
+import { Avatars } from '../ui/avatars.js';
 import { ANIMALS, animalParts, animalCol, touches, drawAnimal } from './pop-party-animals.js';
 
 /* Five-minute rounds; the storm is always the last ten seconds. */
@@ -95,13 +96,13 @@ class PopParty {
     this.comboT = [0, 0];
     this.balloons = [];
     this.fx = [];
-    this.banner = null;
     this.j = new Juice();
     this.t = 0; this.spawn = 0; this.wind = 0; this.over = false;
     this.slowT = 0; this.scale = 1;
     this.parade = null; this.animal = null;
     this.events = planEvents(FINALE);
     this.scene = new Scene();
+    this.avatars = new Avatars();
   }
 
   step(dt, W, H){
@@ -137,7 +138,9 @@ class PopParty {
        the first seconds are about learning to reach, building to a dozen,
        then a storm for the last ten seconds so the end feels like the end. */
     const storm = this.t >= FINALE;
-    if (storm && this.t - dt < FINALE) this._announce('BALLOON STORM!', '#fff', 2);
+    /* No words for anything: the storm arrives on a gust that sweeps the
+       screen, and the scene darkens behind it. */
+    if (storm && this.t - dt < FINALE){ this._gust(W, H); sfx.whoosh(); sfx.combo(2); }
     /* A parade wants the sky to itself, near enough. */
     const want = this.parade && this._paradeOn() ? Math.min(this.target(), 4) : this.target();
     const ramp = 1 + Math.min(1, this.t / FINALE) * 0.3 + (storm ? 0.25 : 0);
@@ -215,7 +218,7 @@ class PopParty {
       return b.y > -0.2 - b.r * 3;
     });
     this._stepFx(sdt, H);
-    if (this.banner){ this.banner.age += dt; if (this.banner.age > 1.6) this.banner = null; }
+    this.avatars.step(dt, this.players, this.combo.map((c, i) => this.comboT[i] > 0 ? (c >= 10 ? 2 : c >= 5 ? 1 : 0) : 0));
   }
 
   _make(x0){
@@ -309,7 +312,7 @@ class PopParty {
     const mult = c >= 10 ? 3 : c >= 5 ? 2 : 1;
     const pts = b.worth * mult;
     this.score[who] += pts;
-    if (c === 5 || c === 10) this._announce(`COMBO x${mult}!`, PLAYER_COLORS[who], mult - 1);
+    if (c === 5 || c === 10){ sfx.combo(mult - 1); this.avatars.burst(who, this.players); }
 
     /* Bigger balloons pop lower and heavier; the combo walks the pop up the
        scale the music is in, so a streak plays a tune. */
@@ -335,7 +338,8 @@ class PopParty {
       sfx.boom(); this.j.kick(34);
       this.slowT = SLOW_SECS;
       sfx.slowmo(); music.dream(SLOW_SECS);
-      this._announce('SLOW MOTION!', '#9fe3ff', null);
+      /* Slow ripples spreading out from where it burst. */
+      for (let k = 0; k < 3; k++) this.fx.push({ k:'ripple', x:px, y:py, r:H * 0.05, age:-k * 0.35, life:2.2 });
     }
     if (b.str.length) this.fx.push({ k:'string', pts:b.str.map(p => ({ ...p })), age:0, life:0.9 });
 
@@ -364,11 +368,12 @@ class PopParty {
       s:r * (0.12 + Math.random() * 0.12), age:0, life:0.5 });
   }
 
-  /* level is the size of the fanfare; null when the event brings its own
-     sound. */
-  _announce(text, color, level){
-    this.banner = { text, color, age:0 };
-    if (level != null) sfx.combo(level);
+  /* Wind streaks racing across the screen. */
+  _gust(W, H){
+    for (let i = 0; i < 46; i++){
+      this.fx.push({ k:'gust', x: -W * (0.1 + Math.random() * 0.6), y: H * (0.05 + Math.random() * 0.85),
+        vx: W * (1.4 + Math.random() * 0.9), len: W * (0.06 + Math.random() * 0.12), age: 0, life: 1.6 });
+    }
   }
 
   _paradeOn(){ return this.balloons.some(b => b.parade); }
@@ -456,12 +461,15 @@ class PopParty {
         f.x += (f.vx + Math.sin(f.age * 9 + f.ph) * 40) * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
       }
       else if (f.k === 'string'){ for (const p of f.pts){ p.vy = (p.vy || 0) + g * 0.6 * dt; p.y += p.vy * dt; } }
+      else if (f.k === 'gust') f.x += f.vx * dt;
     }
     this.fx = this.fx.filter(f => f.age < f.life);
   }
 
   draw(c, W, H){
     this.scene.drawBack(c, W, H);
+    /* The players stand in the scene behind the balloons, feet in the grass. */
+    this.avatars.drawBodies(c, W, H, this.players);
     const shook = this.j.applyShake(c);
 
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -477,7 +485,8 @@ class PopParty {
     this.j.draw(c, H);
     if (shook) c.restore();
     this._drawSlow(c, W, H);
-    this._drawBanner(c, W, H);
+    /* Hands go on top of everything, so a child never loses them. */
+    this.avatars.drawMitts(c, W, H, this.players);
   }
 
   _balloon(c, b, W, H){
@@ -559,6 +568,14 @@ class PopParty {
         c.globalAlpha = 1 - k;
         c.strokeStyle = 'rgba(70,60,110,.55)'; c.lineWidth = Math.max(1.5, H * 0.0022);
         rope(c, f.pts);
+      } else if (f.k === 'gust'){
+        c.globalAlpha = 0.55 * Math.sin(Math.PI * k);
+        c.strokeStyle = '#fff'; c.lineWidth = Math.max(2, H * 0.004);
+        c.beginPath(); c.moveTo(f.x, f.y); c.lineTo(f.x - f.len, f.y + f.len * 0.04); c.stroke();
+      } else if (f.k === 'ripple' && f.age > 0){
+        c.globalAlpha = 0.6 * (1 - k);
+        c.strokeStyle = '#bfe8ff'; c.lineWidth = Math.max(3, H * 0.008 * (1 - k));
+        c.beginPath(); c.arc(f.x, f.y, f.r + k * H * 0.9, 0, 6.2832); c.stroke();
       }
     }
     c.globalAlpha = 1;
@@ -572,24 +589,6 @@ class PopParty {
     g.addColorStop(0, `rgba(120,200,255,${0.1 * k})`);
     g.addColorStop(1, `rgba(50,100,210,${0.62 * k})`);
     c.fillStyle = g; c.fillRect(0, 0, W, H);
-  }
-
-  _drawBanner(c, W, H){
-    const b = this.banner;
-    if (!b) return;
-    /* Overshoots on the way in, then fades: read in a glance, gone before it
-       hides a balloon for long. */
-    const a = b.age;
-    const s = a < 0.25 ? 0.4 + 0.8 * Math.sin((a / 0.25) * 1.9) : 1;
-    c.save();
-    c.globalAlpha = a > 1.2 ? Math.max(0, 1 - (a - 1.2) / 0.4) : 1;
-    c.translate(W / 2, H * 0.36); c.scale(s, s); c.rotate(-0.04);
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = `900 ${Math.round(H * 0.11)}px ui-rounded, system-ui, sans-serif`;
-    c.lineWidth = Math.max(6, H * 0.016); c.strokeStyle = 'rgba(40,20,80,.85)';
-    c.strokeText(b.text, 0, 0);
-    c.fillStyle = b.color; c.fillText(b.text, 0, 0);
-    c.restore();
   }
 
   hud(){

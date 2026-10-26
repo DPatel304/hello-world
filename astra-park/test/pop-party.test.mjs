@@ -144,7 +144,6 @@ test('every round brings two giants, each at a moment that varies', () => {
     const [a, b] = GIANT_WINDOWS[k];
     assert.ok(t >= a && t <= b + 0.5, `giant ${k + 1} at ${t.toFixed(1)}s, outside ${a}-${b}s`);
   });
-  assert.equal(inst.banner, null, 'no banner announces a giant');
 
   /* Across many rounds each lands all over its window. */
   const plans = Array.from({ length: 3000 }, () => planEvents(FINALE).filter(e => e.kind === 'giant').map(e => e.at));
@@ -304,7 +303,6 @@ for (const kind of Object.keys(ANIMALS)){
   test(`the balloon ${kind} walks across, unannounced, and leaves if nobody catches it`, () => {
     const inst = quiet();
     inst._animal(kind);
-    assert.equal(inst.banner, null, 'no text for a balloon animal');
     const x0 = inst.animal.x;
     run(inst, 3);
     assert.ok(inst.animal && Math.abs(inst.animal.x - x0) > 0.15, 'it should be on its way');
@@ -339,10 +337,25 @@ test('a hand nowhere near a balloon animal leaves it alone', () => {
   assert.equal(inst.hud().score[0], 0);
 });
 
-test('the parade comes unannounced', () => {
-  const inst = quiet();
-  inst._parade();
-  assert.equal(inst.banner, null);
+test('the only words on screen are scores: nothing is announced in text', () => {
+  onePlayer({ x: 0.5, y: 0.5 });
+  const inst = popParty.create(1);
+  inst.events = [{ kind:'parade', at:40, done:false }, { kind:'giant', at:80, done:false },
+                 { kind:'dog', at:120, done:false }, { kind:'giraffe', at:150, done:false },
+                 { kind:'elephant', at:190, done:false }];
+  const texts = new Set();
+  const realPop = inst.j.pop.bind(inst.j);
+  inst.j.pop = (x, y, text, col) => { texts.add(text); realPop(x, y, text, col); };
+  /* A hand sweeping the middle of the screen, so it pops plenty: streaks,
+     the parade, the animals, the giant and its slow motion, then the storm. */
+  const hand = pose.players[0].hands.left;
+  for (let i = 0; i < ROUND * 60; i++){
+    hand.x = 0.5 + Math.sin(i / 20) * 0.4; hand.y = 0.5 + Math.cos(i / 31) * 0.3;
+    inst.step(1 / 60, 1920, 1080);
+  }
+  assert.ok(texts.size > 3, 'the round should have scored plenty');
+  for (const t of texts) assert.match(t, /^\+\d+( {2}x\d)?$/, `"${t}" is words, not a score`);
+  assert.equal('banner' in inst, false, 'there is no banner to show');
 });
 
 test('a second animal waits for the first to leave', () => {
