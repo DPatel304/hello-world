@@ -3,6 +3,9 @@
    Nothing here is an asset: no files to load, and it is sharp on any size of
    television. */
 
+const NIGHT = { hills:['#2f6b4f', '#3c8a5e', '#4da56c'],
+                trunk:'#2a4a38', leaf:'#3f8f5e', leafLit:'#4fa76e' };
+
 export function drawPark(c, W, H, t, dim = 0){
   const sky = c.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0,    '#0a0a2e');
@@ -41,9 +44,22 @@ export function drawPark(c, W, H, t, dim = 0){
   c.fillStyle = '#fff';
   c.beginPath(); c.arc(cx, cy, Math.max(3, H * 0.008), 0, 6.2832); c.fill();
 
-  for (const band of [{ y:0.70, h:0.10, col:'#2f6b4f', n:3 },
-                      { y:0.79, h:0.13, col:'#3c8a5e', n:4 },
-                      { y:0.89, h:0.16, col:'#4da56c', n:3 }]){
+  drawHills(c, W, H, NIGHT);
+
+  /* Screens with a lot of interface on top ask for the park to step back. */
+  if (dim > 0){
+    c.fillStyle = `rgba(9,7,20,${dim})`;
+    c.fillRect(0, 0, W, H);
+  }
+}
+
+/* The ground and trees on their own, so a game can stand in the same park
+   under a different sky. */
+export function drawHills(c, W, H, pal){
+  const [far, mid, near] = pal.hills;
+  for (const band of [{ y:0.70, h:0.10, col:far,  n:3 },
+                      { y:0.79, h:0.13, col:mid,  n:4 },
+                      { y:0.89, h:0.16, col:near, n:3 }]){
     c.fillStyle = band.col;
     c.beginPath(); c.moveTo(0, H); c.lineTo(0, H * band.y);
     for (let i = 0; i <= band.n; i++){
@@ -56,16 +72,10 @@ export function drawPark(c, W, H, t, dim = 0){
   for (const [fx, fy, fs] of [[0.07,0.76,1],[0.17,0.82,1.3],[0.30,0.78,0.85],
                               [0.70,0.80,1.1],[0.86,0.76,0.95],[0.95,0.83,1.25]]){
     const x = W * fx, y = H * fy, sc = (H / 900) * fs;
-    c.fillStyle = '#2a4a38'; c.fillRect(x - 5 * sc, y, 10 * sc, 42 * sc);
-    c.fillStyle = '#3f8f5e';
+    c.fillStyle = pal.trunk; c.fillRect(x - 5 * sc, y, 10 * sc, 42 * sc);
+    c.fillStyle = pal.leaf;
     c.beginPath(); c.arc(x, y - 10 * sc, 34 * sc, 0, 6.2832); c.fill();
-    c.fillStyle = '#4fa76e';
+    c.fillStyle = pal.leafLit;
     c.beginPath(); c.arc(x - 10 * sc, y - 22 * sc, 22 * sc, 0, 6.2832); c.fill();
-  }
-
-  /* Screens with a lot of interface on top ask for the park to step back. */
-  if (dim > 0){
-    c.fillStyle = `rgba(9,7,20,${dim})`;
-    c.fillRect(0, 0, W, H);
   }
 }

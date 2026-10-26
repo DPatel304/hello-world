@@ -50,10 +50,15 @@ export class Juice {
     c.textAlign = 'center'; c.textBaseline = 'middle';
     for (const p of this.pops){
       const k = p.age / p.life;
-      c.globalAlpha = Math.max(0, 1 - k);
+      /* Solid while it is being read, then a quick fade. */
+      c.globalAlpha = k < 0.6 ? 1 : Math.max(0, (1 - k) / 0.4);
       c.font = `900 ${Math.round(H * 0.045 * (1 + k * 0.4))}px ui-rounded, system-ui, sans-serif`;
-      c.lineWidth = Math.max(3, H * 0.006); c.strokeStyle = 'rgba(0,0,0,.6)';
-      c.strokeText(p.text, p.x, p.y); c.fillStyle = p.color; c.fillText(p.text, p.x, p.y);
+      /* White on a ring of the player's colour on a dark rim: whose point it
+         was stays obvious, and it reads against any sky. */
+      const lw = Math.max(4, H * 0.011);
+      c.lineWidth = lw * 1.9; c.strokeStyle = 'rgba(20,12,48,.9)'; c.strokeText(p.text, p.x, p.y);
+      c.lineWidth = lw; c.strokeStyle = p.color; c.strokeText(p.text, p.x, p.y);
+      c.fillStyle = '#fff'; c.fillText(p.text, p.x, p.y);
     }
     c.globalAlpha = 1; c.textAlign = 'start'; c.textBaseline = 'alphabetic';
   }

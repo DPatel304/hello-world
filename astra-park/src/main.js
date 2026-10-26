@@ -126,6 +126,7 @@ function drawHUD(){
     c.textAlign = i === 0 ? 'left' : 'right';
     const x = i === 0 ? pad : W - pad;
     c.font = `900 ${Math.round(H * 0.075)}px ui-rounded, system-ui, sans-serif`;
+    pill(c, x, pad, c.measureText(String(hud.score[i])).width, H * 0.075, i === 0 ? 'left' : 'right');
     c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
     c.strokeText(String(hud.score[i]), x, pad);
     c.fillStyle = PLAYER_COLORS[i]; c.fillText(String(hud.score[i]), x, pad);
@@ -137,11 +138,20 @@ function drawHUD(){
   c.textAlign = 'center';
   c.font = `900 ${Math.round(H * 0.062)}px ui-monospace, monospace`;
   const t = Math.max(0, Math.ceil(roundLeft));
+  pill(c, W / 2, pad, c.measureText(String(t)).width, H * 0.062, 'center');
   c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
   c.strokeText(String(t), W / 2, pad);
   c.fillStyle = t <= 10 ? '#ff5d73' : '#f3f0ff';
   c.fillText(String(t), W / 2, pad);
   c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+}
+
+/* A game can paint any sky it likes; the numbers on top of it must still
+   read from the sofa. */
+function pill(c, x, y, w, h, align){
+  const px = h * 0.32, left = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
+  c.fillStyle = 'rgba(16,12,40,.42)';
+  c.beginPath(); c.roundRect(left - px, y - h * 0.12, w + px * 2, h * 1.12, h * 0.3); c.fill();
 }
 
 /* ---------- loop ---------- */
@@ -157,6 +167,8 @@ function tick(now){
 
   if (mode === 'play' && inst && !paused && !lost){
     inst.step(dt, W, H);
+    /* The band picks up for the final stretch. */
+    if (roundLeft > 10 && roundLeft - dt <= 10) music.intensity(1);
     roundLeft -= dt;
     if (roundLeft <= 0 || inst.over) endRound();
   }
