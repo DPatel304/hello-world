@@ -1,7 +1,7 @@
 import { Juice, clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx, music } from '../audio/sound.js';
-import { drawHills } from '../ui/backdrop.js';
+import { Scene } from './pop-party-scene.js';
 
 /* Five-minute rounds; the storm is always the last ten seconds. */
 export const ROUND = 300;
@@ -98,6 +98,7 @@ class PopParty {
     this.slowT = 0; this.scale = 1;
     this.parade = null; this.dog = null;
     this.events = planEvents(FINALE);
+    this.scene = new Scene();
   }
 
   step(dt, W, H){
@@ -143,6 +144,11 @@ class PopParty {
     }
 
     this.wind = Math.sin(this.t * 0.21) * 0.012 + Math.sin(this.t * 0.07 + 1) * 0.01;
+    this.scene.step(dt, {
+      t: this.t, p: this.t / FINALE, storm: storm, wind: this.wind,
+      joy: Math.max(0, Math.min(1, (Math.max(...this.combo) - 2) / 6)),
+      look: this._look(), rainbow: this._paradeOn()
+    });
     const lift = ramp;
     for (const b of this.balloons){
       b.age += sdt;
@@ -314,12 +320,14 @@ class PopParty {
         s:r * (0.13 + Math.random() * 0.14), col: col || `hsl(${(i * 60) % 360} 90% 60%)`,
         age:0, life:0.5 + Math.random() * 0.3 });
     }
+    this.scene.pop(b.x, b.kind === 'rainbow' ? (Math.random() * 360) | 0 : b.hue);
     if (b.kind === 'rainbow') this._confetti(px, py, H);
     if (b.giant){
       for (let k = 0; k < 3; k++) this._confetti(px + (k - 1) * r * 0.6, py, H);
+      for (let k = 0; k < 6; k++) this.scene.pop(b.x + (k - 2.5) * 0.05, HUES[k]);
       sfx.boom(); this.j.kick(34);
       this.slowT = SLOW_SECS;
-      sfx.slowmo(); music.muffle(SLOW_SECS);
+      sfx.slowmo(); music.dream(SLOW_SECS);
       this._announce('SLOW MOTION!', '#9fe3ff', null);
     }
     if (b.str.length) this.fx.push({ k:'string', pts:b.str.map(p => ({ ...p })), age:0, life:0.9 });
@@ -357,6 +365,16 @@ class PopParty {
 
   _paradeOn(){ return this.balloons.some(b => b.parade); }
 
+  /* Where the players stand, averaged, for the scene's parallax. */
+  _look(){
+    let sum = 0, n = 0;
+    for (let i = 0; i < this.players; i++){
+      const p = pose.players[i];
+      if (p.present && p.centre){ sum += p.centre.x; n++; }
+    }
+    return n ? sum / n : 0.5;
+  }
+
   _parade(){
     const dir = Math.random() < 0.5 ? 1 : -1;
     this.parade = { total: PARADE_N, popped: 0, escaped: 0 };
@@ -370,7 +388,7 @@ class PopParty {
       this.balloons.push(b);
     }
     this._announce('BALLOON PARADE!', '#fff', null);
-    sfx.parade();
+    sfx.parade(); music.parade(PARADE_N * PARADE_GAP / PARADE_SPEED + 6);
   }
 
   _dog(){
@@ -414,6 +432,7 @@ class PopParty {
     const d = this.dog;
     d.popT = 0;
     this.score[who] += DOG_WORTH;
+    this.scene.pop(d.x, d.hue);
     sfx.bark(); this.j.kick(10);
     this.j.pop(d.x * W, d.y * H - H * 0.12, `WOOF! +${DOG_WORTH}`, PLAYER_COLORS[who]);
   }
@@ -434,7 +453,7 @@ class PopParty {
   }
 
   draw(c, W, H){
-    drawSky(c, W, H, this.t);
+    this.scene.drawBack(c, W, H);
     const shook = this.j.applyShake(c);
 
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -443,6 +462,9 @@ class PopParty {
     for (const b of this.balloons) rope(c, b.str);
     for (const b of this.balloons) this._balloon(c, b, W, H);
     if (this.dog) drawDog(c, this.dog, W, H);
+    /* Grass and flowers stand in front of the balloons, so a new one rises
+       from behind the meadow rather than appearing over it. */
+    this.scene.drawFront(c, W, H);
     this._drawFx(c, H);
     this.j.draw(c, H);
     if (shook) c.restore();
@@ -684,69 +706,4 @@ function star(c, x, y, s){
     c.lineTo(x + Math.cos(a) * d, y + Math.sin(a) * d);
   }
   c.closePath(); c.fill();
-}
-
-/* ---------- the sky ----------
-   The same park as the menu, in daylight: going from the menu into a round
-   is going outside to play. Bright and blue so every balloon colour but one
-   stands off it, and that one gets its darker rim from the shading. */
-const DAY = { hills:['#7fcf86', '#5fbb70', '#48a65d'],
-              trunk:'#7a5434', leaf:'#3d9a55', leafLit:'#5cbc6c' };
-
-const CLOUDS = Array.from({ length: 9 }, (_, i) => ({
-  seed: (i * 0.618) % 1, y: 0.08 + ((i * 0.37) % 1) * 0.42,
-  s: i % 3 === 0 ? 1.4 : (i % 3 === 1 ? 1 : 0.65), speed: i % 3 === 0 ? 0.012 : (i % 3 === 1 ? 0.008 : 0.005)
-}));
-
-export function drawSky(c, W, H, t){
-  const sky = c.createLinearGradient(0, 0, 0, H * 0.8);
-  sky.addColorStop(0,    '#2f9bf5');
-  sky.addColorStop(0.55, '#7cc9ff');
-  sky.addColorStop(1,    '#d6f1ff');
-  c.fillStyle = sky; c.fillRect(0, 0, W, H);
-
-  const sx = W * 0.86, sy = H * 0.16, sr = H * 0.065;
-  const glow = c.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 5);
-  glow.addColorStop(0, 'rgba(255,246,190,.75)');
-  glow.addColorStop(1, 'rgba(255,246,190,0)');
-  c.fillStyle = glow; c.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
-  c.save(); c.translate(sx, sy); c.rotate(t * 0.08);
-  c.fillStyle = 'rgba(255,248,200,.22)';
-  for (let i = 0; i < 12; i++){
-    c.rotate(Math.PI / 6);
-    c.beginPath(); c.moveTo(0, 0); c.lineTo(sr * 4.2, -sr * 0.35); c.lineTo(sr * 4.2, sr * 0.35); c.closePath(); c.fill();
-  }
-  c.restore();
-  c.fillStyle = '#fff4b8';
-  c.beginPath(); c.arc(sx, sy, sr, 0, 6.2832); c.fill();
-
-  /* Back to front, so the near clouds pass over the far ones. */
-  for (const cl of [...CLOUDS].sort((a, b) => a.s - b.s)){
-    const w = H * 0.22 * cl.s;
-    const x = ((cl.seed + t * cl.speed) % 1) * (W + w * 2) - w;
-    cloud(c, x, H * cl.y, w, 0.55 + cl.s * 0.3);
-  }
-
-  drawHills(c, W, H, DAY);
-
-  /* Flowers on the near hill, seeded so they hold still. */
-  for (let i = 0; i < 26; i++){
-    const fx = ((i * 2654435761) % 10000) / 10000 * W;
-    const fy = H * (0.9 + ((i * 40503) % 1000) / 1000 * 0.08);
-    const fr = H * 0.006;
-    c.fillStyle = ['#fff', '#ffe066', '#ff8fc7'][i % 3];
-    c.beginPath(); c.arc(fx, fy, fr, 0, 6.2832); c.fill();
-  }
-}
-
-function cloud(c, x, y, w, alpha){
-  c.globalAlpha = alpha;
-  c.fillStyle = '#fff';
-  c.beginPath();
-  c.ellipse(x, y, w * 0.5, w * 0.16, 0, 0, 6.2832);
-  c.arc(x - w * 0.2, y - w * 0.06, w * 0.17, 0, 6.2832);
-  c.arc(x + w * 0.02, y - w * 0.13, w * 0.22, 0, 6.2832);
-  c.arc(x + w * 0.24, y - w * 0.04, w * 0.15, 0, 6.2832);
-  c.fill();
-  c.globalAlpha = 1;
 }

@@ -72,7 +72,7 @@ function toSplash(g){
 function startRound(){
   inst = game.create(players);
   roundLeft = game.secs;
-  music.intensity(0.8);
+  music.intensity(0.45);
   go('play', null);
 }
 
@@ -169,9 +169,14 @@ function tick(now){
 
   if (mode === 'play' && inst && !paused && !lost){
     inst.step(dt, W, H);
-    /* The band picks up for the final stretch. */
-    if (roundLeft > 10 && roundLeft - dt <= 10) music.intensity(1);
     roundLeft -= dt;
+    /* The band builds with the round: the groove from the start, the tune
+       once the opening is done, a new layer about every minute after, and
+       everything - up a key - for the last ten seconds. */
+    const done = game.secs - roundLeft;
+    music.intensity(roundLeft <= 10 ? 1
+      : done < 30 ? 0.45
+      : 0.5 + 0.38 * Math.min(1, (done - 30) / Math.max(1, game.secs - 40)));
     if (roundLeft <= 0 || inst.over) endRound();
   }
   if (mode === 'play' && inst) inst.draw(c, W, H);
