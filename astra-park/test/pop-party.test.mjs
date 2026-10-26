@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import popParty, { SIZES, MOTIONS, GIANT_R, GIANT_WINDOWS, GIANT_SLAPS,
   SLOW, SLOW_SECS, PARADE_N, PARADE_BONUS, ANIMAL_WORTH, EVENTS, EVENT_GAP, planEvents,
-  ROUND, FINALE, OPENING } from '../src/games/pop-party.js';
+  ROUND, FINALE, OPENING, BOUQUET } from '../src/games/pop-party.js';
 import { pose } from '../src/tracking/pose.js';
 import { ANIMALS } from '../src/games/pop-party-animals.js';
 
@@ -417,4 +417,82 @@ test('the opening never sends a bunch, even when the dice say so', () => {
     }
     assert.equal(most, 1);
   } finally { Math.random = real; }
+});
+
+/* ---------- the bouquet ---------- */
+
+function twoPlayers(){
+  pose.mouse.active = false;
+  for (let i = 0; i < 2; i++){
+    const p = pose.players[i];
+    p.present = true; p.lm = null;
+    p.hands.left  = { x: i ? 0.65 : 0.25, y: 0.6, vx: 0, vy: 0, speed: 0 };
+    p.hands.right = { x: i ? 0.75 : 0.35, y: 0.5, vx: 0, vy: 0, speed: 0 };
+  }
+}
+const finish = (inst) => {
+  let n = 0;
+  while (!inst.outro(1 / 60, 1920, 1080)){ if (++n > 60 * 20) throw new Error('the ending never finished'); }
+  return n / 60;
+};
+
+test('the round ends with everyone gathering a bouquet and floating away together', () => {
+  twoPlayers();
+  const inst = popParty.create(2);
+  inst.events = [];
+  for (let i = 0; i < 12; i++) inst._hit(parked(inst, 0.5, 0.5), 0, 1920, 1080);
+  for (let i = 0; i < 3; i++) inst._hit(parked(inst, 0.5, 0.5), 1, 1920, 1080);
+  const secs = finish(inst);
+  assert.ok(secs > BOUQUET.liftAt && secs < 12, `the ending took ${secs.toFixed(1)}s`);
+  const [a, b] = inst.out.groups;
+  assert.equal(a.items.length, 12, "player one's bouquet is what they popped");
+  assert.equal(b.items.length, BOUQUET.least, 'a light round still gets a handful, so everyone flies');
+  assert.ok(a.lift > 1 && b.lift > 1, 'both should have floated off the top');
+  assert.equal(a.lift, b.lift, 'and together - nobody wins');
+});
+
+test('bouquet balloons keep the colours that were popped', () => {
+  twoPlayers();
+  const inst = popParty.create(1);
+  inst.events = [];
+  const hues = [0, 48, 135, 215, 270, 325];
+  for (const hue of hues){ const b = parked(inst, 0.5, 0.5); b.hue = hue; inst._hit(b, 0, 1920, 1080); }
+  inst.outro(1 / 60, 1920, 1080);
+  assert.deepEqual(inst.out.groups[0].items.map(b => b.hue), hues);
+});
+
+test('a huge round makes a big bouquet that still fits on screen', () => {
+  twoPlayers();
+  const inst = popParty.create(1);
+  inst.events = [];
+  for (let i = 0; i < 300; i++) inst._hit(parked(inst, 0.5, 0.5), 0, 1920, 1080);
+  for (let i = 0; i < 60 * 3.5; i++) inst.outro(1 / 60, 1920, 1080);   /* gathered, not yet lifting */
+  const g = inst.out.groups[0];
+  assert.equal(g.items.length, BOUQUET.most);
+  const top = Math.min(...g.items.map(b => b.y - b.r));
+  assert.ok(top > -0.08, `the top of the bunch is at ${top.toFixed(2)}, off the screen`);
+});
+
+test('bouquet balloons are never mistaken for teeny ones', () => {
+  twoPlayers();
+  const inst = popParty.create(1);
+  inst.events = [];
+  for (let i = 0; i < 300; i++) inst._hit(parked(inst, 0.5, 0.5), 0, 1920, 1080);
+  inst.outro(1 / 60, 1920, 1080);
+  /* The teeny halo is a ring at least twice a balloon's radius; nothing that
+     big should be drawn around a bouquet balloon, however small they get. */
+  const rings = [];
+  const c = new Proxy({}, {
+    get(t, k){
+      if (k in t) return t[k];
+      if (k === 'createRadialGradient' || k === 'createLinearGradient') return () => ({ addColorStop(){} });
+      if (k === 'arc') return (x, y, r) => rings.push(r);
+      return () => {};
+    },
+    set(t, k, v){ t[k] = v; return true; }
+  });
+  const g = inst.out.groups[0];
+  for (const b of g.items) inst._balloon(c, b, 1920, 1080);
+  const biggest = Math.max(...rings) / 1080;
+  assert.ok(biggest < g.items[0].r * 2, `a ring ${(biggest / g.items[0].r).toFixed(1)}x the balloon was drawn`);
 });

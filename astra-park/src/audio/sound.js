@@ -142,6 +142,19 @@ export const sfx = {
     [0, 4, 7, 12, 7, 12, 16].forEach((s, i) => bell(72 + s, t + i * 0.12, 0.08, 0.3, master));
     [0, 0.24, 0.48, 0.72].forEach(d => hiss({ dur: 0.08, gain: 0.14, hp: 1800, type: 'bandpass', q: 0.7, delay: d }));
   },
+  /* A balloon joining a bouquet: a soft pluck, climbing through the chord. */
+  gather(k = 0){
+    const ch = music.chord().slice().sort((a, b) => a - b);
+    pluck(ch[k % 3] + 12 + 12 * (Math.floor(k / 3) % 2), ctx().currentTime + 0.01,
+          { kind: 'lead', gain: 0.16, verb: 0.3, dest: master });
+  },
+  /* Everyone lifting off: a rising whoosh into a bright strum and bells. */
+  liftoff(){
+    hiss({ dur: 1.2, gain: 0.14, hp: 300, sweep: 5000 });
+    sfx.combo(3);
+    const t = ctx().currentTime + 0.4, ch = music.chord();
+    [0, 1, 2, 3, 4, 5].forEach(i => bell(ch[i % 3] + 24 + 12 * Math.floor(i / 3), t + i * 0.09, 0.07, 0.5, master));
+  },
   /* The giraffe: the squeak of a twisted balloon, twice. */
   squeak(){
     const c = ctx();

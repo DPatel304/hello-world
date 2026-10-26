@@ -76,14 +76,18 @@ function startRound(){
   go('play', null);
 }
 
+/* A game can end on a moment of its own before the scores - Pop Party's
+   bouquets - and the shell runs it until it says it's done. */
 function endRound(){
+  if (inst.outro){ music.intensity(0.25); go('outro', null); return; }
+  showResults();
+}
+
+function showResults(){
   music.intensity(0.2);
-  const value = inst.value();
-  const best = scores.record(game.id, players, value);
-  const rows = inst.tally();
-  const winner = inst.winner();
-  go('results', () => results(game, rows, { winner, best },
-      () => toSplash(game), toMenu));
+  /* Bests are still kept - the menu tiles show them - just not announced. */
+  scores.record(game.id, players, inst.value());
+  go('results', () => results(game, () => toSplash(game), toMenu));
 }
 
 /* ---------- pause by gesture ----------
@@ -179,8 +183,8 @@ function tick(now){
       : 0.2 + 0.72 * Math.min(1, (done - 30) / Math.max(1, game.secs - 40)));
     if (roundLeft <= 0 || inst.over) endRound();
   }
-  if (mode === 'play' && inst) inst.draw(c, W, H);
-  if (mode === 'results' && inst) inst.draw(c, W, H);
+  if (mode === 'outro' && inst && inst.outro(dt, W, H)) showResults();
+  if ((mode === 'play' || mode === 'outro' || mode === 'results') && inst) inst.draw(c, W, H);
 
   /* A scene can navigate during its own tick - the splash countdown ends by
      starting the round - which leaves `scene` null before the draw. Hold the
@@ -195,7 +199,7 @@ function tick(now){
   cursor.update(dt, document.getElementById('ui'));
   drawHUD();
   oc.clearRect(0, 0, W, H);
-  if (mode !== 'play' || paused || lost) cursor.draw(oc, W, H);
+  if ((mode !== 'play' && mode !== 'outro') || paused || lost) cursor.draw(oc, W, H);
   drawPerf(dt);
 
   requestAnimationFrame(tick);

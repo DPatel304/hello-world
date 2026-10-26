@@ -165,29 +165,15 @@ export function splash(game, players, onGo){
 }
 
 /* ---------- results ---------- */
-export function results(game, rows, meta, onAgain, onMenu){
+/* After the round's own ending, just the way on: no scores and no winner.
+   Playing together is the point, and the bouquets already said how it went. */
+export function results(game, onAgain, onMenu){
   const s = screen('dim');
   s.append(h('h2', '', game.name));
-  if (meta.winner != null){
-    s.append(h('h1', '', meta.winner === -1 ? 'A draw!' :
-      `<span style="color:${PLAYER_COLORS[meta.winner]}">Player ${meta.winner + 1}</span> wins!`));
-  }
-  const t = h('div', 'tally');
-  rows.forEach(r => {
-    const d = h('div');
-    d.append(h('dt', '', r.label));
-    const dd = h('dd', '', String(r.value));
-    if (r.color) dd.style.color = r.color;
-    d.appendChild(dd);
-    t.appendChild(d);
-  });
-  s.appendChild(t);
-  if (meta.best) s.append(h('span', 'badge', 'NEW BEST!'));
-
   const row = h('div', 'row');
   row.append(onPick(button('Play again'), onAgain), onPick(button('Main menu'), onMenu));
   s.appendChild(row);
-  meta.winner != null && meta.winner >= 0 ? sfx.fanfare() : sfx.fanfare();
+  sfx.fanfare();
   return { tick(){}, draw(){} };
 }
 

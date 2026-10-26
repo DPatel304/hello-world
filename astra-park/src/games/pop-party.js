@@ -80,6 +80,10 @@ const PARADE_SPEED = 0.16, PARADE_GAP = 0.075;
 export const ANIMAL_WORTH = 15;
 const ANIMAL_SOUNDS = { dog: 'bark', giraffe: 'squeak', elephant: 'trumpet' };
 const STR_N = 7;
+/* The bouquet: everyone gets at least `least` balloons and at most `most`;
+   they gather over `gather` seconds, and everyone lifts off at `liftAt`.
+   `reach` is how far above the hand the bunch floats. */
+export const BOUQUET = { least: 5, most: 40, gather: 2.5, liftAt: 4.1, reach: 0.1 };
 
 function pick(table){
   let r = Math.random() * table.reduce((s, e) => s + e.w, 0);
@@ -103,6 +107,9 @@ class PopParty {
     this.events = planEvents(FINALE);
     this.scene = new Scene();
     this.avatars = new Avatars();
+    /* Every balloon each player pops, by colour: the bouquet they take home. */
+    this.popped = [[], []];
+    this.out = null;
   }
 
   step(dt, W, H){
@@ -306,6 +313,7 @@ class PopParty {
     const px = b.x * W, py = b.y * H, r = b.r * H;
     const col = b.kind === 'rainbow' ? null : `hsl(${b.hue} 88% 58%)`;
 
+    this.popped[who].push(b.kind === 'rainbow' ? -1 : b.hue);
     this.combo[who] = this.comboT[who] > 0 ? this.combo[who] + 1 : 1;
     this.comboT[who] = 1.3;
     const c = this.combo[who];
@@ -366,6 +374,97 @@ class PopParty {
     const a = Math.random() * 6.2832, d = r * (0.9 + Math.random() * 0.6);
     this.fx.push({ k:'spark', x:x + Math.cos(a) * d, y:y + Math.sin(a) * d,
       s:r * (0.12 + Math.random() * 0.12), age:0, life:0.5 });
+  }
+
+  /* ---------- the bouquet ----------
+     When the round ends, every balloon each player popped floats back and
+     gathers into a bouquet in their hand, then everyone lifts off together
+     and floats away. Nobody wins: a bigger bunch is just a bigger bunch, and
+     everyone gets at least a handful so everyone flies. The shell runs this
+     until it returns true, then shows the scores. */
+  outro(dt, W, H){
+    if (!this.out) this._startOutro();
+    const o = this.out;
+    o.t += dt; this.t += dt;
+    this.scene.step(dt, { t: this.t, p: 1, storm: false, wind: this.wind, joy: 1,
+                          look: this._look(), rainbow: true });
+    this.j.step(dt); this._stepFx(dt, H); this._stepAnimal(dt, W, H);
+    this.avatars.step(dt, this.players);
+
+    /* Whatever was still in the sky drifts off out of the way. */
+    for (const b of this.balloons){ b.by -= 0.5 * dt; b.y = b.by; this._string(b, W, H); }
+    this.balloons = this.balloons.filter(b => b.y > -0.6);
+
+    const lift = o.t < BOUQUET.liftAt ? 0 : Math.pow(o.t - BOUQUET.liftAt, 1.6) * 0.18;
+    if (lift && !o.lifted){ o.lifted = true; sfx.liftoff(); }
+    for (const g of o.groups){
+      const a = this._anchor(g.who);
+      g.ax += (a.x - g.ax) * Math.min(1, dt * 5); g.ay += (a.y - g.ay) * Math.min(1, dt * 5);
+      g.lift = lift;
+      g.items.forEach((b, k) => {
+        if (o.t >= b.arrive && !b.arrived){ b.arrived = true; sfx.gather(k); }
+        const u = Math.max(0, Math.min(1, (o.t - b.arrive) / 0.9)), e = 1 - Math.pow(1 - u, 3);
+        const tx = g.ax + b.sx + Math.sin(o.t * 1.3 + g.who) * 0.01 * (lift ? 2 : 1);
+        const ty = g.ay - BOUQUET.reach - g.R + b.sy - lift;
+        b.x = b.fx + (tx - b.fx) * e; b.y = b.fy + (ty - b.fy) * e;
+        b.tilt = Math.sin(o.t * 1.6 + k) * 0.08;
+      });
+    }
+    return o.t > BOUQUET.liftAt + 4.5;
+  }
+
+  _startOutro(){
+    this.out = { t: 0, lifted: false, groups: [] };
+    for (let i = 0; i < this.players; i++){
+      let hues = this.popped[i].map(h => h < 0 ? (Math.random() * 360) | 0 : h);
+      while (hues.length < BOUQUET.least) hues.push(HUES[(Math.random() * HUES.length) | 0]);
+      if (hues.length > BOUQUET.most){
+        const step = hues.length / BOUQUET.most;
+        hues = Array.from({ length: BOUQUET.most }, (_, k) => hues[Math.floor(k * step)]);
+      }
+      /* Smaller balloons for a bigger bunch, so it still fits on screen;
+         laid out on a sunflower spiral, which packs a round bunch evenly. */
+      const n = hues.length, r = 0.036 * Math.min(1, Math.sqrt(20 / n)), R = r * 1.2 * Math.sqrt(n);
+      const a = this._anchor(i);
+      const items = hues.map((hue, k) => {
+        const rr = Math.sqrt((k + 0.5) / n) * R, ang = k * 2.39996;
+        const b = this._make(0.1 + Math.random() * 0.8);
+        Object.assign(b, { hue, kind: 'normal', r, giant: false, wob: 0, bouquet: true,
+          sx: Math.cos(ang) * rr * (9 / 16), sy: Math.sin(ang) * rr * 0.9,
+          fx: 0.08 + Math.random() * 0.84, fy: 1.1 + Math.random() * 0.1,
+          arrive: 0.4 + (k / n) * BOUQUET.gather, arrived: false });
+        b.x = b.fx; b.y = b.fy;
+        return b;
+      });
+      this.out.groups.push({ who: i, items, R, ax: a.x, ay: a.y, lift: 0 });
+    }
+  }
+
+  /* Where a player holds their bouquet: their higher hand, kept low enough
+     that the bunch above it stays on screen. */
+  _anchor(i){
+    const p = pose.players[i], home = this.players > 1 ? (i ? 0.7 : 0.3) : 0.5;
+    if (!p || !p.present) return { x: home, y: 0.62 };
+    const hands = pose.mouse.active ? [p.hands.right] : [p.hands.left, p.hands.right];
+    const h = hands.reduce((a, b) => (b.y < a.y ? b : a));
+    return { x: Math.max(0.12, Math.min(0.88, h.x)), y: Math.max(0.45, Math.min(0.8, h.y)) };
+  }
+
+  _drawBouquets(c, W, H){
+    for (const g of this.out.groups){
+      const ax = g.ax * W, ay = (g.ay - g.lift) * H;
+      c.strokeStyle = 'rgba(70,60,110,.5)'; c.lineWidth = Math.max(1, H * 0.0016);
+      c.beginPath();
+      for (const b of g.items){
+        if (b.y > 1.05) continue;
+        c.moveTo(b.x * W, (b.y + b.r * 1.1) * H); c.lineTo(ax, ay);
+      }
+      c.stroke();
+      for (const b of g.items) this._balloon(c, b, W, H);
+      /* The knot the strings are gathered into, in the player's colour. */
+      c.fillStyle = PLAYER_COLORS[g.who];
+      c.beginPath(); c.arc(ax, ay, Math.max(5, H * 0.012), 0, 6.2832); c.fill();
+    }
   }
 
   /* Wind streaks racing across the screen. */
@@ -445,6 +544,7 @@ class PopParty {
     const an = this.animal;
     an.popT = 0;
     this.score[who] += ANIMAL_WORTH;
+    this.popped[who].push(an.hue);
     this.scene.pop(an.x, an.hue);
     sfx[ANIMAL_SOUNDS[an.kind]](); this.j.kick(10);
     this.j.pop(an.x * W, an.y * H - H * 0.12, '+' + ANIMAL_WORTH, PLAYER_COLORS[who]);
@@ -469,7 +569,7 @@ class PopParty {
   draw(c, W, H){
     this.scene.drawBack(c, W, H);
     /* The players stand in the scene behind the balloons, feet in the grass. */
-    this.avatars.drawBodies(c, W, H, this.players);
+    this.avatars.drawBodies(c, W, H, this.players, this.out ? this.out.groups.map(g => g.lift) : [0, 0]);
     const shook = this.j.applyShake(c);
 
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -485,8 +585,10 @@ class PopParty {
     this.j.draw(c, H);
     if (shook) c.restore();
     this._drawSlow(c, W, H);
-    /* Hands go on top of everything, so a child never loses them. */
-    this.avatars.drawMitts(c, W, H, this.players);
+    /* At the end the hands are holding bouquets; otherwise they go on top
+       of everything, so a child never loses them. */
+    if (this.out) this._drawBouquets(c, W, H);
+    else this.avatars.drawMitts(c, W, H, this.players);
   }
 
   _balloon(c, b, W, H){
@@ -531,7 +633,7 @@ class PopParty {
       c.textAlign = 'start'; c.textBaseline = 'alphabetic';
     }
 
-    if (b.r < SIZES[1].r[0]){
+    if (b.r < SIZES[1].r[0] && !b.bouquet){
       const pulse = 0.5 + 0.5 * Math.sin(this.t * 6 + b.ph);
       c.strokeStyle = `rgba(255,255,255,${0.45 + pulse * 0.4})`;
       c.lineWidth = Math.max(2, H * 0.003);
