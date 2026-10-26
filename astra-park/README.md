@@ -14,6 +14,16 @@ rather than sitting on a loading message.
 
 Rebuild it after changing anything with `npm run single`.
 
+## On a Windows laptop
+
+`npm run windows` builds `dist/AstraPark-Windows.zip`. Unzip it and run
+**Set up Astra Park** once: it copies the game to `%LOCALAPPDATA%\AstraPark`
+and adds an **Astra Park** shortcut to the desktop and Start menu. The shortcut
+opens Chrome (or Edge) in a window of its own, full screen, with the camera
+allowed and sound on from the start, using a browser profile kept apart from
+normal browsing. Running setup again installs a newer build. The scripts live
+in `windows/`; see `windows/Read me.txt` for what the person installing sees.
+
 ## Running it from source
 
 ```

@@ -1,0 +1,34 @@
+ASTRA PARK for Windows
+======================
+
+INSTALL (once)
+1. Unzip this whole folder anywhere - Downloads is fine. Setup copies the
+   game into a place of its own, so you can delete this folder afterwards.
+2. Double-click "Set up Astra Park".
+   If Windows says "Windows protected your PC", click "More info", then
+   "Run anyway". It says that about anything downloaded that isn't from a
+   big publisher.
+3. An "Astra Park" icon appears on your desktop and in the Start menu.
+
+PLAY
+- Double-click "Astra Park". It opens full screen, ready to go: no camera
+  question, and the music starts by itself.
+- The laptop needs to be online when the game starts, because it downloads
+  the body-tracking model.
+- Choose things by holding a hand over them for a second.
+- Pause: both hands above your head.
+- Leave full screen: F11.   Quit: Alt+F4.
+
+UPDATE
+Unzip the new version and run "Set up Astra Park" again. Scores and settings
+are kept.
+
+REMOVE
+Delete the "Astra Park" icon from the desktop and the Start menu, then paste
+%LOCALAPPDATA%\AstraPark into the File Explorer address bar and delete that
+folder.
+
+IF YOU SEE A YELLOW BAR
+"You are using an unsupported command-line flag: --use-fake-ui-for-media-stream"
+That flag is what skips the camera question. It only applies to the Astra
+Park window, not your normal browsing. Click the X to close the bar.
