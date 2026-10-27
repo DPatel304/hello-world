@@ -17,11 +17,42 @@ export const BONES = [
 const SMOOTH = 0.45;        /* lerp per detection; higher follows faster, jitters more */
 const LOST_AFTER = 0.6;     /* seconds without a detection before a player counts as gone */
 
+/* Players and watchers. Everyone the camera can see is looked at, but only
+   someone standing up, and about as close to the TV as the nearest person,
+   joins in: a grown-up on the sofa is sitting, and further back. Once in, a
+   player is followed by where they are rather than by their place in the
+   line, so a squat in Animal Copycat doesn't drop them; sitting down or
+   stepping back for WATCH_AFTER seconds does. */
+export const SEEN_MAX = 4;          /* people the camera looks for at once */
+export const CLOSE = 0.6;           /* body size, as a share of the biggest in view, to count as close */
+export const SEATED = 0.45;         /* knee drop below the hips, in torso lengths, under which you're sitting */
+export const WATCH_AFTER = 4;       /* seconds sitting or back before a player becomes a watcher */
+const MATCH = 0.25;                 /* how far a player can move between detections and still be them */
+
+/* Torso length: shoulders to hips. Bigger is closer to the camera. */
+export function sizeOf(lm){
+  const sx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, sy = (lm[L.L_SHOULDER].y + lm[L.R_SHOULDER].y) / 2;
+  const hx = (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, hy = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2;
+  return Math.hypot((hx - sx) * 16 / 9, hy - sy);
+}
+
+/* Sitting: the knees are nearly level with the hips, because the thighs
+   point at the camera. With no knee in sight there's no telling, and it
+   counts as standing - a child up close often has their legs out of frame. */
+export function seated(lm){
+  const vis = (k) => (lm[k].v ?? lm[k].visibility ?? 1) > 0.5;
+  const knees = [L.L_KNEE, L.R_KNEE].filter(vis);
+  if (!knees.length) return false;
+  const hipY = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2;
+  const drop = knees.reduce((a, k) => a + lm[k].y, 0) / knees.length - hipY;
+  return drop < SEATED * sizeOf(lm);
+}
+
 export const PLAYER_COLORS = ['#3da9ff', '#ff8a3d'];
 
 function blank(i){
   return {
-    id:i, color:PLAYER_COLORS[i], present:false, lostFor:99,
+    id:i, color:PLAYER_COLORS[i], present:false, lostFor:99, watching:0, at:null,
     lm:null, raw:null,
     hands:{ left:{x:.5,y:.5,vx:0,vy:0,speed:0}, right:{x:.5,y:.5,vx:0,vy:0,speed:0} },
     centre:{x:.5,y:.5}, scale:0.3
@@ -38,7 +69,8 @@ function withTimeout(promise, ms){
 export const pose = {
   ready:false, usingCamera:false, reason:'', detail:'', activeId:'',
   players:[blank(0), blank(1)],
-  personCount:0,
+  personCount:0,             /* players: people in the game */
+  seenCount:0,               /* everyone the camera can see, watchers too */
   /* Measured, not declared. "Will it run on a Pi" is a question about these
      three numbers and nothing else, so the app has to be able to answer it on
      whatever machine it is sitting on. */
@@ -97,7 +129,7 @@ export const pose = {
       const files = await withTimeout(FilesetResolver.forVisionTasks(wasmDir), 25000);
       this.lm = await withTimeout(PoseLandmarker.createFromOptions(files, {
         baseOptions:{ modelAssetPath: model, delegate:'GPU' },
-        runningMode:'VIDEO', numPoses:2,
+        runningMode:'VIDEO', numPoses:SEEN_MAX,
         minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5
       }), 40000);
     } catch (e){
@@ -178,22 +210,65 @@ export const pose = {
     this._hits++;
 
     const found = (res && res.landmarks) ? res.landmarks : [];
-    /* Left-to-right on screen decides who is P1. Stable, and it matches how
-       people describe themselves ("I'm on the left"). After mirroring, screen
-       left is the player's own left as they face the TV. */
-    const sorted = found
-      .map(lm => ({ lm, cx: 1 - (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2 }))
-      .sort((a,b) => a.cx - b.cx)
-      .slice(0,2);
+    this._assign(found.map(lm => lm.map(k => ({ x: 1 - k.x, y: k.y, z: k.z, v: k.visibility }))), dt);
+  },
 
-    this.personCount = sorted.length;
-    for (let i = 0; i < 2; i++){
-      const p = this.players[i], hit = sorted[i];
-      if (!hit){ p.lostFor += dt; if (p.lostFor > LOST_AFTER) p.present = false; continue; }
-      const mirrored = hit.lm.map(k => ({ x: 1 - k.x, y: k.y, z: k.z, v: k.visibility }));
-      this._apply(p, mirrored, dt);
-      p.lostFor = 0; p.present = true;
+  /* Who's who. Landmarks arrive mirrored, so screen left is the player's own
+     left as they face the TV. */
+  _assign(people, dt){
+    this.seenCount = people.length;
+    const biggest = Math.max(0, ...people.map(sizeOf));
+    const dets = people.map(lm => ({
+      lm, taken: false,
+      x: (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, y: (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2,
+      playing: !seated(lm) && sizeOf(lm) >= CLOSE * biggest
+    }));
+
+    /* Players already in keep following their own body: whoever is nearest
+       to where they were heading. Heading matters when two children cross. */
+    const pairs = [];
+    this.players.forEach((p, i) => {
+      if (!p.present || !p.at) return;
+      const k = Math.min(p.lostFor + dt, 0.5), px = p.at.x + p.at.vx * k, py = p.at.y + p.at.vy * k;
+      dets.forEach((d, j) => { const dist = Math.hypot(d.x - px, d.y - py); if (dist < MATCH) pairs.push({ i, j, dist }); });
+    });
+    pairs.sort((a, b) => a.dist - b.dist);
+    const matched = new Set();
+    for (const { i, j } of pairs){
+      if (matched.has(i) || dets[j].taken) continue;
+      matched.add(i); dets[j].taken = true;
+      const p = this.players[i], d = dets[j];
+      this._apply(p, d.lm, dt);
+      this._track(p, d, dt + p.lostFor);
+      p.lostFor = 0;
+      p.watching = d.playing ? 0 : p.watching + dt;
+      if (p.watching > WATCH_AFTER){ p.present = false; p.lm = null; p.watching = 0; }
     }
+    /* Everyone in the game who wasn't seen this time ages toward gone. */
+    this.players.forEach((p, i) => {
+      if (matched.has(i) || !p.present) return;
+      p.lostFor += dt;
+      if (p.lostFor > LOST_AFTER) p.present = false;
+    });
+    /* Newcomers standing up front fill the empty places, left to right. */
+    const free = this.players.filter(p => !p.present);
+    const joiners = dets.filter(d => !d.taken && d.playing).sort((a, b) => a.x - b.x);
+    for (const p of free){
+      const d = joiners.shift();
+      if (!d) break;
+      p.lm = null; this._apply(p, d.lm, dt);
+      p.at = null; this._track(p, d, dt);
+      p.present = true; p.lostFor = 0; p.watching = 0;
+    }
+    this.personCount = this.players.filter(p => p.present).length;
+  },
+
+  /* Where a player's hips are and how they're moving, unsmoothed. */
+  _track(p, d, dt){
+    if (!p.at){ p.at = { x: d.x, y: d.y, vx: 0, vy: 0 }; return; }
+    const t = Math.max(dt, 1 / 120), k = 0.5;
+    p.at.vx += ((d.x - p.at.x) / t - p.at.vx) * k; p.at.vy += ((d.y - p.at.y) / t - p.at.vy) * k;
+    p.at.x = d.x; p.at.y = d.y;
   },
 
   _apply(p, lm, dt){

@@ -234,7 +234,7 @@ function drawPerf(dt){
     'render   ' + rFps.toFixed(0) + ' fps',
     'pose     ' + pose.fps.toFixed(0) + ' fps',
     'inference ' + pose.inferMs.toFixed(1) + ' ms',
-    'players  ' + pose.personCount
+    'players  ' + pose.personCount + ' of ' + pose.seenCount + ' seen'
   ];
   c.save();
   c.font = `700 ${Math.round(lh * 0.72)}px ui-monospace, monospace`;

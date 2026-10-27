@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pose, L } from '../src/tracking/pose.js';
+import { pose, L, seated, WATCH_AFTER } from '../src/tracking/pose.js';
 
 /* A full set of landmarks, all plainly visible, with named overrides. */
 function body(over = {}){
@@ -126,17 +126,15 @@ test('players are assigned left to right after mirroring', () => {
 
   /* Raw camera x: A on the right of frame, B on the left. Mirroring puts A on
      screen-left, so A must become player 0. */
-  const A = body({ L_HIP:{ x:0.80 }, R_HIP:{ x:0.80 } });
-  const B = body({ L_HIP:{ x:0.20 }, R_HIP:{ x:0.20 } });
-  for (const lm of [A, B]) lm.forEach(k => { k.visibility = k.v; });
+  const A = person(0.8), B = person(0.2);
 
   pose.lm = { detectForVideo: () => ({ landmarks: [B, A] }) };   /* order from the model is arbitrary */
   pose.update(0, 0.016);
 
   assert.equal(pose.personCount, 2);
-  assert.ok(pose.players[0].lm[L.L_HIP].x < 0.5, 'player 0 should be on screen-left');
-  assert.ok(pose.players[1].lm[L.L_HIP].x > 0.5, 'player 1 should be on screen-right');
-  assert.ok(Math.abs(pose.players[0].lm[L.L_HIP].x - 0.2) < 1e-9, 'x should be mirrored');
+  assert.ok(screenX(pose.players[0]) < 0.5, 'player 0 should be on screen-left');
+  assert.ok(screenX(pose.players[1]) > 0.5, 'player 1 should be on screen-right');
+  assert.ok(Math.abs(screenX(pose.players[0]) - 0.2) < 1e-9, 'x should be mirrored');
 });
 
 test('a player who leaves frame is aged out, not forgotten instantly', () => {
@@ -177,4 +175,95 @@ test('preferred camera round-trips through storage', () => {
   assert.equal(pose.preferred(), '');
   localStorage.setItem('astrapark_camera', 'cam-abc');
   assert.equal(pose.preferred(), 'cam-abc');
+});
+
+/* ---------- players and watchers ---------- */
+
+/* A person as the camera reports them (raw, unmirrored): hips at camera x,
+   torso `size` tall, standing or sitting, knees visible or not. */
+function person(x, { size = 0.2, sit = false, knees = true, y = 0.5 } = {}){
+  const lm = body();
+  const set = (k, px, py, v = 0.9) => { lm[L[k]] = { x: px, y: py, z: 0, v, visibility: v }; };
+  const sh = y - size, kneeY = sit ? y + size * 0.1 : y + size * 0.9;
+  set('NOSE', x, sh - size * 0.35);
+  set('L_SHOULDER', x - size * 0.2, sh); set('R_SHOULDER', x + size * 0.2, sh);
+  set('L_HIP', x - size * 0.12, y); set('R_HIP', x + size * 0.12, y);
+  set('L_KNEE', x - size * 0.12, kneeY, knees ? 0.9 : 0.1); set('R_KNEE', x + size * 0.12, kneeY, knees ? 0.9 : 0.1);
+  set('L_WRIST', x - size * 0.3, y); set('R_WRIST', x + size * 0.3, y);
+  lm.forEach(k => { k.visibility = k.v; });
+  return lm;
+}
+let frame = 10;
+function see(people, dt = 0.05){
+  pose.ready = true; pose.mouse.active = false;
+  pose.video = { readyState: 2, currentTime: ++frame };
+  pose.lm = { detectForVideo: () => ({ landmarks: people }) };
+  pose.update(frame * 50, dt);
+}
+const screenX = (p) => (p.lm[L.L_HIP].x + p.lm[L.R_HIP].x) / 2;
+
+test('sitting is told from standing by how far the knees drop below the hips', () => {
+  const m = (lm) => lm.map(k => ({ ...k, v: k.visibility }));
+  assert.equal(seated(m(person(0.5))), false);
+  assert.equal(seated(m(person(0.5, { sit: true }))), true);
+  assert.equal(seated(m(person(0.5, { knees: false }))), false, 'no knees in sight: assume standing');
+});
+
+test('someone sitting on the sofa is a watcher, not a player', () => {
+  resetPose();
+  see([person(0.3), person(0.75, { sit: true })]);
+  assert.equal(pose.personCount, 1);
+  assert.equal(pose.seenCount, 2);
+  assert.ok(Math.abs(screenX(pose.players[0]) - 0.7) < 0.02, 'the standing child is player one');
+  assert.equal(pose.players[1].present, false);
+});
+
+test('someone standing far behind is a watcher; on their own, they play', () => {
+  resetPose();
+  see([person(0.6, { size: 0.22 }), person(0.2, { size: 0.08 })]);
+  assert.equal(pose.personCount, 1);
+  assert.ok(Math.abs(screenX(pose.players[0]) - 0.4) < 0.02);
+  resetPose();
+  see([person(0.2, { size: 0.08 })]);
+  assert.equal(pose.personCount, 1, 'nobody closer, so they are the player');
+});
+
+test('a watcher on the left does not take player one from a child', () => {
+  resetPose();
+  /* Raw x 0.8 is screen-left after mirroring. */
+  see([person(0.8, { sit: true }), person(0.3)]);
+  assert.equal(pose.personCount, 1);
+  assert.ok(Math.abs(screenX(pose.players[0]) - 0.7) < 0.02);
+});
+
+test('a player who squats stays in; one who sits down a while becomes a watcher', () => {
+  resetPose();
+  see([person(0.5)]);
+  assert.equal(pose.players[0].present, true);
+  for (let t = 0; t < WATCH_AFTER * 0.6; t += 0.05) see([person(0.5, { sit: true })]);
+  assert.equal(pose.players[0].present, true, 'a squat is not leaving');
+  see([person(0.5)]);
+  for (let t = 0; t < WATCH_AFTER + 0.5; t += 0.05) see([person(0.5, { sit: true })]);
+  assert.equal(pose.players[0].present, false, 'sat down for good');
+  assert.equal(pose.personCount, 0);
+});
+
+test('players keep their place when they cross over', () => {
+  resetPose();
+  see([person(0.7), person(0.3)]);
+  const leftFirst = screenX(pose.players[0]);
+  assert.ok(leftFirst < 0.5, 'player one starts on the left');
+  /* They walk past each other in strides, so at the crossing each lands
+     right where the other just was. */
+  for (let k = 1; k <= 9; k++){ const u = k / 9; see([person(0.7 - 0.4 * u), person(0.3 + 0.4 * u)]); }
+  assert.ok(screenX(pose.players[0]) > 0.5, 'player one is now on the right, still player one');
+});
+
+test('a newcomer standing up front joins an empty place', () => {
+  resetPose();
+  see([person(0.5)]);
+  assert.equal(pose.personCount, 1);
+  see([person(0.5), person(0.15)]);
+  assert.equal(pose.personCount, 2);
+  assert.equal(pose.players[1].present, true);
 });
