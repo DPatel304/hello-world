@@ -252,15 +252,16 @@ class MoonBounce {
   /* Every picture made lights up together, and the astronauts float up one
      last time to wave at them. */
   outro(dt, W, H){
-    if (!this.out){
-      this.out = { t: 0 };
-      for (const b of this.bodies){ if (!b.air){ b.air = true; b.vy = Math.sqrt(2 * GRAVITY * 0.2); } }
-      sfx.lantern();
-    }
+    if (!this.out){ this.out = { t: 0 }; sfx.lantern(); }
     const o = this.out;
     o.t += dt; this.t += dt;
     this.faces.step(dt);
-    this._stepBodies(dt, false);
+    /* Everyone drifts gently up off the moon and hangs there, bobbing,
+       under the sky they made. */
+    this.bodies.forEach((b, i) => {
+      b.air = false; b.vy = 0;
+      b.lift += (0.14 + Math.sin(o.t * 1.8 + i) * 0.025 - b.lift) * Math.min(1, dt * 1.5);
+    });
     this._stepFlying(dt);
     this._stepPicture(dt);
     for (const m of this.made) m.age += dt;
@@ -275,12 +276,19 @@ class MoonBounce {
   draw(c, W, H){
     drawMoon(c, W, H, this.t);
     const glowUp = this.out ? Math.min(1, this.out.t / 1.5) : 0;
+    const n = this.made.length;
     this.made.forEach((m, i) => {
       const k = Math.min(1, m.age / 1.5), e = k * k * (3 - 2 * k);
-      const x = (SKY.x + (m.x - SKY.x) * e) * W, y = (SKY.y + (0.075 - SKY.y) * e) * H, r = SKY.r * H * (1 - 0.7 * e);
-      drawConstellation(c, m.shape, x, y, r * (1 + glowUp * 0.15), m.shape.pts.length, 1, this.t + i, 0.85 + 0.15 * glowUp);
+      let x = SKY.x + (m.x - SKY.x) * e, y = SKY.y + (0.08 - SKY.y) * e, r = SKY.r * (1 - 0.62 * e);
+      if (glowUp){
+        /* At the end, every picture spreads out in an arc across the sky. */
+        const u = n === 1 ? 0.5 : i / (n - 1), ax = 0.1 + 0.8 * u, ay = 0.13 + 0.12 * Math.pow(2 * u - 1, 2);
+        const g = glowUp * glowUp * (3 - 2 * glowUp);
+        x += (ax - x) * g; y += (ay - y) * g; r += (Math.min(SKY.r * 0.75, 0.55 / Math.max(1, n)) - r) * g;
+      }
+      drawConstellation(c, m.shape, x * W, y * H, r * H, m.shape.pts.length, 1, this.t + i, 0.9 + 0.1 * glowUp);
     });
-    drawConstellation(c, this.cur.shape, SKY.x * W, SKY.y * H, SKY.r * H, this.cur.lit, this.cur.done, this.t);
+    if (!glowUp || this.cur.lit) drawConstellation(c, this.cur.shape, SKY.x * W, SKY.y * H, SKY.r * H, this.cur.lit, this.cur.done, this.t, 1 - glowUp * 0.6);
 
     for (const s of this.stars) drawStar(c, s.x * W, (s.y + Math.sin(s.age * 1.6 + s.ph) * 0.01) * H, H * (s.gold ? 0.032 : 0.026), this.t + s.ph, s.gold);
     this._drawBits(c, W, H);

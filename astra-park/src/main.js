@@ -138,18 +138,18 @@ function drawHUD(){
   for (let i = 0; i < (hud.hideScore ? 0 : players); i++){
     c.textAlign = i === 0 ? 'left' : 'right';
     const x = i === 0 ? pad : W - pad;
-    c.font = `900 ${Math.round(H * 0.075)}px ui-rounded, system-ui, sans-serif`;
+    c.font = `700 ${Math.round(H * 0.075)}px Fredoka, ui-rounded, system-ui, sans-serif`;
     pill(c, x, pad, c.measureText(String(hud.score[i])).width, H * 0.075, i === 0 ? 'left' : 'right');
     c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
     c.strokeText(String(hud.score[i]), x, pad);
     c.fillStyle = PLAYER_COLORS[i]; c.fillText(String(hud.score[i]), x, pad);
     if (hud.showLives){
-      c.font = `800 ${Math.round(H * 0.034)}px ui-rounded, system-ui, sans-serif`;
+      c.font = `600 ${Math.round(H * 0.034)}px Fredoka, ui-rounded, system-ui, sans-serif`;
       c.fillText('♥'.repeat(hud.lives[i]) || '—', x, pad + H * 0.082);
     }
   }
   c.textAlign = 'center';
-  c.font = `900 ${Math.round(H * 0.062)}px ui-monospace, monospace`;
+  c.font = `600 ${Math.round(H * 0.062)}px Fredoka, ui-rounded, system-ui, sans-serif`;
   const t = Math.max(0, Math.ceil(roundLeft));
   /* Minutes and seconds once a round runs past one; plain seconds below. */
   const clock = t >= 60 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}` : String(t);

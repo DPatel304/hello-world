@@ -415,12 +415,13 @@ export function drawBigTree(c, x, base, s, t){
 export function drawFlower(c, x, base, s, hp, hue, t){
   const droop = (1 - hp) * 1.25, sway = Math.sin(t * 1.6 + x * 0.01) * 0.05;
   const hx = x + Math.sin(droop + sway) * s * 0.55, hy = base - Math.cos(droop * 0.8) * s;
-  c.strokeStyle = hp > 0.5 ? '#3f9a52' : '#7a9a62'; c.lineWidth = Math.max(2, s * 0.06); c.lineCap = 'round';
+  c.strokeStyle = hp > 0.5 ? '#3f9a52' : '#7a9a62'; c.lineWidth = Math.max(2, s * 0.05); c.lineCap = 'round';
   c.beginPath(); c.moveTo(x, base); c.quadraticCurveTo(x, base - s * 0.6, hx, hy); c.stroke();
   c.fillStyle = '#4fa863';
   c.beginPath(); c.ellipse(x + s * 0.12, base - s * 0.3, s * 0.14, s * 0.06, -0.5, 0, 6.2832); c.fill();
   const r = s * (0.13 + 0.12 * hp), open = 0.45 + 0.55 * hp;
-  c.fillStyle = `hsl(${hue} ${25 + 60 * hp}% ${50 + 15 * hp}%)`;
+  /* Wilted, the colour is faded but still there, so it's clear what it will be. */
+  c.fillStyle = `hsl(${hue} ${35 + 50 * hp}% ${55 + 10 * hp}%)`;
   for (let k = 0; k < 6; k++){
     const a = k * 1.047 + droop * 0.5;
     c.beginPath(); c.ellipse(hx + Math.cos(a) * r * open, hy + Math.sin(a) * r * open, r * 0.62, r * 0.4, a, 0, 6.2832); c.fill();

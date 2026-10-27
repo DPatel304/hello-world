@@ -34,23 +34,43 @@ const limb = (c, col, w, pts) => {
 
 export const DRAW = {
   giraffe(c, x, base, s, t, happy){
-    const stretch = 1 + Math.sin(t * 2.2) * 0.04 + (happy ? 0.06 : 0), k = s / 100;
-    shadow(c, x, base, 26 * k);
-    for (const [dx, ph] of [[-14, 0], [14, 1.5]]) limb(c, '#f0b44c', 7 * k, [[x + dx * k, base - 32 * k], [x + dx * k, base]]);
-    c.fillStyle = '#f6c25a'; c.beginPath(); c.ellipse(x, base - 38 * k, 24 * k, 15 * k, 0, 0, 6.2832); c.fill();
-    const top = base - (38 + 52 * stretch) * k;
-    c.fillStyle = '#f6c25a'; c.beginPath(); c.moveTo(x - 7 * k, base - 45 * k); c.lineTo(x - 5 * k, top); c.lineTo(x + 6 * k, top); c.lineTo(x + 8 * k, base - 45 * k); c.closePath(); c.fill();
-    c.fillStyle = '#c97a2c';
-    for (const [sx, sy, r] of [[-12, -40, 4], [6, -34, 5], [12, -44, 3.5], [-2, -60, 3], [2, -75, 2.6], [-1, -88, 2.4]]){
-      c.beginPath(); c.arc(x + sx * k, base + sy * k * (sy < -50 ? stretch : 1), r * k, 0, 6.2832); c.fill();
+    const k = s / 100, stretch = 1 + Math.sin(t * 2.2) * 0.04 + (happy ? 0.07 : 0);
+    const SKIN = '#f6c25a', DARK = '#e2a63e', SPOT = '#c97a2c', PALE = '#ffe2a8';
+    shadow(c, x, base, 30 * k);
+    /* Tail, with a tuft, swishing. */
+    const sw = Math.sin(t * 3) * 4 * k;
+    limb(c, SPOT, 1.6 * k, [[x - 22 * k, base - 42 * k], [x - 30 * k + sw, base - 28 * k]]);
+    c.fillStyle = '#8a4f1c'; c.beginPath(); c.ellipse(x - 30 * k + sw, base - 26 * k, 2.4 * k, 4 * k, 0.3, 0, 6.2832); c.fill();
+    /* Legs: the far pair darker, hooves at the bottom. */
+    for (const [dx, col] of [[-12, DARK], [10, DARK], [-17, SKIN], [15, SKIN]]){
+      limb(c, col, 5.5 * k, [[x + dx * k, base - 36 * k], [x + dx * k, base - 2 * k]]);
+      c.fillStyle = '#7a4a22'; c.beginPath(); c.roundRect(x + dx * k - 3 * k, base - 4 * k, 6 * k, 4 * k, 1.5 * k); c.fill();
     }
-    const hy = top - 6 * k;
-    c.fillStyle = '#f6c25a'; c.beginPath(); c.ellipse(x + 3 * k, hy, 11 * k, 9 * k, 0, 0, 6.2832); c.fill();
-    c.fillStyle = '#ffe2a8'; c.beginPath(); c.ellipse(x + 8 * k, hy + 4 * k, 7 * k, 5 * k, 0, 0, 6.2832); c.fill();
-    limb(c, '#c97a2c', 2.5 * k, [[x - 2 * k, hy - 7 * k], [x - 4 * k, hy - 16 * k]]);
-    limb(c, '#c97a2c', 2.5 * k, [[x + 6 * k, hy - 7 * k], [x + 7 * k, hy - 16 * k]]);
-    c.fillStyle = '#8a4f1c'; for (const dx of [-4, 7]){ c.beginPath(); c.arc(x + dx * k, hy - 17 * k, 2.6 * k, 0, 6.2832); c.fill(); }
-    eyes(c, x + 2 * k, hy - 1 * k, 2.2 * k, happy, 1.3);
+    c.fillStyle = SKIN; c.beginPath(); c.ellipse(x, base - 44 * k, 25 * k, 14 * k, -0.08, 0, 6.2832); c.fill();
+    c.fillStyle = PALE; c.beginPath(); c.ellipse(x + 2 * k, base - 37 * k, 16 * k, 5 * k, 0, 0, 6.2832); c.fill();
+    /* The neck, tapering up from the shoulders, with a little mane down its back. */
+    const top = base - (46 + 50 * stretch) * k, hx = x + 9 * k;
+    c.fillStyle = SKIN;
+    c.beginPath(); c.moveTo(x + 4 * k, base - 52 * k); c.quadraticCurveTo(x + 6 * k, (base - 52 * k + top) / 2, hx - 4 * k, top);
+    c.lineTo(hx + 4 * k, top); c.quadraticCurveTo(x + 20 * k, (base - 52 * k + top) / 2, x + 22 * k, base - 46 * k); c.closePath(); c.fill();
+    c.strokeStyle = '#a0612a'; c.lineWidth = 2.2 * k; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x + 3 * k, base - 54 * k); c.quadraticCurveTo(x + 5 * k, (base - 54 * k + top) / 2, hx - 5 * k, top + 4 * k); c.stroke();
+    /* Spots: soft rounded patches, a few on the neck. */
+    c.fillStyle = SPOT;
+    const spot = (sx, sy, r, a) => { c.beginPath(); c.ellipse(sx, sy, r, r * 0.8, a, 0, 6.2832); c.fill(); };
+    for (const [sx, sy, r] of [[-14, -46, 4.5], [-3, -50, 5], [9, -47, 4.2], [18, -42, 3.4], [-8, -40, 3.4], [3, -40, 3]]) spot(x + sx * k, base + sy * k, r * k, sx * 0.1);
+    for (let n = 0; n < 4; n++){ const u = 0.2 + n * 0.2; spot(x + (8 + u * 4) * k + (n % 2 ? 2 : -1) * k, base - 52 * k + (top - base + 52 * k) * u, 2.6 * k, 0.4); }
+    /* The head: rounded, a pale muzzle, ears out to the side, horns with knobs. */
+    const hy = top - 4 * k;
+    for (const d of [-1, 1]){ c.fillStyle = SKIN; c.beginPath(); c.ellipse(hx + d * 9 * k, hy - 3 * k, 5 * k, 2.4 * k, d * -0.4, 0, 6.2832); c.fill(); }
+    limb(c, '#c97a2c', 2.4 * k, [[hx - 3 * k, hy - 6 * k], [hx - 4 * k, hy - 15 * k]]);
+    limb(c, '#c97a2c', 2.4 * k, [[hx + 3 * k, hy - 6 * k], [hx + 4 * k, hy - 15 * k]]);
+    c.fillStyle = '#8a4f1c'; for (const d of [-4, 4]){ c.beginPath(); c.arc(hx + d * k, hy - 16 * k, 2.4 * k, 0, 6.2832); c.fill(); }
+    c.fillStyle = SKIN; c.beginPath(); c.ellipse(hx, hy, 9 * k, 9.5 * k, 0, 0, 6.2832); c.fill();
+    c.fillStyle = PALE; c.beginPath(); c.ellipse(hx, hy + 6 * k, 7 * k, 5 * k, 0, 0, 6.2832); c.fill();
+    c.fillStyle = '#a0612a'; for (const d of [-1, 1]){ c.beginPath(); c.ellipse(hx + d * 2.6 * k, hy + 6 * k, 1 * k, 1.4 * k, 0, 0, 6.2832); c.fill(); }
+    eyes(c, hx, hy - 2 * k, 2.2 * k, happy, 1.45);
+    cheeks(c, hx, hy + 2 * k, 1.8 * k, 6.5 * k);
   },
 
   bird(c, x, base, s, t, happy){
@@ -121,8 +141,14 @@ export const DRAW = {
     c.fillStyle = '#ffc2cf'; for (const d of [-1, 1]){ c.beginPath(); c.ellipse(x + d * 22 * k, hy, 9 * k, 12 * k, d * 0.2, 0, 6.2832); c.fill(); }
     c.fillStyle = '#a7aec0'; c.beginPath(); c.arc(x, hy, 20 * k, 0, 6.2832); c.fill();
     /* The trunk, swinging; up and trumpeting when happy. */
-    c.save(); c.translate(x, hy + 8 * k); c.rotate(sw + (happy ? Math.PI * 0.9 : 0));
-    limb(c, '#a7aec0', 9 * k, [[0, 0], [0, 14 * k], [3 * k, 26 * k], [8 * k, 30 * k]]);
+    /* The trunk, outlined so it reads against the body behind it; it swings,
+       and goes up to trumpet when happy. */
+    c.save(); c.translate(x, hy + 6 * k); c.rotate(sw + (happy ? Math.PI * 0.85 : 0));
+    const trunk = [[0, 0], [0, 14 * k], [3 * k, 25 * k], [9 * k, 29 * k]];
+    limb(c, '#7f879b', 11 * k, trunk);
+    limb(c, '#b3b9ca', 8 * k, trunk);
+    c.strokeStyle = 'rgba(90,96,115,.35)'; c.lineWidth = 1 * k;
+    c.beginPath(); for (const ty of [6, 11, 16, 21]){ c.moveTo(-3.5 * k, ty * k); c.lineTo(3.5 * k + (ty > 18 ? 1.5 * k : 0), ty * k); } c.stroke();
     c.restore();
     eyes(c, x, hy - 4 * k, 3 * k, happy, 2);
     cheeks(c, x, hy + 4 * k, 3 * k, 12 * k);
@@ -175,17 +201,17 @@ export function costume(c, name, x, y, r, roll = 0){
   const top = -r * 0.9;
   if (name === 'giraffe'){
     for (const d of [-1, 1]){
-      limb(c, '#c97a2c', r * 0.14, [[d * r * 0.3, top + r * 0.1], [d * r * 0.36, top - r * 0.4]]);
-      c.fillStyle = '#8a4f1c'; c.beginPath(); c.arc(d * r * 0.36, top - r * 0.45, r * 0.13, 0, 6.2832); c.fill();
+      limb(c, '#c97a2c', r * 0.18, [[d * r * 0.3, top + r * 0.15], [d * r * 0.4, top - r * 0.6]]);
+      c.fillStyle = '#8a4f1c'; c.beginPath(); c.arc(d * r * 0.4, top - r * 0.66, r * 0.17, 0, 6.2832); c.fill();
       c.fillStyle = '#f6c25a'; c.beginPath(); c.ellipse(d * r * 0.85, top + r * 0.35, r * 0.25, r * 0.12, d * 0.4, 0, 6.2832); c.fill();
     }
   } else if (name === 'bird'){
     c.fillStyle = '#4aa8ff';
-    for (const d of [-1, 0, 1]){ c.beginPath(); c.ellipse(d * r * 0.18, top - r * 0.2, r * 0.1, r * 0.32, d * 0.4, 0, 6.2832); c.fill(); }
+    for (const d of [-1, 0, 1]){ c.beginPath(); c.ellipse(d * r * 0.24, top - r * 0.3, r * 0.15, r * 0.5, d * 0.45, 0, 6.2832); c.fill(); }
   } else if (name === 'starfish'){
     c.fillStyle = '#ff8a5c';
     c.beginPath();
-    for (let i = 0; i < 10; i++){ const a = -Math.PI / 2 + i * Math.PI / 5, d = (i % 2 ? 0.16 : 0.38) * r; c.lineTo(Math.cos(a) * d, top - r * 0.2 + Math.sin(a) * d); }
+    for (let i = 0; i < 10; i++){ const a = -Math.PI / 2 + i * Math.PI / 5, d = (i % 2 ? 0.26 : 0.6) * r; c.lineTo(Math.cos(a) * d, top - r * 0.35 + Math.sin(a) * d); }
     c.closePath(); c.fill();
   } else if (name === 'bunny'){
     for (const d of [-1, 1]){
@@ -207,7 +233,7 @@ export function costume(c, name, x, y, r, roll = 0){
     }
   } else if (name === 'flamingo'){
     c.fillStyle = '#ff9ec0';
-    for (const [dx, a] of [[-0.1, -0.5], [0.05, 0], [0.2, 0.5]]){ c.beginPath(); c.ellipse(dx * r, top - r * 0.25, r * 0.09, r * 0.34, a * 0.5, 0, 6.2832); c.fill(); }
+    for (const [dx, a] of [[-0.22, -0.5], [0, 0], [0.22, 0.5]]){ c.beginPath(); c.ellipse(dx * r, top - r * 0.35, r * 0.14, r * 0.5, a * 0.6, 0, 6.2832); c.fill(); }
   }
   c.restore();
 }

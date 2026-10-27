@@ -252,12 +252,25 @@ class SnowSled {
       c.fillStyle = b.kind === 'spark' ? `rgba(255,236,150,${1 - k})` : `rgba(255,255,255,${0.9 * (1 - k)})`;
       c.beginPath(); c.arc(b.x * W, b.y * H, H * (b.kind === 'spark' ? 0.007 : 0.008 + k * 0.006), 0, 6.2832); c.fill();
     }
+    this._drawSnowfall(c, W, H);
     const riders = [0, 1].map(i => ({ coat: PLAYER_COLORS[i], trim: i ? '#ffd24a' : '#e8413c' }));
     drawSled(c, W * (0.5 + this.lane * 0.32), H * 0.9, W, H, {
       t: this.t, air: this.air, lean: clamp(this.lean, -1, 1), presents: this.presents, riders,
       cheer: (this.out && this.out.t > 3) || this.air > 0.1 || this.t - this.lastGot < 0.6,
       face: (i, x, y, r) => this._face(c, i, x, y, r)
     });
+  }
+
+  /* A light, slow snowfall: big soft flakes drifting down and sideways,
+     streaming past a little faster as the sled speeds up. */
+  _drawSnowfall(c, W, H){
+    c.fillStyle = 'rgba(255,255,255,.85)';
+    for (let i = 0; i < 36; i++){
+      const sp = 0.05 + ((i * 0.618) % 1) * 0.06, ph = (i * 0.383) % 1;
+      const y = ((ph + this.t * sp + this.z * 0.3) % 1.1) - 0.05;
+      const x = ((i * 0.7548) % 1) + Math.sin(this.t * 0.7 + i) * 0.02 - this.lane * 0.03;
+      c.beginPath(); c.arc(x * W, y * H, H * (0.003 + ((i * 0.1234) % 1) * 0.004), 0, 6.2832); c.fill();
+    }
   }
 
   /* Who sits where: one child each side; on their own, the left seat is
@@ -275,11 +288,15 @@ class SnowSled {
     const next = this.things.filter(th => th.kind === 'present' && !th.done && th.z - this.z > 0.1 && th.z - this.z < 0.7).sort((a, b) => a.z - b.z)[0];
     if (!next || Math.abs(next.lane - this.lane) < REACH * 0.6) return;
     const rel = next.z - this.z;
-    for (let k = 0; k <= 12; k++){
-      const u = k / 12, p = P(this.lane + (next.lane - this.lane) * u * u * (3 - 2 * u), SLED + (rel - SLED) * u, W, H);
-      const a = 0.5 + 0.5 * Math.sin(this.t * 6 - k * 0.8);
-      c.fillStyle = `rgba(255,226,120,${0.25 + 0.5 * a})`;
-      c.beginPath(); c.ellipse(p.x, p.y, H * 0.014 * p.k, H * 0.006 * p.k, 0, 0, 6.2832); c.fill();
+    for (let k = 1; k <= 14; k++){
+      const u = k / 14, p = P(this.lane + (next.lane - this.lane) * u * u * (3 - 2 * u), SLED + 0.04 + (rel - SLED - 0.04) * u, W, H);
+      /* A run of glowing footprints in the snow, a pulse travelling along them. */
+      const a = 0.5 + 0.5 * Math.sin(this.t * 6 - k * 0.8), r = H * 0.03 * p.k;
+      const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2);
+      g.addColorStop(0, `rgba(255,220,110,${0.35 + 0.4 * a})`); g.addColorStop(1, 'rgba(255,220,110,0)');
+      c.fillStyle = g; c.fillRect(p.x - r * 2, p.y - r * 2, r * 4, r * 4);
+      c.fillStyle = `rgba(255,236,160,${0.5 + 0.5 * a})`;
+      c.beginPath(); c.ellipse(p.x, p.y, r, r * 0.4, 0, 0, 6.2832); c.fill();
     }
   }
 

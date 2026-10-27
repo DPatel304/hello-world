@@ -136,13 +136,24 @@ export function drawSkeletons(c, W, H, alpha = 0.35){
 }
 
 /* ---------- results ---------- */
+/* Pictures on the big buttons, so a child who can't read knows which is
+   which: round again, or home. */
+const ICON = {
+  again: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 7.7 10.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M12 1l4 3.2-4 3.2z" fill="currentColor"/></svg>',
+  home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11.5L12 4l8.5 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10.5V20h4.5v-5h3v5H18v-9.5" fill="currentColor"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>'
+};
+const bigButton = (icon, label, cls, fn) => onPick(button(`<span class="ic">${ICON[icon]}</span><span class="tx">${label}</span>`, 'big ' + cls), fn);
+
 /* After the round's own ending, just the way on: no scores and no winner.
-   Playing together is the point, and the bouquets already said how it went. */
+   The ending scene stays in view behind - the bouquets, the lanterns, the
+   sky full of pictures - with two big buttons along the bottom. */
 export function results(game, onAgain, onMenu){
-  const s = screen('dim');
-  s.append(h('h2', '', game.name));
-  const row = h('div', 'row');
-  row.append(onPick(button('Play again'), onAgain), onPick(button('Main menu'), onMenu));
+  const s = screen('end');
+  s.style.setProperty('--accent', game.accent);
+  s.append(h('div', 'endname', game.name));
+  const row = h('div', 'row bigrow');
+  row.append(bigButton('again', 'Play again', 'go', onAgain), bigButton('home', 'Menu', 'home', onMenu));
   s.appendChild(row);
   sfx.fanfare();
   return { tick(){}, draw(){} };
@@ -150,10 +161,9 @@ export function results(game, onAgain, onMenu){
 
 /* ---------- pause ---------- */
 export function pauseOverlay(onResume, onQuit){
-  const s = screen('dim');
-  s.append(h('h1', '', 'Paused'));
-  const row = h('div', 'row');
-  row.append(onPick(button('Resume'), onResume), onPick(button('Quit to menu'), onQuit));
+  const s = screen('dim pause');
+  const row = h('div', 'row bigrow');
+  row.append(bigButton('play', 'Keep playing', 'go', onResume), bigButton('home', 'Menu', 'home', onQuit));
   s.appendChild(row);
   return s;
 }

@@ -267,9 +267,13 @@ export function standIn(x, hx = null, hy = null, s = 0.3){
   at(L.L_KNEE, 0.15, 0.55); at(L.R_KNEE, -0.15, 0.55);
   at(L.L_ANKLE, 0.15, 0.85); at(L.R_ANKLE, -0.15, 0.85);
   if (hx != null){
-    lm[L.R_WRIST] = { x: hx, y: hy, v: 0.9 };
-    const sh = lm[L.R_SHOULDER];
-    lm[L.R_ELBOW] = { x: (sh.x + hx) / 2 - s * 0.04, y: (sh.y + hy) / 2 + s * 0.04, v: 0.9 };
+    /* The hand reaches toward the point, but no further than an arm can:
+       the made-up body has proportions, unlike a mouse pointer. */
+    const sh = lm[L.R_SHOULDER], reach = s * 0.5;
+    const dx = (hx - sh.x) * 16 / 9, dy = hy - sh.y, d = Math.hypot(dx, dy) || 1, k = Math.min(1, reach / d);
+    const wx = sh.x + (hx - sh.x) * k, wy = sh.y + dy * k;
+    lm[L.R_WRIST] = { x: wx, y: wy, v: 0.9 };
+    lm[L.R_ELBOW] = { x: (sh.x + wx) / 2 - s * 0.04, y: (sh.y + wy) / 2 + s * 0.04, v: 0.9 };
   }
   return lm;
 }

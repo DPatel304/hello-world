@@ -58,7 +58,8 @@ const PALETTES = [
   { wall: '#fbe6a2', roof: '#d0703c', trim: '#ffffff', door: '#7a5aa8' }
 ];
 const TREE_S = 0.6;
-const FLOWER_DX = [-0.16, -0.08, 0, 0.08, 0.16];
+const FLOWER_DX = [-0.2, -0.1, 0, 0.1, 0.2];
+const PLANTER = 0.06, FLOWER_S = 0.17;   /* the garden's box, and its flowers, in screen heights */
 
 export default {
   id: 'fire-truck', name: 'Fire Truck', stars: 1, accent: '#ff5a4f', secs: ROUND,
@@ -114,7 +115,7 @@ class FireTruck {
       s.animal = ANIMAL_KINDS[(Math.random() * ANIMAL_KINDS.length) | 0];
       s.state = 'stuck'; s.climb = 0;
     } else if (kind === 'garden'){
-      s.flowers = FLOWER_DX.map((dx, i) => ({ dx, hp: 0, hue: [340, 45, 280, 20, 200][i], bloomed: false }));
+      s.flowers = FLOWER_DX.map((dx, i) => ({ dx, dy: -PLANTER - FLOWER_S * 0.85, hp: 0, hue: [340, 45, 280, 20, 200][i], bloomed: false }));
     } else {
       s.ducks = [0, 1, 2, 3].map(k => ({ k, delay: k * 0.45, flap: 0 }));
     }
@@ -446,9 +447,22 @@ class FireTruck {
       drawBigTree(c, x, base, TREE_S * H, this.t);
       if (st.state === 'stuck'){ const p = this._cat(st, W, H); animal(c, p.x * W, p.y * H, H / 900 * 1.9, st.animal, this.t, false); }
     } else if (st.kind === 'garden'){
-      c.fillStyle = '#8a5a3c';
-      c.beginPath(); c.ellipse(x, base, H * 0.22, H * 0.025, 0, Math.PI, 0); c.fill();
-      for (const f of st.flowers) drawFlower(c, x + f.dx * H, base - H * 0.01, H * 0.11, f.hp, f.hue, this.t);
+      /* A long wooden planter; once every flower is up, the friend pops up
+         behind it, delighted. */
+      if (st.done){
+        const k = clamp((this.t - st.doneAt) / 0.5, 0, 1);
+        friend(c, x + H * 0.27, base - H * PLANTER * 0.6, H * 0.55 * k, this.t, true);
+      }
+      for (const f of st.flowers) drawFlower(c, x + f.dx * H, base - H * PLANTER, H * FLOWER_S, f.hp, f.hue, this.t);
+      const w = H * 0.29, h = H * PLANTER;
+      c.fillStyle = '#5b3a26'; c.fillRect(x - w, base - h - H * 0.008, w * 2, H * 0.016);
+      const wood = c.createLinearGradient(0, base - h, 0, base);
+      wood.addColorStop(0, '#b7794a'); wood.addColorStop(1, '#8a5a3c');
+      c.fillStyle = wood; c.beginPath(); c.roundRect(x - w, base - h, w * 2, h, H * 0.008); c.fill();
+      c.strokeStyle = 'rgba(70,40,20,.3)'; c.lineWidth = Math.max(1, H * 0.002);
+      c.beginPath(); c.moveTo(x - w, base - h / 2); c.lineTo(x + w, base - h / 2);
+      for (let k = 1; k < 6; k++){ const px = x - w + (w * 2) * k / 6 + (k % 2 ? 0 : 0); c.moveTo(px, k % 2 ? base - h : base - h / 2); c.lineTo(px, k % 2 ? base - h / 2 : base); }
+      c.stroke();
     }
   }
 
@@ -462,7 +476,7 @@ class FireTruck {
     for (const d of [...st.ducks].reverse()){
       if (st.t < d.delay) continue;
       const p = this._duck(st, d, W, H), grow = 1 + (p.y - SIDEWALK) * 1.6;
-      drawDuck(c, p.x * W, p.y * H, H * (d.k ? 0.04 : 0.065) * grow, this.t + d.k, d.k === 0, d.flap);
+      drawDuck(c, p.x * W, p.y * H, H * (d.k ? 0.075 : 0.12) * grow, this.t + d.k, d.k === 0, d.flap);
     }
   }
 
