@@ -1,6 +1,7 @@
-/* Castle Defense, painted. A sunny meadow seen from above at a slant: a
-   sandy path winds from a dark cave on the left to a little castle on the
-   right, with round stone pads beside it where towers can stand. The
+/* Castle Defense, painted. A sunny meadow seen from above at a slant: two
+   sandy paths wind down from dark caves in the top corners to a little
+   castle at the bottom, meeting at its gate, with round stone pads beside
+   them where towers can stand. The
    meadow, the path and the trees never move, so they're painted once per
    screen size; towers, monsters and arrows are drawn over them.
 
@@ -10,44 +11,48 @@
 const hash = (i, k = 1) => ((((i + 7919) * 2654435761 * k) % 4294967296) + 4294967296) % 4294967296 / 4294967296;
 const ASPECT = 16 / 9;
 
-/* The path, as a few hand-placed points smoothed into a curve. */
-const KEYS = [[-0.06, 0.3], [0.1, 0.3], [0.2, 0.36], [0.24, 0.52], [0.18, 0.7], [0.28, 0.84], [0.44, 0.82],
-              [0.52, 0.66], [0.46, 0.48], [0.52, 0.3], [0.66, 0.24], [0.74, 0.36], [0.76, 0.52], [0.84, 0.57]];
-export const CASTLE = { x: 0.9, y: 0.5 };
-export const CAVE = { x: 0.02, y: 0.3 };
+/* The two paths, as a few hand-placed points each smoothed into a curve:
+   the left one winds down the left side, the right one is its mirror. */
+const LEFT = [[0.2, 0.02], [0.2, 0.14], [0.3, 0.22], [0.37, 0.33], [0.3, 0.44], [0.16, 0.5], [0.12, 0.62],
+              [0.2, 0.72], [0.33, 0.76], [0.42, 0.85], [0.48, 0.9]];
+const KEYS = [LEFT, LEFT.map(([x, y]) => [1 - x, y])];
+export const CASTLE = { x: 0.5, y: 0.76 };
+export const CAVES = [{ x: 0.2, y: 0.1 }, { x: 0.8, y: 0.1 }];
+export const CHEST = { x: 0.62, y: 0.92 };
 
 function catmull(p0, p1, p2, p3, t){
   const t2 = t * t, t3 = t2 * t;
   return [0, 1].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3));
 }
-export const PATH = (() => {
+function smooth(keys){
   const pts = [];
-  for (let i = 0; i < KEYS.length - 1; i++){
-    const p0 = KEYS[Math.max(0, i - 1)], p1 = KEYS[i], p2 = KEYS[i + 1], p3 = KEYS[Math.min(KEYS.length - 1, i + 2)];
+  for (let i = 0; i < keys.length - 1; i++){
+    const p0 = keys[Math.max(0, i - 1)], p1 = keys[i], p2 = keys[i + 1], p3 = keys[Math.min(keys.length - 1, i + 2)];
     for (let k = 0; k < 12; k++) pts.push(catmull(p0, p1, p2, p3, k / 12));
   }
-  pts.push(KEYS[KEYS.length - 1]);
+  pts.push(keys[keys.length - 1]);
   const len = [0];
   for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot((pts[i][0] - pts[i - 1][0]) * ASPECT, pts[i][1] - pts[i - 1][1]));
   return { pts, len, total: len[len.length - 1] };
-})();
+}
+export const PATHS = KEYS.map(smooth);
 
-/* Where on the path `s` (screen heights along it) is, and which way it's
-   heading. */
-export function along(s){
-  const { pts, len } = PATH;
-  s = Math.max(0, Math.min(PATH.total, s));
+/* Where on path `p` the distance `s` (screen heights along it) is, and
+   which way it's heading. */
+export function along(s, p = 0){
+  const { pts, len, total } = PATHS[p];
+  s = Math.max(0, Math.min(total, s));
   let i = 1;
   while (i < len.length - 1 && len[i] < s) i++;
   const a = pts[i - 1], b = pts[i], k = (s - len[i - 1]) / Math.max(1e-9, len[i] - len[i - 1]);
   return { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, dir: b[0] >= a[0] ? 1 : -1 };
 }
 
-/* The stone pads where towers can be built: just off the path, each where
-   a tower reaches the most of it - inside the bends, where the path passes
-   on two sides. */
-export const PADS = [[0.14, 0.6], [0.15, 0.43], [0.22, 0.28], [0.27, 0.65], [0.28, 0.42], [0.42, 0.71],
-                     [0.52, 0.46], [0.66, 0.36], [0.7, 0.52], [0.71, 0.18], [0.79, 0.34]].map(([x, y], i) => ({ i, x, y }));
+/* The stone pads where towers can be built: just off the paths, each where
+   a tower reaches the most of one - and one in the middle that reaches
+   both. The right side mirrors the left. */
+const LEFT_PADS = [[0.31, 0.13], [0.24, 0.27], [0.36, 0.48], [0.25, 0.57], [0.34, 0.65], [0.11, 0.73], [0.31, 0.85]];
+export const PADS = [...LEFT_PADS, ...LEFT_PADS.map(([x, y]) => [+(1 - x).toFixed(2), y]), [0.5, 0.36]].map(([x, y], i) => ({ i, x, y }));
 export const PAD_R = 0.055;
 
 /* ---------- the meadow, painted once ---------- */
@@ -74,11 +79,11 @@ function paintMeadow(c, W, H){
   /* The path: a darker edge, then sand, then a lighter middle. */
   const stroke = (col, w) => {
     c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round';
-    c.beginPath(); PATH.pts.forEach(([x, y], i) => i ? c.lineTo(x * W, y * H) : c.moveTo(x * W, y * H)); c.stroke();
+    for (const P of PATHS){ c.beginPath(); P.pts.forEach(([x, y], i) => i ? c.lineTo(x * W, y * H) : c.moveTo(x * W, y * H)); c.stroke(); }
   };
   stroke('#b88a55', H * 0.095); stroke('#e3c48e', H * 0.075); stroke('rgba(255,240,200,.45)', H * 0.03);
   for (let i = 0; i < 80; i++){
-    const p = along(hash(i, 13) * PATH.total), off = (hash(i, 17) - 0.5) * 0.05;
+    const k = i % 2, p = along(hash(i, 13) * PATHS[k].total, k), off = (hash(i, 17) - 0.5) * 0.05;
     c.fillStyle = 'rgba(150,115,70,.4)'; c.beginPath(); c.ellipse(p.x * W + off * H, p.y * H + off * H * 0.5, H * 0.006, H * 0.004, 0, 0, 6.2832); c.fill();
   }
   /* Flowers dotted about. */
@@ -89,22 +94,25 @@ function paintMeadow(c, W, H){
     for (let k = 0; k < 5; k++){ const a = k * 1.2566; c.beginPath(); c.arc(x + Math.cos(a) * H * 0.005, y + Math.sin(a) * H * 0.005, H * 0.004, 0, 6.2832); c.fill(); }
     c.fillStyle = '#ffb02e'; c.beginPath(); c.arc(x, y, H * 0.003, 0, 6.2832); c.fill();
   }
-  /* The cave the monsters come from. */
+  /* The caves the monsters come from. */
+  for (const CAVE of CAVES){
   const cx = CAVE.x * W, cy = CAVE.y * H;
   c.fillStyle = '#7d7f8c'; c.beginPath(); c.ellipse(cx, cy - H * 0.02, H * 0.13, H * 0.13, 0, Math.PI, 0); c.lineTo(cx + H * 0.13, cy + H * 0.06); c.lineTo(cx - H * 0.13, cy + H * 0.06); c.closePath(); c.fill();
   c.fillStyle = '#9a9cab';
   for (const [dx, dy, r] of [[-0.09, -0.08, 0.04], [0.06, -0.11, 0.035], [0.1, -0.03, 0.03]]){ c.beginPath(); c.arc(cx + dx * H, cy + dy * H, r * H, 0, 6.2832); c.fill(); }
   c.fillStyle = '#2b2236'; c.beginPath(); c.ellipse(cx + H * 0.01, cy + H * 0.01, H * 0.07, H * 0.07, 0, Math.PI, 0); c.lineTo(cx + H * 0.08, cy + H * 0.05); c.lineTo(cx - H * 0.06, cy + H * 0.05); c.closePath(); c.fill();
+  }
   /* Trees round the edges, kept off the path and the pads. */
   for (let i = 0; i < 46; i++){
     const x = hash(i, 29), y = 0.05 + hash(i, 31) * 0.95;
-    if (nearPath(x, y, 0.1) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.1) || Math.hypot((x - CASTLE.x) * ASPECT, y - CASTLE.y) < 0.2 || Math.hypot((x - CAVE.x) * ASPECT, y - CAVE.y) < 0.15) continue;
+    if (nearPath(x, y, 0.1) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.1) || Math.hypot((x - CASTLE.x) * ASPECT, y - CASTLE.y) < 0.24 || CAVES.some(cv => Math.hypot((x - cv.x) * ASPECT, y - cv.y) < 0.15)
+        || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.1) continue;
     tree(c, x * W, y * H, H * (0.06 + hash(i, 37) * 0.03), i);
   }
 }
 
 function nearPath(x, y, d){
-  return PATH.pts.some(([px, py]) => Math.hypot((px - x) * ASPECT, py - y) < d);
+  return PATHS.some(P => P.pts.some(([px, py]) => Math.hypot((px - x) * ASPECT, py - y) < d));
 }
 
 function tree(c, x, y, r, seed){
@@ -125,7 +133,7 @@ export function drawMeadow(c, W, H){
 /* hearts: how many it has left, of `max`. waves: pennants flying, one for
    each wave held off. hit: 0..1, a shudder when a monster gets in. */
 export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0){
-  const x = CASTLE.x * W + Math.sin(t * 60) * hit * H * 0.006, base = (CASTLE.y + 0.12) * H, s = H * 0.26;
+  const x = CASTLE.x * W + Math.sin(t * 60) * hit * H * 0.006, base = (CASTLE.y + 0.12) * H, s = H * 0.24;
   c.fillStyle = 'rgba(40,60,40,.3)'; c.beginPath(); c.ellipse(x, base, s * 0.75, s * 0.12, 0, 0, 6.2832); c.fill();
   const wall = '#d9d2c3', dark = '#b8ae9c', roof = '#5a7bd8';
   /* Back towers, wall, front towers. */
@@ -159,9 +167,9 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0){
     c.fillStyle = waves > 12 ? '#ffd24a' : `hsl(${k * 30},80%,60%)`;
     c.beginPath(); c.moveTo(px - s * 0.025, py); c.lineTo(px + s * 0.025, py); c.lineTo(px, py + s * 0.06 + Math.sin(t * 3 + k) * s * 0.005); c.closePath(); c.fill();
   }
-  /* Hearts over the gate. */
+  /* Hearts in an arc over the castle, clear of the paths coming in below. */
   for (let k = 0; k < max; k++){
-    const hx = x + (k - (max - 1) / 2) * s * 0.11, hy = base + s * 0.11, r = s * 0.04, full = k < hearts;
+    const u = (k - (max - 1) / 2) / max, hx = x + u * s * 1.3, hy = base - s * 1.62 + u * u * s * 0.5, r = s * 0.05, full = k < hearts;
     heart(c, hx, hy, r, full ? '#ff4f6a' : 'rgba(80,60,80,.35)');
   }
 }
@@ -274,7 +282,7 @@ export function coin(c, x, y, r){
 
 /* The treasure chest by the castle, with the coins piled in and over it. */
 export function drawChest(c, W, H, coins, t){
-  const x = (CASTLE.x - 0.07) * W, y = (CASTLE.y + 0.22) * H, s = H * 0.07;
+  const x = CHEST.x * W, y = CHEST.y * H, s = H * 0.07;
   c.fillStyle = 'rgba(40,60,40,.3)'; c.beginPath(); c.ellipse(x, y + s * 0.5, s * 0.8, s * 0.18, 0, 0, 6.2832); c.fill();
   c.fillStyle = '#8a5a34'; c.beginPath(); c.roundRect(x - s * 0.7, y - s * 0.1, s * 1.4, s * 0.6, s * 0.08); c.fill();
   c.fillStyle = '#e8a91c'; c.fillRect(x - s * 0.7, y + s * 0.05, s * 1.4, s * 0.08);

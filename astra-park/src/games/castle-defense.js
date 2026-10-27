@@ -2,12 +2,13 @@ import { clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
-import { PATH, PADS, PAD_R, CASTLE, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest,
+import { PATHS, PADS, PAD_R, CASTLE, CHEST, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest,
          drawMonster, drawShot, coin, star } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
-   bats, and now and then a big ogre - come out of the cave and march along
-   the winding path toward the castle. The children build towers beside the
+   bats, and now and then a big ogre - come out of two caves at the top and
+   march down two winding paths to the castle at the bottom. The first wave
+   comes down the left path, the second the right, and from then on both. The children build towers beside the
    path to stop them, and swat any that get close with their own hands.
 
    Building is holding: hold a hand over an empty stone pad and three
@@ -38,23 +39,26 @@ export const STATS = {
   frost:  { range: [0.2, 0.22, 0.24], rate: [0.8, 1.0, 1.2], dmg: [0.4, 0.6, 0.8], slow: [0.55, 0.45, 0.35] }
 };
 export const MONSTERS = {
-  slime:  { hp: 3, speed: 0.07, size: 0.08, coins: 1, harm: 1 },
-  goblin: { hp: 2, speed: 0.11, size: 0.085, coins: 1, harm: 1 },
-  bat:    { hp: 2, speed: 0.09, size: 0.08, coins: 1, harm: 1, flies: true },
-  ogre:   { hp: 18, speed: 0.045, size: 0.13, coins: 5, harm: 3 }
+  slime:  { hp: 3, speed: 0.06, size: 0.08, coins: 1, harm: 1 },
+  goblin: { hp: 2, speed: 0.095, size: 0.085, coins: 1, harm: 1 },
+  bat:    { hp: 2, speed: 0.077, size: 0.08, coins: 1, harm: 1, flies: true },
+  ogre:   { hp: 18, speed: 0.04, size: 0.13, coins: 5, harm: 3 }
 };
 const SLOW_FOR = 1.6, CHOICE_R = 0.045, CHOICE_D = 0.12, MENU_IDLE = 2.5;
 const ASPECT = 16 / 9;
 
-/* What comes in wave w: more each time, goblins from the second, bats from
-   the third, and an ogre (or more) every fifth. */
+/* What comes in wave w, and down which path: more each time, goblins from
+   the second, bats from the third, an ogre (or more) every fifth. The first
+   wave takes the left path and the second the right, so each is met on its
+   own first; after that they take turns. */
 export function waveOf(w){
   const n = Math.min(40, 4 + 2 * w), out = [];
+  const path = (k) => w === 1 ? 0 : w === 2 ? 1 : k % 2;
   for (let k = 0; k < n; k++){
     const r = ((k * 7 + w * 3) % 12) / 12;
-    out.push(w >= 3 && r < 0.25 ? 'bat' : w >= 2 && r < 0.55 ? 'goblin' : 'slime');
+    out.push({ kind: w >= 3 && r < 0.25 ? 'bat' : w >= 2 && r < 0.55 ? 'goblin' : 'slime', path: path(k) });
   }
-  if (w % 5 === 0) for (let k = 0; k < w / 5; k++) out.push('ogre');
+  if (w % 5 === 0) for (let k = 0; k < w / 5; k++) out.push({ kind: 'ogre', path: k % 2 });
   return out;
 }
 /* How much tougher everything is in wave w: a fifth more each wave, which
@@ -117,7 +121,8 @@ class CastleDefense {
       return;
     }
     if (this.queue.length && (this.spawnT -= dt) <= 0){
-      this._spawn(this.queue.shift());
+      const next = this.queue.shift();
+      this._spawn(next.kind, next.path);
       this.spawnT = Math.max(0.55, 1.3 - this.wave * 0.04);
     }
     if (!this.queue.length && !this.monsters.length){
@@ -133,10 +138,10 @@ class CastleDefense {
     sfx.trumpet(1);
   }
 
-  _spawn(kind){
+  _spawn(kind, path = 0){
     const M = MONSTERS[kind], k = toughness(this.wave);
     const hp = M.hp * k;
-    this.monsters.push({ id: this.nextId++, kind, s: 0, hp, max: hp, speed: M.speed * Math.min(1.4, 1 + 0.02 * (this.wave - 1)),
+    this.monsters.push({ id: this.nextId++, kind, path, s: 0, hp, max: hp, speed: M.speed * Math.min(1.4, 1 + 0.02 * (this.wave - 1)),
                          slowT: 0, slowK: 1, hurt: 0, swat: new Map(), wob: Math.random() * 6 });
   }
 
@@ -146,7 +151,7 @@ class CastleDefense {
       if (m.slowT > 0){ m.slowT -= dt; if (m.slowT <= 0) m.slowK = 1; }
       m.s += m.speed * m.slowK * dt;
       for (const [k, v] of m.swat) if (v - dt <= 0) m.swat.delete(k); else m.swat.set(k, v - dt);
-      if (m.s >= PATH.total){
+      if (m.s >= PATHS[m.path].total){
         m.gone = true;
         this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm);
         this.castleHit = 1;
@@ -157,7 +162,7 @@ class CastleDefense {
     this.monsters = this.monsters.filter(m => !m.gone);
   }
 
-  pos(m){ return along(m.s); }
+  pos(m){ return along(m.s, m.path); }
 
   /* ---------- the children's hands: building and swatting ---------- */
 
@@ -270,7 +275,8 @@ class CastleDefense {
         if (tw.kind === 'cannon' && MONSTERS[m.kind].flies) continue;
         const p = this.pos(m);
         if (Math.hypot((p.x - pad.x) * ASPECT, p.y - pad.y) > range) continue;
-        if (!best || m.s > best.s) best = m;
+        /* The one nearest the castle, whichever path it's on. */
+        if (!best || PATHS[m.path].total - m.s < PATHS[best.path].total - best.s) best = m;
       }
       if (!best) continue;
       const bp = this.pos(best);
@@ -280,7 +286,7 @@ class CastleDefense {
       if (tw.kind === 'archer'){ this.shots.push({ kind: 'arrow', x: top.x, y: top.y, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L] }); sfx.whoosh(); }
       else if (tw.kind === 'cannon'){
         /* Lobbed where the monster will be when it lands. */
-        const lead = this.pos({ s: best.s + best.speed * best.slowK * 0.55 });
+        const lead = this.pos({ s: best.s + best.speed * best.slowK * 0.55, path: best.path });
         this.shots.push({ kind: 'ball', x: top.x, y: top.y, from: { ...top }, to: lead, k: 0, dmg: S.dmg[L], splash: S.splash[L] });
         sfx.thud();
       } else { this.shots.push({ kind: 'frost', x: top.x, y: top.y - 0.03, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L], slow: S.slow[L] }); sfx.twinkle(); }
@@ -341,7 +347,7 @@ class CastleDefense {
     if (this.bits.length > 400) this.bits.splice(0, this.bits.length - 400);
   }
   _stepBits(dt){
-    const chest = { x: CASTLE.x - 0.07, y: CASTLE.y + 0.2 };
+    const chest = { x: CHEST.x, y: CHEST.y - 0.02 };
     for (const b of this.bits){
       b.age += dt;
       if (b.kind === 'spark'){ b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 0.15 * dt; }
@@ -362,7 +368,7 @@ class CastleDefense {
      has swatted one. */
   get swatHint(){
     if (this.swatted) return null;
-    return this.monsters.filter(m => m.s > PATH.total * 0.7).sort((a, b) => b.s - a.s)[0] || null;
+    return this.monsters.filter(m => m.s > PATHS[m.path].total * 0.7).sort((a, b) => b.s / PATHS[b.path].total - a.s / PATHS[a.path].total)[0] || null;
   }
 
   /* ---------- the ending ---------- */
@@ -461,15 +467,15 @@ class CastleDefense {
     };
     const u = this.buildHint;
     if (u >= 0){
-      const pad = PADS[1], ch = this.choices(1)[0];
+      const pad = PADS[2], ch = this.choices(2)[0];
       const ease = (a, b) => { const k = clamp((u - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
       const show = Math.min(ease(0, 0.3), 1 - ease(3.6, 4));
       const toPad = ease(0.2, 0.9), toCh = ease(1.6, 2.2);
-      const x = 0.62 + (pad.x - 0.62) * toPad + (ch.x - pad.x) * toCh, y = 0.3 + (pad.y - 0.02 - 0.3) * toPad + (ch.y - pad.y + 0.02) * toCh;
+      const x = 0.5 + (pad.x - 0.5) * toPad + (ch.x - pad.x) * toCh, y = 0.55 + (pad.y - 0.02 - 0.55) * toPad + (ch.y - pad.y + 0.02) * toCh;
       if (u > 1.4 && u < 3.6){
         /* The bubbles, ghostly. */
         c.save(); c.globalAlpha = 0.6 * show;
-        this.choices(1).forEach(q => drawChoice(c, q.x * W, q.y * H, CHOICE_R * H, q.kind, COST[q.kind], true, q === ch ? clamp((u - 2.3) / 1, 0, 1) : 0, '#fff6e2'));
+        this.choices(2).forEach(q => drawChoice(c, q.x * W, q.y * H, CHOICE_R * H, q.kind, COST[q.kind], true, q === ch ? clamp((u - 2.3) / 1, 0, 1) : 0, '#fff6e2'));
         c.restore();
       }
       ghost(x * W, y * H, show * 0.85, u > 0.9 && u < 1.5 ? (u - 0.9) / 0.5 : 0);
