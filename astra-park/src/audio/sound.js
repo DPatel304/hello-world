@@ -156,6 +156,38 @@ export const sfx = {
   twinkle(){
     bell(96 + PENT[(Math.random() * 5) | 0], ctx().currentTime, 0.025, 0.6, master);
   },
+  /* ---- Fire Truck ---- */
+  /* One note of the siren's two-tone, high or low: soft, not shrill. */
+  siren(hi){ blip({ freq: hi ? 880 : 660, dur: 0.42, type: 'triangle', gain: 0.07 }); },
+  /* The water landing: a short splashy hiss, called again and again. */
+  spray(){ hiss({ dur: 0.16, gain: 0.035, hp: 1800, type: 'bandpass', q: 0.7 }); },
+  /* A flame going out: a falling fizz and a little bell. */
+  sizzle(){
+    hiss({ dur: 0.5, gain: 0.08, hp: 2500, sweep: -1800 });
+    bell(84, ctx().currentTime + 0.05, 0.04, 0.5, master);
+  },
+  meow(){
+    blip({ freq: 700, to: 1050, dur: 0.18, type: 'triangle', gain: 0.12 });
+    blip({ freq: 1050, to: 620, dur: 0.3, type: 'triangle', gain: 0.12, delay: 0.17 });
+  },
+  quack(){
+    blip({ freq: 340, to: 260, dur: 0.14, type: 'sawtooth', gain: 0.06 });
+    hiss({ dur: 0.12, gain: 0.03, hp: 900, type: 'bandpass', q: 3 });
+  },
+  /* Beep beep, on the way again. */
+  honk(){
+    [0, 0.22].forEach(d => {
+      blip({ freq: 330, dur: 0.16, type: 'square', gain: 0.045, delay: d });
+      blip({ freq: 415, dur: 0.16, type: 'square', gain: 0.035, delay: d });
+    });
+  },
+  /* A job done: a bright run of bells. */
+  hooray(){
+    const t = ctx().currentTime;
+    [0, 4, 7, 12, 16, 19].forEach((s, i) => bell(72 + s, t + i * 0.08, 0.06, 0.5, master));
+  },
+  /* A flower standing back up, a note higher each time. */
+  bloom(k = 0){ bell(79 + PENT[k % 5], ctx().currentTime, 0.05, 0.5, master); },
   /* A glockenspiel run up through the chord. */
   rainbow(){
     const t = ctx().currentTime, ch = music.chord();

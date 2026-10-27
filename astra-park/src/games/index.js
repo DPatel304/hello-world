@@ -4,6 +4,7 @@
    adding a game means adding a file and a line here. */
 import popParty from './pop-party.js';
 import fireflyNight from './firefly-night.js';
+import fireTruck from './fire-truck.js';
 
-export const GAMES = [popParty, fireflyNight];
+export const GAMES = [popParty, fireflyNight, fireTruck];
 export const byId = (id) => GAMES.find(g => g.id === id);

@@ -108,7 +108,8 @@ function checkPause(dt){
   if (mode !== 'play' || paused) { handsUp = 0; return; }
   const any = pose.players.slice(0, players).some(handsAboveHead);
   handsUp = any ? handsUp + dt : 0;
-  if (handsUp >= 1.5){
+  /* A game where reaching up is part of play can ask for a longer hold. */
+  if (handsUp >= (game.pauseHold || 1.5)){
     handsUp = 0;
     paused = pauseOverlay(
       () => { paused.remove(); paused = null; cursor.reset(); },
@@ -275,6 +276,7 @@ document.addEventListener('visibilitychange', () => {
 
   await pose.start(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
+  window.__round = () => inst;
   audio.resume();
   holdScreen();
 

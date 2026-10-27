@@ -8,6 +8,8 @@
 import { Scene } from '../games/pop-party-scene.js';
 import { NightScene } from '../games/firefly-scene.js';
 import { glow } from './backdrop.js';
+import { Town, ROAD, SIDEWALK } from '../games/fire-truck-scene.js';
+import { TRUCK, drawTruck, drawHelmet, drawKid, drawHouse, drawFlame } from '../games/fire-truck-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
 
@@ -78,6 +80,26 @@ function jar(c, x, top, h, t){
   c.beginPath(); c.roundRect(x - w * 0.78, top - h * 0.08, w * 1.56, h * 0.09, h * 0.03); c.fill();
 }
 
+function fireTruck(){
+  const town = new Town();
+  const pal = { wall: '#f6d7b0', roof: '#c0504d', trim: '#ffffff', door: '#5b7fb5' };
+  return (c, W, H, t) => {
+    town.step(1 / 60, { t, p: 0.25, dist: t * 0.02, clear: [[t * 0.02 + 0.6, t * 0.02 + 1.1]] });
+    town.drawBack(c, W, H);
+    drawHouse(c, W * 0.84, H * SIDEWALK, H * 0.3, H * 0.24, pal);
+    drawFlame(c, W * 0.84 + H * 0.078, H * (SIDEWALK - 0.14), H * 0.085, t, 0);
+    drawFlame(c, W * 0.84 - H * 0.06, H * (SIDEWALK - 0.255), H * 0.07, t, 2);
+    town.drawRoad(c, W, H);
+    /* A bigger truck than in the game, so the faces in it read on a tile. */
+    const s = W * 0.68 / TRUCK.length;
+    drawTruck(c, W * 0.01, H * ROAD, s, {
+      t, roll: t * 3, bounce: Math.sin(t * 13) * 2, lights: 1, aim: -0.4,
+      face: (i, x, y, r) => drawKid(c, x, y + r * 0.08, r * 0.95, t + i, i ? '#c98f6a' : '#e9b892'),
+      helmets: () => TRUCK.windows.forEach((w, i) => drawHelmet(c, w.x, w.y - w.r * 0.42, w.r * 1.45, 0, i ? '#ff8a3d' : '#3da9ff'))
+    });
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -86,7 +108,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight };
+const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
