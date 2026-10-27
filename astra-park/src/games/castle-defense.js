@@ -1,0 +1,503 @@
+import { clamp } from './common.js';
+import { pose, PLAYER_COLORS } from '../tracking/pose.js';
+import { sfx } from '../audio/sound.js';
+import { Avatars } from '../ui/avatars.js';
+import { PATH, PADS, PAD_R, CASTLE, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest,
+         drawMonster, drawShot, coin, star } from './castle-art.js';
+
+/* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
+   bats, and now and then a big ogre - come out of the cave and march along
+   the winding path toward the castle. The children build towers beside the
+   path to stop them, and swat any that get close with their own hands.
+
+   Building is holding: hold a hand over an empty stone pad and three
+   bubbles pop up - an archer tower, a cannon, a frost tower - with the
+   coins each costs as dots underneath; hold on one to build it. Hold on a
+   tower to make it bigger and stronger, up to three times. Monsters drop
+   coins into the treasure chest by the castle. Swatting is a quick hand
+   through a monster: it knocks it back down the path.
+
+   The waves keep coming, each a little harder, until the castle's hearts
+   run out - so the round is as long as the castle holds. Nothing is
+   counted in numbers: the castle flies a pennant for every wave held off.
+
+   A ghostly hand shows how to build first thing, and how to swat the first
+   time a monster gets near the castle. */
+
+export const ROUND = 600;
+export const HEARTS = 10;
+export const START_COINS = 7;
+export const COST = { archer: 3, cannon: 5, frost: 4 };
+export const KINDS = ['archer', 'cannon', 'frost'];
+export const OPEN = 0.5, PICK = 0.6, UPGRADE = 1.0;   /* seconds of holding */
+export const SWAT = 1.0;                              /* hand speed, screen widths a second */
+export const BREAK = 7;                               /* seconds between waves */
+export const STATS = {
+  archer: { range: [0.24, 0.27, 0.3], rate: [1.1, 1.5, 2.0], dmg: [1, 1.4, 2] },
+  cannon: { range: [0.21, 0.23, 0.26], rate: [0.45, 0.55, 0.65], dmg: [2.5, 3.5, 5], splash: [0.08, 0.095, 0.11] },
+  frost:  { range: [0.2, 0.22, 0.24], rate: [0.8, 1.0, 1.2], dmg: [0.4, 0.6, 0.8], slow: [0.55, 0.45, 0.35] }
+};
+export const MONSTERS = {
+  slime:  { hp: 3, speed: 0.07, size: 0.08, coins: 1, harm: 1 },
+  goblin: { hp: 2, speed: 0.11, size: 0.085, coins: 1, harm: 1 },
+  bat:    { hp: 2, speed: 0.09, size: 0.08, coins: 1, harm: 1, flies: true },
+  ogre:   { hp: 18, speed: 0.045, size: 0.13, coins: 5, harm: 3 }
+};
+const SLOW_FOR = 1.6, CHOICE_R = 0.045, CHOICE_D = 0.12, MENU_IDLE = 2.5;
+const ASPECT = 16 / 9;
+
+/* What comes in wave w: more each time, goblins from the second, bats from
+   the third, and an ogre (or more) every fifth. */
+export function waveOf(w){
+  const n = Math.min(40, 4 + 2 * w), out = [];
+  for (let k = 0; k < n; k++){
+    const r = ((k * 7 + w * 3) % 12) / 12;
+    out.push(w >= 3 && r < 0.25 ? 'bat' : w >= 2 && r < 0.55 ? 'goblin' : 'slime');
+  }
+  if (w % 5 === 0) for (let k = 0; k < w / 5; k++) out.push('ogre');
+  return out;
+}
+/* How much tougher everything is in wave w: a fifth more each wave, which
+   is gentle at first and then runs away, so even the best-defended castle
+   falls in the end. */
+export const toughness = (w) => Math.pow(1.2, w - 1);
+export const upgradeCost = (kind, lvl) => lvl === 1 ? Math.ceil(COST[kind] * 1.2) : COST[kind] * 2;
+
+export default {
+  id: 'castle-defense', name: 'Castle Defense', stars: 2, accent: '#e5534b', secs: ROUND,
+  /* Hands reach up to the top of the map; a pause is a longer hold. */
+  pauseHold: 3,
+  create(n){ return new CastleDefense(n); }
+};
+
+class CastleDefense {
+  constructor(players){
+    this.players = players;
+    this.t = 0; this.over = false; this.lost = false;
+    this.coins = START_COINS;
+    this.hearts = HEARTS;
+    this.wave = 0;              /* waves started */
+    this.held = 0;              /* waves held off */
+    this.state = 'build';       /* 'build' between waves, 'wave' while one is on */
+    this.breakT = 16;           /* the first wave waits for a tower, or this long */
+    this.queue = []; this.spawnT = 0;
+    this.towers = new Map();    /* pad index -> tower */
+    this.menus = new Map();     /* pad index -> open build bubbles */
+    this.dwell = new Map();     /* hand -> what it's holding over, and for how long */
+    this.monsters = [];
+    this.shots = [];
+    this.bits = [];
+    this.castleHit = 0;
+    this.swatted = false;       /* has anyone swatted yet: the swat hint stops */
+    this.built = false;
+    this.avatars = new Avatars();
+    this.out = null;
+    this.nextId = 1;
+  }
+
+  /* ---------- the loop ---------- */
+
+  step(dt, W, H){
+    this.t += dt;
+    this.castleHit = Math.max(0, this.castleHit - dt * 2);
+    this._waves(dt);
+    this._hands(dt, W, H);
+    this._march(dt);
+    this._towers(dt, W, H);
+    this._shots(dt, W, H);
+    this._stepBits(dt);
+    this.avatars.step(dt, this.players);
+    for (const [i, m] of this.menus){ m.idle += dt; if (m.idle > MENU_IDLE || this.towers.has(i)) this.menus.delete(i); }
+  }
+
+  _waves(dt){
+    if (this.state === 'build'){
+      this.breakT -= dt;
+      if (this.breakT <= 0) this._startWave();
+      return;
+    }
+    if (this.queue.length && (this.spawnT -= dt) <= 0){
+      this._spawn(this.queue.shift());
+      this.spawnT = Math.max(0.55, 1.3 - this.wave * 0.04);
+    }
+    if (!this.queue.length && !this.monsters.length){
+      this.held++; this.state = 'build'; this.breakT = BREAK;
+      this.coins += 2 + Math.floor(this.wave / 3);
+      sfx.fanfare();
+    }
+  }
+
+  _startWave(){
+    this.wave++; this.state = 'wave';
+    this.queue = waveOf(this.wave); this.spawnT = 0;
+    sfx.trumpet(1);
+  }
+
+  _spawn(kind){
+    const M = MONSTERS[kind], k = toughness(this.wave);
+    const hp = M.hp * k;
+    this.monsters.push({ id: this.nextId++, kind, s: 0, hp, max: hp, speed: M.speed * Math.min(1.4, 1 + 0.02 * (this.wave - 1)),
+                         slowT: 0, slowK: 1, hurt: 0, swat: new Map(), wob: Math.random() * 6 });
+  }
+
+  _march(dt){
+    for (const m of this.monsters){
+      m.hurt = Math.max(0, m.hurt - dt * 4);
+      if (m.slowT > 0){ m.slowT -= dt; if (m.slowT <= 0) m.slowK = 1; }
+      m.s += m.speed * m.slowK * dt;
+      for (const [k, v] of m.swat) if (v - dt <= 0) m.swat.delete(k); else m.swat.set(k, v - dt);
+      if (m.s >= PATH.total){
+        m.gone = true;
+        this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm);
+        this.castleHit = 1;
+        sfx.thud();
+        if (this.hearts <= 0 && !this.lost){ this.lost = true; this.over = true; }
+      }
+    }
+    this.monsters = this.monsters.filter(m => !m.gone);
+  }
+
+  pos(m){ return along(m.s); }
+
+  /* ---------- the children's hands: building and swatting ---------- */
+
+  _handsOf(){
+    const out = [];
+    for (let i = 0; i < this.players; i++){
+      const p = pose.players[i];
+      if (!p || !p.present) continue;
+      const hs = pose.mouse.active ? [['r', p.hands.right]] : [['l', p.hands.left], ['r', p.hands.right]];
+      for (const [side, h] of hs) out.push({ who: i, key: i + side, h });
+    }
+    return out;
+  }
+
+  /* The build bubbles round a pad: above it, or below if it's near the top. */
+  choices(i){
+    const pad = PADS[i], up = pad.y > 0.22 ? -1 : 1;
+    return KINDS.map((kind, k) => {
+      const a = (up < 0 ? -Math.PI / 2 : Math.PI / 2) + (k - 1) * 0.85 * -up;
+      return { kind, x: pad.x + Math.cos(a) * CHOICE_D / ASPECT, y: pad.y + Math.sin(a) * CHOICE_D };
+    });
+  }
+
+  /* What a hand is over: a build bubble, a pad, or nothing. */
+  _target(h){
+    const d = (x, y) => Math.hypot((h.x - x) * ASPECT, h.y - y);
+    for (const [i] of this.menus){
+      for (const ch of this.choices(i)) if (d(ch.x, ch.y) < CHOICE_R * 1.2) return { id: `c${i}${ch.kind}`, pad: i, kind: ch.kind };
+    }
+    for (const pad of PADS) if (d(pad.x, pad.y - 0.02) < PAD_R * 1.3) return { id: `p${pad.i}`, pad: pad.i };
+    return null;
+  }
+
+  _hands(dt, W, H){
+    const seen = new Set();
+    for (const { who, key, h } of this._handsOf()){
+      seen.add(key);
+      this._swat(who, key, h, W, H);
+      const tg = this._target(h);
+      let dw = this.dwell.get(key);
+      if (!tg){ this.dwell.delete(key); continue; }
+      if (!dw || dw.id !== tg.id){ dw = { id: tg.id, t: 0 }; this.dwell.set(key, dw); }
+      dw.t += dt;
+      const menu = this.menus.get(tg.pad);
+      if (menu) menu.idle = 0;
+      if (tg.kind){
+        dw.need = PICK; dw.can = this.coins >= COST[tg.kind];
+        if (dw.can && dw.t >= PICK) this._build(tg.pad, tg.kind, who);
+      } else if (this.towers.has(tg.pad)){
+        const tw = this.towers.get(tg.pad);
+        dw.need = UPGRADE; dw.can = tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl);
+        if (!dw.can) dw.t = 0;
+        else if (dw.t >= UPGRADE){ this._upgrade(tg.pad, who); dw.t = -0.6; }
+      } else {
+        dw.need = OPEN; dw.can = true;
+        if (dw.t >= OPEN && !menu){ this.menus.set(tg.pad, { who, idle: 0 }); sfx.tick(); }
+      }
+    }
+    for (const k of [...this.dwell.keys()]) if (!seen.has(k)) this.dwell.delete(k);
+  }
+
+  _build(i, kind, who){
+    this.coins -= COST[kind];
+    this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0 });
+    this.menus.delete(i);
+    for (const [k, d] of this.dwell) if (d.id.startsWith(`c${i}`) || d.id === `p${i}`) this.dwell.delete(k);
+    this.built = true;
+    sfx.land();
+    const pad = PADS[i];
+    for (let k = 0; k < 14; k++) this._spark(pad.x, pad.y - 0.04, '#ffd24a');
+    /* The first tower brings the first wave on soon. */
+    if (this.wave === 0) this.breakT = Math.min(this.breakT, 2.5);
+  }
+
+  _upgrade(i, who){
+    const tw = this.towers.get(i);
+    this.coins -= upgradeCost(tw.kind, tw.lvl);
+    tw.lvl++;
+    sfx.gold();
+    const pad = PADS[i];
+    for (let k = 0; k < 20; k++) this._spark(pad.x, pad.y - 0.08, PLAYER_COLORS[who]);
+  }
+
+  /* A quick hand through a monster knocks it back down the path. */
+  _swat(who, key, h, W, H){
+    if ((h.speed || 0) < SWAT) return;
+    for (const m of this.monsters){
+      if (m.swat.has(key)) continue;
+      const p = this.pos(m), M = MONSTERS[m.kind], my = p.y - M.size * (M.flies ? 0.75 : 0.4);
+      if (Math.hypot((h.x - p.x) * ASPECT, h.y - my) > M.size * 0.7 + 0.03) continue;
+      m.swat.set(key, 0.35);
+      m.s = Math.max(0, m.s - (m.kind === 'ogre' ? 0.02 : 0.06));
+      m.hurt = 1;
+      this.swatted = true;
+      sfx.boing(2);
+      for (let k = 0; k < 6; k++) this._spark(p.x, my, PLAYER_COLORS[who]);
+      this._damage(m, 1);
+    }
+  }
+
+  /* ---------- towers ---------- */
+
+  _towers(dt, W, H){
+    for (const [i, tw] of this.towers){
+      tw.cool -= dt; tw.kick = Math.max(0, tw.kick - dt * 4);
+      const pad = PADS[i], S = STATS[tw.kind], L = tw.lvl - 1, range = S.range[L];
+      const top = { x: pad.x, y: pad.y - 0.12 };
+      let best = null;
+      for (const m of this.monsters){
+        if (tw.kind === 'cannon' && MONSTERS[m.kind].flies) continue;
+        const p = this.pos(m);
+        if (Math.hypot((p.x - pad.x) * ASPECT, p.y - pad.y) > range) continue;
+        if (!best || m.s > best.s) best = m;
+      }
+      if (!best) continue;
+      const bp = this.pos(best);
+      tw.aim = Math.atan2(bp.y - top.y, (bp.x - top.x) * ASPECT);
+      if (tw.cool > 0) continue;
+      tw.cool = 1 / S.rate[L]; tw.kick = 1;
+      if (tw.kind === 'archer'){ this.shots.push({ kind: 'arrow', x: top.x, y: top.y, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L] }); sfx.whoosh(); }
+      else if (tw.kind === 'cannon'){
+        /* Lobbed where the monster will be when it lands. */
+        const lead = this.pos({ s: best.s + best.speed * best.slowK * 0.55 });
+        this.shots.push({ kind: 'ball', x: top.x, y: top.y, from: { ...top }, to: lead, k: 0, dmg: S.dmg[L], splash: S.splash[L] });
+        sfx.thud();
+      } else { this.shots.push({ kind: 'frost', x: top.x, y: top.y - 0.03, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L], slow: S.slow[L] }); sfx.twinkle(); }
+    }
+  }
+
+  _shots(dt, W, H){
+    for (const s of this.shots){
+      if (s.kind === 'ball'){
+        s.k += dt / 0.55;
+        s.x = s.from.x + (s.to.x - s.from.x) * Math.min(1, s.k); s.y = s.from.y + (s.to.y - s.from.y) * Math.min(1, s.k);
+        if (s.k >= 1){
+          s.done = true;
+          sfx.pop(0.8);
+          for (let k = 0; k < 10; k++) this._spark(s.x, s.y, '#ffb02e');
+          for (const m of this.monsters){
+            if (MONSTERS[m.kind].flies) continue;
+            const p = this.pos(m);
+            if (Math.hypot((p.x - s.x) * ASPECT, p.y - s.y) < s.splash) this._damage(m, s.dmg);
+          }
+        }
+        continue;
+      }
+      const m = this.monsters.find(q => q.id === s.target);
+      if (!m){ s.done = true; continue; }
+      const p = this.pos(m), M = MONSTERS[m.kind], ty = p.y - M.size * (M.flies ? 0.75 : 0.4);
+      const dx = (p.x - s.x) * ASPECT, dy = ty - s.y, d = Math.hypot(dx, dy), v = s.kind === 'arrow' ? 1.4 : 1.0;
+      s.vx = dx / d * v / ASPECT; s.vy = dy / d * v;
+      if (d < v * dt + 0.01){
+        s.done = true;
+        this._damage(m, s.dmg);
+        if (s.kind === 'frost'){ m.slowK = Math.min(m.slowK, s.slow); m.slowT = SLOW_FOR; for (let k = 0; k < 5; k++) this._spark(p.x, ty, '#bfefff'); }
+      } else { s.x += s.vx * dt; s.y += s.vy * dt; }
+    }
+    this.shots = this.shots.filter(s => !s.done);
+  }
+
+  _damage(m, dmg){
+    if (m.dead) return;
+    m.hp -= dmg; m.hurt = 1;
+    if (m.hp > 0) return;
+    m.dead = true; m.gone = true;
+    const M = MONSTERS[m.kind];
+    this.coins += M.coins;
+    const p = this.pos(m);
+    sfx.pop(M.coins > 1 ? 1 : 0.4);
+    /* Its coins fly to the chest; a puff where it was. */
+    for (let k = 0; k < M.coins; k++) this.bits.push({ kind: 'coin', x: p.x, y: p.y - 0.04, from: { x: p.x, y: p.y - 0.04 }, age: -k * 0.08, life: 0.7 });
+    for (let k = 0; k < 8; k++) this._spark(p.x, p.y - 0.03, '#ffffff');
+    this.monsters = this.monsters.filter(q => q !== m);
+  }
+
+  /* ---------- little things ---------- */
+
+  _spark(x, y, col){
+    const a = Math.random() * 6.28, sp = 0.08 + Math.random() * 0.12;
+    this.bits.push({ kind: 'spark', x, y, vx: Math.cos(a) * sp / ASPECT, vy: Math.sin(a) * sp - 0.05, age: 0, life: 0.6, col });
+    if (this.bits.length > 400) this.bits.splice(0, this.bits.length - 400);
+  }
+  _stepBits(dt){
+    const chest = { x: CASTLE.x - 0.07, y: CASTLE.y + 0.2 };
+    for (const b of this.bits){
+      b.age += dt;
+      if (b.kind === 'spark'){ b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 0.15 * dt; }
+      else if (b.kind === 'coin' && b.age > 0){
+        const k = Math.min(1, b.age / b.life), e = k * k;
+        b.x = b.from.x + (chest.x - b.from.x) * e; b.y = b.from.y + (chest.y - b.from.y) * e - Math.sin(k * Math.PI) * 0.12;
+      }
+    }
+    this.bits = this.bits.filter(b => b.age < b.life);
+  }
+
+  /* ---------- showing how ---------- */
+
+  /* Building: until the first tower, a ghostly hand holds over a pad, the
+     bubbles pop up, and it holds on the archer. */
+  get buildHint(){ return !this.built && this.t > 1 ? (this.t - 1) % 4 : -1; }
+  /* Swatting: the first time a monster gets most of the way, until someone
+     has swatted one. */
+  get swatHint(){
+    if (this.swatted) return null;
+    return this.monsters.filter(m => m.s > PATH.total * 0.7).sort((a, b) => b.s - a.s)[0] || null;
+  }
+
+  /* ---------- the ending ---------- */
+
+  outro(dt, W, H){
+    if (!this.out){
+      this.out = { t: 0 };
+      if (this.lost) sfx.lose(); else sfx.fanfare();
+      this.shots = []; this.menus.clear();
+    }
+    const o = this.out;
+    o.t += dt; this.t += dt;
+    /* The monsters dance about at the gate; or, if the castle held, they
+       scurry home. */
+    for (const m of this.monsters){ m.hurt = 0; if (!this.lost) m.s = Math.max(0, m.s - dt * 0.3); }
+    if (!this.lost && Math.random() < dt * 25) this._spark(Math.random(), Math.random() * 0.6, `hsl(${(Math.random() * 360) | 0},90%,65%)`);
+    this._stepBits(dt);
+    return o.t > 4.5;
+  }
+
+  /* ---------- drawing ---------- */
+
+  draw(c, W, H){
+    drawMeadow(c, W, H);
+    /* Pads glow while any hand is over them or their bubbles are up. */
+    const holding = new Map();
+    for (const d of this.dwell.values()) holding.set(d.id, Math.max(holding.get(d.id) || 0, d.need ? clamp(d.t / d.need, 0, 1) : 0));
+    const things = [];
+    for (const pad of PADS){
+      const tw = this.towers.get(pad.i);
+      drawPad(c, W, H, pad, tw ? 0 : this.menus.has(pad.i) ? 1 : holding.has(`p${pad.i}`) ? 0.7 : this.coins >= COST.archer && !this.out ? 0.25 + 0.15 * Math.sin(this.t * 3 + pad.i) : 0);
+      if (tw) things.push({ y: pad.y, draw: () => drawTower(c, W, H, pad, tw.kind, tw.lvl, tw.aim, PLAYER_COLORS[tw.who] || '#ffffff', this.t, tw.kick) });
+    }
+    for (const m of this.monsters){
+      const p = this.pos(m), M = MONSTERS[m.kind], dance = this.out && this.lost ? Math.abs(Math.sin(this.t * 6 + m.wob)) * 0.03 : 0;
+      things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max) });
+    }
+    things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, HEARTS, this.held, this.castleHit) });
+    things.sort((a, b) => a.y - b.y);
+    for (const th of things) th.draw();
+    drawChest(c, W, H, this.coins, this.t);
+    for (const s of this.shots) drawShot(c, W, H, s);
+    if (!this.out){
+      this._drawRings(c, W, H, holding);
+      this._drawMenus(c, W, H, holding);
+      this._drawHints(c, W, H);
+    }
+    this._drawBits(c, W, H);
+    this.avatars.drawBodies(c, W, H, this.players, [], 0.16);
+    if (!this.out) this.avatars.drawMitts(c, W, H, this.players);
+  }
+
+  /* A ring filling round a tower being upgraded. */
+  _drawRings(c, W, H, holding){
+    for (const [i, tw] of this.towers){
+      const k = holding.get(`p${i}`);
+      if (!k) continue;
+      const pad = PADS[i], x = pad.x * W, y = (pad.y - 0.06) * H, r = H * 0.075;
+      const can = tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl);
+      c.strokeStyle = 'rgba(255,255,255,.4)'; c.lineWidth = H * 0.008; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
+      if (can){ c.strokeStyle = '#ffd24a'; c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + k * 6.2832); c.stroke(); }
+      /* The upgrade's price, as coins, under the ring. */
+      if (tw.lvl < 3){
+        const n = upgradeCost(tw.kind, tw.lvl);
+        c.globalAlpha = can ? 1 : 0.45;
+        for (let q = 0; q < n; q++) coin(c, x + (q - (n - 1) / 2) * H * 0.022, y + r + H * 0.02, H * 0.009);
+        c.globalAlpha = 1;
+      } else star(c, x, y + r + H * 0.02, H * 0.015, '#ffd24a');
+    }
+  }
+
+  _drawMenus(c, W, H, holding){
+    for (const [i, m] of this.menus){
+      const pad = PADS[i];
+      for (const ch of this.choices(i)){
+        c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = H * 0.003;
+        c.beginPath(); c.moveTo(pad.x * W, (pad.y - 0.02) * H); c.lineTo(ch.x * W, ch.y * H); c.stroke();
+      }
+      for (const ch of this.choices(i)){
+        const fill = holding.get(`c${i}${ch.kind}`) || 0;
+        drawChoice(c, ch.x * W, ch.y * H, CHOICE_R * H, ch.kind, COST[ch.kind], this.coins >= COST[ch.kind], fill, PLAYER_COLORS[m.who] || '#ffffff');
+      }
+    }
+  }
+
+  _drawHints(c, W, H){
+    const ghost = (x, y, a, fill) => {
+      const r = H * 0.03;
+      c.save(); c.globalAlpha = a;
+      const g = c.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
+      g.addColorStop(0, 'rgba(255,246,226,.6)'); g.addColorStop(1, 'rgba(255,246,226,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(x, y, r * 2.4, 0, 6.2832); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+      if (fill > 0){ c.strokeStyle = 'rgba(255,210,74,.95)'; c.lineWidth = H * 0.007; c.beginPath(); c.arc(x, y, r * 1.5, -Math.PI / 2, -Math.PI / 2 + fill * 6.2832); c.stroke(); }
+      c.restore();
+    };
+    const u = this.buildHint;
+    if (u >= 0){
+      const pad = PADS[1], ch = this.choices(1)[0];
+      const ease = (a, b) => { const k = clamp((u - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+      const show = Math.min(ease(0, 0.3), 1 - ease(3.6, 4));
+      const toPad = ease(0.2, 0.9), toCh = ease(1.6, 2.2);
+      const x = 0.62 + (pad.x - 0.62) * toPad + (ch.x - pad.x) * toCh, y = 0.3 + (pad.y - 0.02 - 0.3) * toPad + (ch.y - pad.y + 0.02) * toCh;
+      if (u > 1.4 && u < 3.6){
+        /* The bubbles, ghostly. */
+        c.save(); c.globalAlpha = 0.6 * show;
+        this.choices(1).forEach(q => drawChoice(c, q.x * W, q.y * H, CHOICE_R * H, q.kind, COST[q.kind], true, q === ch ? clamp((u - 2.3) / 1, 0, 1) : 0, '#fff6e2'));
+        c.restore();
+      }
+      ghost(x * W, y * H, show * 0.85, u > 0.9 && u < 1.5 ? (u - 0.9) / 0.5 : 0);
+    }
+    const m = this.swatHint;
+    if (m){
+      /* A ghostly hand swishing through it. */
+      const p = this.pos(m), k = (this.t % 1.2) / 1.2, sw = Math.sin(k * Math.PI);
+      ghost((p.x + (k - 0.5) * 0.12) * W, (p.y - 0.05 - sw * 0.03) * H, sw * 0.8, 0);
+    }
+  }
+
+  _drawBits(c, W, H){
+    for (const b of this.bits){
+      if (b.age < 0) continue;
+      const k = b.age / b.life;
+      if (b.kind === 'spark'){ c.globalAlpha = 1 - k; c.fillStyle = b.col; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.006, 0, 6.2832); c.fill(); c.globalAlpha = 1; }
+      else coin(c, b.x * W, b.y * H, H * 0.013);
+    }
+  }
+
+  /* No numbers: the castle's hearts and pennants say how it's going. */
+  hud(){ return { score: pose.players.map(() => this.held), showLives: false, hideScore: true, hideClock: true }; }
+  tally(){
+    const rows = [];
+    for (let i = 0; i < this.players; i++) if (pose.players[i].present) rows.push({ label: `Player ${i + 1}`, value: this.held, color: PLAYER_COLORS[i] });
+    return rows;
+  }
+  winner(){ return pose.players.slice(0, this.players).filter(p => p.present).length < 2 ? null : -1; }
+  value(){ return this.held; }
+}

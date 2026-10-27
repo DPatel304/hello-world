@@ -158,6 +158,8 @@ function drawHUD(){
       c.fillText('♥'.repeat(hud.lives[i]) || '—', x, y + H * 0.082);
     }
   }
+  /* A game that lasts as long as you hold out has no clock to show. */
+  if (hud.hideClock){ c.textAlign = 'start'; c.textBaseline = 'alphabetic'; return; }
   c.textAlign = 'center';
   c.font = `600 ${Math.round(H * 0.062)}px Fredoka, ui-rounded, system-ui, sans-serif`;
   const t = Math.max(0, Math.ceil(roundLeft));

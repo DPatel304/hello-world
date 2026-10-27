@@ -12,6 +12,7 @@ import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
 import { P as forestP, RUN as FOREST_RUN, drawForest, drawLeaves, drawTree, drawLog, drawCrystal, drawFox, drawRunner } from '../games/forest-art.js';
+import { PADS as CASTLE_PADS, along as castleAlong, PATH as CASTLE_PATH, drawMeadow, drawCastle, drawTower, drawMonster } from '../games/castle-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
@@ -112,6 +113,22 @@ function forestRun(){
   };
 }
 
+function castleDefense(){
+  return (c, W, H, t) => {
+    drawMeadow(c, W, H);
+    const things = [];
+    for (const [i, kind, lvl, col] of [[1, 'archer', 2, '#3da9ff'], [5, 'frost', 1, '#ff8a3d'], [4, 'cannon', 1, '#3fcf7f']]){
+      const pad = CASTLE_PADS[i]; things.push({ y: pad.y, f: () => drawTower(c, W, H, pad, kind, lvl, -0.6 + Math.sin(t) * 0.3, col, t) });
+    }
+    for (const [k, kind] of [[0, 'slime'], [1, 'goblin'], [2, 'slime'], [3, 'bat'], [4, 'slime']]){
+      const p = castleAlong((t * 0.08 + k * 0.17) % 1 * CASTLE_PATH.total);
+      things.push({ y: p.y, f: () => drawMonster(c, p.x * W, p.y * H, H * 0.065, kind, t + k, p.dir, 0, false, 1) });
+    }
+    things.push({ y: 0.62, f: () => drawCastle(c, W, H, t, 10, 10, 3) });
+    things.sort((a, b) => a.y - b.y).forEach(th => th.f());
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -120,7 +137,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'forest-run': forestRun };
+const POSTERS = { 'pop-party': popParty, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'forest-run': forestRun, 'castle-defense': castleDefense };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
