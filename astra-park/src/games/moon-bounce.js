@@ -121,8 +121,11 @@ class MoonBounce {
       b.lift += b.vy * dt; b.vy -= GRAVITY * dt;
       /* Little puffs from the backpack while floating. */
       const lm = this._lm(i);
+      /* From the hips if they're in view, else from just under the shoulders. */
+      const hips = lm && (lm[L.L_HIP].v ?? 1) > 0.4 && (lm[L.R_HIP].v ?? 1) > 0.4;
       if (lm && Math.random() < dt * 30){
-        const x = (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, y = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2 - b.lift;
+        const [a, b2, dy] = hips ? [L.L_HIP, L.R_HIP, 0] : [L.L_SHOULDER, L.R_SHOULDER, 0.12];
+        const x = (lm[a].x + lm[b2].x) / 2, y = (lm[a].y + lm[b2].y) / 2 + dy - b.lift;
         this._bit('jet', x + (Math.random() - 0.5) * 0.02, y);
       }
       if (b.lift <= 0){

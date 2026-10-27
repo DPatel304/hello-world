@@ -212,3 +212,19 @@ test('waving at a neighbour on the sidewalk makes them wave back', () => {
   for (let k = 0; k < 8; k++){ hand(0.5 + (k % 2 ? 0.06 : -0.06), 0.3); run(inst, 0.2); }
   assert.ok(inst.greeted >= 1);
 });
+
+test('neighbours never stand where the next job turns up', () => {
+  away();
+  const inst = game.create(1);
+  inst.folks = Array.from({ length: 30 }, (_, i) => ({ at: inst.dist + i * 0.1, kind: 'cat', wave: 0 }));
+  inst.t = 50;
+  inst._next();
+  assert.ok(inst.folks.every(f => Math.abs(f.at - inst.stop.at) >= 0.3));
+});
+
+test('at a stop, hands busy with the hose do not set the neighbours off', () => {
+  const inst = heading('fire');
+  inst.folks = [{ at: inst.dist + 0.8, kind: 'bunny', wave: 0 }];
+  for (let k = 0; k < 8; k++){ hand(0.5 + (k % 2 ? 0.06 : -0.06), 0.3); run(inst, 0.2); }
+  assert.equal(inst.greeted, 0);
+});

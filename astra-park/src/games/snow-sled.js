@@ -183,7 +183,7 @@ class SnowSled {
   /* Wave at a friend by the run and they wave back. */
   _waves(dt){
     for (const th of this.things) th.wave = Math.max(0, th.wave - dt * 0.7);
-    if (!this.wave.step(dt, handsFrom(pose))) return;
+    if (!this.wave.step(dt, handsFrom(pose, this.players))) return;
     this.wave.meter = 0; this.wave.turns = 0;
     const f = this.things.filter(th => th.kind === 'friend' && th.z - this.z > 0.05 && th.z - this.z < 0.6).sort((a, b) => a.z - b.z)[0];
     if (!f) return;

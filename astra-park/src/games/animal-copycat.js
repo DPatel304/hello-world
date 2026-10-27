@@ -7,6 +7,7 @@ import { Scene } from './pop-party-scene.js';
 import { drawKid } from './fire-truck-art.js';
 import { MATCH, HEAD, ANIMALS, POSES, closest, frameOf, targetOf, bodyIn } from './copycat-poses.js';
 import { DRAW, costume } from './copycat-art.js';
+import { armToward } from './moon-art.js';
 
 /* Animal Copycat. Animals come one at a time into the park and strike a
    pose - a giraffe stretching tall, a bird with its wings out, a frog in a
@@ -74,6 +75,7 @@ class Copycat {
 
   step(dt, W, H){
     this.t += dt;
+    this.aspect = W / H;
     this.faces.step(dt);
     const a = this.cur;
     a.t += dt;
@@ -94,13 +96,10 @@ class Copycat {
     const p = pose.players[i];
     if (!p.present) return null;
     if (pose.mouse.active){
+      /* A made-up body whose arm follows the pointer, as far as an arm
+         reaches - far enough for every pose's hands. */
       const lm = bodyIn('stand', clamp(p.hands.right.x, 0.25, 0.75), 0.6, 0.17);
-      /* The hand goes toward the pointer, but only as far as an arm reaches. */
-      const sh = lm[L.R_SHOULDER], dx = (p.hands.right.x - sh.x) * 16 / 9, dy = p.hands.right.y - sh.y;
-      const k = Math.min(1, 0.17 * 1.1 / (Math.hypot(dx, dy) || 1));
-      lm[L.R_WRIST] = { x: sh.x + (p.hands.right.x - sh.x) * k, y: sh.y + dy * k, v: 0.9 };
-      lm[L.R_ELBOW] = { x: (sh.x + lm[L.R_WRIST].x) / 2, y: (sh.y + lm[L.R_WRIST].y) / 2 + 0.02, v: 0.9 };
-      return lm;
+      return armToward(lm, p.hands.right.x, p.hands.right.y, 0.17 * 1.5, this.aspect || 16 / 9);
     }
     return p.lm;
   }

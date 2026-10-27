@@ -266,15 +266,19 @@ export function standIn(x, hx = null, hy = null, s = 0.3){
   at(L.L_HIP, 0.13, 0.25); at(L.R_HIP, -0.13, 0.25);
   at(L.L_KNEE, 0.15, 0.55); at(L.R_KNEE, -0.15, 0.55);
   at(L.L_ANKLE, 0.15, 0.85); at(L.R_ANKLE, -0.15, 0.85);
-  if (hx != null){
-    /* The hand reaches toward the point, but no further than an arm can:
-       the made-up body has proportions, unlike a mouse pointer. */
-    const sh = lm[L.R_SHOULDER], reach = s * 0.5;
-    const dx = (hx - sh.x) * 16 / 9, dy = hy - sh.y, d = Math.hypot(dx, dy) || 1, k = Math.min(1, reach / d);
-    const wx = sh.x + (hx - sh.x) * k, wy = sh.y + dy * k;
-    lm[L.R_WRIST] = { x: wx, y: wy, v: 0.9 };
-    lm[L.R_ELBOW] = { x: (sh.x + wx) / 2 - s * 0.04, y: (sh.y + wy) / 2 + s * 0.04, v: 0.9 };
-  }
+  if (hx != null) armToward(lm, hx, hy, s * 0.5);
+  return lm;
+}
+
+/* Point a made-up body's right arm at (hx, hy), reaching no further than
+   `reach` screen heights from the shoulder: the body has proportions, a
+   mouse pointer doesn't. aspect is the screen's width over its height. */
+export function armToward(lm, hx, hy, reach, aspect = 16 / 9){
+  const sh = lm[L.R_SHOULDER];
+  const dx = (hx - sh.x) * aspect, dy = hy - sh.y, k = Math.min(1, reach / (Math.hypot(dx, dy) || 1));
+  const wx = sh.x + (hx - sh.x) * k, wy = sh.y + dy * k;
+  lm[L.R_WRIST] = { x: wx, y: wy, v: 0.9 };
+  lm[L.R_ELBOW] = { x: (sh.x + wx) / 2 - reach * 0.08 / aspect, y: (sh.y + wy) / 2 + reach * 0.08, v: 0.9 };
   return lm;
 }
 

@@ -19,10 +19,11 @@ const PATIENCE = 0.8;             /* seconds of stillness before the meter drain
 const DRAIN = 0.5;                /* meter per second, once draining */
 const RAISED = 0.03;              /* how far below the shoulder still counts as up */
 
-/* Every hand that could be waving, as { key, who, x, y, raised }. */
-export function handsFrom(pose){
+/* Every hand that could be waving, as { key, who, x, y, raised } - of the
+   first n players, so a bystander doesn't wave for a one-player game. */
+export function handsFrom(pose, n = 2){
   const out = [];
-  for (let i = 0; i < 2; i++){
+  for (let i = 0; i < n; i++){
     const p = pose.players[i];
     if (!p || !p.present) continue;
     if (pose.mouse.active){

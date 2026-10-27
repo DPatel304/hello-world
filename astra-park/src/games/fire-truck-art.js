@@ -456,7 +456,7 @@ export function drawDuck(c, x, y, s, t, mama, flap = 0){
   c.restore();
 }
 
-const ANIMALS = {
+export const ANIMALS = {
   cat:    { fur: '#f4a24a', dark: '#d9822e', ears: 'cat' },
   kitten: { fur: '#a9b0bd', dark: '#8a91a0', ears: 'cat' },
   bunny:  { fur: '#f5f1ea', dark: '#e2d9cc', ears: 'bunny' },
@@ -466,9 +466,10 @@ export const ANIMAL_KINDS = Object.keys(ANIMALS);
 
 /* A small animal sitting at (x, y) - y is where it sits - at scale s (about
    40 * s tall). Happy ones close their eyes in a smile and wag. */
-export function animal(c, x, y, s, kind, t, happy){
+export function animal(c, x, y, s, kind, t, happy, calm = false){
   const A = ANIMALS[kind] || ANIMALS.cat, u = 10 * s;
-  const shiver = happy ? 0 : Math.sin(t * 30) * u * 0.06;
+  /* Stuck up a tree, it trembles; anywhere else it's at ease. */
+  const shiver = happy || calm ? 0 : Math.sin(t * 30) * u * 0.06;
   x += shiver;
   c.strokeStyle = A.dark; c.lineWidth = u * 0.5; c.lineCap = 'round';
   const wag = Math.sin(t * (happy ? 8 : 2)) * 0.5;
