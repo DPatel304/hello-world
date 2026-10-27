@@ -207,7 +207,9 @@ function tick(now){
   requestAnimationFrame(tick);
 }
 
-let showSkeleton = false, showPerf = false;
+/* ?perf in the address shows the frame-rate readout from the start, for a
+   phone or tablet with no P key to press. */
+let showSkeleton = false, showPerf = new URLSearchParams(location.search).has('perf');
 let rFps = 0, rN = 0, rAcc = 0;
 
 /* A readout rather than a guess. Pose runs only when the camera hands over a
