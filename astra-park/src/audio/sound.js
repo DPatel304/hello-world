@@ -156,6 +156,15 @@ export const sfx = {
   twinkle(){
     bell(96 + PENT[(Math.random() * 5) | 0], ctx().currentTime, 0.025, 0.6, master);
   },
+  /* ---- Uncle B's Boat ---- */
+  /* The hook going into the water. */
+  plop(){ blip({ freq: 420, to: 160, dur: 0.14, type: 'sine', gain: 0.2 }); hiss({ dur: 0.1, gain: 0.04, hp: 1200, type: 'bandpass', q: 1 }); },
+  /* A fish nibbling: a tiny tug on the line. */
+  nibble(){ blip({ freq: 880, to: 700, dur: 0.06, type: 'sine', gain: 0.08 }); },
+  /* A splash: a fish on, or out of the water. */
+  splash(){ hiss({ dur: 0.35, gain: 0.12, hp: 900, sweep: -500, type: 'bandpass', q: 0.8 }); blip({ freq: 300, to: 140, dur: 0.18, type: 'sine', gain: 0.12 }); },
+  /* The reel turning: one soft click. */
+  reel(){ blip({ freq: 2200, dur: 0.018, type: 'square', gain: 0.025 }); },
   /* ---- Moon Bounce ---- */
   /* Floating back down onto the moon: a soft, low bump. */
   land(){

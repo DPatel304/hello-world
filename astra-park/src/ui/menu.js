@@ -32,7 +32,8 @@ export function menu({ onPlay, onRecalibrate }){
   }
 
   const grid = h('div', 'tiles');
-  const cols = Math.min(3, GAMES.length);
+  /* Three across up to six games, then four, so it's always two rows. */
+  const cols = GAMES.length <= 6 ? Math.min(3, GAMES.length) : 4;
   grid.style.setProperty('--cols', cols);
   grid.style.setProperty('--rows', Math.ceil(GAMES.length / cols));
   const pics = [];
