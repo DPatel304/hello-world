@@ -175,7 +175,9 @@ test('the path gets logs, branches and stumps once the run is going', () => {
   kids();
   const inst = game.create(1);
   inst.runners[0].blink = 1e9;           /* safe throughout, to see what comes */
-  run(inst, 50, () => { inst.runners[0].blink = 1e9; });
+  /* Long enough that a run of bad luck can't leave out a kind: branches
+     only start after twenty seconds, and then come one time in three. */
+  run(inst, 120, () => { inst.runners[0].blink = 1e9; });
   const kinds = new Set([...inst.seen]);
   for (const k of ['stump', 'log', 'branch']) assert.ok(kinds.has(k), `met a ${k}`);
 });

@@ -329,6 +329,9 @@ export const pose = {
       for (let i = 0; i < lm.length; i++){
         p.lm[i].x += (lm[i].x - p.lm[i].x) * SMOOTH;
         p.lm[i].y += (lm[i].y - p.lm[i].y) * SMOOTH;
+        /* Depth too - nearer the camera is smaller - for leaning toward or
+           away from the screen. */
+        p.lm[i].z = (p.lm[i].z ?? 0) + ((lm[i].z ?? 0) - (p.lm[i].z ?? 0)) * SMOOTH;
         p.lm[i].v  = lm[i].v;
       }
     }

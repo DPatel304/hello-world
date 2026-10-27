@@ -333,3 +333,12 @@ test('a face needs the nose, an eye, and the head above the shoulders', () => {
   const upside = m(person(0.5)); upside[L.NOSE] = { ...upside[L.NOSE], y: 0.9 };
   assert.equal(faceSeen(upside), false, 'a "head" below the shoulders is not a head');
 });
+
+test('depth is followed too, so leaning toward the screen can be seen', () => {
+  resetPose();
+  arrive([person(0.5)]);
+  const near = person(0.5);
+  near[L.L_SHOULDER] = { ...near[L.L_SHOULDER], z: -0.2 }; near[L.R_SHOULDER] = { ...near[L.R_SHOULDER], z: -0.2 };
+  for (let t = 0; t < 0.5; t += 0.05) see([near]);
+  assert.ok(pose.players[0].lm[L.L_SHOULDER].z < -0.15, `z ${pose.players[0].lm[L.L_SHOULDER].z}`);
+});

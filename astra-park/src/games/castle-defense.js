@@ -1,5 +1,5 @@
 import { clamp } from './common.js';
-import { pose, PLAYER_COLORS } from '../tracking/pose.js';
+import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
 import { FaceCam } from '../ui/faces.js';
@@ -14,10 +14,10 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMe
    path to stop them, and each has a little knight of their own out on the
    meadow, in their colour with their face in the helmet.
 
-   To send your knight somewhere, put your hands together and point them
-   at the spot - hold them there a moment and a flag goes up, and off the
-   knight walks. To fight, clap: your knight's shockwave knocks back and
-   hurts the monsters round it, wherever your hands happen to be.
+   Your knight goes where you lean, as long as you march: march on the
+   spot and lean left or right, toward the screen or back from it, and off
+   it goes that way, faster the harder you march. To fight, clap: your
+   knight's shockwave knocks back and hurts the monsters round it.
 
    Building is holding with both hands. Put a hand over an empty stone pad
    and three bubbles pop up - an archer tower, a cannon, a frost tower -
@@ -42,10 +42,14 @@ export const COST = { archer: 3, cannon: 5, frost: 4 };
 export const KINDS = ['archer', 'cannon', 'frost'];
 export const OPEN = 0.5;                              /* one hand, to bring up the bubbles */
 export const BUILD = 2, UPGRADE = 2.5, REPAIR = 2.5;  /* seconds of holding with both hands */
-/* Knights. Hands together (closer than POINT_GAP, in screen heights) and
-   held still for POINT_HOLD point the way; a clap is the hands snapping
-   together from apart. */
-export const POINT_GAP = 0.13, POINT_HOLD = 0.35;
+/* Knights. Marching on the spot drives them - knees going up and down, at
+   MARCH_FULL torso-lengths a second for full speed - and leaning steers:
+   shoulders over to one side of the hips, LEAN_X shoulder-widths for full
+   lean, or toward or away from the screen, LEAN_Z. A little lean is no
+   lean (LEAN_DEAD). A clap is the hands snapping together from apart. With
+   the mouse, a resting pointer is where the knight walks to (POINT_HOLD). */
+export const MARCH_FULL = 1.2, LEAN_X = 0.3, LEAN_Z = 0.35, LEAN_DEAD = 0.25;
+export const POINT_HOLD = 0.35;
 export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_COOL = 0.35;
 export const CLAP_R = 0.13, CLAP_DMG = 1;               /* reach, in screen heights, and damage */
 export const KNIGHT_SPEED = 0.16, KNIGHT_SIZE = 0.085;
@@ -129,7 +133,7 @@ class CastleDefense {
     /* The knights wait by the castle, side by side, till sent somewhere. */
     this.knights = pose.players.map((_, i) => {
       const x = CASTLE.x + CASTLE.w / 2 + 0.04 + i * 0.035, y = CASTLE_BASE - 0.3 - i * 0.02;
-      return { x, y, tx: x, ty: y, dir: 1, walk: 0, clap: 0, cool: 0, together: 0, apart: 0, gap: 1, rings: [] };
+      return { x, y, tx: x, ty: y, vx: 0, vy: 0, dir: 1, walk: 0, march: 0, lean: null, clap: 0, cool: 0, apart: 0, gap: 1, rings: [] };
     });
     this.built = false;
     this.avatars = new Avatars();
@@ -215,7 +219,7 @@ class CastleDefense {
     return { x: p.x + k / ASPECT * 0.7, y: p.y + k * 0.7, dir: p.dir };
   }
 
-  /* ---------- the knights: pointing and clapping ---------- */
+  /* ---------- the knights: marching, leaning and clapping ---------- */
 
   _knights(dt){
     for (let i = 0; i < this.knights.length; i++){
@@ -224,40 +228,67 @@ class CastleDefense {
       k.clap = Math.max(0, k.clap - dt * 3);
       for (const r of k.rings) r.k += dt / 0.45;
       k.rings = k.rings.filter(r => r.k < 1);
-      if (i < this.players && p && p.present && this.state === 'wave') this._hands2(i, k, p, dt);
-      else k.aim = null;
-      /* Walk toward the flag. */
-      const dx = (k.tx - k.x) * ASPECT, dy = k.ty - k.y, d = Math.hypot(dx, dy), step = KNIGHT_SPEED * dt;
-      if (d > 0.004){
-        const u = Math.min(1, step / d);
-        k.x += dx * u / ASPECT; k.y += dy * u;
-        if (Math.abs(dx) > 0.002) k.dir = dx > 0 ? 1 : -1;
-        k.walk = Math.min(1, k.walk + dt * 6);
-      } else k.walk = Math.max(0, k.walk - dt * 6);
+      const on = i < this.players && p && p.present && this.state === 'wave';
+      if (on) this._clapWatch(i, k, p, dt);
+      if (on && pose.mouse.active){
+        /* The mouse: walk to where the pointer rests. */
+        const h = p.hands.right;
+        k.rest = (h.speed || 0) < 0.15 ? (k.rest || 0) + dt : 0;
+        if (k.rest >= POINT_HOLD && this._onMap(h.x, h.y)){ k.tx = h.x; k.ty = h.y; }
+        const dx = (k.tx - k.x) * ASPECT, dy = k.ty - k.y, d = Math.hypot(dx, dy);
+        k.vx = d > 0.004 ? dx / d * KNIGHT_SPEED : 0; k.vy = d > 0.004 ? dy / d * KNIGHT_SPEED : 0;
+        if (d < KNIGHT_SPEED * dt){ k.vx = dx / dt; k.vy = dy / dt; }
+      } else if (on) this._drive(k, p, dt);
+      else { k.vx = 0; k.vy = 0; k.march = 0; k.lean = null; }
+      /* Walk: vx and vy are screen heights a second. */
+      k.x = clamp(k.x + k.vx / ASPECT * dt, 0.02, 0.98); k.y = clamp(k.y + k.vy * dt, 0.06, 0.97);
+      const sp = Math.hypot(k.vx, k.vy);
+      if (Math.abs(k.vx) > 0.01) k.dir = k.vx > 0 ? 1 : -1;
+      k.walk += (Math.min(1, sp / KNIGHT_SPEED) - k.walk) * Math.min(1, dt * 8);
+      if (sp > 0.02){ k.driven = true; if (Math.random() < dt * 8 * sp / KNIGHT_SPEED) this._spark(k.x + (Math.random() - 0.5) * 0.01, k.y, 'rgba(200,170,120,.8)'); }
     }
   }
 
-  /* One child's two hands: held together on a spot, they point the way;
-     snapped together from apart, they clap. */
-  _hands2(i, k, p, dt){
+  /* Marching and leaning: how hard the knees are going up and down sets the
+     pace; which way the body leans sets the way. */
+  _drive(k, p, dt){
+    const lm = p.lm;
+    if (!lm){ k.vx = k.vy = 0; return; }
+    const vis = (j) => (lm[j].v ?? 1) > 0.5;
+    /* The knees if they're in view, else the ankles. */
+    const [a, b] = vis(L.L_KNEE) && vis(L.R_KNEE) ? [L.L_KNEE, L.R_KNEE] : vis(L.L_ANKLE) && vis(L.R_ANKLE) ? [L.L_ANKLE, L.R_ANKLE] : [null, null];
+    let legs = 0;
+    if (a != null && k.legs && k.legs.a === a){
+      legs = (Math.abs(lm[a].y - k.legs.ya) + Math.abs(lm[b].y - k.legs.yb)) / 2 / Math.max(dt, 1e-3) / (p.scale || 0.3) * 2.4;
+    }
+    k.legs = a != null ? { a, ya: lm[a].y, yb: lm[b].y } : null;
+    k.march = (k.march || 0) + (clamp(legs / MARCH_FULL, 0, 1) - (k.march || 0)) * Math.min(1, dt * 4);
+    /* Leaning: shoulders over the hips, sideways, and nearer or further. */
+    const sx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, hx = (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2;
+    const sz = ((lm[L.L_SHOULDER].z ?? 0) + (lm[L.R_SHOULDER].z ?? 0)) / 2, hz = ((lm[L.L_HIP].z ?? 0) + (lm[L.R_HIP].z ?? 0)) / 2;
+    const sw = Math.abs(lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x) || 0.05;
+    const lx = clamp((sx - hx) / sw / LEAN_X, -1, 1), ly = clamp((sz - hz) / sw / LEAN_Z, -1, 1);
+    const mag = Math.hypot(lx, ly);
+    if (mag < LEAN_DEAD){ k.lean = null; k.vx = k.vy = 0; return; }
+    const pull = Math.min(1, (mag - LEAN_DEAD) / (1 - LEAN_DEAD)), ux = lx / mag, uy = ly / mag;
+    k.lean = { x: ux, y: uy, k: pull };
+    const sp = KNIGHT_SPEED * k.march * pull;
+    k.vx = ux * sp; k.vy = uy * sp;
+  }
+
+  /* A clap: the hands snapping together from apart. */
+  _clapWatch(i, k, p, dt){
     if (pose.mouse.active){
-      /* The mouse: resting still points; the knight claps by itself when
-         monsters are near, so the game can be tried without a camera. */
-      const h = p.hands.right;
-      k.together = (h.speed || 0) < 0.15 ? k.together + dt : 0;
-      if (k.together >= POINT_HOLD && this._onMap(h.x, h.y)){ k.tx = h.x; k.ty = h.y; }
+      /* With the mouse the knight claps by itself when monsters are near. */
       if (!k.cool && this.monsters.some(m => this._near(k, m))) this.clap(i);
       return;
     }
     const l = p.hands.left, r = p.hands.right;
-    const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y), mx = (l.x + r.x) / 2, my = (l.y + r.y) / 2;
+    const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y);
     const closing = (k.gap - gap) / Math.max(dt, 1e-3);
     k.apart = gap > CLAP_APART ? 0.4 : Math.max(0, k.apart - dt);
     if (gap < CLAP_SHUT && k.apart > 0 && closing > CLAP_SPEED && !k.cool){ this.clap(i); k.apart = 0; }
     k.gap = gap;
-    k.together = gap < POINT_GAP ? k.together + dt : 0;
-    if (k.together >= POINT_HOLD && this._onMap(mx, my)){ k.tx = mx; k.ty = my; }
-    k.aim = gap < POINT_GAP ? { x: mx, y: my, k: Math.min(1, k.together / POINT_HOLD) } : null;
   }
 
   _onMap(x, y){ return x > 0.01 && x < 0.99 && y > 0.04 && y < 0.98; }
@@ -503,7 +534,7 @@ class CastleDefense {
   /* Building: until the first tower, a ghostly hand holds over a pad, the
      bubbles pop up, and it holds on the archer. */
   get buildHint(){ return !this.built && this.t > 1 ? (this.t - 1) % 6.5 : -1; }
-  /* Pointing and clapping: once monsters are about, until someone claps. */
+  /* Clapping: once monsters are about, until someone claps. */
   get clapHint(){
     if (this.clapped || this.out || !this.monsters.length || this.buildHint >= 0) return null;
     return this.monsters.slice().sort((a, b) => b.s - a.s)[0];
@@ -552,7 +583,10 @@ class CastleDefense {
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
       if (!pose.players[i].present) continue;
-      if (!this.out && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+      if (!this.out && pose.mouse.active && this.state === 'wave' && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+      /* Which way the child is leaning: an arrow on the ground under the
+         knight, solid while they march, faint while they're still. */
+      if (!this.out && k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
       things.push({ y: k.y, draw: () => {
         for (const r of k.rings) drawClapRing(c, k.x * W, k.y * H, CLAP_R * H, r.k, PLAYER_COLORS[i]);
         drawKnight(c, k.x * W, k.y * H, KNIGHT_SIZE * H, this.t + i, PLAYER_COLORS[i], k.dir, k.walk, k.clap, (x, y, r) => {
@@ -572,14 +606,6 @@ class CastleDefense {
       this._drawRings(c, W, H, holding);
       this._drawMenus(c, W, H, holding);
       this._drawHints(c, W, H);
-      /* Hands together: a ring fills where they're pointing, and the flag
-         goes up when it's full. */
-      for (let i = 0; i < this.players; i++){
-        const a = this.knights[i].aim;
-        if (!a || a.k >= 1) continue;
-        c.strokeStyle = PLAYER_COLORS[i]; c.lineWidth = H * 0.007;
-        c.beginPath(); c.arc(a.x * W, a.y * H, H * 0.035, -Math.PI / 2, -Math.PI / 2 + a.k * 6.2832); c.stroke();
-      }
     }
     this._drawBits(c, W, H);
     this.avatars.drawBodies(c, W, H, this.players, [], 0.16);
@@ -676,21 +702,39 @@ class CastleDefense {
       const k = (this.t % 3) / 3, show = Math.min(1, k * 5, (1 - k) * 5), x = CASTLE.x, y = CASTLE_BASE - 0.2;
       ghost((x - 0.03) * W, y * H, show * 0.8, 0); ghost((x + 0.03) * W, y * H, show * 0.8, 0);
     }
-    /* Point and clap: two ghostly hands come together on the monster and
-       hold (a flag goes up there), then clap, clap, clap. */
-    const m = this.clapHint;
-    if (m){
-      const p = this.pos(m), u = this.t % 4, x = p.x, y = p.y - 0.05;
-      if (u < 1.6){
-        const c2 = Math.min(1, u / 0.6), off = 0.06 * (1 - c2) + 0.012;
-        ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85, 0); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85, u > 0.6 ? Math.min(1, (u - 0.6) / 0.6) : 0);
-        if (u > 1.2){ c.save(); c.globalAlpha = 0.6; drawMarker(c, p.x * W, p.y * H, KNIGHT_SIZE * H, '#fff6e2', this.t); c.restore(); }
-      } else {
-        const cl = Math.abs(Math.sin((u - 1.6) * Math.PI * 1.5)), off = 0.012 + cl * 0.05;
-        ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85, 0); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85, 0);
-        if (cl < 0.15){ c.save(); c.globalAlpha = 0.5; drawClapRing(c, p.x * W, p.y * H, CLAP_R * H, 0.3, '#fff6e2'); c.restore(); }
+    /* Marching and leaning, in the first wave, under each knight that hasn't
+       gone anywhere yet: footprints stepping, and arrows all round. */
+    if (this.state === 'wave' && !this.out){
+      for (let i = 0; i < this.players; i++){
+        const k = this.knights[i];
+        if (k.driven || !pose.players[i].present) continue;
+        const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H, step = Math.floor(this.t * 3) % 2;
+        c.save(); c.globalAlpha = 0.7;
+        for (const side of [-1, 1]){
+          const up = (side < 0) === !!step;
+          c.fillStyle = '#fff6e2'; c.beginPath(); c.ellipse(x + side * s * 0.16, y + s * 0.12 - (up ? s * 0.08 : 0), s * 0.07, s * 0.11, 0, 0, 6.2832); c.fill();
+        }
+        const pulse = 0.5 + 0.5 * Math.sin(this.t * 4);
+        for (const [ax, ay, oy] of [[1, 0, -0.35], [-1, 0, -0.35], [0, 1, 0.3], [0, -1, -1.25]]) arrow(c, x + ax * s * 0.55, y + oy * s, ax, ay, s * (0.18 + pulse * 0.05), '#fff6e2');
+        c.restore();
       }
     }
+    /* Clapping: once monsters are about, ghostly hands clap over the knight
+       until someone claps. */
+    const m = this.clapHint;
+    if (m){
+      const k = this.knights[0], u = this.t % 1.2, cl = Math.abs(Math.sin(u / 1.2 * Math.PI * 2)), off = 0.012 + cl * 0.05;
+      const x = k.x, y = k.y - KNIGHT_SIZE * 1.6;
+      ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85, 0); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85, 0);
+      if (cl < 0.15){ c.save(); c.globalAlpha = 0.5; drawClapRing(c, k.x * W, k.y * H, CLAP_R * H, 0.3, '#fff6e2'); c.restore(); }
+    }
+  }
+
+  _drawLean(c, k, W, H, col){
+    const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H, len = s * (0.35 + 0.5 * k.lean.k);
+    c.save(); c.globalAlpha = k.march > 0.2 ? 0.95 : 0.4;
+    arrow(c, x + k.lean.x * s * 0.3, y + k.lean.y * s * 0.18 + s * 0.05, k.lean.x, k.lean.y * 0.6, len, col);
+    c.restore();
   }
 
   _drawBits(c, W, H){
@@ -711,4 +755,13 @@ class CastleDefense {
   }
   winner(){ return pose.players.slice(0, this.players).filter(p => p.present).length < 2 ? null : -1; }
   value(){ return this.held; }
+}
+
+/* A flat arrow on the ground, from (x, y) toward (dx, dy), `len` long. */
+function arrow(c, x, y, dx, dy, len, col){
+  const m = Math.hypot(dx, dy) || 1, ux = dx / m, uy = dy / m, ex = x + ux * len, ey = y + uy * len;
+  c.strokeStyle = col; c.fillStyle = col; c.lineWidth = len * 0.22; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x, y); c.lineTo(ex - ux * len * 0.3, ey - uy * len * 0.3); c.stroke();
+  c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex - ux * len * 0.45 - uy * len * 0.32, ey - uy * len * 0.45 + ux * len * 0.32);
+  c.lineTo(ex - ux * len * 0.45 + uy * len * 0.32, ey - uy * len * 0.45 - ux * len * 0.32); c.closePath(); c.fill();
 }

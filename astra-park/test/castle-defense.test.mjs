@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, POINT_HOLD, CLAP_R, CLAP_COOL, KNIGHT_SPEED, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
+import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, POINT_HOLD, LEAN_X, LEAN_Z, CLAP_R, CLAP_COOL, KNIGHT_SPEED, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle } from '../src/games/castle-art.js';
-import { pose } from '../src/tracking/pose.js';
+import { pose, L } from '../src/tracking/pose.js';
+import { standIn } from '../src/games/moon-art.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
 const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i++){ if (each) each(i * DT); inst.step(DT, W, H); } };
@@ -186,6 +187,22 @@ function clapAt(inst, x = 0.5, y = 0.5){
   hands(x, y, 0.3); run(inst, 0.05);
 }
 const knight = (inst) => inst.knights[0];
+/* A child standing in the room: leaning sideways (lean, -1..1 of a full
+   lean, + is right) and toward the screen (lz, - is toward), knees up and
+   down by `knee` (screen heights) - and arms down by their sides. */
+function body({ lean = 0, lz = 0, knee = 0, knees = true } = {}){
+  pose.mouse.active = false; pose.players.forEach((p, i) => { p.present = i < 1; });
+  const lm = standIn(0.5).map(q => ({ ...q, z: 0, v: 0.9 }));
+  const sw = Math.abs(lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x);
+  for (const j of [L.L_SHOULDER, L.R_SHOULDER]){ lm[j].x += lean * sw * LEAN_X * 1.2; lm[j].z = lz * sw * LEAN_Z * 1.2; }
+  lm[L.L_KNEE].y -= knee; lm[L.R_KNEE].y += knee; lm[L.L_ANKLE].y -= knee; lm[L.R_ANKLE].y += knee;
+  if (!knees){ lm[L.L_KNEE].v = lm[L.R_KNEE].v = 0.1; }
+  const p = pose.players[0];
+  p.lm = lm; p.scale = 0.3;
+  p.hands.left = { x: 0.45, y: 0.65, speed: 0 }; p.hands.right = { x: 0.55, y: 0.65, speed: 0 };
+}
+/* Marching on the spot - knees up and down twice a second - with a lean. */
+const marching = (o = {}, height = 0.03) => (t) => body({ ...o, knee: Math.sin(t * Math.PI * 4) * height });
 /* In the middle of a wave: the attack phase, when hands are the knights'. */
 function fight(inst){ inst.state = 'wave'; inst.wave = Math.max(1, inst.wave); inst.queue = [{ kind: 'slime', path: 0 }]; inst.spawnT = 1e9; return inst; }
 /* A monster parked right by the knight. */
@@ -198,23 +215,44 @@ function byKnight(inst, kind = 'slime'){
   return m;
 }
 
-test('hands together held on a spot send the knight there; it walks, it does not jump', () => {
-  const inst = fight(quiet()), k = knight(inst);
-  const from = { x: k.x, y: k.y }, to = { x: 0.6, y: 0.45 };
-  hands(to.x, to.y, 0.03); run(inst, POINT_HOLD + 0.05);
-  assert.ok(Math.abs(k.tx - to.x) < 0.01 && Math.abs(k.ty - to.y) < 0.01, 'a flag goes up there');
-  const d0 = Math.hypot((to.x - from.x) * 16 / 9, to.y - from.y);
-  assert.ok(Math.hypot((k.x - from.x) * 16 / 9, k.y - from.y) < KNIGHT_SPEED * 0.5, 'walking, not teleporting');
-  hands(0.5, 0.95, 0.5); run(inst, d0 / KNIGHT_SPEED + 0.5);
-  assert.ok(Math.hypot((k.x - to.x) * 16 / 9, k.y - to.y) < 0.01, 'and it gets there, hands down or not');
+test('marching and leaning steer the knight: right, left, toward the screen is up, back is down', () => {
+  for (const [o, check] of [[{ lean: 1 }, (k, x, y) => k.x > x + 0.05], [{ lean: -1 }, (k, x, y) => k.x < x - 0.05],
+                            [{ lz: -1 }, (k, x, y) => k.y < y - 0.08], [{ lz: 1 }, (k, x, y) => k.y > y + 0.08]]){
+    const inst = fight(quiet()), k = knight(inst);
+    k.x = 0.5; k.y = 0.5;
+    run(inst, 1.5, marching(o));
+    assert.ok(check(k, 0.5, 0.5), `${JSON.stringify(o)} -> ${k.x.toFixed(2)}, ${k.y.toFixed(2)}`);
+  }
 });
 
-test('hands apart, one hand, or a quick touch together do not move the knight', () => {
-  const inst = fight(quiet()), k = knight(inst), tx = k.tx;
-  hands(0.6, 0.45, 0.4); run(inst, 2);
-  one(0.6, 0.45); run(inst, 2);
-  hands(0.6, 0.45, 0.03); run(inst, POINT_HOLD * 0.5); hands(0.6, 0.45, 0.4); run(inst, 0.5);
-  assert.equal(k.tx, tx);
+test('leaning without marching, or marching upright, goes nowhere', () => {
+  const a = fight(quiet()), ka = knight(a); ka.x = 0.5; ka.y = 0.5;
+  body({ lean: 1 }); run(a, 2);
+  assert.ok(Math.abs(ka.x - 0.5) < 0.01, 'leaning, standing still');
+  const b = fight(quiet()), kb = knight(b); kb.x = 0.5; kb.y = 0.5;
+  run(b, 2, marching({}));
+  assert.ok(Math.abs(kb.x - 0.5) < 0.01 && Math.abs(kb.y - 0.5) < 0.01, 'marching on the spot');
+});
+
+test('marching harder goes faster, up to the knight\'s pace', () => {
+  const slow = fight(quiet()), ks = knight(slow); ks.x = 0.3; ks.y = 0.5;
+  run(slow, 1.5, marching({ lean: 1 }, 0.006));
+  const fast = fight(quiet()), kf = knight(fast); kf.x = 0.3; kf.y = 0.5;
+  run(fast, 1.5, marching({ lean: 1 }, 0.04));
+  assert.ok(kf.x - 0.3 > (ks.x - 0.3) * 1.5, `${(ks.x - 0.3).toFixed(3)} vs ${(kf.x - 0.3).toFixed(3)}`);
+  assert.ok((kf.x - 0.3) * 16 / 9 <= KNIGHT_SPEED * 1.5 + 0.01, 'never faster than its pace');
+});
+
+test('with the knees out of view, the ankles do the marching', () => {
+  const inst = fight(quiet()), k = knight(inst); k.x = 0.5; k.y = 0.5;
+  run(inst, 1.5, (t) => body({ lean: 1, knees: false, knee: Math.sin(t * Math.PI * 4) * 0.03 }));
+  assert.ok(k.x > 0.55);
+});
+
+test('hands together no longer move the knight', () => {
+  const inst = fight(quiet()), k = knight(inst), x0 = k.x, y0 = k.y;
+  hands(0.6, 0.45, 0.03); run(inst, 2);
+  assert.equal(k.x, x0); assert.equal(k.y, y0);
 });
 
 test('a clap hurts and knocks back the monsters round the knight - not one far off', () => {
@@ -244,12 +282,6 @@ test('claps come one at a time, a moment apart; a slow bringing-together is not 
   assert.equal(m.hp, after, 'a second clap straight after does nothing yet');
   run(inst, CLAP_COOL + 0.1); clapAt(inst, x, y);
   assert.ok(m.hp < after, 'a second clap a moment later');
-});
-
-test('a clap is not a point: the knight stays where it was going', () => {
-  const inst = fight(quiet()), k = knight(inst), tx = k.tx, ty = k.ty;
-  clapAt(inst, 0.7, 0.3); run(inst, 0.2);
-  assert.equal(k.tx, tx); assert.equal(k.ty, ty);
 });
 
 test('hands no longer swat: a fast hand through a monster does nothing', () => {
@@ -362,9 +394,9 @@ test('when the wave comes, half-built work and open bubbles are dropped', () => 
 });
 
 test('in the build phase the knights stand easy: no walking, no clapping', () => {
-  const inst = quiet(), k = knight(inst), tx = k.tx;
-  hands(0.6, 0.45, 0.03); run(inst, POINT_HOLD * 3);
-  assert.equal(k.tx, tx);
+  const inst = quiet(), k = knight(inst), x0 = k.x;
+  run(inst, 2, marching({ lean: 1 }));
+  assert.equal(k.x, x0);
   const m = byKnight(inst);
   clapAt(inst);
   assert.equal(m.hp, m.max);
