@@ -223,6 +223,9 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 .btn.tile .pic{ display:block; width:100%; aspect-ratio:16/10; }
 .btn.tile .fill{ z-index:1; background:#fff; opacity:.25; }
 .btn.tile .lbl{
+  /* Fills the rest of the tile, so a name on two lines doesn't leave a gap
+     under the one-line names beside it. */
+  flex:1; display:flex; align-items:center; justify-content:center; line-height:1.15;
   position:relative; z-index:2; padding:.45em .6em .55em;
   font-size:clamp(18px,3.8vh,44px); font-weight:600; color:#fff6e2;
   background:color-mix(in srgb, var(--accent) 30%, #1a1534);

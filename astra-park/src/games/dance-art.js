@@ -1,7 +1,7 @@
 /* Dance Party, painted: a disco stage - velvet curtains, a ring of marquee
    bulbs, a mirror ball, sweeping spotlights and a light-up floor - and the
-   three dancers on it, Mama, Auntie K and Harlyn, each in her own sparkly
-   colour, dancing to the beat.
+   two dancers on it, Harlyn and Auntie K, each in her own sparkly colour,
+   dancing to the beat.
 
    The dancers are drawn from a little skeleton: each move says where the
    arms and legs go at each moment of the beat, and the outfit, hair and
@@ -13,11 +13,10 @@ const hash = (i, k = 1) => ((((i + 7919) * 2654435761 * k) % 4294967296) + 42949
 
 export const FLOOR = 0.68;      /* where the dancers' feet are, in screen heights */
 
-/* The three of them. h is height in screen heights; Harlyn is eight. */
+/* The two of them. h is height in screen heights; Harlyn is eight. */
 export const DANCERS = [
-  { id: 'mama', x: 0.27, h: 0.4, skin: '#f2cba8', hair: '#3a2a22', hairLen: 'long', outfit: '#ff4fa3', trim: '#ffd1ea', legs: 'skin', shoes: '#ff4fa3', dress: 'long' },
-  { id: 'harlyn', x: 0.5, h: 0.3, skin: '#f5d2b3', hair: '#f2d27a', hairLen: 'shoulder', outfit: '#9b6bff', trim: '#e2d4ff', legs: 'skin', shoes: '#ffffff', dress: 'tutu' },
-  { id: 'auntieK', x: 0.73, h: 0.4, skin: '#f2cba8', hair: '#e7c467', hairLen: 'medium', outfit: '#20cfc4', trim: '#c4fff8', legs: 'outfit', shoes: '#ffd24a', dress: 'jumpsuit' }
+  { id: 'harlyn', x: 0.38, h: 0.3, skin: '#f5d2b3', hair: '#f2d27a', hairLen: 'shoulder', outfit: '#9b6bff', trim: '#e2d4ff', legs: 'skin', shoes: '#ffffff', dress: 'tutu' },
+  { id: 'auntieK', x: 0.62, h: 0.4, skin: '#f2cba8', hair: '#e7c467', hairLen: 'medium', outfit: '#20cfc4', trim: '#c4fff8', legs: 'outfit', shoes: '#ffd24a', dress: 'jumpsuit' }
 ];
 
 /* ---------- the stage ---------- */
@@ -211,19 +210,16 @@ export function drawDancer(c, d, x, base, h, t, move, b, n, energy, spin = 0){
   /* Everything above the hips sways from the hips. */
   c.save(); c.translate(hipX, hipY); c.rotate(J.lean); c.translate(-hipX, -hipY);
 
-  /* Hair behind the head: long and past the shoulders for Mama, a bob for
-     Auntie K, to the shoulders for Harlyn. */
+  /* Hair behind the head: a bob for Auntie K, to the shoulders for Harlyn. */
   c.fillStyle = d.hair;
-  if (d.hairLen === 'long'){ c.beginPath(); c.moveTo(-hr * 1.05, headY); c.quadraticCurveTo(-hr * 1.7 + sway, headY + 20 * u, -hr * 1.45 + sway, headY + 36 * u); c.lineTo(hr * 1.45 + sway, headY + 36 * u); c.quadraticCurveTo(hr * 1.7 + sway, headY + 20 * u, hr * 1.05, headY); c.closePath(); c.fill(); }
-  else if (d.hairLen === 'medium'){ c.beginPath(); c.moveTo(-hr * 1.08, headY); c.quadraticCurveTo(-hr * 1.4 + sway, headY + 12 * u, -hr * 1.2 + sway, headY + 20 * u); c.lineTo(hr * 1.2 + sway, headY + 20 * u); c.quadraticCurveTo(hr * 1.4 + sway, headY + 12 * u, hr * 1.08, headY); c.closePath(); c.fill(); }
+  if (d.hairLen === 'medium'){ c.beginPath(); c.moveTo(-hr * 1.08, headY); c.quadraticCurveTo(-hr * 1.4 + sway, headY + 12 * u, -hr * 1.2 + sway, headY + 20 * u); c.lineTo(hr * 1.2 + sway, headY + 20 * u); c.quadraticCurveTo(hr * 1.4 + sway, headY + 12 * u, hr * 1.08, headY); c.closePath(); c.fill(); }
   else { c.beginPath(); c.moveTo(-hr * 1.05, headY); c.quadraticCurveTo(-hr * 1.35 + sway, headY + 9 * u, -hr * 1.15 + sway, headY + 15 * u); c.lineTo(hr * 1.15 + sway, headY + 15 * u); c.quadraticCurveTo(hr * 1.35 + sway, headY + 9 * u, hr * 1.05, headY); c.closePath(); c.fill(); }
 
-  /* The outfit: a dress, a tutu, or a jumpsuit, all sequins. */
+  /* The outfit: a tutu or a jumpsuit, all sequins. */
   const shX = hipX * 0.4, out = d.outfit;
   c.fillStyle = out;
   c.beginPath();
-  if (d.dress === 'long'){ c.moveTo(shX - 11 * u, shY); c.lineTo(shX + 11 * u, shY); c.lineTo(hipX + 9 * u, hipY); c.lineTo(hipX + 17 * u + sway, hipY + 26 * u); c.lineTo(hipX - 17 * u + sway, hipY + 26 * u); c.lineTo(hipX - 9 * u, hipY); }
-  else if (d.dress === 'tutu'){ c.moveTo(shX - 10 * u, shY); c.lineTo(shX + 10 * u, shY); c.lineTo(hipX + 9 * u, hipY - 2 * u); c.lineTo(hipX - 9 * u, hipY - 2 * u); }
+  if (d.dress === 'tutu'){ c.moveTo(shX - 10 * u, shY); c.lineTo(shX + 10 * u, shY); c.lineTo(hipX + 9 * u, hipY - 2 * u); c.lineTo(hipX - 9 * u, hipY - 2 * u); }
   else { c.moveTo(shX - 11 * u, shY); c.lineTo(shX + 11 * u, shY); c.lineTo(hipX + 9 * u, hipY + 3 * u); c.lineTo(hipX - 9 * u, hipY + 3 * u); }
   c.closePath(); c.fill();
   if (d.dress === 'tutu'){
@@ -257,11 +253,10 @@ export function drawDancer(c, d, x, base, h, t, move, b, n, energy, spin = 0){
   for (const s of [-1, 1]){ c.beginPath(); c.ellipse(fx + s * 4 * u, headY - 1 * u, 1.4 * u, 1.9 * u, 0, 0, 6.2832); c.fill(); }
   c.fillStyle = 'rgba(255,120,130,.4)'; for (const s of [-1, 1]){ c.beginPath(); c.ellipse(fx + s * 6.5 * u, headY + 3 * u, 2.2 * u, 1.4 * u, 0, 0, 6.2832); c.fill(); }
   c.fillStyle = '#b5434f'; c.beginPath(); c.moveTo(fx - 4 * u, headY + 4 * u); c.quadraticCurveTo(fx, headY + 9.5 * u, fx + 4 * u, headY + 4 * u); c.closePath(); c.fill();
-  /* Hair over the top: a side part for Mama, soft bangs for the others. */
+  /* Hair over the top: soft bangs. */
   c.fillStyle = d.hair;
   c.beginPath();
-  if (d.id === 'mama'){ c.moveTo(fx - hr * 1.06, headY + 2 * u); c.quadraticCurveTo(fx - hr * 1.1, headY - hr * 1.25, fx + hr * 0.2, headY - hr * 1.1); c.quadraticCurveTo(fx + hr * 1.2, headY - hr, fx + hr * 1.06, headY + 2 * u); c.quadraticCurveTo(fx + hr * 0.6, headY - hr * 0.7, fx - hr * 0.3, headY - hr * 0.55); c.quadraticCurveTo(fx - hr * 0.9, headY - hr * 0.3, fx - hr * 1.06, headY + 2 * u); }
-  else { c.moveTo(fx - hr * 1.08, headY + 1 * u); c.quadraticCurveTo(fx - hr * 1.1, headY - hr * 1.25, fx, headY - hr * 1.12); c.quadraticCurveTo(fx + hr * 1.1, headY - hr * 1.25, fx + hr * 1.08, headY + 1 * u); c.quadraticCurveTo(fx + hr * 0.5, headY - hr * 0.45, fx, headY - hr * 0.5); c.quadraticCurveTo(fx - hr * 0.5, headY - hr * 0.45, fx - hr * 1.08, headY + 1 * u); }
+  c.moveTo(fx - hr * 1.08, headY + 1 * u); c.quadraticCurveTo(fx - hr * 1.1, headY - hr * 1.25, fx, headY - hr * 1.12); c.quadraticCurveTo(fx + hr * 1.1, headY - hr * 1.25, fx + hr * 1.08, headY + 1 * u); c.quadraticCurveTo(fx + hr * 0.5, headY - hr * 0.45, fx, headY - hr * 0.5); c.quadraticCurveTo(fx - hr * 0.5, headY - hr * 0.45, fx - hr * 1.08, headY + 1 * u);
   c.fill();
   if (d.id === 'harlyn'){ c.fillStyle = '#ff7ac0'; c.beginPath(); c.arc(fx + hr * 0.75, headY - hr * 0.75, 2.6 * u, 0, 6.2832); c.fill(); }
   c.restore();

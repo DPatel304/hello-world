@@ -9,9 +9,9 @@ import { armToward } from './moon-art.js';
 import { DRAW } from './copycat-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from './dance-art.js';
 
-/* Dance Party, with Mama, Auntie K and Harlyn. A disco stage - curtains,
+/* Harlyn & Auntie K's Dance Party. A disco stage - curtains,
    marquee lights, a mirror ball, spotlights, a floor that lights up - with
-   the three of them dancing on it in sparkly outfits, the park's animals
+   the two of them dancing on it in sparkly outfits, the park's animals
    cheering from the front, and the family's own songs playing loud.
 
    There are no moves to copy and no way to do it wrong: the children just
@@ -19,7 +19,7 @@ import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from './
    more they move, the more the party builds. The lights come up and the
    mirror ball spins faster, the floor lights up, balloons float up, then
    confetti - until the big moment: confetti cannons, streamers, the crowd
-   jumping, and all three dancers spinning round together. Then it builds
+   jumping, and both dancers spinning round together. Then it builds
    again. If the children stand still for a while, the dancers beckon them
    in. At the end, everyone takes a curtsy. */
 
@@ -35,7 +35,7 @@ const MOVING = [L.L_WRIST, L.R_WRIST, L.L_ANKLE, L.R_ANKLE, L.NOSE, L.L_HIP, L.R
 const CROWD = [['bunny', 0.06], ['frog', 0.15], ['bird', 0.24], ['elephant', 0.76], ['starfish', 0.85], ['giraffe', 0.94]];
 
 export default {
-  id: 'dance-party', name: 'Dance Party', stars: 1, accent: '#ff4fa3', secs: ROUND,
+  id: 'dance-party', name: "Harlyn & Auntie K's Dance Party", stars: 1, accent: '#ff4fa3', secs: ROUND,
   /* A party wants its music up from the start, and arms go up a lot. */
   loud: true, pauseHold: 4,
   create(n){ return new Party(n); }
@@ -179,7 +179,7 @@ class Party {
     drawMirrorBall(c, W, H, this.t, e);
     for (const bt of this.bits) if (bt.kind === 'balloon') this._drawBalloon(c, bt, W, H);
 
-    /* The three dancers: each on her own move, changing every eight beats;
+    /* The two dancers: each on her own move, changing every eight beats;
        spinning together at a big moment; beckoning if nobody's dancing. */
     DANCERS.forEach((d, i) => {
       let move = MOVES[(Math.floor(n / 8) + i * 2) % MOVES.length], spin = 0;
