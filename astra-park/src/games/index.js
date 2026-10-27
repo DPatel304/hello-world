@@ -7,6 +7,7 @@ import fireflyNight from './firefly-night.js';
 import fireTruck from './fire-truck.js';
 import moonBounce from './moon-bounce.js';
 import animalCopycat from './animal-copycat.js';
+import snowSled from './snow-sled.js';
 
-export const GAMES = [popParty, fireflyNight, fireTruck, moonBounce, animalCopycat];
+export const GAMES = [popParty, fireflyNight, fireTruck, moonBounce, animalCopycat, snowSled];
 export const byId = (id) => GAMES.find(g => g.id === id);

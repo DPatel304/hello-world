@@ -12,6 +12,7 @@ import { Town, ROAD, SIDEWALK } from '../games/fire-truck-scene.js';
 import { TRUCK, drawTruck, drawHelmet, drawKid, drawHouse, drawFlame } from '../games/fire-truck-art.js';
 import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from '../games/moon-art.js';
 import { DRAW } from '../games/copycat-art.js';
+import { P as slope, drawSlope, edgeTrees, pine, present as gift, ramp as snowRamp, friendBySlope, drawSled, GIFT_COLOURS } from '../games/snow-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
 
@@ -125,6 +126,25 @@ function animalCopycat(){
   };
 }
 
+function snowSled(){
+  return (c, W, H, t) => {
+    const z = t * 0.12;
+    drawSlope(c, W, H, z);
+    const things = [...edgeTrees(z), { kind: 'gift', lane: -0.6, rel: 0.35 }, { kind: 'gift', lane: 0.2, rel: 0.6 }, { kind: 'ramp', lane: 0.6, rel: 0.45 }, { kind: 'penguin', lane: 1.25, rel: 0.25 }];
+    things.sort((a, b) => b.rel - a.rel).forEach((th, i) => {
+      const p = slope(th.lane, th.rel, W, H);
+      if (th.kind === 'pine') pine(c, p.x, p.y, H * 0.38 * p.k * th.size);
+      else if (th.kind === 'gift') gift(c, p.x, p.y, H * 0.075 * p.k, GIFT_COLOURS[i % 5], t);
+      else if (th.kind === 'ramp') snowRamp(c, p.x, p.y, p.k, W, H);
+      else friendBySlope(c, 'penguin', p.x, p.y, p.k, H, t, 1);
+    });
+    drawSled(c, W * 0.5, H * 0.92, W, H * 1.25, {
+      t, air: 0, lean: Math.sin(t) * 0.5, riders: [{ coat: '#3da9ff', trim: '#e8413c' }, { coat: '#ff8a3d', trim: '#ffd24a' }],
+      face: (i, x, y, r) => drawKid(c, x, y + r * 0.08, r * 0.95, t + i, i ? '#c98f6a' : '#e9b892')
+    });
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -133,7 +153,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat };
+const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'snow-sled': snowSled };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
