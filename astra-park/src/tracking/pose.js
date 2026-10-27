@@ -29,6 +29,12 @@ export const SEATED = 0.45;         /* knee drop below the hips, in torso length
 export const WATCH_AFTER = 4;       /* seconds sitting or back before a player becomes a watcher */
 const MATCH = 0.25;                 /* how far a player can move between detections and still be them */
 const SAME = 0.5;                   /* torso lengths apart under which two skeletons are one person */
+/* Joining takes a face and a moment. Phantoms - a coat on a chair, a
+   shadow, a reflection, a glitch for a few frames - rarely show a clear
+   face and rarely last; a child does both. Once in, a player stays in
+   whichever way they face. */
+export const JOIN_AFTER = 0.5;      /* seconds seen steadily, face and all, before joining */
+const FACE_SEEN = 0.7;              /* landmark confidence that counts as clearly seen */
 
 /* The model sometimes reports one person twice, two skeletons nearly on top
    of each other. Keep the clearer of any pair whose shoulders and hips
@@ -46,6 +52,14 @@ export function onePerPerson(people){
     if (!twin) kept.push(lm);
   }
   return kept;
+}
+
+/* A face the camera can clearly see: the nose and at least one eye, with
+   the head above the shoulders. */
+export function faceSeen(lm){
+  const vis = (k) => (lm[k].v ?? lm[k].visibility ?? 1) > FACE_SEEN;
+  const shY = (lm[L.L_SHOULDER].y + lm[L.R_SHOULDER].y) / 2;
+  return vis(L.NOSE) && (vis(L.L_EYE) || vis(L.R_EYE)) && lm[L.NOSE].y < shY;
 }
 
 /* Torso length: shoulders to hips. Bigger is closer to the camera. */
@@ -243,7 +257,8 @@ export const pose = {
     const dets = people.map(lm => ({
       lm, taken: false,
       x: (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, y: (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2,
-      playing: !seated(lm) && sizeOf(lm) >= CLOSE * biggest
+      playing: !seated(lm) && sizeOf(lm) >= CLOSE * biggest,
+      face: faceSeen(lm)
     }));
 
     /* Players already in keep following their own body: whoever is nearest
@@ -272,9 +287,24 @@ export const pose = {
       p.lostFor += dt;
       if (p.lostFor > LOST_AFTER) p.present = false;
     });
-    /* Newcomers standing up front fill the empty places, left to right. */
+    /* Newcomers: someone standing up front with their face in view is a
+       candidate, followed from frame to frame; one seen steadily for
+       JOIN_AFTER takes an empty place, left to right. A candidate who
+       flickers out for more than a moment starts again. */
+    const cands = this._cands || (this._cands = []);
+    for (const c of cands) c.hit = null;
+    for (const d of dets){
+      if (d.taken || !d.playing || !d.face) continue;
+      let best = null, bd = MATCH;
+      for (const c of cands){ const dist = Math.hypot(d.x - c.x, d.y - c.y); if (!c.hit && dist < bd){ bd = dist; best = c; } }
+      if (!best){ best = { x: d.x, y: d.y, seen: 0, miss: 0 }; cands.push(best); }
+      best.hit = d; best.x = d.x; best.y = d.y; best.seen += dt; best.miss = 0;
+    }
+    for (const c of cands) if (!c.hit) c.miss += dt;
+    this._cands = cands.filter(c => c.miss < 0.25);
     const free = this.players.filter(p => !p.present);
-    const joiners = dets.filter(d => !d.taken && d.playing).sort((a, b) => a.x - b.x);
+    const joiners = this._cands.filter(c => c.hit && c.seen >= JOIN_AFTER).map(c => c.hit).sort((a, b) => a.x - b.x);
+    for (const d of joiners) this._cands = this._cands.filter(c => c.hit !== d);
     for (const p of free){
       const d = joiners.shift();
       if (!d) break;

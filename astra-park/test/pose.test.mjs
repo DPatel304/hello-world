@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pose, L, seated, onePerPerson, WATCH_AFTER } from '../src/tracking/pose.js';
+import { pose, L, seated, onePerPerson, faceSeen, WATCH_AFTER, JOIN_AFTER } from '../src/tracking/pose.js';
 
 /* A full set of landmarks, all plainly visible, with named overrides. */
 function body(over = {}){
@@ -16,6 +16,7 @@ function freshPlayer(lm = body()){
 }
 
 function resetPose(){
+  pose._cands = [];
   pose.mouse.active = false;
   pose.ready = false;
   pose.personCount = 0;
@@ -128,8 +129,7 @@ test('players are assigned left to right after mirroring', () => {
      screen-left, so A must become player 0. */
   const A = person(0.8), B = person(0.2);
 
-  pose.lm = { detectForVideo: () => ({ landmarks: [B, A] }) };   /* order from the model is arbitrary */
-  pose.update(0, 0.016);
+  arrive([B, A]);   /* order from the model is arbitrary */
 
   assert.equal(pose.personCount, 2);
   assert.ok(screenX(pose.players[0]) < 0.5, 'player 0 should be on screen-left');
@@ -141,11 +141,7 @@ test('a player who leaves frame is aged out, not forgotten instantly', () => {
   resetPose();
   pose.ready = true;
   pose.video = { readyState: 2, currentTime: 1 };
-  const one = body();
-  one.forEach(k => { k.visibility = k.v; });
-  pose.lm = { detectForVideo: () => ({ landmarks: [one] }) };
-
-  pose.video.currentTime = 1; pose.update(0, 0.016);
+  arrive([person(0.5)]);
   assert.equal(pose.players[0].present, true);
 
   /* Second player was never there and must stay absent. */
@@ -201,6 +197,8 @@ function see(people, dt = 0.05){
   pose.update(frame * 50, dt);
 }
 const screenX = (p) => (p.lm[L.L_HIP].x + p.lm[L.R_HIP].x) / 2;
+/* People walk in and stay a moment, long enough to join. */
+function arrive(people){ for (let t = 0; t < JOIN_AFTER + 0.1; t += 0.05) see(people); }
 
 test('sitting is told from standing by how far the knees drop below the hips', () => {
   const m = (lm) => lm.map(k => ({ ...k, v: k.visibility }));
@@ -211,7 +209,7 @@ test('sitting is told from standing by how far the knees drop below the hips', (
 
 test('someone sitting on the sofa is a watcher, not a player', () => {
   resetPose();
-  see([person(0.3), person(0.75, { sit: true })]);
+  arrive([person(0.3), person(0.75, { sit: true })]);
   assert.equal(pose.personCount, 1);
   assert.equal(pose.seenCount, 2);
   assert.ok(Math.abs(screenX(pose.players[0]) - 0.7) < 0.02, 'the standing child is player one');
@@ -220,25 +218,25 @@ test('someone sitting on the sofa is a watcher, not a player', () => {
 
 test('someone standing far behind is a watcher; on their own, they play', () => {
   resetPose();
-  see([person(0.6, { size: 0.22 }), person(0.2, { size: 0.08 })]);
+  arrive([person(0.6, { size: 0.22 }), person(0.2, { size: 0.08 })]);
   assert.equal(pose.personCount, 1);
   assert.ok(Math.abs(screenX(pose.players[0]) - 0.4) < 0.02);
   resetPose();
-  see([person(0.2, { size: 0.08 })]);
+  arrive([person(0.2, { size: 0.08 })]);
   assert.equal(pose.personCount, 1, 'nobody closer, so they are the player');
 });
 
 test('a watcher on the left does not take player one from a child', () => {
   resetPose();
   /* Raw x 0.8 is screen-left after mirroring. */
-  see([person(0.8, { sit: true }), person(0.3)]);
+  arrive([person(0.8, { sit: true }), person(0.3)]);
   assert.equal(pose.personCount, 1);
   assert.ok(Math.abs(screenX(pose.players[0]) - 0.7) < 0.02);
 });
 
 test('a player who squats stays in; one who sits down a while becomes a watcher', () => {
   resetPose();
-  see([person(0.5)]);
+  arrive([person(0.5)]);
   assert.equal(pose.players[0].present, true);
   for (let t = 0; t < WATCH_AFTER * 0.6; t += 0.05) see([person(0.5, { sit: true })]);
   assert.equal(pose.players[0].present, true, 'a squat is not leaving');
@@ -250,7 +248,7 @@ test('a player who squats stays in; one who sits down a while becomes a watcher'
 
 test('players keep their place when they cross over', () => {
   resetPose();
-  see([person(0.7), person(0.3)]);
+  arrive([person(0.7), person(0.3)]);
   const leftFirst = screenX(pose.players[0]);
   assert.ok(leftFirst < 0.5, 'player one starts on the left');
   /* They walk past each other in strides, so at the crossing each lands
@@ -261,9 +259,9 @@ test('players keep their place when they cross over', () => {
 
 test('a newcomer standing up front joins an empty place', () => {
   resetPose();
-  see([person(0.5)]);
+  arrive([person(0.5)]);
   assert.equal(pose.personCount, 1);
-  see([person(0.5), person(0.15)]);
+  arrive([person(0.5), person(0.15)]);
   assert.equal(pose.personCount, 2);
   assert.equal(pose.players[1].present, true);
 });
@@ -272,13 +270,13 @@ test('one person reported twice is one player', () => {
   resetPose();
   /* Two skeletons a whisker apart: the model seeing the same child twice. */
   const a = person(0.5), b = person(0.51, { size: 0.21 });
-  see([a, b]);
+  arrive([a, b]);
   assert.equal(pose.seenCount, 1);
   assert.equal(pose.personCount, 1);
   assert.equal(pose.players[1].present, false);
   /* Two children side by side are still two. */
   resetPose();
-  see([person(0.35), person(0.62)]);
+  arrive([person(0.35), person(0.62)]);
   assert.equal(pose.personCount, 2);
 });
 
@@ -288,4 +286,50 @@ test('the clearer of two twin skeletons is the one kept', () => {
   const kept = onePerPerson([faint, clear]);
   assert.equal(kept.length, 1);
   assert.equal(kept[0], clear);
+});
+
+/* ---------- phantoms ---------- */
+
+test('something with no clear face never joins', () => {
+  resetPose();
+  /* A coat on a chair: body-shaped, but no face to speak of. */
+  const coat = person(0.5);
+  for (const k of ['NOSE', 'L_EYE', 'R_EYE']) coat[L[k]] = { ...coat[L[k]], v: 0.2, visibility: 0.2 };
+  for (let t = 0; t < 3; t += 0.05) see([coat]);
+  assert.equal(pose.personCount, 0);
+  assert.equal(pose.seenCount, 1, 'seen, just not playing');
+});
+
+test('a glitch that flickers for a few frames never joins', () => {
+  resetPose();
+  for (let k = 0; k < 6; k++){ see([person(0.5)]); see([person(0.5)]); see([]); see([]); see([]); see([]); see([]); see([]); }
+  assert.equal(pose.personCount, 0);
+});
+
+test('a child joins after half a second in view, not before', () => {
+  resetPose();
+  for (let t = 0; t < JOIN_AFTER - 0.15; t += 0.05) see([person(0.5)]);
+  assert.equal(pose.personCount, 0, 'not yet');
+  for (let t = 0; t < 0.3; t += 0.05) see([person(0.5)]);
+  assert.equal(pose.personCount, 1);
+});
+
+test('a player who turns away stays a player', () => {
+  resetPose();
+  arrive([person(0.5)]);
+  const back = person(0.5);
+  for (const k of ['NOSE', 'L_EYE', 'R_EYE']) back[L[k]] = { ...back[L[k]], v: 0.1, visibility: 0.1 };
+  for (let t = 0; t < 3; t += 0.05) see([back]);
+  assert.equal(pose.players[0].present, true);
+});
+
+test('a face needs the nose, an eye, and the head above the shoulders', () => {
+  const m = (lm) => lm.map(k => ({ ...k, v: k.visibility }));
+  assert.equal(faceSeen(m(person(0.5))), true);
+  const oneEye = m(person(0.5)); oneEye[L.L_EYE] = { ...oneEye[L.L_EYE], v: 0.1 };
+  assert.equal(faceSeen(oneEye), true, 'side on is fine');
+  const noEyes = m(person(0.5)); noEyes[L.L_EYE].v = 0.1; noEyes[L.R_EYE].v = 0.1;
+  assert.equal(faceSeen(noEyes), false);
+  const upside = m(person(0.5)); upside[L.NOSE] = { ...upside[L.NOSE], y: 0.9 };
+  assert.equal(faceSeen(upside), false, 'a "head" below the shoulders is not a head');
 });
