@@ -4,54 +4,62 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, drawPup } from '../ui/kids.js';
 import { SPECIES, byId, pickSpecies, drawFish } from './fishing-fish.js';
-import { WATER, SEATS, UNCLE_X, drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront,
-         drawUncle, drawCrew, drawRod, drawLine, drawRipple } from './fishing-art.js';
+import { WATER, UNCLE_X, drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront,
+         drawUncle, drawCrew, drawRod, drawLine, drawRipple, drawPalm } from './fishing-art.js';
 
 /* Uncle B's Boat, named for the children's uncle, who loves fishing. A calm
    day out on the lake in his rowboat: he sits in the middle in his khaki
-   cap, the children either side with their own rods and their real faces
-   under bucket hats, and below them the clear water is full of fish to
-   watch go by - perch and trout and catfish, and now and then something
-   magical: a glowing lantern fish, a rainbow fish, a tiny whale, the golden
-   one.
+   cap with his rod, the children either side with their real faces under
+   bucket hats, and below them the clear water is full of fish to watch go
+   by - perch and trout and catfish, and now and then something magical: a
+   glowing lantern fish, a rainbow fish, a tiny whale, the golden one.
 
-   Fishing is like the real thing. Swing an arm to cast: the harder the
-   swing, the further out the line goes. Raise or lower that hand to bring
-   the hook up or let it down deeper. Fish come to look; the bobber dips as
-   they nibble, then plunges - one's on! Roll your hands round and round to
-   reel it in. Up it comes, held big in the middle for everyone to admire,
-   while Uncle B cheers; then it's let go, and its picture goes in Uncle B's
-   fish book. At the end, the whole book: every fish found, and outlines of
-   the ones still out there.
+   The children catch them with their hands. Their hands glow in the water
+   in their colours; bring both together into a cup and the fish come over
+   to look. Close the cup round one to scoop it up, then lift it out of the
+   water: up it comes, held big in the middle for everyone to admire, while
+   Uncle B cheers; then it's let go, and its picture goes in Uncle B's fish
+   book. Open your hands on the way up and it just swims off - there are
+   always more. At the end, the whole book: every fish found, and outlines
+   of the ones still out there.
 
-   Uncle B shows how without a word: first thing, he casts, waits, gets a
-   bite, reels it in and holds it up. If a child's rod sits still a while, a
-   ghostly arc over their seat shows the swing; if a fish is on and nobody's
-   reeling, circling arrows show the roll. No fish is ever lost for good -
-   one that gets away just swims off, and there are always more. */
+   It shows itself without a word: a pair of ghostly hands closes round a
+   fish and lifts it out, first thing and again whenever nobody has caught
+   one for a while. Uncle B fishes too, with his rod, and holds up what he
+   catches. */
 
 export const ROUND = 300;
 export const FINALE = ROUND - 12;
 export const OPENING = 30;
-export const CAST_SPEED = 1.5;       /* screen widths a second: a swing, not a wave */
-export const REEL_RATE = 0.42;       /* reel per second at full rolling: about two and a half seconds */
-export const ESCAPE = 8;             /* seconds a hooked fish waits for reeling before it swims off */
 export const ADMIRE = 3.2;
-export const LOOK = 0.16;            /* screen heights: how far a fish notices a hook */
-const FLY = 0.6, NIBBLE = 0.7, HINT_AFTER = 6;
+export const LOOK = 0.16;            /* screen heights: how far a fish notices Uncle B's hook */
+/* Two hands closer than this - in screen heights - make a cup. */
+export const CUP_GAP = 0.14;
+/* Hands can drift apart for this long without the cup opening, so a wobble
+   on the way up doesn't drop the fish. */
+export const CUP_GRACE = 0.35;
+/* How close a cup must come to a fish's body to scoop it. */
+export const SCOOP = 0.05;
+/* How far a fish notices a cupped hand, and swims over to see. */
+export const CURIOUS = 0.24;
+/* The ghostly hands: a few seconds in, and again after a long while with
+   nothing caught. */
+export const HINT_FIRST = 1.5, HINT_AGAIN = 40, HINT_LOOP = 6;
+const NIBBLE = 0.7;
 
 export default {
   id: 'uncle-bs-boat', name: "Uncle B's Boat", stars: 1, accent: '#4bb3c9', secs: ROUND,
   create(n){ return new Boat(n); }
 };
 
-const rodOf = () => ({ state: 'ready', x: 0, hookY: WATER, fly: 0, fish: null, reel: 0, idle: 0, nibbles: 0, nib: 0, dip: 0, still: 0, turn: 0, lastAng: null, hookFrom: null });
+const rodOf = () => ({ state: 'ready', x: 0, hookY: WATER, fish: null, reel: 0, nibbles: 0, nib: 0, dip: 0, hookFrom: null });
+const cupOf = () => ({ x: 0.5, y: 0.5, l: null, r: null, cupped: false, apart: 9, fish: null });
 
 class Boat {
   constructor(players){
     this.players = players;
     this.t = 0; this.over = false;
-    this.rods = [rodOf(), rodOf()];
+    this.cups = [cupOf(), cupOf()];
     this.fish = [];
     this.admire = [];             /* catches waiting to be shown, first is showing */
     this.book = new Set();
@@ -63,6 +71,8 @@ class Boat {
     /* Uncle B's own fishing: a short show at the start, again if nobody fishes. */
     this.uncle = { state: 'wait', t: 0, rod: rodOf(), pose: 'idle', k: 0, shows: 0 };
     this.quiet = 0;
+    this.lastCatch = 0;           /* when a child last lifted a fish out */
+    this.hint = -1;               /* seconds into the ghostly hands, or -1 */
     this.out = null;
     for (let i = 0; i < 6; i++) this._fish(true);
   }
@@ -83,8 +93,17 @@ class Boat {
 
   _swim(dt, W, H){
     for (const f of this.fish){
-      f.swim += dt * (f.state === 'hooked' ? 14 : 5);
+      f.swim += dt * (f.state === 'hooked' || f.state === 'held' ? 14 : 5);
       if (f.state === 'swim'){
+        /* A cupped hand in the water is interesting: over it comes, slowly,
+           to have a look. */
+        const cup = this._nearCup(f, W, H);
+        if (cup){
+          f.dir = cup.x > f.x ? 1 : -1;
+          const dx = (cup.x - f.x) * W / H, dy = cup.y - f.y, d = Math.hypot(dx, dy);
+          if (d > 0.02){ const v = Math.min(d, 0.07 * dt) / d; f.x += dx * v * H / W; f.y += dy * v; }
+          continue;
+        }
         f.x += f.dir * f.speed * dt;
         f.y += Math.sin(this.t * 0.6 + f.wob) * 0.004 * dt;
         f.y = clamp(f.y, f.sp.depth[0] - 0.04, f.sp.depth[1] + 0.02);
@@ -102,6 +121,10 @@ class Boat {
         const r = f.rod;
         f.x = r.x - f.dir * f.sp.len * 0.45 * H / W + Math.sin(this.t * 9) * 0.004;
         f.y = r.hookY + Math.sin(this.t * 7) * 0.006;
+      } else if (f.state === 'held'){
+        /* Wriggling in the child's hands. */
+        const cup = this.cups[f.who];
+        f.x = cup.x + Math.sin(this.t * 11) * 0.003; f.y = cup.y + Math.sin(this.t * 7) * 0.004;
       } else if (f.state === 'away'){
         f.x += f.dir * 0.25 * dt;
       }
@@ -116,70 +139,75 @@ class Boat {
   step(dt, W, H){
     this.t += dt;
     this.faces.step(dt);
+    this._cups(dt, W, H);
     this._swim(dt, W, H);
-    for (let i = 0; i < this.players; i++) this._rod(i, dt, W, H);
     this._uncle(dt, W, H);
     this._admire(dt);
+    this._stepHint(dt);
     this._stepBits(dt);
     if (this.t >= FINALE && !this.finaleGold){ this.finaleGold = true; const g = this._fish(false, byId.golden); g.y = 0.55; this._fish(false, byId.rainbow); }
   }
 
-  /* The hand that's doing the fishing: whichever is moving faster. */
-  _hand(i){
-    const p = pose.players[i];
-    if (!p.present) return null;
-    return p.hands.right.speed >= p.hands.left.speed || pose.mouse.active ? p.hands.right : p.hands.left;
-  }
+  /* ---------- the children's hands ---------- */
 
-  /* How hard a child is reeling, 0..1: hands going round. Speed counts, and
-     turning - the way the movement keeps changing direction - counts more,
-     so a circle reels and a straight push barely does. */
-  _reelPower(r, h, dt){
-    const ang = Math.atan2(h.vy || 0, h.vx || 0);
-    let turn = 0;
-    if (r.lastAng != null && (h.speed || 0) > 0.15){
-      let d = ang - r.lastAng; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-      turn = Math.abs(d) / Math.max(dt, 1e-3);
-    }
-    r.lastAng = ang;
-    r.turn += (Math.min(1, turn / 5) - r.turn) * Math.min(1, dt * 6);
-    return Math.min(1, (h.speed || 0) / 0.7) * (0.25 + 0.75 * r.turn);
-  }
-
-  _rod(i, dt, W, H){
-    const r = this.rods[i], h = this._hand(i), side = SEATS[i].side;
-    if (!h){ r.still = 0; return; }
-    r.still += dt;
-    if (r.state === 'ready'){
-      if ((h.speed || 0) > CAST_SPEED){
-        /* The harder the swing, the further out it lands. */
-        const power = clamp((h.speed - CAST_SPEED) / 2, 0, 1);
-        r.x = clamp(SEATS[i].x + side * (0.1 + 0.2 * power), 0.04, 0.96);
-        r.state = 'flying'; r.fly = 0; r.still = 0;
-        sfx.whoosh();
+  _cups(dt, W, H){
+    for (let i = 0; i < 2; i++){
+      const p = pose.players[i], cup = this.cups[i];
+      if (i >= this.players || !p.present){ cup.l = cup.r = null; this._open(cup); continue; }
+      const l = pose.mouse.active ? p.hands.right : p.hands.left, r = p.hands.right;
+      cup.l = l; cup.r = r;
+      cup.x = (l.x + r.x) / 2; cup.y = (l.y + r.y) / 2;
+      const gap = Math.hypot((l.x - r.x) * W / H, l.y - r.y);
+      /* The mouse is one hand, so it is always a cup. */
+      if (pose.mouse.active || gap < CUP_GAP){ cup.apart = 0; cup.cupped = true; }
+      else { cup.apart += dt; if (cup.apart > CUP_GRACE) this._open(cup); }
+      if (!cup.cupped) continue;
+      if (!cup.fish){
+        if (cup.y < WATER + 0.02) continue;
+        const f = this.fish.filter(f => f.state === 'swim' && this._reach(f, cup, W, H) < SCOOP)
+          .sort((a, b) => this._reach(a, cup, W, H) - this._reach(b, cup, W, H))[0];
+        if (f){
+          f.state = 'held'; f.who = i; cup.fish = f;
+          sfx.plop();
+          for (let k = 0; k < 8; k++) this._bit('bubble', cup.x, cup.y);
+        }
+      } else if (cup.y < WATER - 0.03){
+        /* Out of the water: caught! */
+        const f = cup.fish;
+        cup.fish = null;
+        this.lastCatch = this.t; this.quiet = 0;
+        this._land(i, f, cup.x);
       }
-    } else if (r.state === 'flying'){
-      r.fly += dt / FLY;
-      if (r.fly >= 1){ r.state = 'waiting'; r.hookY = WATER + 0.02; r.nib = 0; r.nibbles = 0; r.fish = null; sfx.plop(); this._ripple(r.x, WATER); }
-    } else if (r.state === 'waiting'){
-      /* Lower the hand to let the line down deeper, raise it to bring it up. */
-      const want = WATER + 0.06 + clamp((h.y - 0.25) / 0.55, 0, 1) * (0.9 - WATER - 0.06);
-      r.hookY += clamp(want - r.hookY, -0.12 * dt, 0.12 * dt);
-      this._attract(r, dt, W, H, this.t < OPENING ? 0.6 : 1);
-      r.dip = Math.max(0, r.dip - dt * 3);
-    } else if (r.state === 'hooked'){
-      const power = this._reelPower(r, h, dt);
-      if (power > 0.3){ r.reel = Math.min(1, r.reel + power * REEL_RATE * dt); r.idle = 0; r.still = 0; if ((r.click = (r.click || 0) - dt) <= 0){ r.click = 0.1; sfx.reel(); } }
-      else r.idle += dt;
-      /* Reeling brings the hook - and the fish - up toward the boat. */
-      const from = r.hookFrom, to = { x: SEATS[i].x + side * 0.06, y: WATER + 0.02 };
-      r.x = from.x + (to.x - from.x) * r.reel; r.hookY = from.y + (to.y - from.y) * r.reel;
-      if (r.reel >= 1) this._land(i, r);
-      else if (r.idle > ESCAPE){ this._getAway(r); }
-    } else if (r.state === 'resting'){
-      r.fly -= dt;
-      if (r.fly <= 0){ r.state = 'ready'; r.still = 0; }
     }
+  }
+
+  /* How far a cup is from a fish's body - its length, not just its middle. */
+  _reach(f, cup, W, H){
+    return Math.max(0, Math.hypot((f.x - cup.x) * W / H, f.y - cup.y) - f.sp.len * 0.35);
+  }
+
+  /* The cupped hand in the water a fish is close enough to notice, if any. */
+  _nearCup(f, W, H){
+    let best = null, bd = CURIOUS;
+    for (let i = 0; i < this.players; i++){
+      const cup = this.cups[i];
+      if (!cup.cupped || cup.fish || cup.y < WATER + 0.02) continue;
+      const d = this._reach(f, cup, W, H);
+      if (d < bd){ bd = d; best = cup; }
+    }
+    return best;
+  }
+
+  /* Hands apart for too long: the fish slips out and swims off. */
+  _open(cup){
+    const f = cup.fish;
+    if (f){
+      f.state = 'away'; f.dir = Math.random() < 0.5 ? 1 : -1; f.who = null;
+      f.y = Math.max(f.y, WATER + 0.04);
+      for (let k = 0; k < 6; k++) this._bit('bubble', f.x, f.y);
+      sfx.plop();
+    }
+    cup.fish = null; cup.cupped = false;
   }
 
   /* A fish nearby notices the hook, comes over, nibbles once or twice, and
@@ -204,21 +232,14 @@ class Boat {
     for (let k = 0; k < 8; k++) this._bit('bubble', r.x, r.hookY);
   }
 
-  _getAway(r){
-    const f = r.fish;
-    if (f){ f.state = 'away'; f.rod = null; for (let k = 0; k < 6; k++) this._bit('bubble', f.x, f.y); }
-    r.fish = null; r.state = 'waiting'; r.reel = 0; r.idle = 0;
-  }
-
-  _land(who, r){
-    const f = r.fish;
+  /* A fish out of the water: held up for everyone, and into the book. */
+  _land(who, f, x){
     f.state = 'gone';
-    r.fish = null; r.state = 'resting'; r.fly = ADMIRE * 0.6; r.reel = 0;
     const isNew = who >= 0 && !this.book.has(f.sp.id);
     if (who >= 0){ this.book.add(f.sp.id); this.caught++; }
     this.admire.push({ sp: f.sp, t: 0, who, isNew });
-    sfx.splash(); this._ripple(r.x, WATER);
-    for (let k = 0; k < 14; k++) this._bit('drop', r.x, WATER);
+    sfx.splash(); this._ripple(x, WATER);
+    for (let k = 0; k < 14; k++) this._bit('drop', x, WATER);
   }
 
   /* One catch at a time, held up big, then let go back into the lake. */
@@ -243,12 +264,13 @@ class Boat {
   _uncle(dt, W, H){
     const u = this.uncle, r = u.rod;
     u.t += dt;
-    const anyone = this.rods.slice(0, this.players).some(rd => rd.state !== 'ready');
+    const anyone = this.cups.some(cp => cp.fish);
     this.quiet = anyone ? 0 : this.quiet + dt;
     if (u.state === 'wait'){
       u.pose = this.admire.length ? 'cheer' : 'idle';
-      /* First thing in the round, and again whenever nobody has fished for a while. */
-      if ((u.shows === 0 && this.t > 1.5) || (this.quiet > 20 && !this.admire.length)){ u.state = 'cast'; u.t = 0; u.shows++; this.quiet = 0; }
+      /* Once the ghostly hands have shown the children how, and again
+         whenever nobody has caught anything for a while. */
+      if (this.hint < 0 && !this.admire.length && ((u.shows === 0 && this.t > 8) || this.quiet > 25)){ u.state = 'cast'; u.t = 0; u.shows++; this.quiet = 0; }
     } else if (u.state === 'cast'){
       u.pose = 'cast'; u.k = Math.min(1, u.t / 0.9);
       if (u.t >= 0.9){ u.state = 'line'; u.t = 0; r.x = UNCLE_X + 0.07; r.hookY = WATER + 0.02; sfx.plop(); this._ripple(r.x, WATER); }
@@ -265,7 +287,7 @@ class Boat {
       r.reel = Math.min(1, u.t / 2.6);
       r.x = r.hookFrom.x + (UNCLE_X + 0.04 - r.hookFrom.x) * r.reel; r.hookY = r.hookFrom.y + (WATER + 0.02 - r.hookFrom.y) * r.reel;
       if ((r.click = (r.click || 0) - dt) <= 0){ r.click = 0.12; sfx.reel(); }
-      if (r.reel >= 1){ this._land(-1, r); u.state = 'wait'; r.state = 'ready'; }
+      if (r.reel >= 1){ this._land(-1, r.fish, r.x); r.fish = null; u.state = 'wait'; r.state = 'ready'; }
     }
     u.rod.dip = Math.max(0, u.rod.dip - dt * 3);
   }
@@ -289,10 +311,28 @@ class Boat {
     if (Math.random() < dt * 3) this._bit('bubble', Math.random(), 0.95);
   }
 
+  /* ---------- showing how ---------- */
+
+  _stepHint(dt){
+    /* Someone with a fish in hand has got it; the ghost gets out of their
+       way. A loop that has started otherwise plays to its end. */
+    if (this.cups.some(c => c.fish) || this.out){ this.hint = -1; return; }
+    /* A short rest between loops, which is when Uncle B may take a turn. */
+    this.hintRest = Math.max(0, (this.hintRest || 0) - dt);
+    const due = this.t < FINALE && this.t - this.lastCatch > (this.caught ? HINT_AGAIN : HINT_FIRST)
+      && this.uncle.state === 'wait' && !this.admire.length && !this.hintRest;
+    if (this.hint >= 0){
+      this.hint += dt;
+      if (this.hint >= HINT_LOOP){ this.hint = -1; this.hintRest = 2.5; }
+    } else if (due) this.hint = 0;
+  }
+
+  get hinting(){ return this.hint >= 0; }
+
   /* ---------- the ending: Uncle B's fish book ---------- */
 
   outro(dt, W, H){
-    if (!this.out){ this.out = { t: 0, shown: 0 }; this.admire = []; }
+    if (!this.out){ this.out = { t: 0, shown: 0 }; this.admire = []; for (const cp of this.cups) this._open(cp); }
     const o = this.out;
     o.t += dt; this.t += dt;
     this.faces.step(dt);
@@ -310,7 +350,7 @@ class Boat {
 
   draw(c, W, H){
     drawLake(c, W, H, this.t, Math.min(1, this.t / ROUND));
-    const swimmers = this.fish.filter(f => f.state !== 'gone').sort((a, b) => b.y - a.y);
+    const swimmers = this.fish.filter(f => f.state !== 'gone' && f.state !== 'held').sort((a, b) => b.y - a.y);
     for (const f of swimmers) drawFish(c, f.sp, f.x * W, f.y * H, f.sp.len * H, f.swim, f.dir);
     drawWeeds(c, W, H, this.t);
     for (const b of this.bits) if (b.kind === 'bubble'){ c.strokeStyle = `rgba(255,255,255,${0.6 * (1 - b.age / b.life)})`; c.lineWidth = 1.5; c.beginPath(); c.arc(b.x * W, b.y * H, H * (0.004 + b.r * 0.006), 0, 6.2832); c.stroke(); }
@@ -319,18 +359,21 @@ class Boat {
 
     drawBoatBack(c, W, H, this.t);
     const u = this.uncle, uh = drawUncle(c, W, H, this.t, this.out ? 'cheer' : u.pose, u.k);
-    const hands = [0, 1].map(seat => this._drawSeat(c, seat, W, H));
+    for (const seat of [0, 1]) this._drawSeat(c, seat, W, H);
     drawBoatFront(c, W, H, this.t);
 
     /* Uncle B's rod and line, when he's fishing. */
     if (!this.out){
       const tip = drawRod(c, uh[1], u.state === 'cast' ? -2.4 + u.k * 1.5 : -1.0, H * 0.18, H);
       if (u.state === 'line' || u.state === 'reel') drawLine(c, tip, { x: u.rod.x * W, y: WATER * H }, { x: u.rod.x * W, y: u.rod.hookY * H }, H, this.t, u.rod.dip);
-      for (let i = 0; i < this.players; i++) if (hands[i]) this._drawRod(c, i, hands[i], W, H);
     }
     for (const b of this.bits) if (b.kind === 'drop'){ c.fillStyle = `rgba(220,245,255,${1 - b.age / b.life})`; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.006, 0, 6.2832); c.fill(); }
 
-    if (!this.out){ this._drawHints(c, W, H, hands); this._drawFound(c, W, H); }
+    if (!this.out){
+      if (this.hint >= 0) this._drawHint(c, W, H);
+      this._drawHands(c, W, H);
+      this._drawFound(c, W, H);
+    }
     if (this.admire[0]) this._drawAdmire(c, this.admire[0], W, H);
     if (this.out) this._drawBook(c, W, H);
   }
@@ -339,58 +382,56 @@ class Boat {
   _drawSeat(c, seat, W, H){
     const who = this.players >= 2 ? seat : (seat === 0 ? 0 : -1);
     const present = who >= 0 && pose.players[who].present;
-    const r = this.rods[seat];
-    const poseName = this.out || (this.admire[0] && this.admire[0].who === seat) ? 'cheer' : r.state === 'flying' ? 'cast' : r.state === 'hooked' ? 'reel' : 'idle';
-    const k = r.state === 'flying' ? r.fly : this.t * 8;
-    if (who < 0){ drawCrew(c, W, H, this.t, seat, '#e8413c', (x, y, rr) => drawPup(c, x, y + rr * 0.1, rr * 0.95, this.t + seat), 'idle'); return null; }
-    return drawCrew(c, W, H, this.t, seat, PLAYER_COLORS[who], (x, y, rr) => {
+    const poseName = this.out || (this.admire[0] && this.admire[0].who === who && who >= 0) ? 'cheer' : 'idle';
+    if (who < 0){ drawCrew(c, W, H, this.t, seat, '#e8413c', (x, y, rr) => drawPup(c, x, y + rr * 0.1, rr * 0.95, this.t + seat), 'idle'); return; }
+    drawCrew(c, W, H, this.t, seat, PLAYER_COLORS[who], (x, y, rr) => {
       if (present && this.faces.has(who)) this.faces.draw(c, who, x, y, rr);
       else drawKid(c, x, y + rr * 0.08, rr * 0.95, this.t + who, who ? '#c98f6a' : '#e9b892');
-    }, poseName, k);
+    }, poseName);
   }
 
-  _drawRod(c, i, hand, W, H){
-    const r = this.rods[i], side = SEATS[i].side;
-    let ang = side > 0 ? -0.6 : Math.PI + 0.6;
-    if (r.state === 'flying') ang = side > 0 ? -2.2 + r.fly * 1.6 : Math.PI + 2.2 - r.fly * 1.6;
-    if (r.state === 'hooked') ang += side * Math.sin(this.t * 12) * 0.05 + side * 0.25 * (1 - r.reel);
-    const tip = drawRod(c, hand, ang, H * 0.22, H);
-    if (r.state === 'flying'){
-      /* The hook in flight, arcing out over the water. */
-      const u = r.fly, x = tip.x + (r.x * W - tip.x) * u, y = tip.y + (WATER * H - tip.y) * u - Math.sin(u * Math.PI) * H * 0.12;
-      drawLine(c, tip, { x, y }, null, H, this.t);
-    } else if (r.state === 'waiting' || r.state === 'hooked'){
-      const bob = { x: r.x * W, y: WATER * H };
-      drawLine(c, tip, bob, { x: r.x * W, y: r.hookY * H }, H, this.t, r.state === 'hooked' ? 0.8 + Math.sin(this.t * 14) * 0.3 : r.dip);
-    }
-  }
-
-  /* Without words: an arc over a child's seat to show the cast, circling
-     arrows round their hands when a fish is on and nobody's reeling. */
-  _drawHints(c, W, H, hands){
+  /* Each child's hands, glowing in their colour, with whatever they're
+     holding between them; a soft ring round a cup that's ready to scoop. */
+  _drawHands(c, W, H){
+    const r = H * 0.035;
     for (let i = 0; i < this.players; i++){
-      const r = this.rods[i], h = hands[i];
-      if (!h || !pose.players[i].present) continue;
-      const side = SEATS[i].side;
-      c.save(); c.strokeStyle = 'rgba(255,246,226,.85)'; c.fillStyle = 'rgba(255,246,226,.85)'; c.lineWidth = H * 0.008; c.lineCap = 'round';
-      if (r.state === 'ready' && r.still > HINT_AFTER && this.uncle.state === 'wait'){
-        const u = (this.t % 1.4) / 1.4, cx = h.x, cy = h.y - H * 0.12, R = H * 0.1;
-        const a0 = side > 0 ? -2.6 : -0.55, a1 = side > 0 ? -0.4 : -2.75;
-        c.globalAlpha = Math.min(1, u * 3) * (1 - Math.max(0, u - 0.8) * 5);
-        c.beginPath(); c.arc(cx, cy, R, Math.min(a0, a1), Math.max(a0, a1)); c.stroke();
-        const ae = a0 + (a1 - a0) * Math.min(1, u * 1.2), ex = cx + Math.cos(ae) * R, ey = cy + Math.sin(ae) * R;
-        c.beginPath(); c.arc(ex, ey, H * 0.016, 0, 6.2832); c.fill();
-      } else if (r.state === 'hooked' && r.idle > 1.5){
-        const cx = h.x, cy = h.y, R = H * 0.06, a = this.t * 5;
-        for (let k = 0; k < 2; k++){
-          const s = a + k * Math.PI;
-          c.beginPath(); c.arc(cx, cy, R, s, s + 2.2); c.stroke();
-          const ex = cx + Math.cos(s + 2.2) * R, ey = cy + Math.sin(s + 2.2) * R;
-          c.beginPath(); c.arc(ex, ey, H * 0.012, 0, 6.2832); c.fill();
-        }
+      const cup = this.cups[i], col = PLAYER_COLORS[i];
+      if (!cup.l) continue;
+      if (cup.fish){
+        const f = cup.fish;
+        drawFish(c, f.sp, f.x * W, f.y * H, f.sp.len * H, f.swim, f.dir);
+      } else if (cup.cupped && cup.y > WATER){
+        const g = c.createRadialGradient(cup.x * W, cup.y * H, 0, cup.x * W, cup.y * H, H * 0.09);
+        g.addColorStop(0, col + '00'); g.addColorStop(0.7, col + '33'); g.addColorStop(1, col + '00');
+        c.fillStyle = g; c.beginPath(); c.arc(cup.x * W, cup.y * H, H * 0.09, 0, 6.2832); c.fill();
       }
-      c.restore();
+      /* Holding a fish, the palms sit either side of it, whatever its size. */
+      const wide = cup.fish ? cup.fish.sp.len * 0.5 : 0;
+      if (pose.mouse.active || cup.fish){
+        const half = Math.max(wide, 0.03);
+        for (const side of [-1, 1]) drawPalm(c, (cup.x + side * half * H / W) * W, cup.y * H, r, side < 0 ? 0 : Math.PI, col);
+      } else {
+        const a = Math.atan2((cup.r.y - cup.l.y) * H, (cup.r.x - cup.l.x) * W);
+        drawPalm(c, cup.l.x * W, cup.l.y * H, r, a, col);
+        drawPalm(c, cup.r.x * W, cup.r.y * H, r, a + Math.PI, col);
+      }
     }
+  }
+
+  /* The demonstration: ghostly hands either side of a fish close round it
+     and lift it up out of the water. */
+  _drawHint(c, W, H){
+    const u = this.hint, F = { x: 0.7, y: 0.62 }, sp = byId.bluegill;
+    const ease = (a, b) => { const k = clamp((u - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+    const show = Math.min(ease(0, 0.5), 1 - ease(4.4, 5));
+    if (show <= 0) return;
+    const close = ease(0.6, 1.4), lift = ease(1.8, 3.4);
+    const x = F.x, y = F.y + (WATER - 0.1 - F.y) * lift;
+    const gap = 0.16 - (0.16 - sp.len * 0.5) * close;
+    c.save(); c.globalAlpha = show * 0.75;
+    drawFish(c, sp, x * W + (u < 1.4 ? Math.sin(u * 3) * H * 0.006 : 0), y * H, sp.len * H, this.t * (lift > 0 ? 14 : 5), -1);
+    c.restore();
+    for (const side of [-1, 1]) drawPalm(c, (x + side * gap * H / W) * W, y * H, H * 0.035, side < 0 ? 0 : Math.PI, '#fff6e2', show * 0.8);
   }
 
   /* The fish found so far, small along the top: the start of the book. */

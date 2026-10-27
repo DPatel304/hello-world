@@ -310,3 +310,20 @@ export function drawRipple(c, x, y, age, H){
     c.beginPath(); c.ellipse(x, y, H * (0.02 + a * 0.08), H * (0.005 + a * 0.012), 0, 0, 6.2832); c.stroke();
   }
 }
+
+/* An open hand seen from the front: a curved palm, ( or ), hollow toward
+   `facing` (the angle toward the other hand), so two apart read as open
+   hands and two together close round a fish like a cup. */
+export function drawPalm(c, x, y, r, facing, col, alpha = 1){
+  const halo = c.createRadialGradient(x, y, r * 0.3, x, y, r * 2.2);
+  halo.addColorStop(0, col + Math.round(0x55 * alpha).toString(16).padStart(2, '0'));
+  halo.addColorStop(1, col + '00');
+  c.fillStyle = halo; c.beginPath(); c.arc(x, y, r * 2.2, 0, 6.2832); c.fill();
+  c.save(); c.globalAlpha = alpha;
+  c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.75; c.lineCap = 'round';
+  const cx = x + Math.cos(facing) * r, cy = y + Math.sin(facing) * r, back = facing + Math.PI;
+  c.beginPath(); c.arc(cx, cy, r, back - 1.1, back + 1.1); c.stroke();
+  c.strokeStyle = col; c.lineWidth = r * 0.42;
+  c.beginPath(); c.arc(cx, cy, r, back - 1.1, back + 1.1); c.stroke();
+  c.restore();
+}

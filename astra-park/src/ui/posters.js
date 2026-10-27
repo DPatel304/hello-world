@@ -9,7 +9,7 @@ import { glow } from './backdrop.js';
 import { drawKid } from './kids.js';
 import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from '../games/moon-art.js';
 import { DRAW } from '../games/copycat-art.js';
-import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawLine, WATER } from '../games/fishing-art.js';
+import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
@@ -70,18 +70,18 @@ function animalCopycat(){
 function unclesBoat(){
   return (c, W, H, t) => {
     drawLake(c, W, H, t, 0.2);
-    for (const [id, x, y, d] of [['trout', 0.2, 0.62, 1], ['koi', 0.75, 0.55, -1], ['catfish', 0.45, 0.82, 1], ['rainbow', 0.82, 0.75, -1]]) drawFish(c, fishById[id], (x + Math.sin(t * 0.4 + x * 9) * 0.03) * W, y * H, fishById[id].len * H * 1.4, t * 5 + x * 9, d);
+    for (const [id, x, y, d] of [['trout', 0.45, 0.66, 1], ['koi', 0.75, 0.55, -1], ['catfish', 0.45, 0.82, 1], ['rainbow', 0.82, 0.75, -1]]) drawFish(c, fishById[id], (x + Math.sin(t * 0.4 + x * 9) * 0.03) * W, y * H, fishById[id].len * H * 1.4, t * 5 + x * 9, d);
     drawWeeds(c, W, H, t); drawSurface(c, W, H, t);
     drawBoatBack(c, W, H, t);
     const uh = drawUncle(c, W, H, t, 'idle');
     const kid = (seat, col) => drawCrew(c, W, H, t, seat, col, (x, y, r) => drawKid(c, x, y + r * 0.08, r * 0.95, t + seat, seat ? '#c98f6a' : '#e9b892'));
-    const h0 = kid(0, '#3da9ff'), h1 = kid(1, '#ff8a3d');
+    kid(0, '#3da9ff'); kid(1, '#ff8a3d');
     drawBoatFront(c, W, H, t);
-    for (const [h, ang, x] of [[h0, Math.PI + 0.6, 0.12], [h1, -0.6, 0.88]]){
-      const tip = drawRod(c, h, ang, H * 0.22, H);
-      drawLine(c, tip, { x: x * W, y: WATER * H }, { x: x * W, y: H * 0.62 }, H, t, 0);
-    }
     drawRod(c, uh[1], -0.55, H * 0.2, H);
+    /* A pair of hands closing round a goldfish. */
+    const g = fishById.goldfish, gx = 0.2 * W, gy = (0.6 + Math.sin(t * 1.3) * 0.02) * H, L = g.len * H * 1.4;
+    drawFish(c, g, gx, gy, L, t * 12, 1);
+    for (const side of [-1, 1]) drawPalm(c, gx + side * L * 0.6, gy, H * 0.05, side < 0 ? 0 : Math.PI, '#3da9ff');
   };
 }
 
