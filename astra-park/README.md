@@ -92,16 +92,23 @@ screen around the round, so adding a game is one file and one line in
 
 ## Built so far
 
-- Tracking, calibration, hand cursor, menu, settings, help, splash, results,
-  pause gesture, lost-player handling, score persistence, generated audio.
-- **Pop Party**: pop balloons with your hands. It is the only game for now, so
-  the rest of the shell can be tuned against one well-understood round.
+- Tracking, wave-to-start title, picture-tile menu, settings, help, results,
+  pause gesture, lost-player handling, generated audio and the family's own
+  soundtrack.
+- Six cooperative games, each with no words and no scores on screen, a gentle
+  opening and an ending everyone shares:
+  - **Pop Party** - pop balloons with your hands.
+  - **Firefly Night** - cup your hands to catch fireflies and fill the jars.
+  - **Fire Truck** - your faces in the cab; point the water, reach the ladder.
+  - **Moon Bounce** - astronauts in moon gravity; jump to catch star pictures.
+  - **Animal Copycat** - copy each animal's pose and it joins the parade.
+  - **Snow Sled** - lean to steer, jump for the presents on balloons.
 
 ## What has and has not been verified
 
-Everything above is driven end to end in a headless browser through mouse mode —
-boot, calibration, menu, hover-to-select, settings, splash, countdown, a played
-round, scoring and results.
+Everything above is driven end to end in a headless browser through mouse mode,
+with made-up bodies for the pose, jump, lean and wave games - boot, title, menu,
+hover-to-select, settings, every game's round and ending, and results.
 
 **Pose tracking itself has not been verified against a real person.** There is no
 camera and nobody to stand in front of it here, and synthetic footage of drawn
