@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { OPENING, FINALE, CUP_GAP, CUP_GRACE, CUP_HOLDS, JAR_FULL, JAR_X, GOLDEN_WORTH, planRibbons } from '../src/games/firefly-night.js';
+import game, { OPENING, FINALE, HINT_FIRST, HINT_AGAIN, HINT_LOOP, CUP_GAP, CUP_GRACE, CUP_HOLDS, JAR_FULL, JAR_X, GOLDEN_WORTH, planRibbons } from '../src/games/firefly-night.js';
 import { pose } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080;
@@ -177,4 +177,57 @@ test('a cup has to reach a firefly to catch it', () => {
   hands(0.3, 0.5, 0.04);
   run(inst, 1);
   assert.equal(f.state, 'free', 'a cup across the screen should not catch it');
+});
+
+/* ---- showing how, without words ---- */
+
+function nobody(){ pose.mouse.active = false; for (const p of pose.players) p.present = false; }
+
+test('the ghost hands show how a few seconds in, if nobody has caught one', () => {
+  nobody();
+  const inst = quiet();
+  run(inst, HINT_FIRST - 0.5);
+  assert.equal(inst.hinting, false, 'not straight away');
+  run(inst, 1);
+  assert.equal(inst.hinting, true);
+  run(inst, HINT_LOOP * 2);
+  assert.equal(inst.hinting, true, 'and keeps showing while nobody has');
+});
+
+test('the demonstration gets out of the way of someone holding a firefly', () => {
+  nobody();
+  const inst = quiet();
+  run(inst, HINT_FIRST + 1);
+  assert.equal(inst.hinting, true);
+  parked(inst, 0.4, 0.4);
+  hands(0.4, 0.4);
+  run(inst, 0.2);
+  assert.ok(inst.cups[0].held.length > 0);
+  assert.equal(inst.hinting, false);
+});
+
+test('after a jar gets a firefly, the demonstration waits a long while', () => {
+  nobody();
+  const inst = quiet();
+  parked(inst, 0.5, 0.5);
+  hands(0.5, 0.5);
+  run(inst, 0.2);
+  hands(JAR_X[0], 0.7);
+  run(inst, 1);
+  assert.ok(inst.collected > 0, 'poured');
+  nobody();
+  run(inst, HINT_LOOP + 1);
+  assert.equal(inst.hinting, false, 'not due again yet');
+  run(inst, HINT_AGAIN - HINT_LOOP - 3);
+  assert.equal(inst.hinting, false);
+  run(inst, 3);
+  assert.equal(inst.hinting, true, 'shown again for anyone who wandered off');
+});
+
+test('no demonstration in the finale', () => {
+  nobody();
+  const inst = quiet();
+  inst.t = FINALE + 0.5;
+  run(inst, HINT_LOOP + 1);
+  assert.equal(inst.hinting, false);
 });

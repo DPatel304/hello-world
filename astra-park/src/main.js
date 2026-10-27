@@ -2,7 +2,7 @@ import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
 import { title, logo } from './ui/title.js';
-import { calibration, splash, results, pauseOverlay, lostOverlay,
+import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
 import { audio, music, sfx } from './audio/sound.js';
 import { scores } from './games/common.js';
@@ -41,7 +41,7 @@ function go(next, build){
    picked and fades away on the way back out. */
 function toMenu(){
   music.stop();
-  go('menu', () => menu({ onPlay: toSplash, onRecalibrate: toCalibration }));
+  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration }));
 }
 
 function toCalibration(){
@@ -64,11 +64,14 @@ function toTitle(){
   }));
 }
 
-function toSplash(g){
+/* Straight into the game, no instructions or countdown: every round opens
+   gently enough to be its own introduction, and the games show rather than
+   tell. */
+function toGame(g){
   game = g;
   players = Math.max(1, Math.min(2, pose.personCount || 1));
-  music.start(); music.intensity(0.15);
-  go('splash', () => splash(g, players, startRound));
+  music.start();
+  startRound();
 }
 
 function startRound(){
@@ -89,7 +92,7 @@ function showResults(){
   music.intensity(0.2);
   /* Bests are still kept - the menu tiles show them - just not announced. */
   scores.record(game.id, players, inst.value());
-  go('results', () => results(game, () => toSplash(game), toMenu));
+  go('results', () => results(game, () => toGame(game), toMenu));
 }
 
 /* ---------- pause by gesture ----------
@@ -189,8 +192,8 @@ function tick(now){
   if (mode === 'outro' && inst && inst.outro(dt, W, H)) showResults();
   if ((mode === 'play' || mode === 'outro' || mode === 'results') && inst) inst.draw(c, W, H);
 
-  /* A scene can navigate during its own tick - the splash countdown ends by
-     starting the round - which leaves `scene` null before the draw. Hold the
+  /* A scene can navigate during its own tick - the title's wave ends by
+     opening the menu - which leaves `scene` null before the draw. Hold the
      reference and check it is still the current one. */
   const live = scene;
   if (live){ live.tick(dt); if (scene === live) live.draw(c, W, H); }

@@ -29,10 +29,16 @@ export const GOLDEN_WORTH = 3;
 export const JAR_X = [0.22, 0.5, 0.78];
 const JAR_MOUTH = 0.7, JAR_BASE = 0.9, JAR_W = 0.05;
 const STAR_CAP = 150;
+/* The game shows itself rather than saying anything: a pair of ghostly hands
+   cups a firefly and carries it down to a jar. It plays a few seconds in if
+   nobody has filled a jar yet, and again whenever nobody has for a long
+   while, so a child who wandered off gets shown again. */
+export const HINT_FIRST = 3;
+export const HINT_AGAIN = 40;
+export const HINT_LOOP = 6;
 
 export default {
   id: 'firefly-night', name: 'Firefly Night', stars: 1, accent: '#ffd86b', secs: ROUND,
-  howto: ['Cup your hands together to catch a firefly', 'Carry it down to a jar', 'Fill the jars to light up the night'],
   create(n){ return new FireflyNight(n); }
 };
 
@@ -51,7 +57,11 @@ class FireflyNight {
     this.scene = new NightScene();
     this.avatars = new Avatars();
     this.out = null;
+    this.lastPour = 0;        /* when a firefly last went into a jar */
+    this.hint = -1;           /* seconds into the ghost demonstration, or -1 */
   }
+
+  get hinting(){ return this.hint >= 0; }
 
   _jar(x){ return { x, count: 0, fade: 0, lifting: 0 }; }
 
@@ -78,6 +88,7 @@ class FireflyNight {
     for (const f of this.flies) this._move(f, dt);
     this._cups(dt, W, H);
     this._stepPours(dt);
+    this._stepHint(dt);
     for (const j of this.jars){
       j.fade = Math.min(1, j.fade + dt * 1.5);
       if (j.lifting){ j.lifting += dt; }
@@ -207,6 +218,7 @@ class FireflyNight {
         p.done = true; p.f.state = 'gone';
         const worth = p.f.golden ? GOLDEN_WORTH : 1;
         this.caught[p.who] += worth; this.collected += worth;
+        this.lastPour = this.t;
         if (p.jar.lifting){ continue; }
         p.jar.count = Math.min(JAR_FULL, p.jar.count + worth);
         sfx.jar(p.jar.count);
@@ -219,6 +231,20 @@ class FireflyNight {
       }
     }
     this.pours = this.pours.filter(p => !p.done);
+  }
+
+  /* ---------- showing how ---------- */
+
+  _stepHint(dt){
+    /* Someone with fireflies in hand has got it; the demonstration gets out
+       of their way. A loop that has started otherwise plays to its end, so
+       the ghost never vanishes mid-gesture. */
+    if (this.cups.some(c => c.held.length) || this.out){ this.hint = -1; return; }
+    const due = this.t < FINALE && this.t - this.lastPour > (this.collected ? HINT_AGAIN : HINT_FIRST);
+    if (this.hint >= 0){
+      this.hint += dt;
+      if (this.hint >= HINT_LOOP) this.hint = due ? 0 : -1;
+    } else if (due) this.hint = 0;
   }
 
   /* ---------- the ending: every firefly collected becomes a star ---------- */
@@ -264,7 +290,11 @@ class FireflyNight {
     this.avatars.drawBodies(c, W, H, this.players, [0, 0], 0.2);
     this._drawJarLight(c, W, H);
     this.scene.drawFront(c, W, H);
-    for (const j of this.jars) this._drawJar(c, j, W, H);
+    /* While anyone is carrying fireflies, the jars breathe a little brighter:
+       this is where they go. */
+    const beckon = this.cups.some(cp => cp.held.length) ? 0.5 + 0.5 * Math.sin(this.t * 4) : 0;
+    for (const j of this.jars) this._drawJar(c, j, W, H, beckon);
+    if (this.hint >= 0) this._drawHint(c, W, H);
     for (const f of this.flies) if (f.state === 'free' || f.state === 'pouring') this._drawFly(c, f, W, H);
     if (this.out) for (const f of this.out.flights) if (f.cx != null && !f.done) this._glow(c, f.cx * W, f.cy * H, H * 0.012, 1, false);
     this._drawSparks(c, W, H);
@@ -312,12 +342,46 @@ class FireflyNight {
     }
   }
 
-  _drawJar(c, j, W, H){
+  /* The demonstration: ghostly hands either side of a firefly come together
+     around it, carry it down to the middle jar and let it drop in. */
+  _drawHint(c, W, H){
+    const u = this.hint, F = { x: 0.64, y: 0.46 }, J = JAR_X[1];
+    const ease = (a, b) => { const k = clamp((u - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+    const show = Math.min(ease(0, 0.5), 1 - ease(4.2, 4.8));
+    if (show <= 0) return;
+    const close = ease(0.6, 1.4), carry = ease(1.7, 3.2), drop = ease(3.3, 3.8);
+    const cx = F.x + (J - F.x) * carry, cy = F.y + (JAR_MOUTH - 0.06 - F.y) * carry;
+    const gap = 0.2 - 0.12 * close + 0.06 * drop;
+    if (drop < 1){
+      const fx = u < 1.4 ? F.x + Math.sin(u * 3) * 0.008 : cx;
+      const fy = u < 1.4 ? F.y + Math.cos(u * 2.3) * 0.008 : cy + (JAR_MOUTH + 0.05 - cy) * drop;
+      this._glow(c, fx * W, fy * H, H * 0.02, show * (1 - drop * 0.6), false);
+    }
+    /* Each hand a curved palm, ( and ), so that apart they read as two
+       open hands and together they close round the firefly in a cup. */
+    const r = H * 0.04;
+    for (const side of [-1, 1]){
+      const x = (cx + side * (gap / 2) * (H / W)) * W, y = cy * H;
+      const halo = c.createRadialGradient(x, y, r * 0.3, x, y, r * 2);
+      halo.addColorStop(0, `rgba(255,246,226,${0.25 * show})`); halo.addColorStop(1, 'rgba(255,246,226,0)');
+      c.fillStyle = halo; c.beginPath(); c.arc(x, y, r * 2, 0, 6.2832); c.fill();
+      c.strokeStyle = `rgba(255,246,226,${0.75 * show})`; c.lineWidth = r * 0.6; c.lineCap = 'round';
+      const mid = side < 0 ? Math.PI : 0;
+      c.beginPath(); c.arc(x - side * r, y, r, mid - 1.1, mid + 1.1); c.stroke();
+    }
+  }
+
+  _drawJar(c, j, W, H, beckon = 0){
     const lift = j.lifting ? Math.pow(j.lifting, 2) * 0.5 : 0;
     const alpha = j.lifting ? Math.max(0, 1 - j.lifting / 1.2) : j.fade;
     if (alpha <= 0) return;
     const w = JAR_W * H, x = j.x * W, top = (JAR_MOUTH - lift) * H, bot = (JAR_BASE - lift) * H;
     c.save(); c.globalAlpha = alpha;
+    if (beckon > 0 && !j.lifting){
+      const g = c.createRadialGradient(x, top, 0, x, top, w * 3);
+      g.addColorStop(0, `rgba(255,236,170,${0.15 + 0.25 * beckon})`); g.addColorStop(1, 'rgba(255,236,170,0)');
+      c.fillStyle = g; c.fillRect(x - w * 3, top - w * 3, w * 6, w * 6);
+    }
     const k = j.count / JAR_FULL;
     /* Glow inside, then the glass over it. */
     if (k > 0){

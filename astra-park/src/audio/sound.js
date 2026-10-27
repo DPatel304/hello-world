@@ -263,8 +263,6 @@ export const sfx = {
   buzz(){ blip({ freq: 160, to: 90, dur: 0.3, type: 'sawtooth', gain: 0.26 }); },
   gold(){ [0,0.07,0.14,0.21].forEach((d,i) =>
             blip({ freq: 660 * Math.pow(2, i/4), dur: 0.2, type:'triangle', gain:0.28, delay:d })); },
-  count(n){ blip({ freq: n > 0 ? 520 : 880, dur: n > 0 ? 0.14 : 0.3,
-                   type:'triangle', gain: 0.34 }); },
   fanfare(){ [0,4,7,12].forEach((s,i) =>
                blip({ freq: 392 * Math.pow(2, s/12), dur: 0.5, type:'triangle',
                       gain: 0.26, delay: i * 0.1 })); },

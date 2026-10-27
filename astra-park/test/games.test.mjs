@@ -59,7 +59,6 @@ test('every game declares the metadata the shell reads', () => {
     assert.ok(Number.isInteger(g.stars) && g.stars >= 1 && g.stars <= 5, `${g.id}: stars out of range`);
     assert.match(g.accent, /^#[0-9a-f]{6}$/i, `${g.id}: accent should be a hex colour`);
     assert.ok(g.secs > 0 && g.secs <= 600, `${g.id}: round length looks wrong`);
-    assert.ok(Array.isArray(g.howto) && g.howto.length >= 2, `${g.id}: needs at least two how-to lines`);
     assert.equal(typeof g.create, 'function', `${g.id}: create missing`);
   }
 });

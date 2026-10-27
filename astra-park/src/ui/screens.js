@@ -1,4 +1,4 @@
-import { pose, BONES, PLAYER_COLORS } from '../tracking/pose.js';
+import { pose, BONES } from '../tracking/pose.js';
 import { button, onPick } from './cursor.js';
 import { sfx } from '../audio/sound.js';
 
@@ -133,35 +133,6 @@ export function drawSkeletons(c, W, H, alpha = 0.35){
     }
     c.restore();
   }
-}
-
-/* ---------- splash ---------- */
-export function splash(game, players, onGo){
-  const s = screen('dim');
-  s.append(h('h1', '', game.name));
-  const bl = h('ul', 'bullets');
-  game.howto.forEach(t => bl.appendChild(h('li', '', `<span class="ic">▸</span><span>${t}</span>`)));
-  s.appendChild(bl);
-
-  const row = h('div', 'row');
-  for (let i = 0; i < players; i++){
-    row.appendChild(h('span', 'pill',
-      `<span class="dot" style="background:${PLAYER_COLORS[i]}"></span>Player ${i + 1}`));
-  }
-  s.appendChild(row);
-  const count = h('h1', '', '3');
-  s.appendChild(count);
-
-  let t = 3.2, last = 4;
-  return {
-    tick(dt){
-      t -= dt;
-      const n = Math.ceil(t);
-      if (n !== last){ last = n; if (n >= 0){ sfx.count(n); count.textContent = n > 0 ? n : 'GO'; } }
-      if (t <= -0.4) onGo();
-    },
-    draw(){}
-  };
 }
 
 /* ---------- results ---------- */

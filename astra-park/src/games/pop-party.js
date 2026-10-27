@@ -17,7 +17,6 @@ export const OPENING = 30;
    in it punishes: no lives, nothing to avoid, only things to chase. */
 export default {
   id:'pop-party', name:'Pop Party', stars:1, accent:'#ff5d9e', secs:ROUND,
-  howto:['Touch a balloon to pop it', 'The tinier the balloon, the more it is worth', 'Rainbow balloons are worth five'],
   create(n){ return new PopParty(n); }
 };
 
