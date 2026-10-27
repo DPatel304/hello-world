@@ -418,6 +418,8 @@ class PopParty {
   _startOutro(){
     this.out = { t: 0, lifted: false, groups: [] };
     for (let i = 0; i < this.players; i++){
+      /* A bunch for everyone who played - not for a place nobody stood in. */
+      if (!pose.players[i].present && !this.popped[i].length) continue;
       let hues = this.popped[i].map(h => h < 0 ? (Math.random() * 360) | 0 : h);
       while (hues.length < BOUQUET.least) hues.push(HUES[(Math.random() * HUES.length) | 0]);
       if (hues.length > BOUQUET.most){
@@ -445,7 +447,7 @@ class PopParty {
   /* Where a player holds their bouquet: their higher hand, kept low enough
      that the bunch above it stays on screen. */
   _anchor(i){
-    const p = pose.players[i], home = this.players > 1 ? (i ? 0.7 : 0.3) : 0.5;
+    const p = pose.players[i], two = pose.players.filter(q => q.present).length > 1, home = two ? (i ? 0.7 : 0.3) : 0.5;
     if (!p || !p.present) return { x: home, y: 0.62 };
     const hands = pose.mouse.active ? [p.hands.right] : [p.hands.left, p.hands.right];
     const h = hands.reduce((a, b) => (b.y < a.y ? b : a));

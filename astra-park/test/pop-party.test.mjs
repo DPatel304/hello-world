@@ -451,6 +451,16 @@ test('the round ends with everyone gathering a bouquet and floating away togethe
   assert.equal(a.lift, b.lift, 'and together - nobody wins');
 });
 
+test('in a game for two with one child there, only they get a bouquet', () => {
+  onePlayer();
+  const inst = popParty.create(2);
+  inst.events = [];
+  for (let i = 0; i < 6; i++) inst._hit(parked(inst, 0.5, 0.5), 0, 1920, 1080);
+  finish(inst);
+  assert.equal(inst.out.groups.length, 1);
+  assert.equal(inst.out.groups[0].who, 0);
+});
+
 test('bouquet balloons keep the colours that were popped', () => {
   twoPlayers();
   const inst = popParty.create(1);

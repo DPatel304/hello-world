@@ -28,7 +28,7 @@ addEventListener('resize', resize); resize();
 /* ---------- router ---------- */
 let scene = null, mode = 'boot';
 let game = null, inst = null, players = 1, roundLeft = 0;
-let paused = null, lost = null, handsUp = 0;
+let paused = null, lost = null, handsUp = 0, empty = 0, joined = new Set();
 
 function go(next, build){
   mode = next;
@@ -66,15 +66,18 @@ function toTitle(){
 
 /* Straight into the game, no instructions or countdown: every round opens
    gently enough to be its own introduction, and the games show rather than
-   tell. */
+   tell. Every game has room for two, and whoever is there plays: a second
+   child can step in partway through, and either can step out, without
+   anything stopping. */
 function toGame(g){
   game = g;
-  players = Math.max(1, Math.min(2, pose.personCount || 1));
+  players = 2;
   music.start();
   startRound();
 }
 
 function startRound(){
+  joined = new Set();
   inst = game.create(players);
   roundLeft = game.secs;
   music.intensity(game.loud ? 0.85 : 0.15);
@@ -91,7 +94,7 @@ function endRound(){
 function showResults(){
   music.intensity(0.2);
   /* Bests are still kept - the menu tiles show them - just not announced. */
-  scores.record(game.id, players, inst.value());
+  scores.record(game.id, Math.max(1, joined.size), inst.value());
   go('results', () => results(game, () => toGame(game), toMenu));
 }
 
@@ -120,13 +123,17 @@ function checkPause(dt){
   }
 }
 
-function checkLost(){
-  if (mode !== 'play'){ if (lost){ lost.remove(); lost = null; } return; }
-  const need = players;
-  const have = pose.players.slice(0, need).filter(p => p.present).length;
-  if (!pose.mouse.active && have < need && !lost) lost = lostOverlay();
-  else if ((have >= need || pose.mouse.active) && lost){ lost.remove(); lost = null; }
+/* The game waits only when the room is empty - everybody gone for a couple
+   of seconds - and carries on the moment anyone is back. */
+function checkLost(dt){
+  if (mode !== 'play'){ empty = 0; if (lost){ lost.remove(); lost = null; } return; }
+  pose.players.forEach((p, i) => { if (p.present) joined.add(i); });
+  const anyone = pose.mouse.active || pose.players.some(p => p.present);
+  empty = anyone ? 0 : empty + dt;
+  if (empty > EMPTY_AFTER && !lost) lost = lostOverlay();
+  else if (anyone && lost){ lost.remove(); lost = null; }
 }
+const EMPTY_AFTER = 2;
 
 /* ---------- HUD ---------- */
 function drawHUD(){
@@ -206,7 +213,7 @@ function tick(now){
   if (mode === 'play' && showSkeleton) drawSkeletons(c, W, H, 0.22);
 
   checkPause(dt);
-  checkLost();
+  checkLost(dt);
   cursor.update(dt, document.getElementById('ui'));
   drawHUD();
   oc.clearRect(0, 0, W, H);

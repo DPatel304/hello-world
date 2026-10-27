@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pose, L, seated, WATCH_AFTER } from '../src/tracking/pose.js';
+import { pose, L, seated, onePerPerson, WATCH_AFTER } from '../src/tracking/pose.js';
 
 /* A full set of landmarks, all plainly visible, with named overrides. */
 function body(over = {}){
@@ -266,4 +266,26 @@ test('a newcomer standing up front joins an empty place', () => {
   see([person(0.5), person(0.15)]);
   assert.equal(pose.personCount, 2);
   assert.equal(pose.players[1].present, true);
+});
+
+test('one person reported twice is one player', () => {
+  resetPose();
+  /* Two skeletons a whisker apart: the model seeing the same child twice. */
+  const a = person(0.5), b = person(0.51, { size: 0.21 });
+  see([a, b]);
+  assert.equal(pose.seenCount, 1);
+  assert.equal(pose.personCount, 1);
+  assert.equal(pose.players[1].present, false);
+  /* Two children side by side are still two. */
+  resetPose();
+  see([person(0.35), person(0.62)]);
+  assert.equal(pose.personCount, 2);
+});
+
+test('the clearer of two twin skeletons is the one kept', () => {
+  const m = (lm) => lm.map(k => ({ ...k, v: k.visibility }));
+  const clear = m(person(0.5)), faint = m(person(0.505)).map(k => ({ ...k, v: 0.3 }));
+  const kept = onePerPerson([faint, clear]);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0], clear);
 });

@@ -203,3 +203,20 @@ test('the round ends with the runners slowing to a stop', () => {
   assert.equal(game.secs, 240);
   assert.equal(inst.hud().hideScore, true);
 });
+
+test('in a game for two, a child on their own has the whole path; a second hops in beside', () => {
+  kids(1);
+  const inst = game.create(2); inst.things = []; inst.nextAt = 1e9;
+  hand(0.9); run(inst, 1);
+  assert.ok(inst.runners[0].x > 0.8, 'all the way right on their own');
+  pose.players[1].present = true; hand(0.5, 0.5, 0); hand(0.5, 0.5, 1); run(inst, 1);
+  assert.ok(inst.runners[0].x < -0.3 && inst.runners[1].x > 0.3, 'side by side');
+});
+
+test('with only one child there, a trip still ends the run', () => {
+  kids(1);
+  const inst = game.create(2); inst.things = []; inst.nextAt = 1e9;
+  ahead(inst, 'stump', 0.5);
+  run(inst, 1);
+  assert.ok(inst.run.down);
+});

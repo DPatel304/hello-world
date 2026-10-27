@@ -284,7 +284,8 @@ class Boat {
 
     drawBoatBack(c, W, H, this.t);
     const uh = drawUncle(c, W, H, this.t, this.out || this.admire.length ? 'cheer' : 'idle');
-    for (let seat = 0; seat < Math.min(2, this.players); seat++) this._drawSeat(c, seat, W, H);
+    /* A seat for each child who's here; they hop in and out as they come and go. */
+    for (let seat = 0; seat < Math.min(2, this.players); seat++) if (pose.players[seat].present || (this.admire[0] && this.admire[0].who === seat)) this._drawSeat(c, seat, W, H);
     drawBoatFront(c, W, H, this.t);
 
     /* Uncle B's line, out in the water for company, the bobber riding the

@@ -69,9 +69,12 @@ class ForestRun {
   }
 
   _runner(i, was){
-    const home = this.players < 2 ? 0 : (i ? 0.45 : -0.45);
-    return { home, x: was ? was.x : home, lean: 0, air: 0, airV: 0, duck: 0, down: 0, back: 0, blink: 0, lastDuck: -9 };
+    return { x: was ? was.x : this._home(i), lean: 0, air: 0, airV: 0, duck: 0, down: 0, back: 0, blink: 0, lastDuck: -9 };
   }
+
+  /* Two runners share the path side by side; one alone has all of it. */
+  get pair(){ return [0, 1].slice(0, this.players).filter(i => pose.players[i].present).length > 1; }
+  _home(i){ return this.pair ? (i ? 0.45 : -0.45) : 0; }
 
   get speed(){ return this.run.speed; }
   get magic(){ return clamp(this.run.t / 110, 0, 1); }
@@ -138,7 +141,7 @@ class ForestRun {
     rn.blink = Math.max(0, rn.blink - dt);
     if (rn.down > 0){
       rn.down = Math.min(1, rn.down + dt / 0.9);
-      if (this.players > 1 && !this.run.down){
+      if (!this.run.down){
         rn.back -= dt;
         if (rn.back <= 0){ rn.down = 0; rn.blink = BLINK; rn.air = 0; rn.airV = 0; sfx.boing(1); }
       }
@@ -146,8 +149,8 @@ class ForestRun {
     }
     const lean = this.leanOf(i);
     rn.lean += ((lean ?? 0) - rn.lean) * Math.min(1, dt * 8);
-    const reach = this.players < 2 ? 1 : 0.55;
-    const want = clamp(rn.home + rn.lean * reach, -1, 1);
+    const reach = this.pair ? 0.55 : 1;
+    const want = clamp(this._home(i) + rn.lean * reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
     if (jumped && rn.air <= 0 && !this.run.down){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1); }
     if (rn.air > 0 || rn.airV > 0){
@@ -292,7 +295,7 @@ class ForestRun {
     for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
     if (!this.run.down && !this.run.passedBest && this.best > 0) items.push({ kind: 'ribbon', rel: this.run.z0 + this.best - this.z });
     if (!this.fox.gone || this.fox.rel < 1) items.push({ kind: 'fox', rel: this.fox.rel, lane: this.fox.lane });
-    for (let i = 0; i < this.players; i++) items.push({ kind: 'runner', rel: RUN, i });
+    for (let i = 0; i < this.players; i++) if (pose.players[i].present || this.runners[i].down > 0) items.push({ kind: 'runner', rel: RUN, i });
     items.sort((a, b) => b.rel - a.rel);
     for (const it of items){
       if (it.rel > 1 || it.rel < -0.1) continue;
@@ -323,7 +326,6 @@ class ForestRun {
   _drawRunner(c, i, W, H){
     const rn = this.runners[i], present = pose.players[i].present, p = P(rn.x, RUN, W, H), h = H * 0.26;
     c.save();
-    if (!present) c.globalAlpha = 0.4;
     drawRunner(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
       { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, down: rn.down, blink: rn.blink > 0 },
       (x, y, r) => {

@@ -28,6 +28,25 @@ export const CLOSE = 0.6;           /* body size, as a share of the biggest in v
 export const SEATED = 0.45;         /* knee drop below the hips, in torso lengths, under which you're sitting */
 export const WATCH_AFTER = 4;       /* seconds sitting or back before a player becomes a watcher */
 const MATCH = 0.25;                 /* how far a player can move between detections and still be them */
+const SAME = 0.5;                   /* torso lengths apart under which two skeletons are one person */
+
+/* The model sometimes reports one person twice, two skeletons nearly on top
+   of each other. Keep the clearer of any pair whose shoulders and hips
+   both sit within half a torso of each other. */
+export function onePerPerson(people){
+  const mid = (lm, a, b) => ({ x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 });
+  const vis = (lm) => lm.reduce((s, k) => s + (k.v ?? k.visibility ?? 1), 0);
+  const kept = [];
+  for (const lm of [...people].sort((a, b) => vis(b) - vis(a))){
+    const sh = mid(lm, L.L_SHOULDER, L.R_SHOULDER), hp = mid(lm, L.L_HIP, L.R_HIP), size = sizeOf(lm);
+    const twin = kept.some(o => {
+      const osh = mid(o, L.L_SHOULDER, L.R_SHOULDER), ohp = mid(o, L.L_HIP, L.R_HIP), s = Math.max(size, sizeOf(o)) * SAME;
+      return Math.hypot((sh.x - osh.x) * 16 / 9, sh.y - osh.y) < s && Math.hypot((hp.x - ohp.x) * 16 / 9, hp.y - ohp.y) < s;
+    });
+    if (!twin) kept.push(lm);
+  }
+  return kept;
+}
 
 /* Torso length: shoulders to hips. Bigger is closer to the camera. */
 export function sizeOf(lm){
@@ -216,6 +235,7 @@ export const pose = {
   /* Who's who. Landmarks arrive mirrored, so screen left is the player's own
      left as they face the TV. */
   _assign(people, dt){
+    people = onePerPerson(people);
     this.seenCount = people.length;
     const biggest = Math.max(0, ...people.map(sizeOf));
     const dets = people.map(lm => ({
