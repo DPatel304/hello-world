@@ -11,6 +11,7 @@ import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES }
 import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
+import { P as forestP, RUN as FOREST_RUN, drawForest, drawLeaves, drawTree, drawLog, drawCrystal, drawFox, drawRunner } from '../games/forest-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
@@ -94,6 +95,23 @@ function danceParty(){
   };
 }
 
+function forestRun(){
+  return (c, W, H, t) => {
+    const z = t * 0.3;
+    drawForest(c, W, H, z, 0.15, t);
+    for (const [lane, rel, seed] of [[-2.2, 0.7, 1], [2.1, 0.55, 2], [-1.9, 0.3, 3], [2.0, 0.15, 4]]){ const p = forestP(lane, rel, W, H); drawTree(c, p.x, p.y, H * 0.42 * p.k, seed, 0.15); }
+    drawLog(c, W, H, 0.3, 0.15);
+    for (const k of [-1, 0, 1]){ const p = forestP(k * 0.45, 0.3, W, H); drawCrystal(c, p.x, p.y - H * 0.3 * p.k, H * 0.025 * p.k, t + k, 300 + k * 30); }
+    const f = forestP(0, 0.42, W, H); drawFox(c, f.x, f.y, H * 0.11 * f.k, t, 'run');
+    const hop = Math.max(0, Math.sin(t * 2.2)) * H * 0.08;
+    for (const [i, lane, col] of [[0, -0.45, '#3da9ff'], [1, 0.45, '#ff8a3d']]){
+      const p = forestP(lane, FOREST_RUN, W, H);
+      drawRunner(c, p.x, p.y, H * 0.26, t + i * 0.4, col, { air: i ? hop : 0, duck: 0, lean: 0, down: 0 }, (x, y, r) => drawKid(c, x, y + r * 0.1, r, t + i, i ? '#c98f6a' : '#e9b892'));
+    }
+    drawLeaves(c, W, H);
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -102,7 +120,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty };
+const POSTERS = { 'pop-party': popParty, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'forest-run': forestRun };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();

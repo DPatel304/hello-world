@@ -7,6 +7,7 @@ import moonBounce from './moon-bounce.js';
 import animalCopycat from './animal-copycat.js';
 import uncleBsBoat from './uncle-bs-boat.js';
 import danceParty from './dance-party.js';
+import forestRun from './forest-run.js';
 
-export const GAMES = [popParty, moonBounce, animalCopycat, uncleBsBoat, danceParty];
+export const GAMES = [popParty, moonBounce, animalCopycat, uncleBsBoat, danceParty, forestRun];
 export const byId = (id) => GAMES.find(g => g.id === id);
