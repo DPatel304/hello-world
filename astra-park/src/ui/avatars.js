@@ -71,8 +71,9 @@ export class Avatars {
     return out;
   }
 
-  /* lift: how far each player has floated up, in screen heights. */
-  drawBodies(c, W, H, players, lift = [0, 0]){
+  /* lift: how far each player has floated up, in screen heights; alpha: how
+     strongly the silhouettes show. */
+  drawBodies(c, W, H, players, lift = [0, 0], alpha = 0.32){
     const people = [];
     for (let i = 0; i < players; i++){
       const p = pose.players[i];
@@ -89,11 +90,11 @@ export class Avatars {
     if (layer) lc.clearRect(0, 0, layer.width, layer.height);
     for (const [i, lm] of people){
       lc.save(); lc.translate(0, -(lift[i] || 0) * H * k);
-      silhouette(lc, lm, W * k, H * k, PLAYER_COLORS[i], layer ? 1 : 0.3);
+      silhouette(lc, lm, W * k, H * k, PLAYER_COLORS[i], layer ? 1 : alpha);
       lc.restore();
     }
     if (layer){
-      c.globalAlpha = 0.32;
+      c.globalAlpha = alpha;
       c.drawImage(layer, 0, 0, W, H);
       c.globalAlpha = 1;
     }

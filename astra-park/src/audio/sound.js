@@ -106,6 +106,9 @@ function hiss({ dur = 0.18, gain = 0.25, hp = 900, delay = 0, sweep = 0, type = 
   s.start(t); s.stop(t + dur + 0.02);
 }
 
+/* The major pentatonic: steps that sound sweet in any order. */
+const PENT = [0, 2, 4, 7, 9];
+
 /* A streak nudges each pop's pitch up a little at a time. */
 const lift = (combo) => Math.pow(2, Math.min(combo, 12) / 24);
 
@@ -126,6 +129,32 @@ export const sfx = {
     blip({ freq: f, to: f * 0.38, dur: 0.1 + size * 0.06, type: 'sine', gain: 0.32 });
     hiss({ dur: 0.012, gain: 0.08, hp: 3200, type: 'bandpass', q: 1.2 });
     verbHit(0.12);
+  },
+  /* ---- Firefly Night ---- */
+  /* A firefly caught: a tiny high bell, climbing with each one held. */
+  firefly(k = 0){
+    bell(84 + PENT[k % 5], ctx().currentTime, 0.06, 0.45, master);
+    hiss({ dur: 0.15, gain: 0.03, hp: 8000 });
+  },
+  /* Fireflies slipping free: a soft falling shimmer. */
+  flyaway(){
+    const t = ctx().currentTime;
+    [0, 1, 2].forEach(i => bell(91 - i * 3, t + i * 0.06, 0.03, 0.5, master));
+  },
+  /* Into the jar: a glassy plink, stepping up as the jar fills. */
+  jar(n = 1){
+    bell(72 + PENT[n % 5] + 12 * Math.min(1, Math.floor(n / 5)), ctx().currentTime, 0.07, 0.35, master);
+    blip({ freq: 2600, to: 2200, dur: 0.06, type: 'triangle', gain: 0.05 });
+  },
+  /* A full jar lifting away as a lantern: a warm rising swell and bells. */
+  lantern(){
+    hiss({ dur: 1.0, gain: 0.08, hp: 300, sweep: 2500 });
+    const t = ctx().currentTime + 0.1;
+    [0, 4, 7, 12, 16].forEach((s, i) => bell(72 + s, t + i * 0.12, 0.06, 0.6, master));
+  },
+  /* A firefly arriving in the sky as a star. */
+  twinkle(){
+    bell(96 + PENT[(Math.random() * 5) | 0], ctx().currentTime, 0.025, 0.6, master);
   },
   /* A glockenspiel run up through the chord. */
   rainbow(){

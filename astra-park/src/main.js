@@ -128,7 +128,8 @@ function drawHUD(){
   const hud = inst.hud();
   const pad = Math.max(14, H * 0.03);
   c.textBaseline = 'top';
-  for (let i = 0; i < players; i++){
+  /* A cooperative game can keep score privately and show only the clock. */
+  for (let i = 0; i < (hud.hideScore ? 0 : players); i++){
     c.textAlign = i === 0 ? 'left' : 'right';
     const x = i === 0 ? pad : W - pad;
     c.font = `900 ${Math.round(H * 0.075)}px ui-rounded, system-ui, sans-serif`;
