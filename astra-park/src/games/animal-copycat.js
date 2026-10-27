@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { silhouette } from '../ui/avatars.js';
 import { Scene } from './pop-party-scene.js';
-import { drawKid } from '../ui/kids.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { MATCH, HEAD, ANIMALS, POSES, closest, frameOf, targetOf, bodyIn } from './copycat-poses.js';
 import { DRAW, costume } from './copycat-art.js';
 import { armToward } from './moon-art.js';
@@ -68,7 +68,8 @@ class Copycat {
     const mid = xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0.5;
     const side = mid < 0.5 ? 1 : -1;
     return { name, t: 0, phase: 'enter', side, x: side > 0 ? 0.84 : 0.16,
-             hold: [0, 0], close: [0, 0], matched: [false, false], mirror: [false, false] };
+             hold: pose.players.map(() => 0), close: pose.players.map(() => 0),
+             matched: pose.players.map(() => false), mirror: pose.players.map(() => false) };
   }
 
   /* ---------- the loop ---------- */
@@ -124,7 +125,11 @@ class Copycat {
         if (f) for (let k = 0; k < 14; k++) this._spark(f.x / W, (f.y - f.u) / H);
       }
     }
-    const everyone = present > 0 && a.matched.slice(0, this.players).filter((m, i) => m || !this._lm(i)).length === this.players;
+    /* Everyone who's there copies it - or, with three or four, all but one,
+       so a child who has wandered off for a moment doesn't hold up the rest. */
+    let copied = 0;
+    for (let i = 0; i < this.players; i++) if (a.matched[i] && this._lm(i)) copied++;
+    const everyone = present > 0 && copied >= (present > 2 ? present - 1 : present);
     if (everyone || a.t >= PATIENCE){
       if (everyone) this.copied++;
       a.phase = 'cheer'; a.t = 0;
@@ -255,7 +260,7 @@ class Copycat {
     c.save(); c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.clip();
     c.fillStyle = PLAYER_COLORS[i]; c.fillRect(x - r, y - r, r * 2, r * 2);
     if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
-    else drawKid(c, x, y + r * 0.1, r, this.t + i, i ? '#c98f6a' : '#e9b892');
+    else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
     c.restore();
     c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = r * 0.08;
     c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();

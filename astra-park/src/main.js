@@ -6,7 +6,7 @@ import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
 import { audio, music, sfx } from './audio/sound.js';
 import { scores } from './games/common.js';
-import { PLAYER_COLORS } from './tracking/pose.js';
+import { PLAYER_COLORS, MAX_PLAYERS } from './tracking/pose.js';
 
 const stage = document.getElementById('stage');
 const c = stage.getContext('2d');
@@ -66,12 +66,12 @@ function toTitle(){
 
 /* Straight into the game, no instructions or countdown: every round opens
    gently enough to be its own introduction, and the games show rather than
-   tell. Every game has room for two, and whoever is there plays: a second
-   child can step in partway through, and either can step out, without
+   tell. Every game has room for four, and whoever is there plays: another
+   child can step in partway through, and anyone can step out, without
    anything stopping. */
 function toGame(g){
   game = g;
-  players = 2;
+  players = MAX_PLAYERS;
   music.start();
   startRound();
 }
@@ -141,18 +141,21 @@ function drawHUD(){
   const hud = inst.hud();
   const pad = Math.max(14, H * 0.03);
   c.textBaseline = 'top';
-  /* A cooperative game can keep score privately and show only the clock. */
-  for (let i = 0; i < (hud.hideScore ? 0 : players); i++){
-    c.textAlign = i === 0 ? 'left' : 'right';
-    const x = i === 0 ? pad : W - pad;
+  /* A cooperative game can keep score privately and show only the clock.
+     Otherwise a score for each child who has played this round: the first
+     two in the top corners, a third and fourth under them. */
+  for (const i of hud.hideScore ? [] : [...joined].filter(i => i < players).sort()){
+    const left = i % 2 === 0, row = Math.floor(i / 2);
+    c.textAlign = left ? 'left' : 'right';
+    const x = left ? pad : W - pad, y = pad + row * H * (hud.showLives ? 0.13 : 0.095);
     c.font = `700 ${Math.round(H * 0.075)}px Fredoka, ui-rounded, system-ui, sans-serif`;
-    pill(c, x, pad, c.measureText(String(hud.score[i])).width, H * 0.075, i === 0 ? 'left' : 'right');
+    pill(c, x, y, c.measureText(String(hud.score[i])).width, H * 0.075, left ? 'left' : 'right');
     c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
-    c.strokeText(String(hud.score[i]), x, pad);
-    c.fillStyle = PLAYER_COLORS[i]; c.fillText(String(hud.score[i]), x, pad);
+    c.strokeText(String(hud.score[i]), x, y);
+    c.fillStyle = PLAYER_COLORS[i]; c.fillText(String(hud.score[i]), x, y);
     if (hud.showLives){
       c.font = `600 ${Math.round(H * 0.034)}px Fredoka, ui-rounded, system-ui, sans-serif`;
-      c.fillText('♥'.repeat(hud.lives[i]) || '—', x, pad + H * 0.082);
+      c.fillText('♥'.repeat(hud.lives[i]) || '—', x, y + H * 0.082);
     }
   }
   c.textAlign = 'center';

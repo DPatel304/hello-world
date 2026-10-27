@@ -9,11 +9,11 @@ const run = (inst, secs) => { for (let i = 0; i < Math.round(secs / DT); i++) in
 /* Put children in poses: one name per child, null for nobody. */
 function kids(...names){
   pose.mouse.active = false;
-  for (let i = 0; i < 2; i++){
-    const p = pose.players[i], n = names[i];
+  for (let i = 0; i < pose.players.length; i++){
+    const p = pose.players[i], n = names[i], x = names.length > 2 ? 0.14 + i * 0.24 : 0.35 + i * 0.3;
     p.present = !!n;
-    p.lm = n ? bodyIn(n, 0.35 + i * 0.3, 0.62, 0.17) : null;
-    p.centre = { x: 0.35 + i * 0.3, y: 0.5 }; p.scale = 0.3;
+    p.lm = n ? bodyIn(n, x, 0.62, names.length > 2 ? 0.12 : 0.17) : null;
+    p.centre = { x, y: 0.5 }; p.scale = 0.3;
   }
 }
 function posing(inst){ run(inst, 1); assert.equal(inst.cur.phase, 'pose'); }
@@ -87,6 +87,18 @@ test('a child who has walked off does not hold the other up', () => {
   kids('giraffe', null);
   run(inst, 1);
   assert.equal(inst.cur.phase, 'cheer');
+});
+
+test('with four children, all but one copying is enough; half is not', () => {
+  kids('stand', 'stand', 'stand', 'stand');
+  const inst = game.create(4);
+  posing(inst);
+  const name = inst.cur.name;
+  kids(name, name, 'stand', 'stand'); run(inst, HOLD + 0.5);
+  assert.equal(inst.cur.phase, 'pose', 'two of four is not enough');
+  kids(name, name, name, 'stand'); run(inst, HOLD + 0.5);
+  assert.notEqual(inst.cur.phase, 'pose', 'three of four is');
+  assert.equal(inst.copied, 1);
 });
 
 test('an animal nobody copies joins the parade anyway, uncounted', () => {

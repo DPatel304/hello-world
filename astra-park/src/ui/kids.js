@@ -1,3 +1,6 @@
+/* Skin tones for the cartoon children, one per player. */
+export const KID_SKINS = ['#e9b892', '#c98f6a', '#f2c6a0', '#b97f5c'];
+
 /* Little cartoon stand-ins, shared by the games: a child for when there's
    no camera to show a real face, and a dalmatian for an empty seat. */
 

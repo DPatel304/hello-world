@@ -10,7 +10,7 @@
 
    The two things a parent needs - is the camera working, and where are the
    settings - stay small in the corners. */
-import { pose } from '../tracking/pose.js';
+import { pose, MAX_PLAYERS } from '../tracking/pose.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
 import { button, onPick } from './cursor.js';
 import { screen, h, clearUI } from './screens.js';
@@ -104,7 +104,7 @@ export function title({ onPlay, onSettings }){
       drawPark(c, W, H, t);
       /* The children, faintly, standing in the meadow: proof the park can
          see them before they've done anything. */
-      avatars.drawBodies(c, W, H, 2, [0, 0], 0.16);
+      avatars.drawBodies(c, W, H, MAX_PLAYERS, [], 0.16);
 
       const mx = W * 0.44, ground = H * (hillTop(0.44, MEADOW.y, MEADOW.h, MEADOW.n) + 0.035);
       const hop = joy ? Math.abs(Math.sin(joy * 7.5)) * H * 0.05 * (1 - joy / JOY) : 0;

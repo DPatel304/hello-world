@@ -1,4 +1,4 @@
-import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
+import { pose, L, PLAYER_COLORS, MAX_PLAYERS } from '../tracking/pose.js';
 
 /* The players, in the picture. Two layers, drawn by the game at different
    depths:
@@ -19,16 +19,16 @@ const SWIFT = 0.9;   /* screen-widths per second: fast enough for a trail */
 export class Avatars {
   constructor(){
     this.sparks = [];
-    this.glow = [0, 0];      /* 0..1 per player, from their streak */
-    this.flash = [0, 0];     /* a combo burst, decaying */
+    this.glow = Array(MAX_PLAYERS).fill(0);     /* 0..1 per player, from their streak */
+    this.flash = Array(MAX_PLAYERS).fill(0);    /* a combo burst, decaying */
     this.t = 0;
     this.layer = null;       /* an offscreen canvas for the bodies, if there is one */
   }
 
   /* level: each player's streak level, 0 none, 1 for x2, 2 for x3. */
-  step(dt, players, levels = [0, 0]){
+  step(dt, players, levels = []){
     this.t += dt;
-    for (let i = 0; i < 2; i++){
+    for (let i = 0; i < MAX_PLAYERS; i++){
       this.glow[i] += ((levels[i] || 0) / 2 - this.glow[i]) * Math.min(1, dt * 4);
       this.flash[i] = Math.max(0, this.flash[i] - dt * 1.6);
     }
@@ -73,7 +73,7 @@ export class Avatars {
 
   /* lift: how far each player has floated up, in screen heights; alpha: how
      strongly the silhouettes show. */
-  drawBodies(c, W, H, players, lift = [0, 0], alpha = 0.32){
+  drawBodies(c, W, H, players, lift = [], alpha = 0.32){
     const people = [];
     for (let i = 0; i < players; i++){
       const p = pose.players[i];

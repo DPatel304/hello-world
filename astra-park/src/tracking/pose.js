@@ -67,7 +67,9 @@ export function seated(lm){
   return drop < SEATED * sizeOf(lm);
 }
 
-export const PLAYER_COLORS = ['#3da9ff', '#ff8a3d'];
+/* Up to four play at once, each in their own colour. */
+export const MAX_PLAYERS = 4;
+export const PLAYER_COLORS = ['#3da9ff', '#ff8a3d', '#3fcf7f', '#c46bff'];
 
 function blank(i){
   return {
@@ -87,7 +89,7 @@ function withTimeout(promise, ms){
 
 export const pose = {
   ready:false, usingCamera:false, reason:'', detail:'', activeId:'',
-  players:[blank(0), blank(1)],
+  players:Array.from({ length: MAX_PLAYERS }, (_, i) => blank(i)),
   personCount:0,             /* players: people in the game */
   seenCount:0,               /* everyone the camera can see, watchers too */
   /* Measured, not declared. "Will it run on a Pi" is a question about these
@@ -338,7 +340,7 @@ export const pose = {
     p.hands.left.x = this.mouse.x; p.hands.left.y = this.mouse.y;
     p.centre = { x:this.mouse.x, y:Math.min(0.9, this.mouse.y + 0.2) };
     p.scale = 0.3;
-    this.players[1].present = false;
+    for (const q of this.players.slice(1)) q.present = false;
     this.personCount = 1;
   },
 

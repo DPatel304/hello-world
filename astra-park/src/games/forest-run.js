@@ -2,7 +2,7 @@ import { clamp } from './common.js';
 import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
-import { drawKid } from '../ui/kids.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { RUN, P, drawForest, drawLeaves, sideThings, drawTree, drawToadstool, drawFern, drawLog, drawBranch,
          drawStump, drawCrystal, drawFox, drawRunner, drawFireflies, drawRibbon } from './forest-art.js';
@@ -35,6 +35,10 @@ export const LEAN = 0.35;                       /* shoulder-widths of lean for f
 export const SIT_OUT = 2.5;                     /* seconds a tripped runner sits out, with two */
 export const BLINK = 1.5;                       /* seconds of safety after jumping back in */
 export const FOX_TIME = 60;                     /* seconds the fox runs with them */
+/* Where each runner keeps to, and how far they can lean from it, by how
+   many are running. */
+const HOMES = { 2: [-0.45, 0.45], 3: [-0.6, 0, 0.6], 4: [-0.72, -0.24, 0.24, 0.72] };
+const REACH = { 1: 1, 2: 0.55, 3: 0.5, 4: 0.45 };
 const FOX_REL = 0.3, BODY = 0.12, CRYSTAL_REACH = 0.2;
 
 export default {
@@ -51,7 +55,7 @@ class ForestRun {
     this.z = 0;
     this.jumps = new JumpWatch();
     this.faces = new FaceCam();
-    this.heads = [null, null];       /* standing head height, for spotting a duck */
+    this.heads = pose.players.map(() => null);   /* standing head height, for spotting a duck */
     this.best = 0;                   /* how far the best run so far got */
     this.crystals = 0;
     this.bits = [];
@@ -65,16 +69,22 @@ class ForestRun {
     this.run = { t: 0, z0: this.z, speed: SPEED0, down: null, passedBest: this.best <= 0 };
     this.things = [];
     this.nextAt = this.z + 1.4;
-    this.runners = [0, 1].map(i => this._runner(i, this.runners && this.runners[i]));
+    this.runners = pose.players.map((_, i) => this._runner(i, this.runners && this.runners[i]));
   }
 
   _runner(i, was){
     return { x: was ? was.x : this._home(i), lean: 0, air: 0, airV: 0, duck: 0, down: 0, back: 0, blink: 0, lastDuck: -9 };
   }
 
-  /* Two runners share the path side by side; one alone has all of it. */
-  get pair(){ return [0, 1].slice(0, this.players).filter(i => pose.players[i].present).length > 1; }
-  _home(i){ return this.pair ? (i ? 0.45 : -0.45) : 0; }
+  /* The children here, in order: they share the path side by side, each
+     with their own stretch of it; one alone has all of it. */
+  get here(){ return pose.players.slice(0, this.players).map((_, i) => i).filter(i => pose.players[i].present); }
+  get pair(){ return this.here.length > 1; }
+  _home(i){
+    const here = this.here, n = here.length, k = here.indexOf(i);
+    return n < 2 || k < 0 ? 0 : HOMES[n][k];
+  }
+  get reach(){ return REACH[Math.max(1, this.here.length)]; }
 
   get speed(){ return this.run.speed; }
   get magic(){ return clamp(this.run.t / 110, 0, 1); }
@@ -149,8 +159,7 @@ class ForestRun {
     }
     const lean = this.leanOf(i);
     rn.lean += ((lean ?? 0) - rn.lean) * Math.min(1, dt * 8);
-    const reach = this.pair ? 0.55 : 1;
-    const want = clamp(this._home(i) + rn.lean * reach, -1, 1);
+    const want = clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
     if (jumped && rn.air <= 0 && !this.run.down){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1); }
     if (rn.air > 0 || rn.airV > 0){
@@ -178,14 +187,17 @@ class ForestRun {
       if (kind === 'branch' && r.t < 22 && !this.seen.has('log')) kind = 'log';
       if (kind === 'stump' || kind === 'rock'){
         const lane = (Math.random() - 0.5) * 1.5;
-        this.things.push({ kind, d, lane, w: 0.26 });
+        this.things.push({ kind, d, lane, w: this.here.length > 2 ? 0.2 : 0.26 });
         /* Crystals on the free side, to lean for. */
         const side = lane > 0 ? -1 : 1;
         for (let k = 0; k < 4; k++) this.things.push({ kind: 'crystal', d: d - 0.04 - k * 0.05, lane: side * 0.6, high: false, hue: 190 + k * 25 });
       } else {
         this.things.push({ kind, d, lane: 0, w: 2 });
         /* An arc of crystals over every log, for jumping through. */
-        if (kind === 'log') for (let k = -1; k <= 1; k++) this.things.push({ kind: 'crystal', d, lane: k * 0.45, high: true, hue: 300 + k * 30 });
+        if (kind === 'log'){
+          const lanes = this.here.length > 1 ? this.here.map(i => this._home(i)) : [-0.45, 0, 0.45];
+          lanes.forEach((lane, k) => this.things.push({ kind: 'crystal', d, lane, high: true, hue: 270 + k * 30 }));
+        }
       }
       const gap = (2.7 - 1.2 * ramp) * (0.8 + Math.random() * 0.4);
       this.nextAt += gap * Math.max(r.speed, SPEED0);
@@ -226,7 +238,7 @@ class ForestRun {
     rn.down = 0.001; rn.back = SIT_OUT; rn.air = 0; rn.airV = 0;
     sfx.thud();
     /* The run ends when nobody is left on their feet. */
-    const anyone = [0, 1].slice(0, this.players).some(j => this._up(j));
+    const anyone = this.runners.slice(0, this.players).some((_, j) => this._up(j));
     if (!anyone){ this.run.down = { t: 0, reached: this.distance }; sfx.lose(); }
   }
 
@@ -330,7 +342,7 @@ class ForestRun {
       { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, down: rn.down, blink: rn.blink > 0 },
       (x, y, r) => {
         if (present && this.faces.has(i)) this.faces.draw(c, i, x, y, r);
-        else drawKid(c, x, y + r * 0.1, r, this.t + i, i ? '#c98f6a' : '#e9b892');
+        else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
       });
     c.restore();
   }

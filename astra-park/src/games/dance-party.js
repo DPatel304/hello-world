@@ -3,7 +3,7 @@ import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { silhouette } from '../ui/avatars.js';
-import { drawKid } from '../ui/kids.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { bodyIn } from './copycat-poses.js';
 import { armToward } from './moon-art.js';
 import { DRAW } from './copycat-art.js';
@@ -49,8 +49,8 @@ class Party {
     this.buzz = 0;             /* how hard they're dancing right now, for the lights */
     this.bursts = 0;
     this.burst = 0;            /* seconds since the last big moment began, while it plays */
-    this.prev = [null, null];
-    this.moving = [0, 0];
+    this.prev = pose.players.map(() => null);
+    this.moving = pose.players.map(() => 0);
     this.idle = 0;
     this.bits = [];
     this.balloonBeat = 0;
@@ -209,7 +209,7 @@ class Party {
     c.save(); c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.clip();
     c.fillStyle = col; c.fillRect(x - r, y - r, r * 2, r * 2);
     if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
-    else drawKid(c, x, y + r * 0.1, r, this.t + i, i ? '#c98f6a' : '#e9b892');
+    else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
     c.restore();
     c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.1; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
   }

@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { friend } from '../ui/friend.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { drawKid } from '../ui/kids.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { GROUND, drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from './moon-art.js';
 
 /* Moon Bounce. The children are astronauts on the moon - their own faces
@@ -45,7 +45,7 @@ class MoonBounce {
   constructor(players){
     this.players = players;
     this.t = 0; this.over = false;
-    this.bodies = [0, 1].map(() => ({ lift: 0, vy: 0, air: false, head: null }));
+    this.bodies = pose.players.map(() => ({ lift: 0, vy: 0, air: false, head: null }));
     this.stars = [];          /* wishing stars drifting in the sky */
     this.flying = [];         /* caught stars on their way to the picture */
     this.order = SHAPES.slice().sort(() => Math.random() - 0.5);
@@ -115,7 +115,7 @@ class MoonBounce {
         sfx.boing(1);
       }
     }
-    for (let i = 0; i < 2; i++){
+    for (let i = 0; i < this.bodies.length; i++){
       const b = this.bodies[i];
       if (!b.air) continue;
       b.lift += b.vy * dt; b.vy -= GRAVITY * dt;
@@ -319,7 +319,7 @@ class MoonBounce {
     c.beginPath(); c.ellipse(fx, fy + H * 0.01, H * 0.07 * k, H * 0.015 * k, 0, 0, 6.2832); c.fill();
     b.head = drawAstronaut(c, lm, W, H, b.lift, PLAYER_COLORS[i], (x, y, r) => {
       if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
-      else drawKid(c, x, y + r * 0.1, r, this.t + i, i ? '#c98f6a' : '#e9b892');
+      else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
     });
   }
 

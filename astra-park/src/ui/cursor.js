@@ -1,4 +1,4 @@
-import { pose, PLAYER_COLORS } from '../tracking/pose.js';
+import { pose, PLAYER_COLORS, MAX_PLAYERS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 
 /* Hover-to-select. Every button in Astra Park is a DOM .btn; the cursor finds the
@@ -16,7 +16,7 @@ const COOLDOWN = 0.75;
 export const cursor = {
   rings: [],
   enabled: true,
-  _state: [ {el:null,t:0,x:.5,y:.5,cool:0}, {el:null,t:0,x:.5,y:.5,cool:0} ],
+  _state: Array.from({ length: MAX_PLAYERS }, () => ({ el:null, t:0, x:.5, y:.5, cool:0 })),
 
   reset(){ for (const s of this._state){ s.el = null; s.t = 0; s.cool = COOLDOWN; } this._clearFills(); },
 
@@ -36,7 +36,7 @@ export const cursor = {
     if (!this.enabled){ this._clearFills(); return; }
     const seen = new Set();
 
-    for (let i = 0; i < 2; i++){
+    for (let i = 0; i < pose.players.length; i++){
       const p = pose.players[i], s = this._state[i];
       if (!p.present){ s.el = null; s.t = 0; continue; }
       const h = pose.cursorHand(p);

@@ -2,9 +2,9 @@ import { clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
-import { drawKid } from '../ui/kids.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { SPECIES, byId, pickSpecies, drawFish } from './fishing-fish.js';
-import { WATER, UNCLE_X, drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront,
+import { WATER, UNCLE_X, seatsFor, drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront,
          drawUncle, drawCrew, drawRod, drawLine, drawRipple, drawPalm } from './fishing-art.js';
 
 /* Uncle B's Boat, named for the children's uncle, who loves fishing. A calm
@@ -56,7 +56,7 @@ class Boat {
   constructor(players){
     this.players = players;
     this.t = 0; this.over = false;
-    this.cups = [cupOf(), cupOf()];
+    this.cups = pose.players.map(() => cupOf());
     this.fish = [];
     this.admire = [];             /* catches waiting to be shown, first is showing */
     this.book = new Set();
@@ -132,7 +132,7 @@ class Boat {
   /* ---------- the children's hands ---------- */
 
   _cups(dt, W, H){
-    for (let i = 0; i < 2; i++){
+    for (let i = 0; i < this.cups.length; i++){
       const p = pose.players[i], cup = this.cups[i];
       if (i >= this.players || !p.present){ cup.l = cup.r = null; this._open(cup); continue; }
       const l = pose.mouse.active ? p.hands.right : p.hands.left, r = p.hands.right;
@@ -284,14 +284,17 @@ class Boat {
 
     drawBoatBack(c, W, H, this.t);
     const uh = drawUncle(c, W, H, this.t, this.out || this.admire.length ? 'cheer' : 'idle');
-    /* A seat for each child who's here; they hop in and out as they come and go. */
-    for (let seat = 0; seat < Math.min(2, this.players); seat++) if (pose.players[seat].present || (this.admire[0] && this.admire[0].who === seat)) this._drawSeat(c, seat, W, H);
+    /* A seat for each child who's here; they hop in and out as they come and
+       go, and shuffle along to make room. */
+    const aboard = [];
+    for (let i = 0; i < this.players; i++) if (pose.players[i].present || (this.admire[0] && this.admire[0].who === i)) aboard.push(i);
+    seatsFor(aboard.length).forEach((seat, k) => this._drawSeat(c, aboard[k], seat, W, H));
     drawBoatFront(c, W, H, this.t);
 
     /* Uncle B's line, out in the water for company, the bobber riding the
        little waves. He puts the rod down to cheer. */
     if (!this.out && !this.admire.length){
-      const tip = drawRod(c, uh[1], -1.0, H * 0.18, H), x = (UNCLE_X + 0.27) * W;
+      const tip = drawRod(c, uh[1], -1.0, H * 0.18, H), x = (UNCLE_X + 0.34) * W;
       drawLine(c, tip, { x, y: WATER * H }, { x, y: H * 0.56 }, H, this.t, 0.15 + Math.sin(this.t * 1.7) * 0.15);
     }
     for (const b of this.bits) if (b.kind === 'drop'){ c.fillStyle = `rgba(220,245,255,${1 - b.age / b.life})`; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.006, 0, 6.2832); c.fill(); }
@@ -306,12 +309,12 @@ class Boat {
   }
 
   /* Each child in their seat, with their own face. */
-  _drawSeat(c, seat, W, H){
-    const who = seat, present = pose.players[who].present;
+  _drawSeat(c, who, seat, W, H){
+    const present = pose.players[who].present;
     const poseName = this.out || (this.admire[0] && this.admire[0].who === who) ? 'cheer' : 'idle';
     drawCrew(c, W, H, this.t, seat, PLAYER_COLORS[who], (x, y, rr) => {
       if (present && this.faces.has(who)) this.faces.draw(c, who, x, y, rr);
-      else drawKid(c, x, y + rr * 0.08, rr * 0.95, this.t + who, who ? '#c98f6a' : '#e9b892');
+      else drawKid(c, x, y + rr * 0.08, rr * 0.95, this.t + who, KID_SKINS[who]);
     }, poseName);
   }
 

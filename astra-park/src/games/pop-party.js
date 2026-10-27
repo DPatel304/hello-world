@@ -1,5 +1,5 @@
 import { Juice, clamp } from './common.js';
-import { pose, PLAYER_COLORS } from '../tracking/pose.js';
+import { pose, PLAYER_COLORS, MAX_PLAYERS } from '../tracking/pose.js';
 import { sfx, music } from '../audio/sound.js';
 import { Scene } from './pop-party-scene.js';
 import { Avatars } from '../ui/avatars.js';
@@ -94,9 +94,10 @@ const rand = ([a, b]) => a + Math.random() * (b - a);
 class PopParty {
   constructor(players){
     this.players = players;
-    this.score = [0, 0];
-    this.combo = [0, 0];
-    this.comboT = [0, 0];
+    const each = (v) => Array.from({ length: MAX_PLAYERS }, () => v);
+    this.score = each(0);
+    this.combo = each(0);
+    this.comboT = each(0);
     this.balloons = [];
     this.fx = [];
     this.j = new Juice();
@@ -107,7 +108,7 @@ class PopParty {
     this.scene = new Scene();
     this.avatars = new Avatars();
     /* Every balloon each player pops, by colour: the bouquet they take home. */
-    this.popped = [[], []];
+    this.popped = Array.from({ length: MAX_PLAYERS }, () => []);
     this.out = null;
   }
 
@@ -192,7 +193,7 @@ class PopParty {
       if (b.kind === 'rainbow' && Math.random() < dt * 14) this._spark(b.x * W, b.y * H, b.r * H);
     }
 
-    for (let i = 0; i < 2; i++) this.comboT[i] = Math.max(0, this.comboT[i] - dt);
+    for (let i = 0; i < this.comboT.length; i++) this.comboT[i] = Math.max(0, this.comboT[i] - dt);
     this._stepAnimal(sdt, W, H);
 
     for (let i = 0; i < this.players; i++){
@@ -417,18 +418,21 @@ class PopParty {
 
   _startOutro(){
     this.out = { t: 0, lifted: false, groups: [] };
-    for (let i = 0; i < this.players; i++){
-      /* A bunch for everyone who played - not for a place nobody stood in. */
-      if (!pose.players[i].present && !this.popped[i].length) continue;
+    /* A bunch for everyone who played - not for a place nobody stood in.
+       With three or four, each bunch is a little smaller so they all fit. */
+    const who = [];
+    for (let i = 0; i < this.players; i++) if (pose.players[i].present || this.popped[i].length) who.push(i);
+    const most = who.length > 2 ? Math.round(BOUQUET.most * 0.6) : BOUQUET.most;
+    for (const i of who){
       let hues = this.popped[i].map(h => h < 0 ? (Math.random() * 360) | 0 : h);
       while (hues.length < BOUQUET.least) hues.push(HUES[(Math.random() * HUES.length) | 0]);
-      if (hues.length > BOUQUET.most){
-        const step = hues.length / BOUQUET.most;
-        hues = Array.from({ length: BOUQUET.most }, (_, k) => hues[Math.floor(k * step)]);
+      if (hues.length > most){
+        const step = hues.length / most;
+        hues = Array.from({ length: most }, (_, k) => hues[Math.floor(k * step)]);
       }
       /* Smaller balloons for a bigger bunch, so it still fits on screen;
          laid out on a sunflower spiral, which packs a round bunch evenly. */
-      const n = hues.length, r = 0.036 * Math.min(1, Math.sqrt(20 / n)), R = r * 1.2 * Math.sqrt(n);
+      const n = hues.length, r = 0.036 * Math.min(1, Math.sqrt(20 / n)) * (who.length > 2 ? 0.8 : 1), R = r * 1.2 * Math.sqrt(n);
       const a = this._anchor(i);
       const items = hues.map((hue, k) => {
         const rr = Math.sqrt((k + 0.5) / n) * R, ang = k * 2.39996;
@@ -447,7 +451,11 @@ class PopParty {
   /* Where a player holds their bouquet: their higher hand, kept low enough
      that the bunch above it stays on screen. */
   _anchor(i){
-    const p = pose.players[i], two = pose.players.filter(q => q.present).length > 1, home = two ? (i ? 0.7 : 0.3) : 0.5;
+    /* With nobody to hold it, a bunch waits where its child would stand:
+       spread across the meadow in order. */
+    const here = pose.players.slice(0, this.players).map((q, j) => j).filter(j => pose.players[j].present || this.popped[j].length);
+    const n = Math.max(1, here.length), k = Math.max(0, here.indexOf(i)), home = (k + 0.5) / n * 0.8 + 0.1;
+    const p = pose.players[i];
     if (!p || !p.present) return { x: home, y: 0.62 };
     const hands = pose.mouse.active ? [p.hands.right] : [p.hands.left, p.hands.right];
     const h = hands.reduce((a, b) => (b.y < a.y ? b : a));
@@ -564,7 +572,9 @@ class PopParty {
   draw(c, W, H){
     this.scene.drawBack(c, W, H);
     /* The players stand in the scene behind the balloons, feet in the grass. */
-    this.avatars.drawBodies(c, W, H, this.players, this.out ? this.out.groups.map(g => g.lift) : [0, 0]);
+    const lift = [];
+    if (this.out) for (const g of this.out.groups) lift[g.who] = g.lift;
+    this.avatars.drawBodies(c, W, H, this.players, lift);
     const shook = this.j.applyShake(c);
 
     c.lineCap = 'round'; c.lineJoin = 'round';
@@ -681,14 +691,17 @@ class PopParty {
   tally(){
     const rows = [];
     for (let i = 0; i < this.players; i++){
+      if (!this.score[i] && !pose.players[i].present) continue;
       rows.push({ label: `Player ${i + 1}`, value: this.score[i], color: PLAYER_COLORS[i] });
     }
     return rows;
   }
   winner(){
-    if (this.players < 2) return null;
-    if (this.score[0] === this.score[1]) return -1;
-    return this.score[0] > this.score[1] ? 0 : 1;
+    const played = this.score.slice(0, this.players).map((s, i) => i).filter(i => this.score[i] > 0 || pose.players[i].present);
+    if (played.length < 2) return null;
+    const top = Math.max(...played.map(i => this.score[i]));
+    const best = played.filter(i => this.score[i] === top);
+    return best.length > 1 ? -1 : best[0];
   }
   value(){ return Math.max(...this.score.slice(0, this.players)); }
 }

@@ -18,11 +18,11 @@ const FOLLOW = 1.5;         /* how fast standing height follows, per second */
 const LANDED = 0.04;        /* body sizes from standing height that count as down again */
 
 export class JumpWatch {
-  constructor(){ this.base = [null, null]; this.last = [null, null]; this.up = [false, false]; }
+  constructor(){ this.base = []; this.last = []; this.up = []; }
 
   /* players: pose.players, n: how many are playing. Returns the list of
      players who jumped this step. */
-  step(dt, players, n = 2){
+  step(dt, players, n = players.length){
     const out = [];
     for (let i = 0; i < n; i++){
       const p = players[i];

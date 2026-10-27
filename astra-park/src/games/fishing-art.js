@@ -9,10 +9,13 @@
 import { lighting } from './pop-party-scene.js';
 
 export const WATER = 0.4;            /* the surface, in screen heights */
-export const BOAT_X = 0.5, BOAT_W = 0.46;
+export const BOAT_X = 0.5, BOAT_W = 0.58;
 /* Where each seat is across the boat (screen widths), and which way that
    seat's rod points: left kid fishes off the left, right kid off the right. */
 export const SEATS = [{ x: 0.335, side: -1 }, { x: 0.665, side: 1 }];
+/* With three or four aboard, two each side of Uncle B. */
+export const SEATS4 = [{ x: 0.255, side: -1 }, { x: 0.365, side: -1 }, { x: 0.635, side: 1 }, { x: 0.745, side: 1 }];
+export function seatsFor(n){ return n <= 2 ? SEATS.slice(0, Math.max(n, 0)) : n === 3 ? [SEATS4[0], SEATS4[1], SEATS4[2]] : SEATS4; }
 export const UNCLE_X = 0.5;
 
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -237,7 +240,7 @@ export function drawUncle(c, W, H, t, pose = 'idle', k = 0){
 /* A child in the boat: a life jacket in their colour, a bucket hat, and
    their face - face(x, y, r) fills the circle. Returns their hand. */
 export function drawCrew(c, W, H, t, seat, col, face, pose = 'idle', k = 0){
-  const { dy, roll } = boatBob(t), u = H / 900 * 1.2, S = SEATS[seat];
+  const { dy, roll } = boatBob(t), u = H / 900 * 1.2, S = typeof seat === 'number' ? SEATS[seat] : seat;
   const x = W * S.x, y = H * (WATER + dy) - 54 * u;
   c.save(); c.translate(x, y); c.rotate(roll);
   c.fillStyle = col;

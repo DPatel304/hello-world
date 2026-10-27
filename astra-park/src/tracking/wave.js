@@ -21,7 +21,7 @@ const RAISED = 0.03;              /* how far below the shoulder still counts as 
 
 /* Every hand that could be waving, as { key, who, x, y, raised } - of the
    first n players, so a bystander doesn't wave for a one-player game. */
-export function handsFrom(pose, n = 2){
+export function handsFrom(pose, n = pose.players.length){
   const out = [];
   for (let i = 0; i < n; i++){
     const p = pose.players[i];

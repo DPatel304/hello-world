@@ -6,7 +6,7 @@
    for Pop Party, fish drifting under Uncle B's boat. A game without a poster gets a soft wash of its accent colour. */
 import { Scene } from '../games/pop-party-scene.js';
 import { glow } from './backdrop.js';
-import { drawKid } from './kids.js';
+import { drawKid, KID_SKINS } from './kids.js';
 import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from '../games/moon-art.js';
 import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
@@ -106,7 +106,7 @@ function forestRun(){
     const hop = Math.max(0, Math.sin(t * 2.2)) * H * 0.08;
     for (const [i, lane, col] of [[0, -0.45, '#3da9ff'], [1, 0.45, '#ff8a3d']]){
       const p = forestP(lane, FOREST_RUN, W, H);
-      drawRunner(c, p.x, p.y, H * 0.26, t + i * 0.4, col, { air: i ? hop : 0, duck: 0, lean: 0, down: 0 }, (x, y, r) => drawKid(c, x, y + r * 0.1, r, t + i, i ? '#c98f6a' : '#e9b892'));
+      drawRunner(c, p.x, p.y, H * 0.26, t + i * 0.4, col, { air: i ? hop : 0, duck: 0, lean: 0, down: 0 }, (x, y, r) => drawKid(c, x, y + r * 0.1, r, t + i, KID_SKINS[i]));
     }
     drawLeaves(c, W, H);
   };

@@ -9,7 +9,7 @@
 
    Nothing is recorded or kept: each frame is drawn straight from the live
    video and gone with the next one. */
-import { pose, L } from '../tracking/pose.js';
+import { pose, L, MAX_PLAYERS } from '../tracking/pose.js';
 
 const EAR_L = 7, EAR_R = 8;
 /* How much of the head to show around the face: the crop is this many
@@ -38,7 +38,7 @@ export function faceBox(lm, vw, vh){
 }
 
 export class FaceCam {
-  constructor(){ this.boxes = [null, null]; this.seen = [0, 0]; }
+  constructor(){ this.boxes = Array(MAX_PLAYERS).fill(null); this.seen = Array(MAX_PLAYERS).fill(0); }
 
   get video(){ return pose.video; }
 
@@ -50,7 +50,7 @@ export class FaceCam {
 
   step(dt){
     const v = this.video, k = Math.min(1, dt * 8);
-    for (let i = 0; i < 2; i++){
+    for (let i = 0; i < MAX_PLAYERS; i++){
       const p = pose.players[i];
       const box = this.live && p.present ? faceBox(p.lm, v.videoWidth, v.videoHeight) : null;
       if (!box){ this.seen[i] = Math.max(0, this.seen[i] - dt * 2); continue; }
