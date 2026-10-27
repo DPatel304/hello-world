@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, POINT_HOLD, CLAP_R, CLAP_COOL, KNIGHT_SPEED, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
+import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, POINT_HOLD, CLAP_R, CLAP_COOL, KNIGHT_SPEED, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle } from '../src/games/castle-art.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -186,6 +186,8 @@ function clapAt(inst, x = 0.5, y = 0.5){
   hands(x, y, 0.3); run(inst, 0.05);
 }
 const knight = (inst) => inst.knights[0];
+/* In the middle of a wave: the attack phase, when hands are the knights'. */
+function fight(inst){ inst.state = 'wave'; inst.wave = Math.max(1, inst.wave); inst.queue = [{ kind: 'slime', path: 0 }]; inst.spawnT = 1e9; return inst; }
 /* A monster parked right by the knight. */
 function byKnight(inst, kind = 'slime'){
   const k = knight(inst);
@@ -197,7 +199,7 @@ function byKnight(inst, kind = 'slime'){
 }
 
 test('hands together held on a spot send the knight there; it walks, it does not jump', () => {
-  const inst = quiet(), k = knight(inst);
+  const inst = fight(quiet()), k = knight(inst);
   const from = { x: k.x, y: k.y }, to = { x: 0.6, y: 0.45 };
   hands(to.x, to.y, 0.03); run(inst, POINT_HOLD + 0.05);
   assert.ok(Math.abs(k.tx - to.x) < 0.01 && Math.abs(k.ty - to.y) < 0.01, 'a flag goes up there');
@@ -208,7 +210,7 @@ test('hands together held on a spot send the knight there; it walks, it does not
 });
 
 test('hands apart, one hand, or a quick touch together do not move the knight', () => {
-  const inst = quiet(), k = knight(inst), tx = k.tx;
+  const inst = fight(quiet()), k = knight(inst), tx = k.tx;
   hands(0.6, 0.45, 0.4); run(inst, 2);
   one(0.6, 0.45); run(inst, 2);
   hands(0.6, 0.45, 0.03); run(inst, POINT_HOLD * 0.5); hands(0.6, 0.45, 0.4); run(inst, 0.5);
@@ -216,7 +218,7 @@ test('hands apart, one hand, or a quick touch together do not move the knight', 
 });
 
 test('a clap hurts and knocks back the monsters round the knight - not one far off', () => {
-  const inst = quiet();
+  const inst = fight(quiet());
   const m = byKnight(inst), s0 = m.s;
   const far = monster(inst, 'slime', s0 > 2 ? 0.3 : PATHS[0].total - 0.3);
   clapAt(inst, 0.8, 0.2);
@@ -227,7 +229,7 @@ test('a clap hurts and knocks back the monsters round the knight - not one far o
 });
 
 test('claps come one at a time, a moment apart; a slow bringing-together is not a clap', () => {
-  const inst = quiet();
+  const inst = fight(quiet());
   const m = byKnight(inst, 'ogre'); m.speed = 0;
   /* The hands stay over the knight, so holding them together there just
      keeps it where it is. */
@@ -245,7 +247,7 @@ test('claps come one at a time, a moment apart; a slow bringing-together is not 
 });
 
 test('a clap is not a point: the knight stays where it was going', () => {
-  const inst = quiet(), k = knight(inst), tx = k.tx, ty = k.ty;
+  const inst = fight(quiet()), k = knight(inst), tx = k.tx, ty = k.ty;
   clapAt(inst, 0.7, 0.3); run(inst, 0.2);
   assert.equal(k.tx, tx); assert.equal(k.ty, ty);
 });
@@ -258,7 +260,7 @@ test('hands no longer swat: a fast hand through a monster does nothing', () => {
 });
 
 test('with the mouse, a resting pointer sends the knight, and it claps by itself near monsters', () => {
-  const inst = quiet(), k = knight(inst);
+  const inst = fight(quiet()), k = knight(inst);
   hand(0.6, 0.45); run(inst, POINT_HOLD + 0.05);
   assert.ok(Math.abs(k.tx - 0.6) < 0.01);
   const m = byKnight(inst);
@@ -296,7 +298,7 @@ test('waves grow in number; an ogre every fifth', () => {
   assert.ok(kinds(2).includes('goblin') && !kinds(2).includes('bat'));
   assert.ok(kinds(3).includes('bat'));
   assert.ok(kinds(5).includes('ogre') && !kinds(4).includes('ogre'));
-  for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1), 'a few more every wave, without end');
+  for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1) || countOf(w) === 1500, 'more every wave, till far past where anyone gets');
 });
 
 test('one trail, in at the top left and the long way round to the castle', () => {
@@ -328,15 +330,44 @@ test('a tower fires at whichever monster in reach is nearest the castle', () => 
   assert.equal(behind.hp, behind.max);
 });
 
-test('the next wave sets off before the last is cleared; each is held off when all of it is gone', () => {
+test('the next wave waits until this one is cleared, then a build phase', () => {
   const inst = quiet();
   inst._startWave();
-  run(inst, 60, () => { inst.monsters.forEach(m => { m.speed = 0; }); });
-  assert.ok(inst.wave >= 2, 'the next one came anyway');
-  assert.equal(inst.held, 0, 'nothing held off while its monsters are still about');
-  for (const m of [...inst.monsters]) if (m.wave === 1) inst._damage(m, 999);
+  run(inst, 40, () => { inst.monsters.forEach(m => { m.speed = 0; }); });
+  assert.equal(inst.wave, 1, 'still on the first while its monsters are about');
+  assert.equal(inst.state, 'wave');
+  for (const m of [...inst.monsters]) inst._damage(m, 999);
   run(inst, 0.1);
   assert.equal(inst.held, 1);
+  assert.equal(inst.state, 'build', 'time to build');
+});
+
+test('building only happens in the build phase; in a wave a pad does nothing', () => {
+  const inst = fight(quiet()), pad = PADS[2];
+  one(pad.x, pad.y - 0.02); run(inst, OPEN * 3);
+  assert.ok(!inst.menus.has(2), 'no bubbles');
+  inst.state = 'build'; inst.breakT = 1e9;
+  one(pad.x, pad.y - 0.02); run(inst, OPEN + 0.1);
+  assert.ok(inst.menus.has(2), 'bubbles, now');
+});
+
+test('when the wave comes, half-built work and open bubbles are dropped', () => {
+  const inst = quiet(), pad = PADS[2];
+  one(pad.x, pad.y - 0.02); run(inst, OPEN + 0.1);
+  const ch = inst.choices(2).find(c => c.kind === 'archer');
+  both(ch.x, ch.y); run(inst, BUILD * 0.6);
+  inst._startWave(); run(inst, BUILD);
+  assert.ok(!inst.towers.has(2));
+  assert.equal(inst.menus.size, 0);
+});
+
+test('in the build phase the knights stand easy: no walking, no clapping', () => {
+  const inst = quiet(), k = knight(inst), tx = k.tx;
+  hands(0.6, 0.45, 0.03); run(inst, POINT_HOLD * 3);
+  assert.equal(k.tx, tx);
+  const m = byKnight(inst);
+  clapAt(inst);
+  assert.equal(m.hp, m.max);
 });
 
 test('a wave held off flies a pennant, then a break, then the next', () => {
@@ -347,20 +378,24 @@ test('a wave held off flies a pennant, then a break, then the next', () => {
   run(inst, 0.1);
   assert.equal(inst.held, 1);
   assert.equal(inst.state, 'build');
-  run(inst, BREAK + 0.2);
+  run(inst, BUILD_TIME + 0.2);
   assert.equal(inst.wave, 2);
 });
 
-test('the first tower brings the first wave on; without one it comes anyway', () => {
+test('the first wave comes when the first build phase is up', () => {
   away();
-  const a = game.create(1);
-  run(a, 3);
-  build(a, 2, 'archer');
-  run(a, 3);
-  assert.equal(a.wave, 1);
-  const b = game.create(1);
-  run(b, 18); assert.equal(b.wave, 0);
-  run(b, 6); assert.equal(b.wave, 1);
+  const inst = game.create(1);
+  run(inst, FIRST_BUILD - 1); assert.equal(inst.wave, 0);
+  run(inst, 2); assert.equal(inst.wave, 1);
+});
+
+test('both hands held on the war horn call the wave in early; one hand does not', () => {
+  const inst = game.create(1);
+  one(HORN.x, HORN.y); run(inst, HORN_HOLD * 2);
+  assert.equal(inst.wave, 0);
+  both(HORN.x, HORN.y); run(inst, HORN_HOLD + 0.2);
+  assert.equal(inst.wave, 1);
+  assert.ok(inst.t < FIRST_BUILD);
 });
 
 test('ghostly hands show building until a tower is up, then pointing and clapping until a clap', () => {
@@ -392,7 +427,7 @@ test('there is no clock: it lasts as long as the castle does', () => {
 });
 
 test('waves creep up slowly, then pour out ever faster', () => {
-  assert.deepEqual([1, 2, 3, 4, 5].map(countOf), [6, 7, 8, 9, 10]);
+  assert.deepEqual([1, 2, 3, 4, 5].map(countOf), [7, 9, 11, 13, 17]);
   assert.ok(countOf(30) > countOf(10) * 10);
   assert.ok(gapOf(30) < gapOf(10) / 10, 'a big wave comes out several at a time');
   const inst = quiet();

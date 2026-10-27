@@ -476,3 +476,24 @@ export function drawMarker(c, x, y, s, col, t){
   c.strokeStyle = '#5b4636'; c.lineWidth = Math.max(1.5, s * 0.04); c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - s * 0.55); c.stroke();
   c.fillStyle = col; c.beginPath(); c.moveTo(x, y - s * 0.55); c.lineTo(x + s * 0.3, y - s * 0.46 + Math.sin(t * 6) * s * 0.03); c.lineTo(x, y - s * 0.36); c.closePath(); c.fill();
 }
+
+/* The war horn on its post, where the monsters come in. left: 0..1 of the
+   build phase still to go, as a ring round it; hold: 0..1 of the two-hand
+   hold that blows it to call the wave early. */
+export function drawHorn(c, x, y, s, t, left, hold){
+  c.fillStyle = 'rgba(40,50,40,.25)'; c.beginPath(); c.ellipse(x, y + s * 0.62, s * 0.3, s * 0.08, 0, 0, 6.2832); c.fill();
+  c.fillStyle = '#6b4a34'; c.fillRect(x - s * 0.05, y, s * 0.1, s * 0.62);
+  /* The ring: the time left, draining; and the hold, filling over it. */
+  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = s * 0.07;
+  c.beginPath(); c.arc(x, y - s * 0.05, s * 0.62, 0, 6.2832); c.stroke();
+  c.strokeStyle = '#ffd24a'; c.beginPath(); c.arc(x, y - s * 0.05, s * 0.62, -Math.PI / 2, -Math.PI / 2 + left * 6.2832); c.stroke();
+  if (hold > 0){ c.strokeStyle = '#ff5d5d'; c.lineWidth = s * 0.1; c.beginPath(); c.arc(x, y - s * 0.05, s * 0.74, -Math.PI / 2, -Math.PI / 2 + hold * 6.2832); c.stroke(); }
+  /* The horn: a curl of ivory with a gold rim, wobbling when it's held. */
+  c.save(); c.translate(x, y - s * 0.05); c.rotate(-0.3 + (hold > 0 ? Math.sin(t * 30) * 0.05 : 0));
+  c.fillStyle = '#f3e6c4';
+  c.beginPath(); c.moveTo(-s * 0.42, s * 0.04); c.quadraticCurveTo(-s * 0.05, s * 0.3, s * 0.3, -s * 0.05);
+  c.lineTo(s * 0.36, -s * 0.28); c.quadraticCurveTo(-s * 0.05, s * 0.08, -s * 0.42, -s * 0.02); c.closePath(); c.fill();
+  c.fillStyle = '#e8a91c'; c.beginPath(); c.ellipse(s * 0.33, -s * 0.17, s * 0.06, s * 0.14, 0.3, 0, 6.2832); c.fill();
+  c.fillStyle = '#c9a66b'; for (const u of [-0.2, 0.05]){ c.fillRect(s * u - s * 0.02, -s * 0.06 + u * s * 0.3, s * 0.04, s * 0.16); }
+  c.restore();
+}

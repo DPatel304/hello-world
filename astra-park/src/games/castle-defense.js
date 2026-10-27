@@ -5,7 +5,7 @@ import { Avatars } from '../ui/avatars.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest, heart,
-         drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker } from './castle-art.js';
+         drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker, drawHorn } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -49,7 +49,14 @@ export const POINT_GAP = 0.13, POINT_HOLD = 0.35;
 export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_COOL = 0.35;
 export const CLAP_R = 0.13, CLAP_DMG = 1;               /* reach, in screen heights, and damage */
 export const KNIGHT_SPEED = 0.16, KNIGHT_SIZE = 0.085;
-export const BREAK = 7;                               /* seconds between waves */
+/* The game goes in turns. A build phase between waves - no monsters; hands
+   build, upgrade and mend - and then the wave, the attack phase, when hands
+   only steer and clap for the knights. The build phase lasts BUILD_TIME
+   (the first one FIRST_BUILD), or until both hands are held on the war
+   horn for HORN_HOLD to call the wave in early. */
+export const BUILD_TIME = 15, FIRST_BUILD = 20, HORN_HOLD = 1.5;
+export const HORN = { x: 0.06, y: 0.34 };
+const BREAK = BUILD_TIME;
 export const STATS = {
   archer: { range: [0.24, 0.27, 0.3], rate: [1.1, 1.5, 2.0], dmg: [1, 1.4, 2] },
   cannon: { range: [0.21, 0.23, 0.26], rate: [0.45, 0.55, 0.65], dmg: [2.5, 3.5, 5], splash: [0.08, 0.095, 0.11], most: [3, 4, 5] },
@@ -65,13 +72,13 @@ const SLOW_FOR = 1.6, CHOICE_R = 0.045, CHOICE_D = 0.12, MENU_IDLE = 2.5;
 const ASPECT = 16 / 9;
 
 /* What comes in wave w: more each time - that's the whole challenge; the
-   monsters themselves never get faster or tougher. Each wave is about a
-   seventh bigger than the last, so it creeps up slowly at first (6, 7, 8,
-   9, 10...) and then snowballs: a strong team holds about a quarter of an
-   hour before the horde is too much. Goblins from the second wave, bats
-   from the third, an ogre (or more) every fifth. All along the one trail. */
-export const POUR = 16;   /* seconds a wave takes to come out, once it's big */
-export const countOf = (w) => Math.round(6 * Math.pow(1.15, w - 1));
+   monsters themselves never get faster or tougher. It creeps up slowly at
+   first (7, 9, 11, 13, 17...) and then snowballs, so a strong team holds
+   about a quarter of an hour before the horde is too much. Goblins from the
+   second wave, bats from the third, an ogre (or more) every fifth. All
+   along the one trail. */
+export const POUR = 8;   /* seconds a wave takes to come out, once it's big */
+export const countOf = (w) => Math.min(1500, Math.round(5 + w + Math.pow(1.65, w - 1)));
 /* Seconds between monsters coming out in wave w. */
 export const gapOf = (w) => Math.min(1.3, POUR / countOf(w));
 export function waveOf(w){
@@ -104,9 +111,8 @@ class CastleDefense {
     this.wave = 0;              /* waves started */
     this.held = 0;              /* waves held off */
     this.state = 'build';       /* 'build' between waves, 'wave' while one is on */
-    this.breakT = 22;           /* the first wave waits for a tower, or this long */
+    this.breakT = FIRST_BUILD;  /* time left to build before the wave */
     this.queue = []; this.spawnT = 0;
-    this.alive = new Map();     /* wave -> its monsters still about */
     this.towers = new Map();    /* pad index -> tower */
     this.menus = new Map();     /* pad index -> open build bubbles */
     this.dwell = new Map();     /* hand -> what it's resting on, and for how long */
@@ -162,21 +168,12 @@ class CastleDefense {
       this._spawn(next.kind, next.path);
       this.spawnT += gapOf(this.wave);
     }
-    /* Like real tower defense, the next wave doesn't wait for the last to
-       be cleared: it sets off a little while after the last monster has
-       come out, so on the long trail the waves overlap and the pressure
-       builds. */
-    if (!this.queue.length){ this.state = 'build'; this.breakT = BREAK; }
-  }
-
-  /* A wave is held off once every monster in it is gone - beaten, or got
-     in - and earns a pennant and a few coins. */
-  _heldOff(){
-    for (const [w, n] of this.alive){
-      if (n > 0 || (w === this.wave && this.state === 'wave')) continue;
-      this.alive.delete(w);
+    /* The wave is held off once every monster in it is gone - beaten, or
+       got in: a pennant, a few coins, and time to build. */
+    if (!this.queue.length && !this.monsters.length){
       this.held++;
-      this.coins += 2 + Math.floor(w / 3);
+      this.coins += 2 + Math.floor(this.wave / 3);
+      this.state = 'build'; this.breakT = BREAK;
       sfx.fanfare();
     }
   }
@@ -184,13 +181,13 @@ class CastleDefense {
   _startWave(){
     this.wave++; this.state = 'wave';
     this.queue = waveOf(this.wave); this.spawnT = 0;
-    this.alive.set(this.wave, 0);
+    /* Building stops: any bubbles fold away and half-done work is dropped. */
+    this.menus.clear(); this.work.clear(); this.dwell.clear(); this.lonely = [];
     sfx.trumpet(1);
   }
 
   _spawn(kind, path = 0){
     const M = MONSTERS[kind], hp = M.hp;
-    if (this.alive.has(this.wave)) this.alive.set(this.wave, this.alive.get(this.wave) + 1);
     /* Each walks a little to one side or the other of the middle of the
        trail, so a crowd looks like a crowd, not a queue. */
     this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, side: (Math.random() - 0.5) * 0.05, hp, max: hp, speed: M.speed,
@@ -210,12 +207,8 @@ class CastleDefense {
         if (this.hearts <= 0 && !this.lost){ this.lost = true; this.over = true; }
       }
     }
-    for (const m of this.monsters) if (m.gone) this._gone(m);
     this.monsters = this.monsters.filter(m => !m.gone);
-    this._heldOff();
   }
-
-  _gone(m){ if (this.alive.has(m.wave)) this.alive.set(m.wave, this.alive.get(m.wave) - 1); }
 
   pos(m){
     const p = along(m.s, m.path), k = m.side || 0;
@@ -231,7 +224,8 @@ class CastleDefense {
       k.clap = Math.max(0, k.clap - dt * 3);
       for (const r of k.rings) r.k += dt / 0.45;
       k.rings = k.rings.filter(r => r.k < 1);
-      if (i < this.players && p && p.present) this._hands2(i, k, p, dt);
+      if (i < this.players && p && p.present && this.state === 'wave') this._hands2(i, k, p, dt);
+      else k.aim = null;
       /* Walk toward the flag. */
       const dx = (k.tx - k.x) * ASPECT, dy = k.ty - k.y, d = Math.hypot(dx, dy), step = KNIGHT_SPEED * dt;
       if (d > 0.004){
@@ -317,6 +311,7 @@ class CastleDefense {
     }
     for (const pad of PADS) if (d(pad.x, pad.y - 0.02) < PAD_R * 1.5) return { id: `p${pad.i}`, pad: pad.i, x: pad.x, y: pad.y - 0.06 };
     if (onCastle(h.x, h.y)) return { id: 'castle', castle: true, x: CASTLE.x, y: CASTLE_BASE - 0.2 };
+    if (d(HORN.x, HORN.y) < 0.08) return { id: 'horn', horn: true, x: HORN.x, y: HORN.y };
     return null;
   }
 
@@ -324,6 +319,7 @@ class CastleDefense {
      happen now. */
   _job(tg){
     if (tg.kind) return { need: BUILD, can: this.coins >= COST[tg.kind], act: (who) => this._build(tg.pad, tg.kind, who) };
+    if (tg.horn) return { need: HORN_HOLD, can: this.state === 'build', act: () => { this.breakT = 0; this.called = true; } };
     if (tg.castle) return { need: REPAIR, can: this.hearts < HEARTS, act: () => this._repair(), again: true };
     const tw = this.towers.get(tg.pad);
     if (tw) return { need: UPGRADE, can: tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl), act: (who) => this._upgrade(tg.pad, who) };
@@ -331,6 +327,8 @@ class CastleDefense {
   }
 
   _hands(dt, W, H){
+    /* Hands build only in the build phase; in a wave they're the knights'. */
+    if (this.state !== 'build'){ this.lonely = []; return; }
     /* Who has a hand on what. */
     const on = new Map();
     for (const { who, key, h } of this._handsOf()){
@@ -393,8 +391,6 @@ class CastleDefense {
     sfx.land();
     const pad = PADS[i];
     for (let k = 0; k < 14; k++) this._spark(pad.x, pad.y - 0.04, '#ffd24a');
-    /* The first tower brings the first wave on soon. */
-    if (this.wave === 0) this.breakT = Math.min(this.breakT, 2.5);
   }
 
   _upgrade(i, who){
@@ -472,7 +468,6 @@ class CastleDefense {
     m.hp -= dmg; m.hurt = 1;
     if (m.hp > 0) return;
     m.dead = true; m.gone = true;
-    this._gone(m);
     const M = MONSTERS[m.kind];
     this.coins += M.coins;
     const p = this.pos(m);
@@ -544,7 +539,9 @@ class CastleDefense {
     const things = [];
     for (const pad of PADS){
       const tw = this.towers.get(pad.i);
-      drawPad(c, W, H, pad, tw ? 0 : this.menus.has(pad.i) ? 1 : holding.has(`p${pad.i}`) ? 0.7 : this.coins >= COST.archer && !this.out ? 0.25 + 0.15 * Math.sin(this.t * 3 + pad.i) : 0);
+      /* Pads glow only in the build phase: that's when they can be used. */
+      const building = this.state === 'build' && !this.out;
+      drawPad(c, W, H, pad, tw || !building ? 0 : this.menus.has(pad.i) ? 1 : holding.has(`p${pad.i}`) ? 0.7 : this.coins >= COST.archer ? 0.25 + 0.15 * Math.sin(this.t * 3 + pad.i) : 0);
       if (tw) things.push({ y: pad.y, draw: () => drawTower(c, W, H, pad, tw.kind, tw.lvl, tw.aim, PLAYER_COLORS[tw.who] || '#ffffff', this.t, tw.kick) });
     }
     for (const m of this.monsters){
@@ -568,6 +565,8 @@ class CastleDefense {
     things.sort((a, b) => a.y - b.y);
     for (const th of things) th.draw();
     drawChest(c, W, H, this.coins, this.t);
+    /* The war horn, through the build phase: its ring is the time left. */
+    if (this.state === 'build' && !this.out) drawHorn(c, HORN.x * W, HORN.y * H, H * 0.095, this.t, clamp(this.breakT / (this.wave ? BUILD_TIME : FIRST_BUILD), 0, 1), holding.get('horn') || 0);
     for (const s of this.shots) drawShot(c, W, H, s);
     if (!this.out){
       this._drawRings(c, W, H, holding);
@@ -666,6 +665,11 @@ class CastleDefense {
       const off = 0.035 / ASPECT;
       ghost((x - off * second) * W, y * H, show * 0.85, 0);
       if (second > 0) ghost((x + off * second + (1 - second) * 0.15) * W, (y + (1 - second) * 0.1) * H, show * 0.85 * second, 0);
+    }
+    /* The horn: once there's a tower up, two hands on it call the wave. */
+    if (this.built && this.wave === 0 && this.state === 'build' && !this.called && this.breakT < FIRST_BUILD - 4){
+      const k = (this.t % 2.5) / 2.5, show = Math.min(1, k * 5, (1 - k) * 5);
+      ghost((HORN.x - 0.02) * W, HORN.y * H, show * 0.8, 0); ghost((HORN.x + 0.02) * W, HORN.y * H, show * 0.8, 0);
     }
     /* Mending: once the castle has lost a few hearts, two hands on it. */
     if (this.hearts <= HEARTS - 3 && !this.repaired && !this.out){
