@@ -55,7 +55,8 @@ test('every game declares the metadata the shell reads', () => {
   assert.ok(GAMES.length >= 1, 'the catalogue is empty');
   for (const g of GAMES){
     assert.match(g.id, /^[a-z0-9-]+$/, `${g.id}: id should be a slug`);
-    assert.ok(g.name && g.name.length < 24, `${g.id}: name missing or too long for a tile`);
+    /* Up to two lines on a menu tile. */
+    assert.ok(g.name && g.name.length <= 32, `${g.id}: name missing or too long for a tile`);
     assert.ok(Number.isInteger(g.stars) && g.stars >= 1 && g.stars <= 5, `${g.id}: stars out of range`);
     assert.match(g.accent, /^#[0-9a-f]{6}$/i, `${g.id}: accent should be a hex colour`);
     assert.ok(g.secs > 0 && g.secs <= 600, `${g.id}: round length looks wrong`);
