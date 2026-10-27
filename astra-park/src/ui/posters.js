@@ -11,6 +11,7 @@ import { glow } from './backdrop.js';
 import { Town, ROAD, SIDEWALK } from '../games/fire-truck-scene.js';
 import { TRUCK, drawTruck, drawHelmet, drawKid, drawHouse, drawFlame } from '../games/fire-truck-art.js';
 import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from '../games/moon-art.js';
+import { DRAW } from '../games/copycat-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
 
@@ -112,6 +113,18 @@ function moonBounce(){
   };
 }
 
+function animalCopycat(){
+  const scene = new Scene();
+  return (c, W, H, t) => {
+    scene.step(1 / 60, { t, p: 0.3, storm: false, wind: 0, joy: 0.5, look: 0.5, rainbow: false });
+    scene.drawBack(c, W, H);
+    ['bird', 'frog', 'elephant', 'bunny'].forEach((n, i) => DRAW[n](c, W * (0.12 + i * 0.09), H * 0.74, H * 0.13, t + i, true));
+    DRAW.giraffe(c, W * 0.7, H * 0.95, H * 0.62, t, false);
+    DRAW.flamingo(c, W * 0.35, H * 0.95, H * 0.5, t, false);
+    scene.drawFront(c, W, H);
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -120,7 +133,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce };
+const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();

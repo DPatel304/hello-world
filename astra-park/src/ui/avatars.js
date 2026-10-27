@@ -145,7 +145,7 @@ export class Avatars {
   }
 }
 
-function silhouette(c, lm, W, H, col, alpha){
+export function silhouette(c, lm, W, H, col, alpha){
   const P = (i) => [lm[i].x * W, lm[i].y * H];
   const seen = (i) => (lm[i].v ?? 1) > 0.3;
   const sw = Math.hypot((lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x) * W, (lm[L.L_SHOULDER].y - lm[L.R_SHOULDER].y) * H);

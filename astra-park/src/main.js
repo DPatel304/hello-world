@@ -105,7 +105,9 @@ function handsAboveHead(p){
 }
 
 function checkPause(dt){
-  if (mode !== 'play' || paused) { handsUp = 0; return; }
+  /* A game can say both hands up means something else right now - copying
+     a giraffe, say - and isn't asking to pause. */
+  if (mode !== 'play' || paused || (inst && inst.pausable && !inst.pausable())) { handsUp = 0; return; }
   const any = pose.players.slice(0, players).some(handsAboveHead);
   handsUp = any ? handsUp + dt : 0;
   /* A game where reaching up is part of play can ask for a longer hold. */
