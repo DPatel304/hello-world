@@ -16,23 +16,22 @@ function hands(x, y, gap = 0.05){
   p.hands.left = { x: x - dx, y, vx: 0, vy: 0, speed: 0 };
   p.hands.right = { x: x + dx, y, vx: 0, vy: 0, speed: 0 };
 }
-/* A round with the lake emptied, Uncle B done showing and the ghost away. */
-function calm(){ hands(0.9, 0.2, 0.4); const inst = game.create(1); inst.fish = []; inst.spawn = 1e9; inst.uncle.shows = 1; inst.quiet = -1e9; inst.lastCatch = 1e9; return inst; }
+/* A round with the lake emptied and the ghost away. */
+function calm(){ hands(0.9, 0.2, 0.4); const inst = game.create(1); inst.fish = []; inst.spawn = 1e9; inst.lastCatch = 1e9; return inst; }
 function fishAt(inst, x, y, sp = byId.perch){ const f = inst._fish(false, sp); f.x = x; f.y = y; f.speed = 0; return f; }
 /* Lift the hands from y0 to y1 over secs, staying cupped. */
 const lift = (x, y0, y1, secs, gap = 0.05) => (t) => hands(x, y0 + (y1 - y0) * Math.min(1, t / secs), gap);
 
-test('ghostly hands show how first thing, then Uncle B fishes and holds one up', () => {
+test('ghostly hands show how first thing; Uncle B never catches anything himself', () => {
   hands(0.9, 0.2, 0.4);
   const inst = game.create(1);
-  inst.fish = []; inst.spawn = 1e9;
   run(inst, 2.5);
   assert.ok(inst.hinting, 'the ghost is showing');
-  let shown = null;
-  run(inst, 25, () => { if (inst.showing && !shown) shown = inst.showing; });
-  assert.ok(shown, 'he held a fish up');
-  assert.equal(shown.who, -1);
-  assert.equal(inst.book.size, 0, "his catch doesn't fill the children's book");
+  let shown = false;
+  run(inst, 90, () => { if (inst.showing) shown = true; });
+  assert.ok(!shown, 'nothing held up');
+  assert.equal(inst.caught, 0);
+  assert.equal(inst.book.size, 0);
 });
 
 test('hands cupped round a fish scoop it up; lifting it out catches it', () => {
