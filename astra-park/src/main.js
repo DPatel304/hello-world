@@ -77,7 +77,7 @@ function toGame(g){
 function startRound(){
   inst = game.create(players);
   roundLeft = game.secs;
-  music.intensity(0.15);
+  music.intensity(game.loud ? 0.85 : 0.15);
   go('play', null);
 }
 
@@ -187,7 +187,9 @@ function tick(now){
        opening, then strumming, and a new layer about every minute after,
        until everything - up a key - for the last ten seconds. */
     const done = game.secs - roundLeft;
-    music.intensity(roundLeft <= 10 ? 1
+    /* A dance party wants its music up from the first beat. */
+    music.intensity(game.loud ? (roundLeft <= 10 ? 1 : 0.85)
+      : roundLeft <= 10 ? 1
       : done < 30 ? 0.15
       : 0.2 + 0.72 * Math.min(1, (done - 30) / Math.max(1, game.secs - 40)));
     if (roundLeft <= 0 || inst.over) endRound();

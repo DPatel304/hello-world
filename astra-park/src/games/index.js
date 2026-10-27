@@ -9,6 +9,7 @@ import moonBounce from './moon-bounce.js';
 import animalCopycat from './animal-copycat.js';
 import snowSled from './snow-sled.js';
 import uncleBsBoat from './uncle-bs-boat.js';
+import danceParty from './dance-party.js';
 
-export const GAMES = [popParty, fireflyNight, fireTruck, moonBounce, animalCopycat, snowSled, uncleBsBoat];
+export const GAMES = [popParty, fireflyNight, fireTruck, moonBounce, animalCopycat, snowSled, uncleBsBoat, danceParty];
 export const byId = (id) => GAMES.find(g => g.id === id);

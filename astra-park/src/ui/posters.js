@@ -14,6 +14,7 @@ import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES }
 import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawLine, WATER } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
+import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 import { P as slope, drawSlope, edgeTrees, pine, present as gift, ramp as snowRamp, friendBySlope, drawSled, GIFT_COLOURS } from '../games/snow-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
@@ -165,6 +166,15 @@ function unclesBoat(){
   };
 }
 
+function danceParty(){
+  return (c, W, H, t) => {
+    const beat = t * 112 / 60, n = Math.floor(beat), b = beat - n;
+    drawStage(c, W, H, t, b, n, 0.75);
+    drawMirrorBall(c, W, H, t, 0.75);
+    DANCERS.forEach((d, i) => drawDancer(c, d, d.x * W, FLOOR * H, d.h * H, t, MOVES[(Math.floor(n / 8) + i * 2) % MOVES.length], b, n, 0.75));
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -173,7 +183,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'snow-sled': snowSled, 'uncle-bs-boat': unclesBoat };
+const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'snow-sled': snowSled, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
