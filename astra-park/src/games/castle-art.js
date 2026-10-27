@@ -1,10 +1,10 @@
 /* Castle Defense, painted. A sunny meadow seen from above at a slant: a
-   wide castle along the bottom left, and two sandy paths coming down to it
-   from the top of the screen - a short one straight down the left, and a
-   long one that wanders all round the right of the meadow first - with
-   round stone pads beside them where towers can stand. The meadow, the
-   paths and the trees never move, so they're painted once per screen size;
-   towers, monsters and arrows are drawn over them.
+   wide castle along the bottom left, and one long sandy trail that comes
+   in at the top left and goes the long way round - across the top, back
+   and forth down the meadow - to reach it, with round stone pads beside it
+   where towers can stand. The meadow, the trail and the trees never move,
+   so they're painted once per screen size; towers, monsters and arrows are
+   drawn over them.
 
    Positions are x in screen widths, y in screen heights; sizes are in
    screen heights. */
@@ -12,14 +12,15 @@
 const hash = (i, k = 1) => ((((i + 7919) * 2654435761 * k) % 4294967296) + 4294967296) % 4294967296 / 4294967296;
 const ASPECT = 16 / 9;
 
-/* The two paths, as a few hand-placed points each smoothed into a curve.
-   Both come in over the top edge. The short one heads more or less straight
-   down to the top of the castle; the long one wanders right round the
-   meadow and comes in along the bottom to the castle's right end. */
-const SHORT = [[0.13, -0.06], [0.14, 0.08], [0.26, 0.18], [0.3, 0.3], [0.2, 0.42], [0.14, 0.52], [0.2, 0.66], [0.22, 0.8]];
-const LONG = [[0.55, -0.06], [0.56, 0.08], [0.46, 0.2], [0.5, 0.33], [0.66, 0.38], [0.8, 0.28], [0.92, 0.38],
-              [0.9, 0.56], [0.76, 0.64], [0.62, 0.6], [0.52, 0.7], [0.56, 0.84], [0.46, 0.92], [0.33, 0.92]];
-const KEYS = [SHORT, LONG];
+/* The trail, as a few hand-placed points smoothed into a curve: in over the
+   top edge at the left, across the top to the right, back across the
+   middle, out to the right again, and home along the bottom to the
+   castle's right end. (Kept as a list of paths, of one, so the game can
+   follow any of them.) */
+const TRAIL = [[0.1, -0.06], [0.1, 0.08], [0.22, 0.15], [0.45, 0.12], [0.68, 0.13], [0.86, 0.2], [0.9, 0.33],
+               [0.78, 0.42], [0.58, 0.38], [0.4, 0.42], [0.34, 0.54], [0.46, 0.63], [0.66, 0.6], [0.84, 0.64],
+               [0.88, 0.78], [0.76, 0.9], [0.56, 0.9], [0.3, 0.9]];
+const KEYS = [TRAIL];
 /* The castle: its middle, the line its front stands on, and its width. */
 export const CASTLE = { x: 0.17, y: 0.86, w: 0.32 };
 export const CASTLE_BASE = CASTLE.y + 0.12;
@@ -57,10 +58,11 @@ export function along(s, p = 0){
   return { x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, dir: b[0] >= a[0] ? 1 : -1 };
 }
 
-/* The stone pads where towers can be built: just off the paths, each where
-   a tower reaches the most of them. */
-export const PADS = [[0.28, 0.1], [0.45, 0.1], [0.12, 0.17], [0.58, 0.17], [0.35, 0.22], [0.17, 0.32], [0.44, 0.36], [0.34, 0.39],
-                     [0.1, 0.46], [0.25, 0.47], [0.69, 0.49], [0.81, 0.51], [0.56, 0.54], [0.59, 0.73], [0.44, 0.81]].map(([x, y], i) => ({ i, x, y }));
+/* The stone pads where towers can be built: in the gaps between the turns
+   of the trail, where a tower reaches it on both sides, and out on the
+   bends. */
+export const PADS = [[0.31, 0.05], [0.19, 0.24], [0.54, 0.26], [0.77, 0.29], [0.34, 0.32], [0.27, 0.48], [0.47, 0.51],
+                     [0.71, 0.5], [0.87, 0.53], [0.5, 0.78], [0.69, 0.77], [0.9, 0.87]].map(([x, y], i) => ({ i, x, y }));
 export const PAD_R = 0.055;
 
 /* ---------- the meadow, painted once ---------- */
@@ -91,7 +93,7 @@ function paintMeadow(c, W, H){
   };
   stroke('#b88a55', H * 0.095); stroke('#e3c48e', H * 0.075); stroke('rgba(255,240,200,.45)', H * 0.03);
   for (let i = 0; i < 80; i++){
-    const k = i % 2, p = along(hash(i, 13) * PATHS[k].total, k), off = (hash(i, 17) - 0.5) * 0.05;
+    const k = i % PATHS.length, p = along(hash(i, 13) * PATHS[k].total, k), off = (hash(i, 17) - 0.5) * 0.05;
     c.fillStyle = 'rgba(150,115,70,.4)'; c.beginPath(); c.ellipse(p.x * W + off * H, p.y * H + off * H * 0.5, H * 0.006, H * 0.004, 0, 0, 6.2832); c.fill();
   }
   /* Flowers dotted about. */

@@ -151,7 +151,8 @@ test('a tower shoots a monster in range until it is gone, and its coins go in th
 test('a tower ignores a monster out of range', () => {
   const inst = quiet();
   build(inst, 2, 'archer');
-  const m = monster(inst, 'slime', PATHS[1].total * 0.6, 1);
+  /* Pad 2 is up near the top; the far end of the trail is down by the castle. */
+  const m = monster(inst, 'slime', PATHS[0].total * 0.97);
   run(inst, 3);
   assert.equal(m.hp, m.max);
 });
@@ -215,46 +216,44 @@ test('waves grow and toughen; an ogre every fifth', () => {
   assert.ok(toughness(10) > toughness(5) * 2);
 });
 
-test('the first wave comes down the short path, the second the long one, then both', () => {
-  const paths = (w) => [...new Set(waveOf(w).map(m => m.path))].sort();
-  assert.deepEqual(paths(1), [0]);
-  assert.deepEqual(paths(2), [1]);
-  assert.deepEqual(paths(3), [0, 1]);
-  const inst = quiet();
-  inst._startWave(); run(inst, 4);
-  assert.ok(inst.monsters.length && inst.monsters.every(m => m.path === 0));
+test('one trail, in at the top left and the long way round to the castle', () => {
+  assert.equal(PATHS.length, 1);
+  const P = PATHS[0], start = P.pts[0], end = P.pts[P.pts.length - 1];
+  assert.ok(start[1] < 0 && start[0] < 0.2, 'from over the top edge, at the left');
+  assert.ok(onCastle(end[0], end[1] + 0.02), 'to the castle');
+  assert.ok(P.total > 4, `the long way round: ${P.total.toFixed(2)} screen heights`);
+  assert.ok(Math.max(...P.pts.map(p => p[0])) > 0.85, 'all the way over to the right');
+  assert.ok(CASTLE.x < 0.25 && CASTLE.w >= 0.3 && CASTLE_BASE > 0.95, 'the castle wide along the bottom left');
 });
 
-test('both paths come in over the top and end at the castle; one is much longer', () => {
-  for (const P of PATHS){
-    assert.ok(P.pts[0][1] < 0, 'from over the top edge');
-    const end = P.pts[P.pts.length - 1];
-    assert.ok(onCastle(end[0], end[1] + 0.02), 'to the castle');
-  }
-  assert.ok(PATHS[1].total > PATHS[0].total * 2, `${PATHS[0].total.toFixed(2)} and ${PATHS[1].total.toFixed(2)}`);
-  assert.ok(CASTLE.x < 0.25 && CASTLE.w >= 0.3 && CASTLE_BASE > 0.95, 'wide, along the bottom left');
+test('a tower between two turns of the trail reaches it on both sides', () => {
+  /* Pad 6 sits between the second and third rows of the trail. */
+  const pad = PADS[6], ys = [];
+  for (let s = 0; s < PATHS[0].total; s += 0.02){ const p = along(s); if (Math.hypot((p.x - pad.x) * 16 / 9, p.y - pad.y) < 0.24) ys.push(p.y); }
+  assert.ok(ys.some(y => y < pad.y - 0.06), 'the row above');
+  assert.ok(ys.some(y => y > pad.y + 0.06), 'and the row below');
 });
 
-test('a tower between the paths reaches monsters on either', () => {
-  for (const path of [0, 1]){
-    const inst = quiet(); inst.coins = 99;
-    build(inst, 4, 'archer'); inst._upgrade(4, 0);
-    const m = monster(inst, 'slime', nearestS(PADS[4], path), path);
-    run(inst, 2);
-    assert.ok(m.hp < m.max || m.dead, `path ${path}`);
-  }
-});
-
-test('a tower fires at whichever monster is nearest the castle, on either path', () => {
+test('a tower fires at whichever monster in reach is nearest the castle', () => {
   const inst = quiet(); inst.coins = 99;
-  build(inst, 4, 'archer'); inst._upgrade(4, 0); inst._upgrade(4, 0);
-  /* On the long path but further from the castle, and on the short one
-     nearer: the short-path one is shot first. */
-  const far = monster(inst, 'ogre', nearestS(PADS[4], 1), 1);
-  const near = monster(inst, 'ogre', nearestS(PADS[4], 0), 0);
+  build(inst, 6, 'archer'); inst._upgrade(6, 0); inst._upgrade(6, 0);
+  const near = [];
+  for (let s = 0; s < PATHS[0].total; s += 0.02){ const p = along(s); if (Math.hypot((p.x - PADS[6].x) * 16 / 9, p.y - PADS[6].y) < 0.2) near.push(s); }
+  const behind = monster(inst, 'ogre', near[0]), ahead = monster(inst, 'ogre', near[near.length - 1]);
   run(inst, 0.8);
-  assert.ok(near.hp < near.max);
-  assert.equal(far.hp, far.max);
+  assert.ok(ahead.hp < ahead.max, 'the one further along');
+  assert.equal(behind.hp, behind.max);
+});
+
+test('the next wave sets off before the last is cleared; each is held off when all of it is gone', () => {
+  const inst = quiet();
+  inst._startWave();
+  run(inst, 60, () => { inst.monsters.forEach(m => { m.speed = 0; }); });
+  assert.ok(inst.wave >= 2, 'the next one came anyway');
+  assert.equal(inst.held, 0, 'nothing held off while its monsters are still about');
+  for (const m of [...inst.monsters]) if (m.wave === 1) inst._damage(m, 999);
+  run(inst, 0.1);
+  assert.equal(inst.held, 1);
 });
 
 test('a wave held off flies a pennant, then a break, then the next', () => {
@@ -310,7 +309,7 @@ test('a well-defended castle holds many waves; an empty one falls fast', () => {
   run(idle, 200);
   assert.ok(idle.over, 'no towers: overrun');
   const keep = game.create(1); keep.coins = 999;
-  for (const i of [2, 9, 4, 11, 14, 3, 10]) keep._build(i, i % 2 ? 'archer' : 'cannon', 0);
+  for (const i of [6, 4, 7, 2, 9, 5, 3]) keep._build(i, i % 2 ? 'archer' : 'cannon', 0);
   for (const [i] of keep.towers){ keep._upgrade(i, 0); keep._upgrade(i, 0); }
   run(keep, 200);
   assert.ok(!keep.over, 'held');
