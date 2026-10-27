@@ -135,8 +135,10 @@ export function drawMeadow(c, W, H){
    of `max`. waves: pennants flying, one for each wave held off. hit: 0..1,
    a shudder when a monster gets in. mend: 0..1, the scaffold and sparkle
    of a repair under way. */
-export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0){
-  const x = CASTLE.x * W + Math.sin(t * 60) * hit * H * 0.006, base = CASTLE_BASE * H, s = H * 0.24, hw = CASTLE.w * W / 2;
+const PENNANT = '#ff5d5d';
+export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0, lvl = 1){
+  /* Each upgrade builds it a little taller, with golden trim. */
+  const x = CASTLE.x * W + Math.sin(t * 60) * hit * H * 0.006, base = CASTLE_BASE * H, s = H * 0.24 * (1 + 0.12 * (lvl - 1)), hw = CASTLE.w * W / 2;
   c.fillStyle = 'rgba(40,60,40,.3)'; c.beginPath(); c.ellipse(x, base, hw * 1.05, s * 0.12, 0, 0, 6.2832); c.fill();
   const wall = '#d9d2c3', dark = '#b8ae9c', roof = '#5a7bd8';
   const tower = (tx, w, h, cone) => {
@@ -169,6 +171,14 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0){
     const cx = ends[0] + (ends[1] - ends[0]) * hash(k, 41), cy = base - s * (0.12 + hash(k, 43) * 0.22), r = s * 0.06;
     c.beginPath(); c.moveTo(cx - r, cy - r * 0.6); c.lineTo(cx - r * 0.2, cy); c.lineTo(cx - r * 0.5, cy + r * 0.5); c.moveTo(cx - r * 0.2, cy); c.lineTo(cx + r * 0.6, cy - r * 0.2); c.stroke();
   }
+  /* Golden trim and banners for a castle that's been built up. */
+  if (lvl >= 2){
+    c.fillStyle = '#e8b730'; c.fillRect(ends[0], base - s * 0.42, ends[1] - ends[0], s * 0.03);
+    for (const tx of ends){ c.fillStyle = PENNANT; c.beginPath(); c.moveTo(tx, base - s * 0.7); c.lineTo(tx + s * 0.06, base - s * 0.62); c.lineTo(tx, base - s * 0.54); c.closePath(); c.fill(); }
+  }
+  if (lvl >= 3){
+    for (const tx of [x - hw * 0.5, x + hw * 0.5]){ c.fillStyle = '#e8b730'; c.beginPath(); c.arc(tx, base - s * 0.85, s * 0.05, 0, 6.2832); c.fill(); }
+  }
   /* The flag on the keep. */
   const flagTop = base - s * 0.98 - s * 0.35;
   c.strokeStyle = '#5b4636'; c.lineWidth = s * 0.012; c.beginPath(); c.moveTo(x, flagTop + s * 0.02); c.lineTo(x, flagTop - s * 0.18); c.stroke();
@@ -190,9 +200,12 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0){
     for (let k = 0; k < 6; k++){ const a = t * 3 + k; star(c, x + Math.cos(a) * hw * 0.7, base - s * 0.3 + Math.sin(a * 1.3) * s * 0.15, s * 0.04, '#ffe27a'); }
     c.restore();
   }
-  /* Hearts in a row along the wall, above the gate. */
+  /* Hearts in a row along the wall, above the gate - two rows, once the
+     castle has been built up and has more than ten. */
+  const perRow = max <= 10 ? max : Math.ceil(max / 2), gap = Math.min(s * 0.14, (ends[1] - ends[0] - s * 0.36) / perRow);
   for (let k = 0; k < max; k++){
-    const u = (k + 0.5) / max, hx = ends[0] + s * 0.18 + u * (ends[1] - ends[0] - s * 0.36), hy = base - s * 0.31, r = s * 0.055, full = k < hearts;
+    const row = Math.floor(k / perRow), inRow = Math.min(perRow, max - row * perRow), r = s * 0.055, full = k < hearts;
+    const hx = x + (k % perRow - (inRow - 1) / 2) * gap, hy = base - s * 0.31 - row * r * 2.6;
     c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(hx, hy, r * 1.25, 0, 6.2832); c.fill();
     heart(c, hx, hy, r, full ? '#ff4f6a' : 'rgba(80,60,80,.35)');
   }
@@ -417,7 +430,7 @@ export function drawShot(c, W, H, s){
    and a little sword. walk: 0..1, how hard it's walking (legs and bob);
    clap: 0..1 just after a clap, arms flung out. face(x, y, r) paints the
    face into the clipped helmet window. */
-export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face){
+export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face, swing = 0){
   const bob = Math.abs(Math.sin(t * 10)) * s * 0.05 * walk;
   c.fillStyle = 'rgba(40,50,40,.28)'; c.beginPath(); c.ellipse(x, y + s * 0.03, s * 0.32, s * 0.09, 0, 0, 6.2832); c.fill();
   c.save(); c.translate(x, y - bob);
@@ -432,12 +445,15 @@ export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face){
   const spread = clap > 0 ? 1 : 0;
   c.strokeStyle = '#9aa0b4'; c.lineWidth = s * 0.09;
   for (const k of [-1, 1]){
-    const hx = k * s * (0.24 + spread * 0.14), hy = -s * (0.36 + spread * 0.18);
+    /* The sword arm swings up and over when it strikes. */
+    const sw = k === dir ? Math.sin(swing * Math.PI) : 0;
+    const hx = k * s * (0.24 + spread * 0.14 + sw * 0.1), hy = -s * (0.36 + spread * 0.18 + sw * 0.2);
     c.beginPath(); c.moveTo(k * s * 0.17, -s * 0.52); c.lineTo(hx, hy); c.stroke();
     if (k === dir){
       /* The sword. */
       c.strokeStyle = '#dfe3ee'; c.lineWidth = s * 0.05;
-      c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + k * s * 0.08, hy - s * 0.3); c.stroke();
+      const ta = -1.3 + swing * 2.2;
+      c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + k * Math.cos(ta) * s * 0.32, hy + Math.sin(ta) * s * 0.32); c.stroke();
       c.strokeStyle = '#8a5a34'; c.lineWidth = s * 0.05; c.beginPath(); c.moveTo(hx - s * 0.06, hy - s * 0.02); c.lineTo(hx + s * 0.06, hy - s * 0.02); c.stroke();
       c.strokeStyle = '#9aa0b4'; c.lineWidth = s * 0.09;
     } else {
@@ -495,5 +511,34 @@ export function drawHorn(c, x, y, s, t, left, hold){
   c.lineTo(s * 0.36, -s * 0.28); c.quadraticCurveTo(-s * 0.05, s * 0.08, -s * 0.42, -s * 0.02); c.closePath(); c.fill();
   c.fillStyle = '#e8a91c'; c.beginPath(); c.ellipse(s * 0.33, -s * 0.17, s * 0.06, s * 0.14, 0.3, 0, 6.2832); c.fill();
   c.fillStyle = '#c9a66b'; for (const u of [-0.2, 0.05]){ c.fillRect(s * u - s * 0.02, -s * 0.06 + u * s * 0.3, s * 0.04, s * 0.16); }
+  c.restore();
+}
+
+/* The power meter round a knight's feet: sword hits fill it; full, it
+   glows and pulses, ready for a clap. */
+export function drawCharge(c, x, y, s, k, col, t){
+  const rx = s * 0.42, ry = s * 0.16;
+  c.save();
+  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = s * 0.05;
+  c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 6.2832); c.stroke();
+  if (k > 0){
+    const full = k >= 1, pulse = full ? 0.6 + 0.4 * Math.sin(t * 10) : 1;
+    c.strokeStyle = full ? '#ffe27a' : col; c.globalAlpha = pulse; c.lineWidth = s * (full ? 0.09 : 0.06);
+    c.beginPath(); c.ellipse(x, y, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + Math.min(1, k) * 6.2832); c.stroke();
+  }
+  c.restore();
+}
+
+/* A ring filling over something being worked on, with an icon inside. */
+export function drawWorkRing(c, x, y, r, k, col){
+  c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = r * 0.16; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
+  if (k > 0){ c.strokeStyle = col; c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.min(1, k) * 6.2832); c.stroke(); }
+}
+
+/* A little hammer, for the work being done. */
+export function drawHammer(c, x, y, s, a){
+  c.save(); c.translate(x, y); c.rotate(a);
+  c.fillStyle = '#8a5a34'; c.fillRect(-s * 0.06, -s * 0.1, s * 0.12, s * 0.7);
+  c.fillStyle = '#9aa0b4'; c.beginPath(); c.roundRect(-s * 0.3, -s * 0.3, s * 0.6, s * 0.24, s * 0.05); c.fill();
   c.restore();
 }

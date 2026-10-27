@@ -4,60 +4,66 @@ import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
-import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest, heart,
-         drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker, drawHorn } from './castle-art.js';
+import { JumpWatch } from '../tracking/jump.js';
+import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
+         drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker, drawHorn, drawCharge, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
    long way round the meadow, back and forth along one winding trail, to
-   the wide castle in the bottom left. The children build towers beside the
-   path to stop them, and each has a little knight of their own out on the
-   meadow, in their colour with their face in the helmet.
+   the wide castle in the bottom left. Each child has a little knight out on
+   the meadow, in their colour with their face in the helmet, and the
+   knights do everything just by where they stand.
 
-   Your knight goes where you lean, as long as you march: march on the
-   spot and lean left or right, toward the screen or back from it, and off
-   it goes that way, faster the harder you march. To fight, clap: your
-   knight's shockwave knocks back and hurts the monsters round it.
+   Lean to walk your knight - left or right, toward the screen to go up the
+   map, back to come down - and run on the spot to hurry. Near a monster,
+   the knight swings its sword by itself; every hit fills a glowing ring
+   round its feet, and when the ring is full, a clap lets loose a great
+   shockwave. Stand on an empty stone pad and a see-through tower appears:
+   jump to change which kind (archer, cannon, frost), and stay put to build
+   it. Stand at a tower and the knight mends it if an ogre has been smashing
+   it, or else makes it bigger and stronger, up to three times. Stand at the
+   castle and the knight mends its hearts, or once it's whole, builds it
+   bigger, with more hearts. Hammering with a fist makes any of that go
+   twice as fast. Monsters drop coins into the treasure chest; building and
+   upgrading cost coins, mending is free.
 
-   Building is holding with both hands. Put a hand over an empty stone pad
-   and three bubbles pop up - an archer tower, a cannon, a frost tower -
-   with the coins each costs as dots underneath; hold both hands on one, a
-   good couple of seconds, to build it. Both hands on a tower make it
-   bigger and stronger, up to three times, and both hands on the castle
-   mend it, a heart at a time. Any two hands will do - two children can
-   build together, and more hands go faster. Let go and the work drains
-   away. Monsters drop coins into the treasure chest by the castle.
-
-   The waves keep coming, each a little harder, until the castle's hearts
-   run out - so the round is as long as the castle holds. Nothing is
-   counted in numbers: the castle flies a pennant for every wave held off.
-
-   Ghostly hands show how to build first thing, then how to point and clap
-   when the first monsters come. */
+   Between waves there's a breather, with the war horn standing where the
+   monsters come in - stand your knight by it to call the next wave early.
+   The waves keep coming, each bigger than the last, until the castle's
+   hearts run out. Nothing is counted in numbers: the castle flies a pennant
+   for every wave held off. */
 
 export const ROUND = 900;
-export const HEARTS = 10;
 export const START_COINS = 7;
 export const COST = { archer: 3, cannon: 5, frost: 4 };
 export const KINDS = ['archer', 'cannon', 'frost'];
-export const OPEN = 0.5;                              /* one hand, to bring up the bubbles */
-export const BUILD = 2, UPGRADE = 2.5, REPAIR = 2.5;  /* seconds of holding with both hands */
-/* Knights. Marching on the spot drives them - knees going up and down, at
-   MARCH_FULL torso-lengths a second for full speed - and leaning steers:
-   shoulders over to one side of the hips, LEAN_X shoulder-widths for full
-   lean, or toward or away from the screen, LEAN_Z. A little lean is no
-   lean (LEAN_DEAD). A clap is the hands snapping together from apart. With
-   the mouse, a resting pointer is where the knight walks to (POINT_HOLD). */
+/* The castle: hearts at each level, and the coins to build it up a level. */
+export const CASTLE_HEARTS = [10, 13, 16], CASTLE_COST = [12, 24];
+export const HEARTS = CASTLE_HEARTS[0];
+/* Towers' health, by level; ogres passing close smash at it. */
+export const TOWER_HP = [8, 12, 16], OGRE_SMASH = 1.5, SMASH_R = 0.15;
+/* Seconds of standing there: to build, to upgrade a tower, to mend a heart,
+   to build the castle up; towers mend TOWER_FIX health a second. Hammering
+   makes it all go HAMMER times as fast. */
+export const BUILD = 2.5, UPGRADE = 3, REPAIR = 2.5, CASTLE_UP = 4, TOWER_FIX = 3, HAMMER = 2;
+export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
+/* Knights. Leaning walks them - shoulders over to one side of the hips,
+   LEAN_X shoulder-widths for full lean, or toward or away from the screen,
+   LEAN_Z; a little lean is no lean (LEAN_DEAD) - at WALK, and running on
+   the spot (knees at MARCH_FULL torso-lengths a second) hurries them up to
+   RUN. With the mouse, the knight walks to where the pointer rests. */
 export const MARCH_FULL = 1.2, LEAN_X = 0.3, LEAN_Z = 0.35, LEAN_DEAD = 0.25;
-export const POINT_HOLD = 0.35;
-export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_COOL = 0.35;
-export const CLAP_R = 0.13, CLAP_DMG = 1;               /* reach, in screen heights, and damage */
-export const KNIGHT_SPEED = 0.16, KNIGHT_SIZE = 0.085;
-/* The game goes in turns. A build phase between waves - no monsters; hands
-   build, upgrade and mend - and then the wave, the attack phase, when hands
-   only steer and clap for the knights. The build phase lasts BUILD_TIME
-   (the first one FIRST_BUILD), or until both hands are held on the war
-   horn for HORN_HOLD to call the wave in early. */
+export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
+export const KNIGHT_SPEED = RUN;
+/* The sword: swung by itself at a monster within reach. Each hit charges
+   the knight a little; fully charged, a clap is the super shockwave. */
+export const SWORD_R = 0.075, SWORD_COOL = 0.75, SWORD_DMG = 1, CHARGE_HIT = 0.1;
+/* The super flattens the few nearest the knight - not a whole horde. */
+export const SUPER_R = 0.26, SUPER_DMG = 5, SUPER_MOST = 6;
+export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_R = SUPER_R;
+/* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first), or
+   until a knight has stood by the war horn for HORN_HOLD. */
 export const BUILD_TIME = 15, FIRST_BUILD = 20, HORN_HOLD = 1.5;
 export const HORN = { x: 0.06, y: 0.34 };
 const BREAK = BUILD_TIME;
@@ -72,7 +78,7 @@ export const MONSTERS = {
   bat:    { hp: 2, speed: 0.077, size: 0.08, coins: 1, harm: 1, flies: true },
   ogre:   { hp: 18, speed: 0.04, size: 0.13, coins: 5, harm: 3 }
 };
-const SLOW_FOR = 1.6, CHOICE_R = 0.045, CHOICE_D = 0.12, MENU_IDLE = 2.5;
+const SLOW_FOR = 1.6;
 const ASPECT = 16 / 9;
 
 /* What comes in wave w: more each time - that's the whole challenge; the
@@ -101,7 +107,7 @@ export default {
   /* Endless: it lasts as long as the castle holds. secs is only how long
      the music takes to build. */
   id: 'castle-defense', name: 'Castle Defense', stars: 2, accent: '#e5534b', secs: ROUND, endless: true,
-  /* Hands reach up to the top of the map; a pause is a longer hold. */
+  /* Arms go up when hammering; a pause is a longer hold. */
   pauseHold: 3,
   create(n){ return new CastleDefense(n); }
 };
@@ -111,35 +117,39 @@ class CastleDefense {
     this.players = players;
     this.t = 0; this.over = false; this.lost = false;
     this.coins = START_COINS;
+    this.castleLvl = 1;
     this.hearts = HEARTS;
     this.wave = 0;              /* waves started */
     this.held = 0;              /* waves held off */
     this.state = 'build';       /* 'build' between waves, 'wave' while one is on */
-    this.breakT = FIRST_BUILD;  /* time left to build before the wave */
+    this.breakT = FIRST_BUILD;  /* time left before the next wave */
     this.queue = []; this.spawnT = 0;
     this.towers = new Map();    /* pad index -> tower */
-    this.menus = new Map();     /* pad index -> open build bubbles */
-    this.dwell = new Map();     /* hand -> what it's resting on, and for how long */
-    this.work = new Map();      /* target -> building, upgrading or mending done so far */
-    this.lonely = [];           /* single hands on something that needs two */
+    /* Which tower each empty pad will become; a jump changes it. */
+    this.picks = new Map(PADS.map(p => [p.i, p.i % KINDS.length]));
+    this.work = new Map();      /* what's being built, upgraded or mended -> how far along */
     this.mend = 0;
-    this.repaired = false;
     this.monsters = [];
     this.shots = [];
     this.bits = [];
     this.castleHit = 0;
-    this.clapped = false;       /* has anyone clapped yet: the clap hint stops */
     this.faces = new FaceCam();
-    /* The knights wait by the castle, side by side, till sent somewhere. */
+    this.jumps = new JumpWatch();
+    /* What's been done yet, for the hints. */
+    this.seen = { built: false, jumped: false, hammered: false, supered: false, repaired: false, called: false };
+    /* The knights wait by the castle, side by side. */
     this.knights = pose.players.map((_, i) => {
       const x = CASTLE.x + CASTLE.w / 2 + 0.04 + i * 0.035, y = CASTLE_BASE - 0.3 - i * 0.02;
-      return { x, y, tx: x, ty: y, vx: 0, vy: 0, dir: 1, walk: 0, march: 0, lean: null, clap: 0, cool: 0, apart: 0, gap: 1, rings: [] };
+      return { x, y, tx: x, ty: y, vx: 0, vy: 0, dir: 1, walk: 0, march: 0, lean: null, swing: 0, sword: 0, charge: 0,
+               clap: 0, apart: 0, gap: 1, rings: [], ham: 0, hop: 0, at: null };
     });
-    this.built = false;
     this.avatars = new Avatars();
     this.out = null;
     this.nextId = 1;
   }
+
+  get maxHearts(){ return CASTLE_HEARTS[this.castleLvl - 1]; }
+  get built(){ return this.seen.built; }
 
   /* ---------- the loop ---------- */
 
@@ -148,14 +158,14 @@ class CastleDefense {
     this.castleHit = Math.max(0, this.castleHit - dt * 2);
     this._waves(dt);
     this.faces.step(dt);
-    this._hands(dt, W, H);
     this._knights(dt);
+    this._work(dt);
     this._march(dt);
+    this._smash(dt);
     this._towers(dt, W, H);
     this._shots(dt, W, H);
     this._stepBits(dt);
     this.avatars.step(dt, this.players);
-    for (const [i, m] of this.menus){ m.idle += dt; if (m.idle > MENU_IDLE || this.towers.has(i)) this.menus.delete(i); }
   }
 
   _waves(dt){
@@ -185,8 +195,6 @@ class CastleDefense {
   _startWave(){
     this.wave++; this.state = 'wave';
     this.queue = waveOf(this.wave); this.spawnT = 0;
-    /* Building stops: any bubbles fold away and half-done work is dropped. */
-    this.menus.clear(); this.work.clear(); this.dwell.clear(); this.lonely = [];
     sfx.trumpet(1);
   }
 
@@ -219,33 +227,42 @@ class CastleDefense {
     return { x: p.x + k / ASPECT * 0.7, y: p.y + k * 0.7, dir: p.dir };
   }
 
-  /* ---------- the knights: marching, leaning and clapping ---------- */
+  /* ---------- the knights ---------- */
 
   _knights(dt){
+    const jumped = pose.mouse.active ? [] : this.jumps.step(dt, pose.players, this.players);
     for (let i = 0; i < this.knights.length; i++){
       const k = this.knights[i], p = pose.players[i];
-      k.cool = Math.max(0, k.cool - dt);
+      k.sword = Math.max(0, k.sword - dt);
+      k.swing = Math.max(0, k.swing - dt * 3);
       k.clap = Math.max(0, k.clap - dt * 3);
-      for (const r of k.rings) r.k += dt / 0.45;
+      k.hop = Math.max(0, k.hop - dt * 3);
+      for (const r of k.rings) r.k += dt / 0.5;
       k.rings = k.rings.filter(r => r.k < 1);
-      const on = i < this.players && p && p.present && this.state === 'wave';
-      if (on) this._clapWatch(i, k, p, dt);
-      if (on && pose.mouse.active){
+      const on = i < this.players && p && p.present && !this.out;
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; continue; }
+      if (pose.mouse.active){
         /* The mouse: walk to where the pointer rests. */
         const h = p.hands.right;
         k.rest = (h.speed || 0) < 0.15 ? (k.rest || 0) + dt : 0;
         if (k.rest >= POINT_HOLD && this._onMap(h.x, h.y)){ k.tx = h.x; k.ty = h.y; }
         const dx = (k.tx - k.x) * ASPECT, dy = k.ty - k.y, d = Math.hypot(dx, dy);
-        k.vx = d > 0.004 ? dx / d * KNIGHT_SPEED : 0; k.vy = d > 0.004 ? dy / d * KNIGHT_SPEED : 0;
-        if (d < KNIGHT_SPEED * dt){ k.vx = dx / dt; k.vy = dy / dt; }
-      } else if (on) this._drive(k, p, dt);
-      else { k.vx = 0; k.vy = 0; k.march = 0; k.lean = null; }
+        k.vx = d > 0.004 ? dx / d * RUN : 0; k.vy = d > 0.004 ? dy / d * RUN : 0;
+        if (d < RUN * dt){ k.vx = dx / dt; k.vy = dy / dt; }
+      } else {
+        this._drive(k, p, dt);
+        this._hammerWatch(k, p, dt);
+      }
+      this._clapWatch(i, k, p, dt);
       /* Walk: vx and vy are screen heights a second. */
       k.x = clamp(k.x + k.vx / ASPECT * dt, 0.02, 0.98); k.y = clamp(k.y + k.vy * dt, 0.06, 0.97);
       const sp = Math.hypot(k.vx, k.vy);
       if (Math.abs(k.vx) > 0.01) k.dir = k.vx > 0 ? 1 : -1;
-      k.walk += (Math.min(1, sp / KNIGHT_SPEED) - k.walk) * Math.min(1, dt * 8);
-      if (sp > 0.02){ k.driven = true; if (Math.random() < dt * 8 * sp / KNIGHT_SPEED) this._spark(k.x + (Math.random() - 0.5) * 0.01, k.y, 'rgba(200,170,120,.8)'); }
+      k.walk += (Math.min(1, sp / WALK) - k.walk) * Math.min(1, dt * 8);
+      if (sp > 0.02){ k.driven = true; if (Math.random() < dt * 8 * sp / RUN) this._spark(k.x + (Math.random() - 0.5) * 0.01, k.y, 'rgba(200,170,120,.8)'); }
+      k.at = this._spot(k);
+      if (jumped.includes(i)) this._jump(i, k);
+      this._sword(i, k);
     }
   }
 
@@ -272,153 +289,174 @@ class CastleDefense {
     if (mag < LEAN_DEAD){ k.lean = null; k.vx = k.vy = 0; return; }
     const pull = Math.min(1, (mag - LEAN_DEAD) / (1 - LEAN_DEAD)), ux = lx / mag, uy = ly / mag;
     k.lean = { x: ux, y: uy, k: pull };
-    const sp = KNIGHT_SPEED * k.march * pull;
+    /* Leaning alone walks; running on the spot hurries it along. */
+    const sp = (WALK + (RUN - WALK) * k.march) * pull;
     k.vx = ux * sp; k.vy = uy * sp;
   }
+
+  /* Hammering: a fist going up and down, hard. */
+  _hammerWatch(k, p, dt){
+    const v = Math.max(Math.abs(p.hands.left.vy || 0), Math.abs(p.hands.right.vy || 0));
+    k.ham += (clamp(v / 1.5, 0, 1) - k.ham) * Math.min(1, dt * 5);
+  }
+  hammering(k){ return pose.mouse.active ? false : k.ham > 0.4; }
 
   /* A clap: the hands snapping together from apart. */
   _clapWatch(i, k, p, dt){
     if (pose.mouse.active){
-      /* With the mouse the knight claps by itself when monsters are near. */
-      if (!k.cool && this.monsters.some(m => this._near(k, m))) this.clap(i);
+      /* With the mouse the knight lets the super go by itself, charged and
+         with monsters near. */
+      if (k.charge >= 1 && this.monsters.some(m => this._near(k, m, SUPER_R))) this.clap(i);
       return;
     }
     const l = p.hands.left, r = p.hands.right;
     const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y);
     const closing = (k.gap - gap) / Math.max(dt, 1e-3);
     k.apart = gap > CLAP_APART ? 0.4 : Math.max(0, k.apart - dt);
-    if (gap < CLAP_SHUT && k.apart > 0 && closing > CLAP_SPEED && !k.cool){ this.clap(i); k.apart = 0; }
+    if (gap < CLAP_SHUT && k.apart > 0 && closing > CLAP_SPEED){ this.clap(i); k.apart = 0; }
     k.gap = gap;
   }
 
   _onMap(x, y){ return x > 0.01 && x < 0.99 && y > 0.04 && y < 0.98; }
-  _near(k, m){ const p = this.pos(m); return Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) < CLAP_R + MONSTERS[m.kind].size * 0.3; }
+  _near(k, m, r){ const p = this.pos(m); return Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) < r + MONSTERS[m.kind].size * 0.3; }
 
-  /* A clap: the knight's shockwave knocks back and hurts the monsters
-     round it. */
+  /* The sword: the knight swings at the nearest monster in reach, by itself. */
+  _sword(i, k){
+    if (k.sword > 0) return;
+    let best = null, bd = 9;
+    for (const m of this.monsters){
+      if (!this._near(k, m, SWORD_R)) continue;
+      const p = this.pos(m), d = Math.hypot((p.x - k.x) * ASPECT, p.y - k.y);
+      if (d < bd){ bd = d; best = m; }
+    }
+    if (!best) return;
+    k.sword = SWORD_COOL; k.swing = 1;
+    const p = this.pos(best);
+    k.dir = p.x >= k.x ? 1 : -1;
+    best.s = Math.max(0, best.s - (best.kind === 'ogre' ? 0.004 : 0.012));
+    k.charge = Math.min(1, k.charge + CHARGE_HIT);
+    sfx.tick();
+    for (let q = 0; q < 3; q++) this._spark(p.x, p.y - 0.04, '#ffffff');
+    this._damage(best, SWORD_DMG);
+  }
+
+  /* A clap: fully charged, the super shockwave - a big ring round the
+     knight that flattens the monsters near it. Not charged, nothing. */
   clap(i){
     const k = this.knights[i];
-    k.cool = CLAP_COOL; k.clap = 1;
+    if (k.charge < 1) return false;
+    k.charge = 0; k.clap = 1;
     k.rings.push({ k: 0 });
-    this.clapped = true;
-    let hit = 0;
-    for (const m of [...this.monsters]){
-      if (!this._near(k, m)) continue;
-      m.s = Math.max(0, m.s - (m.kind === 'ogre' ? 0.015 : 0.04));
-      m.hurt = 1; hit++;
-      this._damage(m, CLAP_DMG);
+    this.seen.supered = true;
+    const caught = this.monsters.filter(m => this._near(k, m, SUPER_R))
+      .map(m => { const p = this.pos(m); return { m, d: Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) }; })
+      .sort((a, b) => a.d - b.d).slice(0, SUPER_MOST);
+    for (const { m } of caught){
+      m.s = Math.max(0, m.s - (m.kind === 'ogre' ? 0.03 : 0.08));
+      m.hurt = 1;
+      this._damage(m, SUPER_DMG);
     }
-    sfx.pop(hit ? 0.9 : 0.3);
-    if (hit) sfx.boing(1);
+    sfx.boom(); sfx.rainbow();
+    return true;
   }
 
-  /* ---------- the children's hands: building ---------- */
+  /* A jump on an empty pad changes which tower it will be. */
+  _jump(i, k){
+    k.hop = 1;
+    const at = k.at;
+    if (!at || at.kind !== 'pad' || this.towers.has(at.i)) return;
+    this.picks.set(at.i, (this.picks.get(at.i) + 1) % KINDS.length);
+    this.work.delete(`p${at.i}`);
+    this.seen.jumped = true;
+    sfx.boing(2);
+    const pad = PADS[at.i];
+    for (let q = 0; q < 10; q++) this._spark(pad.x, pad.y - 0.06, PLAYER_COLORS[i]);
+  }
 
-  _handsOf(){
-    const out = [];
+  /* Where a knight is standing: on a pad, at the castle, by the horn, or
+     out in the meadow. */
+  _spot(k){
+    let best = null, bd = AT_PAD;
+    for (const pad of PADS){ const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = { kind: 'pad', i: pad.i, id: `p${pad.i}` }; } }
+    if (best) return best;
+    if (onCastle(k.x, k.y + 0.03)) return { kind: 'castle', id: 'castle' };
+    if (this.state === 'build' && Math.hypot((HORN.x - k.x) * ASPECT, HORN.y - k.y) < 0.09) return { kind: 'horn', id: 'horn' };
+    return null;
+  }
+
+  /* ---------- building, mending and building up ---------- */
+
+  /* What standing at a spot does now, and whether it can. */
+  _job(at){
+    if (at.kind === 'horn') return { need: HORN_HOLD, can: this.state === 'build', act: () => { this.breakT = 0; this.seen.called = true; } };
+    if (at.kind === 'castle'){
+      if (this.hearts < this.maxHearts) return { what: 'mend', need: REPAIR, can: true, act: () => this._repair(), again: true };
+      if (this.castleLvl < 3) return { what: 'up', need: CASTLE_UP, can: this.coins >= CASTLE_COST[this.castleLvl - 1], act: () => this._castleUp() };
+      return null;
+    }
+    const tw = this.towers.get(at.i);
+    if (!tw){ const kind = KINDS[this.picks.get(at.i)]; return { what: 'build', need: BUILD, can: this.coins >= COST[kind], act: (who) => this._build(at.i, kind, who) }; }
+    if (tw.hp < tw.max) return { what: 'fix', fix: true, can: true };
+    if (tw.lvl < 3) return { what: 'up', need: UPGRADE, can: this.coins >= upgradeCost(tw.kind, tw.lvl), act: (who) => this._upgrade(at.i, who) };
+    return null;
+  }
+
+  _work(dt){
+    /* Who is standing where, and how hard they're hammering. */
+    const at = new Map();
     for (let i = 0; i < this.players; i++){
-      const p = pose.players[i];
-      if (!p || !p.present) continue;
-      const hs = pose.mouse.active ? [['r', p.hands.right]] : [['l', p.hands.left], ['r', p.hands.right]];
-      for (const [side, h] of hs) out.push({ who: i, key: i + side, h });
+      const k = this.knights[i];
+      if (!k.at || !pose.players[i].present) continue;
+      const e = at.get(k.at.id) || { at: k.at, rate: 0, who: i };
+      const ham = this.hammering(k);
+      if (ham) this.seen.hammered = true;
+      e.rate += ham ? HAMMER : 1;
+      at.set(k.at.id, e);
     }
-    return out;
-  }
-
-  /* The build bubbles round a pad: above it, or below if it's near the top. */
-  choices(i){
-    const pad = PADS[i], up = pad.y > 0.22 ? -1 : 1;
-    return KINDS.map((kind, k) => {
-      const a = (up < 0 ? -Math.PI / 2 : Math.PI / 2) + (k - 1) * 0.85 * -up;
-      return { kind, x: pad.x + Math.cos(a) * CHOICE_D / ASPECT, y: pad.y + Math.sin(a) * CHOICE_D };
-    });
-  }
-
-  /* What a hand is over: a build bubble, a pad, the castle, or nothing. */
-  _target(h){
-    const d = (x, y) => Math.hypot((h.x - x) * ASPECT, h.y - y);
-    for (const [i] of this.menus){
-      for (const ch of this.choices(i)) if (d(ch.x, ch.y) < CHOICE_R * 1.6) return { id: `c${i}${ch.kind}`, pad: i, kind: ch.kind, x: ch.x, y: ch.y };
-    }
-    for (const pad of PADS) if (d(pad.x, pad.y - 0.02) < PAD_R * 1.5) return { id: `p${pad.i}`, pad: pad.i, x: pad.x, y: pad.y - 0.06 };
-    if (onCastle(h.x, h.y)) return { id: 'castle', castle: true, x: CASTLE.x, y: CASTLE_BASE - 0.2 };
-    if (d(HORN.x, HORN.y) < 0.08) return { id: 'horn', horn: true, x: HORN.x, y: HORN.y };
-    return null;
-  }
-
-  /* What holding on a target does, how long it takes, and whether it can
-     happen now. */
-  _job(tg){
-    if (tg.kind) return { need: BUILD, can: this.coins >= COST[tg.kind], act: (who) => this._build(tg.pad, tg.kind, who) };
-    if (tg.horn) return { need: HORN_HOLD, can: this.state === 'build', act: () => { this.breakT = 0; this.called = true; } };
-    if (tg.castle) return { need: REPAIR, can: this.hearts < HEARTS, act: () => this._repair(), again: true };
-    const tw = this.towers.get(tg.pad);
-    if (tw) return { need: UPGRADE, can: tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl), act: (who) => this._upgrade(tg.pad, who) };
-    return null;
-  }
-
-  _hands(dt, W, H){
-    /* Hands build only in the build phase; in a wave they're the knights'. */
-    if (this.state !== 'build'){ this.lonely = []; return; }
-    /* Who has a hand on what. */
-    const on = new Map();
-    for (const { who, key, h } of this._handsOf()){
-      const tg = this._target(h);
-      if (!tg){ this.dwell.delete(key); continue; }
-      const e = on.get(tg.id) || { tg, hands: [] };
-      e.hands.push({ who, key, h });
-      on.set(tg.id, e);
-      /* One hand resting on an empty pad brings up its bubbles. */
-      let dw = this.dwell.get(key);
-      if (!dw || dw.id !== tg.id){ dw = { id: tg.id, t: 0 }; this.dwell.set(key, dw); }
-      dw.t += dt;
-      if (tg.pad != null && !tg.kind && !this.towers.has(tg.pad) && dw.t >= OPEN && !this.menus.has(tg.pad)){ this.menus.set(tg.pad, { who, idle: 0 }); sfx.tick(); }
-      const menu = tg.pad != null && this.menus.get(tg.pad);
-      if (menu) menu.idle = 0;
-    }
-    for (const k of [...this.dwell.keys()]) if (![...on.values()].some(e => e.hands.some(x => x.key === k))) this.dwell.delete(k);
-
-    /* The work: two hands (or more) on a target fill it up; fewer let it
-       drain away. */
-    this.lonely = [];
-    for (const [id, e] of on){
-      const job = this._job(e.tg);
-      if (!job) continue;
+    for (const [id, e] of at){
+      const job = this._job(e.at);
       const w = this.work.get(id) || { t: 0 };
-      w.need = job.need; w.can = job.can; w.tg = e.tg; w.seen = true;
-      const n = pose.mouse.active ? 2 : e.hands.length;
-      if (n >= 2 && job.can){
-        w.t += dt * (1 + 0.25 * (n - 2));
-        if (w.t >= job.need){ job.act(e.hands[0].who); w.t = job.again ? 0 : -0.8; }
-      } else {
-        w.t = Math.max(0, w.t - dt);
-        if (n < 2 && job.can) this.lonely.push(e.hands[0].h);
-      }
+      w.seen = true; w.job = job;
       this.work.set(id, w);
+      if (!job || !job.can){ w.t = Math.max(0, w.t - dt); continue; }
+      if (job.fix){
+        const tw = this.towers.get(e.at.i);
+        tw.hp = Math.min(tw.max, tw.hp + TOWER_FIX * e.rate * dt);
+        if (Math.random() < dt * 8) this._spark(PADS[e.at.i].x, PADS[e.at.i].y - 0.08, '#ffe27a');
+        continue;
+      }
+      w.t += dt * e.rate;
+      if (w.t >= job.need){ job.act(e.who); w.t = job.again ? 0 : -0.6; }
     }
+    /* Nobody there: the work drains away. */
     for (const [id, w] of this.work){
       if (!w.seen){ w.t = Math.max(0, w.t - dt); if (w.t <= 0) this.work.delete(id); }
       w.seen = false;
     }
-    this.mend = Math.max(0, (this.mend || 0) - dt * 2);
     const rep = this.work.get('castle');
-    if (rep && rep.t > 0) this.mend = 1;
+    this.mend = rep && rep.t > 0 && rep.job && rep.job.what === 'mend' ? 1 : Math.max(0, this.mend - dt * 2);
   }
 
   _repair(){
-    this.hearts = Math.min(HEARTS, this.hearts + 1);
-    this.repaired = true;
+    this.hearts = Math.min(this.maxHearts, this.hearts + 1);
+    this.seen.repaired = true;
     sfx.jar(this.hearts);
     for (let k = 0; k < 16; k++) this._spark(CASTLE.x + (Math.random() - 0.5) * CASTLE.w * 0.8, CASTLE_BASE - 0.1 - Math.random() * 0.15, '#ffe27a');
   }
 
+  /* The castle built up a level: taller, and more hearts, all full. */
+  _castleUp(){
+    this.coins -= CASTLE_COST[this.castleLvl - 1];
+    this.castleLvl++;
+    this.hearts = this.maxHearts;
+    sfx.fanfare();
+    for (let k = 0; k < 30; k++) this._spark(CASTLE.x + (Math.random() - 0.5) * CASTLE.w, CASTLE_BASE - Math.random() * 0.3, '#ffd24a');
+  }
+
   _build(i, kind, who){
     this.coins -= COST[kind];
-    this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0 });
-    this.menus.delete(i);
-    for (const [k, d] of this.dwell) if (d.id.startsWith(`c${i}`) || d.id === `p${i}`) this.dwell.delete(k);
-    for (const id of [...this.work.keys()]) if (id.startsWith(`c${i}`)) this.work.delete(id);
-    this.built = true;
+    this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0, hp: TOWER_HP[0], max: TOWER_HP[0], hit: 0 });
+    this.seen.built = true;
     sfx.land();
     const pad = PADS[i];
     for (let k = 0; k < 14; k++) this._spark(pad.x, pad.y - 0.04, '#ffd24a');
@@ -428,9 +466,31 @@ class CastleDefense {
     const tw = this.towers.get(i);
     this.coins -= upgradeCost(tw.kind, tw.lvl);
     tw.lvl++;
+    tw.max = TOWER_HP[tw.lvl - 1]; tw.hp = tw.max;
     sfx.gold();
     const pad = PADS[i];
     for (let k = 0; k < 20; k++) this._spark(pad.x, pad.y - 0.08, PLAYER_COLORS[who]);
+  }
+
+  /* Ogres smash at the towers they pass; a tower with no health left
+     crumbles back to an empty pad. */
+  _smash(dt){
+    for (const m of this.monsters){
+      if (m.kind !== 'ogre') continue;
+      const p = this.pos(m);
+      for (const [i, tw] of this.towers){
+        const pad = PADS[i];
+        if (Math.hypot((pad.x - p.x) * ASPECT, pad.y - p.y) > SMASH_R) continue;
+        tw.hp -= OGRE_SMASH * dt; tw.hit = 1;
+        if (Math.random() < dt * 4) this._spark(pad.x, pad.y - 0.06, '#c9a66b');
+        if (tw.hp <= 0){
+          this.towers.delete(i);
+          sfx.thud();
+          for (let q = 0; q < 24; q++) this._spark(pad.x, pad.y - 0.05, '#9a8f86');
+        }
+      }
+    }
+    for (const tw of this.towers.values()) tw.hit = Math.max(0, tw.hit - dt * 3);
   }
 
   /* ---------- towers ---------- */
@@ -531,13 +591,10 @@ class CastleDefense {
 
   /* ---------- showing how ---------- */
 
-  /* Building: until the first tower, a ghostly hand holds over a pad, the
-     bubbles pop up, and it holds on the archer. */
-  get buildHint(){ return !this.built && this.t > 1 ? (this.t - 1) % 6.5 : -1; }
-  /* Clapping: once monsters are about, until someone claps. */
+  /* Clapping: a knight's charge is full for the first time. */
   get clapHint(){
-    if (this.clapped || this.out || !this.monsters.length || this.buildHint >= 0) return null;
-    return this.monsters.slice().sort((a, b) => b.s - a.s)[0];
+    if (this.seen.supered || this.out) return null;
+    return this.knights.slice(0, this.players).find((k, i) => pose.players[i].present && k.charge >= 1) || null;
   }
 
   /* ---------- the ending ---------- */
@@ -546,7 +603,7 @@ class CastleDefense {
     if (!this.out){
       this.out = { t: 0 };
       if (this.lost) sfx.lose(); else sfx.fanfare();
-      this.shots = []; this.menus.clear();
+      this.shots = [];
     }
     const o = this.out;
     o.t += dt; this.t += dt;
@@ -562,153 +619,122 @@ class CastleDefense {
 
   draw(c, W, H){
     drawMeadow(c, W, H);
-    /* How far along each bit of work is; pads glow while a hand is on them
-       or their bubbles are up. */
-    const holding = new Map();
-    for (const [id, w] of this.work) holding.set(id, clamp(w.t / w.need, 0, 1));
-    for (const d of this.dwell.values()) if (!holding.has(d.id)) holding.set(d.id, 0);
     const things = [];
     for (const pad of PADS){
-      const tw = this.towers.get(pad.i);
-      /* Pads glow only in the build phase: that's when they can be used. */
-      const building = this.state === 'build' && !this.out;
-      drawPad(c, W, H, pad, tw || !building ? 0 : this.menus.has(pad.i) ? 1 : holding.has(`p${pad.i}`) ? 0.7 : this.coins >= COST.archer ? 0.25 + 0.15 * Math.sin(this.t * 3 + pad.i) : 0);
-      if (tw) things.push({ y: pad.y, draw: () => drawTower(c, W, H, pad, tw.kind, tw.lvl, tw.aim, PLAYER_COLORS[tw.who] || '#ffffff', this.t, tw.kick) });
+      const tw = this.towers.get(pad.i), here = this.knights.some((k, i) => i < this.players && k.at && k.at.id === `p${pad.i}`);
+      drawPad(c, W, H, pad, tw || this.out ? 0 : here ? 1 : 0.2 + 0.1 * Math.sin(this.t * 3 + pad.i));
+      if (tw) things.push({ y: pad.y, draw: () => {
+        c.save(); if (tw.hit > 0) c.translate(Math.sin(this.t * 60) * tw.hit * H * 0.004, 0);
+        drawTower(c, W, H, pad, tw.kind, tw.lvl, tw.aim, PLAYER_COLORS[tw.who] || '#ffffff', this.t, tw.kick);
+        c.restore();
+      } });
+      /* An empty pad shows the tower it will become, see-through, with its
+         price in coins under it. */
+      else if (!this.out) things.push({ y: pad.y, draw: () => {
+        const kind = KINDS[this.picks.get(pad.i)], can = this.coins >= COST[kind];
+        c.save(); c.globalAlpha = here ? 0.6 : 0.28;
+        drawTower(c, W, H, pad, kind, 1, -Math.PI / 2, 'rgba(0,0,0,0)', this.t, 0);
+        c.globalAlpha = (here ? 1 : 0.5) * (can ? 1 : 0.45);
+        const n = COST[kind];
+        for (let q = 0; q < n; q++) coin(c, (pad.x * W) + (q - (n - 1) / 2) * H * 0.02, (pad.y + 0.045) * H, H * 0.008);
+        c.restore();
+      } });
     }
     for (const m of this.monsters){
       const p = this.pos(m), M = MONSTERS[m.kind], dance = this.out && this.lost ? Math.abs(Math.sin(this.t * 6 + m.wob)) * 0.03 : 0;
       things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max) });
     }
-    /* The knights, among everything else; their flags on the ground. */
+    /* The knights, among everything else. */
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
       if (!pose.players[i].present) continue;
-      if (!this.out && pose.mouse.active && this.state === 'wave' && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
-      /* Which way the child is leaning: an arrow on the ground under the
-         knight, solid while they march, faint while they're still. */
-      if (!this.out && k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
+      if (!this.out && pose.mouse.active && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+      if (!this.out){
+        /* The charge ring round its feet; the lean arrow under it. */
+        drawCharge(c, k.x * W, k.y * H, KNIGHT_SIZE * H, k.charge, PLAYER_COLORS[i], this.t);
+        if (k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
+      }
+      const hop = Math.sin(k.hop * Math.PI) * KNIGHT_SIZE * 0.6;
       things.push({ y: k.y, draw: () => {
-        for (const r of k.rings) drawClapRing(c, k.x * W, k.y * H, CLAP_R * H, r.k, PLAYER_COLORS[i]);
-        drawKnight(c, k.x * W, k.y * H, KNIGHT_SIZE * H, this.t + i, PLAYER_COLORS[i], k.dir, k.walk, k.clap, (x, y, r) => {
+        for (const r of k.rings) drawClapRing(c, k.x * W, k.y * H, SUPER_R * H, r.k, PLAYER_COLORS[i]);
+        drawKnight(c, k.x * W, (k.y - hop) * H, KNIGHT_SIZE * H, this.t + i, PLAYER_COLORS[i], k.dir, k.walk, k.clap, (x, y, r) => {
           if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
           else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
-        });
+        }, k.swing);
       } });
     }
-    things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, HEARTS, this.held, this.castleHit, this.mend) });
+    things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, this.maxHearts, this.held, this.castleHit, this.mend, this.castleLvl) });
     things.sort((a, b) => a.y - b.y);
     for (const th of things) th.draw();
     drawChest(c, W, H, this.coins, this.t);
-    /* The war horn, through the build phase: its ring is the time left. */
-    if (this.state === 'build' && !this.out) drawHorn(c, HORN.x * W, HORN.y * H, H * 0.095, this.t, clamp(this.breakT / (this.wave ? BUILD_TIME : FIRST_BUILD), 0, 1), holding.get('horn') || 0);
+    /* The war horn, between waves: its ring is the time left. */
+    if (this.state === 'build' && !this.out){
+      const w = this.work.get('horn');
+      drawHorn(c, HORN.x * W, HORN.y * H, H * 0.095, this.t, clamp(this.breakT / (this.wave ? BUILD_TIME : FIRST_BUILD), 0, 1), w ? clamp(w.t / HORN_HOLD, 0, 1) : 0);
+    }
     for (const s of this.shots) drawShot(c, W, H, s);
     if (!this.out){
-      this._drawRings(c, W, H, holding);
-      this._drawMenus(c, W, H, holding);
+      this._drawTowerBars(c, W, H);
+      this._drawWork(c, W, H);
       this._drawHints(c, W, H);
     }
     this._drawBits(c, W, H);
-    this.avatars.drawBodies(c, W, H, this.players, [], 0.16);
-    if (!this.out) this.avatars.drawMitts(c, W, H, this.players);
   }
 
-  /* Rings filling round a tower being upgraded and over the castle being
-     mended; and beside a lone hand on either, a ghostly second hand
-     beckoning, because it takes two. */
-  _drawRings(c, W, H, holding){
-    const mend = holding.get('castle');
-    if (mend != null && this.hearts < HEARTS){
-      const x = CASTLE.x * W, y = (CASTLE_BASE - 0.2) * H, r = H * 0.07;
-      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = H * 0.01; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
-      c.strokeStyle = '#ff4f6a'; c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + mend * 6.2832); c.stroke();
-      heart(c, x, y, r * 0.45, '#ff4f6a');
-    }
-    for (const h of this.lonely){
-      const a = 0.45 + 0.35 * Math.sin(this.t * 6), x = (h.x + 0.05 / ASPECT * 1.6) * W, y = h.y * H, r = H * 0.028;
-      c.save(); c.globalAlpha = a;
-      c.strokeStyle = '#fff6e2'; c.lineWidth = H * 0.006; c.setLineDash([H * 0.01, H * 0.008]);
-      c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
-      c.restore();
-    }
+  /* Health bars over towers an ogre has hurt. */
+  _drawTowerBars(c, W, H){
     for (const [i, tw] of this.towers){
-      const k = holding.get(`p${i}`);
-      if (k == null) continue;
-      const pad = PADS[i], x = pad.x * W, y = (pad.y - 0.06) * H, r = H * 0.075;
-      const can = tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl);
-      c.strokeStyle = 'rgba(255,255,255,.4)'; c.lineWidth = H * 0.008; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
-      if (can){ c.strokeStyle = '#ffd24a'; c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + k * 6.2832); c.stroke(); }
-      /* The upgrade's price, as coins, under the ring. */
-      if (tw.lvl < 3){
-        const n = upgradeCost(tw.kind, tw.lvl);
-        c.globalAlpha = can ? 1 : 0.45;
-        for (let q = 0; q < n; q++) coin(c, x + (q - (n - 1) / 2) * H * 0.022, y + r + H * 0.02, H * 0.009);
-        c.globalAlpha = 1;
-      } else star(c, x, y + r + H * 0.02, H * 0.015, '#ffd24a');
+      if (tw.hp >= tw.max) continue;
+      const pad = PADS[i], bw = H * 0.07, x = pad.x * W - bw / 2, y = (pad.y - 0.2 - tw.lvl * 0.012) * H;
+      c.fillStyle = 'rgba(40,30,50,.55)'; c.fillRect(x, y, bw, H * 0.01);
+      c.fillStyle = tw.hp / tw.max > 0.5 ? '#6fdc6a' : tw.hp / tw.max > 0.25 ? '#ffd24a' : '#ff5d5d'; c.fillRect(x, y, bw * Math.max(0, tw.hp / tw.max), H * 0.01);
     }
   }
 
-  _drawMenus(c, W, H, holding){
-    for (const [i, m] of this.menus){
-      const pad = PADS[i];
-      for (const ch of this.choices(i)){
-        c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = H * 0.003;
-        c.beginPath(); c.moveTo(pad.x * W, (pad.y - 0.02) * H); c.lineTo(ch.x * W, ch.y * H); c.stroke();
+  /* Rings filling over whatever a knight is working on, with the price of an
+     upgrade in coins under it; a hammer bangs while they hammer. */
+  _drawWork(c, W, H){
+    for (let i = 0; i < this.players; i++){
+      const k = this.knights[i];
+      if (!k.at || !pose.players[i].present || k.at.kind === 'horn') continue;
+      const w = this.work.get(k.at.id), job = w && w.job;
+      if (!job) continue;
+      let x, y;
+      if (k.at.kind === 'castle'){ x = CASTLE.x * W; y = (CASTLE_BASE - 0.22) * H; }
+      else { const pad = PADS[k.at.i]; x = pad.x * W; y = (pad.y - 0.07) * H; }
+      const r = H * 0.06, frac = job.need ? clamp(w.t / job.need, 0, 1) : 1;
+      if (!job.fix) drawWorkRing(c, x, y, r, job.can ? frac : 0, job.what === 'mend' ? '#ff4f6a' : '#ffd24a');
+      if (job.what === 'mend') heart(c, x, y, r * 0.45, '#ff4f6a');
+      if (job.what === 'up'){
+        const n = k.at.kind === 'castle' ? CASTLE_COST[this.castleLvl - 1] : upgradeCost(this.towers.get(k.at.i).kind, this.towers.get(k.at.i).lvl);
+        const rows = Math.ceil(n / 12);
+        c.save(); c.globalAlpha = job.can ? 1 : 0.45;
+        for (let q = 0; q < n; q++){ const row = Math.floor(q / 12), col = q % 12, inRow = Math.min(12, n - row * 12); coin(c, x + (col - (inRow - 1) / 2) * H * 0.02, y + r + H * (0.02 + row * 0.022), H * 0.008); }
+        c.restore();
+        star(c, x, y, r * 0.4, '#ffd24a');
       }
-      for (const ch of this.choices(i)){
-        const fill = holding.get(`c${i}${ch.kind}`) || 0;
-        drawChoice(c, ch.x * W, ch.y * H, CHOICE_R * H, ch.kind, COST[ch.kind], this.coins >= COST[ch.kind], fill, PLAYER_COLORS[m.who] || '#ffffff');
-      }
+      if (this.hammering(k)) drawHammer(c, x + r * 1.1, y - r * 0.6, r * 0.6, -0.6 + Math.sin(this.t * 18) * 0.6);
     }
   }
 
   _drawHints(c, W, H){
-    const ghost = (x, y, a, fill) => {
+    const ghost = (x, y, a) => {
       const r = H * 0.03;
       c.save(); c.globalAlpha = a;
       const g = c.createRadialGradient(x, y, r * 0.3, x, y, r * 2.4);
       g.addColorStop(0, 'rgba(255,246,226,.6)'); g.addColorStop(1, 'rgba(255,246,226,0)');
       c.fillStyle = g; c.beginPath(); c.arc(x, y, r * 2.4, 0, 6.2832); c.fill();
       c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
-      if (fill > 0){ c.strokeStyle = 'rgba(255,210,74,.95)'; c.lineWidth = H * 0.007; c.beginPath(); c.arc(x, y, r * 1.5, -Math.PI / 2, -Math.PI / 2 + fill * 6.2832); c.stroke(); }
       c.restore();
     };
-    /* Building: one hand goes to a pad and the bubbles pop up; then both
-       hands come together on the archer and hold while it fills. */
-    const u = this.buildHint;
-    if (u >= 0){
-      const pad = PADS[6], ch = this.choices(6)[0];
-      const ease = (a, b) => { const k = clamp((u - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
-      const show = Math.min(ease(0, 0.3), 1 - ease(5.4, 6));
-      const toPad = ease(0.2, 0.9), toCh = ease(1.5, 2.1), second = ease(1.8, 2.5);
-      const x = 0.6 + (pad.x - 0.6) * toPad + (ch.x - pad.x) * toCh, y = 0.7 + (pad.y - 0.02 - 0.7) * toPad + (ch.y - pad.y + 0.02) * toCh;
-      const fill = clamp((u - 2.6) / 2.4, 0, 1);
-      if (u > 1.2 && u < 5.4){
-        /* The bubbles, ghostly. */
-        c.save(); c.globalAlpha = 0.6 * show;
-        this.choices(6).forEach(q => drawChoice(c, q.x * W, q.y * H, CHOICE_R * H, q.kind, COST[q.kind], true, q === ch ? fill : 0, '#fff6e2'));
-        c.restore();
-      }
-      const off = 0.035 / ASPECT;
-      ghost((x - off * second) * W, y * H, show * 0.85, 0);
-      if (second > 0) ghost((x + off * second + (1 - second) * 0.15) * W, (y + (1 - second) * 0.1) * H, show * 0.85 * second, 0);
-    }
-    /* The horn: once there's a tower up, two hands on it call the wave. */
-    if (this.built && this.wave === 0 && this.state === 'build' && !this.called && this.breakT < FIRST_BUILD - 4){
-      const k = (this.t % 2.5) / 2.5, show = Math.min(1, k * 5, (1 - k) * 5);
-      ghost((HORN.x - 0.02) * W, HORN.y * H, show * 0.8, 0); ghost((HORN.x + 0.02) * W, HORN.y * H, show * 0.8, 0);
-    }
-    /* Mending: once the castle has lost a few hearts, two hands on it. */
-    if (this.hearts <= HEARTS - 3 && !this.repaired && !this.out){
-      const k = (this.t % 3) / 3, show = Math.min(1, k * 5, (1 - k) * 5), x = CASTLE.x, y = CASTLE_BASE - 0.2;
-      ghost((x - 0.03) * W, y * H, show * 0.8, 0); ghost((x + 0.03) * W, y * H, show * 0.8, 0);
-    }
-    /* Marching and leaning, in the first wave, under each knight that hasn't
-       gone anywhere yet: footprints stepping, and arrows all round. */
-    if (this.state === 'wave' && !this.out){
-      for (let i = 0; i < this.players; i++){
-        const k = this.knights[i];
-        if (k.driven || !pose.players[i].present) continue;
-        const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H, step = Math.floor(this.t * 3) % 2;
+    for (let i = 0; i < this.players; i++){
+      const k = this.knights[i];
+      if (!pose.players[i].present) continue;
+      const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H;
+      /* Leaning and running: footprints stepping, arrows all round, under a
+         knight that hasn't gone anywhere yet. */
+      if (!k.driven){
+        const step = Math.floor(this.t * 3) % 2;
         c.save(); c.globalAlpha = 0.7;
         for (const side of [-1, 1]){
           const up = (side < 0) === !!step;
@@ -717,22 +743,53 @@ class CastleDefense {
         const pulse = 0.5 + 0.5 * Math.sin(this.t * 4);
         for (const [ax, ay, oy] of [[1, 0, -0.35], [-1, 0, -0.35], [0, 1, 0.3], [0, -1, -1.25]]) arrow(c, x + ax * s * 0.55, y + oy * s, ax, ay, s * (0.18 + pulse * 0.05), '#fff6e2');
         c.restore();
+        continue;
+      }
+      /* Jumping: standing on an empty pad, until someone has jumped to change
+         a tower - a little bouncing arrow over the knight. */
+      if (!this.seen.jumped && k.at && k.at.kind === 'pad' && !this.towers.has(k.at.i)){
+        const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
+        c.save(); c.globalAlpha = 0.8; arrow(c, x, y - s * 1.2 - b, 0, -1, s * 0.3, '#fff6e2'); c.restore();
+      }
+      /* Hammering: while working on something, until someone has hammered -
+         a ghostly fist bobbing up and down beside the knight. */
+      if (!this.seen.hammered && !pose.mouse.active && k.at && k.at.kind !== 'horn' && this.work.get(k.at.id)?.job?.can){
+        ghost(x + s * 0.8, y - s * (0.9 + 0.35 * Math.abs(Math.sin(this.t * 6))), 0.8);
       }
     }
-    /* Clapping: once monsters are about, ghostly hands clap over the knight
-       until someone claps. */
-    const m = this.clapHint;
-    if (m){
-      const k = this.knights[0], u = this.t % 1.2, cl = Math.abs(Math.sin(u / 1.2 * Math.PI * 2)), off = 0.012 + cl * 0.05;
+    /* Building: until the first tower, the nearest empty pad to the first
+       knight pulses, with a trail of dots leading to it. */
+    if (!this.seen.built && this.knights[0] && pose.players[0].present){
+      const k = this.knights[0];
+      let best = null, bd = 9;
+      for (const pad of PADS){ if (this.towers.has(pad.i)) continue; const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = pad; } }
+      if (best && bd > AT_PAD){
+        c.save(); c.fillStyle = '#fff6e2';
+        for (let q = 1; q < 8; q++){ const u = q / 8, a = 0.25 + 0.6 * Math.max(0, Math.sin(this.t * 4 - q * 0.6)); c.globalAlpha = a; c.beginPath(); c.arc((k.x + (best.x - k.x) * u) * W, (k.y + (best.y - k.y) * u) * H, H * 0.007, 0, 6.2832); c.fill(); }
+        c.restore();
+      }
+    }
+    /* The horn: once there's a tower up, before the first wave, it glows. */
+    if (this.seen.built && this.wave === 0 && this.state === 'build' && !this.seen.called){
+      c.save(); c.globalAlpha = 0.35 + 0.3 * Math.sin(this.t * 5);
+      const g = c.createRadialGradient(HORN.x * W, HORN.y * H, 0, HORN.x * W, HORN.y * H, H * 0.12);
+      g.addColorStop(0, 'rgba(255,240,180,.9)'); g.addColorStop(1, 'rgba(255,240,180,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(HORN.x * W, HORN.y * H, H * 0.12, 0, 6.2832); c.fill();
+      c.restore();
+    }
+    /* Clapping: the first time a knight is fully charged, ghostly hands clap
+       over it until someone lets the super go. */
+    const k = this.clapHint;
+    if (k){
+      const u = this.t % 1.2, cl = Math.abs(Math.sin(u / 1.2 * Math.PI * 2)), off = 0.012 + cl * 0.05;
       const x = k.x, y = k.y - KNIGHT_SIZE * 1.6;
-      ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85, 0); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85, 0);
-      if (cl < 0.15){ c.save(); c.globalAlpha = 0.5; drawClapRing(c, k.x * W, k.y * H, CLAP_R * H, 0.3, '#fff6e2'); c.restore(); }
+      ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85);
     }
   }
 
   _drawLean(c, k, W, H, col){
     const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H, len = s * (0.35 + 0.5 * k.lean.k);
-    c.save(); c.globalAlpha = k.march > 0.2 ? 0.95 : 0.4;
+    c.save(); c.globalAlpha = 0.55 + 0.4 * k.march;
     arrow(c, x + k.lean.x * s * 0.3, y + k.lean.y * s * 0.18 + s * 0.05, k.lean.x, k.lean.y * 0.6, len, col);
     c.restore();
   }
