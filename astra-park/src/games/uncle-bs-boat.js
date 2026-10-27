@@ -2,7 +2,7 @@ import { clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
-import { drawKid, drawPup } from './fire-truck-art.js';
+import { drawKid, drawPup } from '../ui/kids.js';
 import { SPECIES, byId, pickSpecies, drawFish } from './fishing-fish.js';
 import { WATER, SEATS, UNCLE_X, drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront,
          drawUncle, drawCrew, drawRod, drawLine, drawRipple } from './fishing-art.js';

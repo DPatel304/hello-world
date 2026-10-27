@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { silhouette } from '../ui/avatars.js';
 import { Scene } from './pop-party-scene.js';
-import { drawKid } from './fire-truck-art.js';
+import { drawKid } from '../ui/kids.js';
 import { MATCH, HEAD, ANIMALS, POSES, closest, frameOf, targetOf, bodyIn } from './copycat-poses.js';
 import { DRAW, costume } from './copycat-art.js';
 import { armToward } from './moon-art.js';

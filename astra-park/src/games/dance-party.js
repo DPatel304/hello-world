@@ -3,25 +3,25 @@ import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { silhouette } from '../ui/avatars.js';
-import { drawKid } from './fire-truck-art.js';
+import { drawKid } from '../ui/kids.js';
 import { bodyIn } from './copycat-poses.js';
 import { armToward } from './moon-art.js';
 import { DRAW } from './copycat-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from './dance-art.js';
 
-/* Harlyn & Auntie K's Dance Party. A disco stage - curtains,
-   marquee lights, a mirror ball, spotlights, a floor that lights up - with
-   the two of them dancing on it in sparkly outfits, the park's animals
-   cheering from the front, and the family's own songs playing loud.
+/* Mama's Dance Party. A disco stage - curtains, marquee lights, a mirror
+   ball, spotlights, a floor that lights up - with Mama dancing on it in her
+   sparkly pink dress, the park's animals cheering from the front, and the
+   family's own songs playing loud.
 
    There are no moves to copy and no way to do it wrong: the children just
    dance, as glowing figures in their colours with their own faces, and the
    more they move, the more the party builds. The lights come up and the
    mirror ball spins faster, the floor lights up, balloons float up, then
    confetti - until the big moment: confetti cannons, streamers, the crowd
-   jumping, and both dancers spinning round together. Then it builds
-   again. If the children stand still for a while, the dancers beckon them
-   in. At the end, everyone takes a curtsy. */
+   jumping, and Mama spinning round. Then it builds again. If the children
+   stand still for a while, Mama beckons them in. At the end, she takes a
+   curtsy. */
 
 export const ROUND = 180;
 export const FINALE = ROUND - 10;
@@ -35,7 +35,7 @@ const MOVING = [L.L_WRIST, L.R_WRIST, L.L_ANKLE, L.R_ANKLE, L.NOSE, L.L_HIP, L.R
 const CROWD = [['bunny', 0.06], ['frog', 0.15], ['bird', 0.24], ['elephant', 0.76], ['starfish', 0.85], ['giraffe', 0.94]];
 
 export default {
-  id: 'dance-party', name: "Harlyn & Auntie K's Dance Party", stars: 1, accent: '#ff4fa3', secs: ROUND,
+  id: 'dance-party', name: "Mama's Dance Party", stars: 1, accent: '#ff4fa3', secs: ROUND,
   /* A party wants its music up from the start, and arms go up a lot. */
   loud: true, pauseHold: 4,
   create(n){ return new Party(n); }
@@ -179,8 +179,8 @@ class Party {
     drawMirrorBall(c, W, H, this.t, e);
     for (const bt of this.bits) if (bt.kind === 'balloon') this._drawBalloon(c, bt, W, H);
 
-    /* The two dancers: each on her own move, changing every eight beats;
-       spinning together at a big moment; beckoning if nobody's dancing. */
+    /* Mama: a new move every eight beats; spinning round at a big moment;
+       beckoning if nobody's dancing. */
     DANCERS.forEach((d, i) => {
       let move = MOVES[(Math.floor(n / 8) + i * 2) % MOVES.length], spin = 0;
       if (this.out) move = 'bow';

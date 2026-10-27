@@ -3,13 +3,10 @@
    the camera, the clock, the HUD, pausing and every screen around the round -
    adding a game means adding a file and a line here. */
 import popParty from './pop-party.js';
-import fireflyNight from './firefly-night.js';
-import fireTruck from './fire-truck.js';
 import moonBounce from './moon-bounce.js';
 import animalCopycat from './animal-copycat.js';
-import snowSled from './snow-sled.js';
 import uncleBsBoat from './uncle-bs-boat.js';
 import danceParty from './dance-party.js';
 
-export const GAMES = [popParty, fireflyNight, fireTruck, moonBounce, animalCopycat, snowSled, uncleBsBoat, danceParty];
+export const GAMES = [popParty, moonBounce, animalCopycat, uncleBsBoat, danceParty];
 export const byId = (id) => GAMES.find(g => g.id === id);

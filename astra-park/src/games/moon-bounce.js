@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { friend } from '../ui/friend.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { drawKid } from './fire-truck-art.js';
+import { drawKid } from '../ui/kids.js';
 import { GROUND, drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from './moon-art.js';
 
 /* Moon Bounce. The children are astronauts on the moon - their own faces
