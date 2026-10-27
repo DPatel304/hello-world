@@ -143,7 +143,7 @@ export const DRAW = {
     /* The trunk, swinging; up and trumpeting when happy. */
     /* The trunk, outlined so it reads against the body behind it; it swings,
        and goes up to trumpet when happy. */
-    c.save(); c.translate(x, hy + 6 * k); c.rotate(sw + (happy ? Math.PI * 0.85 : 0));
+    c.save(); c.translate(x, hy + (happy ? 11 : 6) * k); c.rotate(happy ? -1.0 + sw * 0.3 : sw);
     const trunk = [[0, 0], [0, 14 * k], [3 * k, 25 * k], [9 * k, 29 * k]];
     limb(c, '#7f879b', 11 * k, trunk);
     limb(c, '#b3b9ca', 8 * k, trunk);

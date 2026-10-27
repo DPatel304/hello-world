@@ -202,3 +202,13 @@ test('no eyes, no face', () => {
   assert.equal(faceBox(null, 1280, 720), null);
   assert.equal(faceBox(face(), 0, 0), null);
 });
+
+test('waving at a neighbour on the sidewalk makes them wave back', () => {
+  away();
+  const inst = game.create(1);
+  inst.stop = null;
+  inst.folks = [{ at: inst.dist + 0.8, kind: 'bunny', wave: 0 }];
+  inst.nextFolk = 1e9;
+  for (let k = 0; k < 8; k++){ hand(0.5 + (k % 2 ? 0.06 : -0.06), 0.3); run(inst, 0.2); }
+  assert.ok(inst.greeted >= 1);
+});

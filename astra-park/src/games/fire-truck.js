@@ -96,6 +96,8 @@ class FireTruck {
     this.avatars = new Avatars();
     this.faces = new FaceCam();
     this.wave = new WaveWatch();
+    /* Neighbours out on the sidewalk, who wave back when you wave. */
+    this.folks = []; this.nextFolk = 0.5;
     this.out = null;
   }
 
@@ -146,9 +148,35 @@ class FireTruck {
       this._settleLadder(dt);
       if (this.cheer >= CHEER){ this.mode = 'drive'; sfx.honk(); this._next(); }
     }
+    this._stepFolks(dt);
     this._stepBits(dt);
     this.town.step(dt, { t: this.t, p: this.t / ROUND, dist: this.dist, clear: this._clear() });
   }
+
+  /* Every so often someone is out on the sidewalk - a cat, a bunny, a puppy -
+     never where the truck has a job to do. Wave as you pass and they wave
+     back, with a heart. */
+  _stepFolks(dt){
+    while (this.nextFolk < this.dist + 1.4){
+      const at = this.nextFolk + STOP_X;
+      const busy = [this.stop, this.past].some(st => st && Math.abs(st.at - at) < 0.3);
+      if (!busy) this.folks.push({ at, kind: ANIMAL_KINDS[(Math.random() * ANIMAL_KINDS.length) | 0], wave: 0 });
+      this.nextFolk += 0.6 + Math.random() * 0.6;
+    }
+    this.folks = this.folks.filter(f => f.at > this.dist - 0.3);
+    for (const f of this.folks) f.wave = Math.max(0, f.wave - dt * 0.6);
+    if (this.mode === 'stop' && this.stop && this.stop.kind === 'ducks') return;
+    if (!this.wave.step(dt, handsFrom(pose))) return;
+    this.wave.meter = 0; this.wave.turns = 0;
+    const seen = this.folks.filter(f => { const x = f.at - this.dist; return x > TRUCK_X + TRUCK_LEN && x < 1; });
+    if (!seen.length) return;
+    /* Whoever on screen hasn't waved yet gets this one. */
+    const f = seen.reduce((a, b) => (b.wave < a.wave ? b : a));
+    if (f.wave < 0.4){ (f.kind === 'puppy' ? sfx.bark : f.kind === 'bunny' ? sfx.twinkle : sfx.meow)(); this._bit('heart', f.at - this.dist, SIDEWALK - 0.12); }
+    f.wave = 1;
+  }
+
+  get greeted(){ return this.folks.filter(f => f.wave > 0).length; }
 
   /* Each player's pointing hand: whichever is higher. */
   _aims(){
@@ -318,6 +346,7 @@ class FireTruck {
     if (this.stop) out.push([this.stop.at - 0.15, this.stop.at + 0.15]);
     if (this.past) out.push([this.past.at - 0.15, this.past.at + 0.15]);
     if (this.out) out.push([this.out.at - 0.2, this.out.at + 0.2]);
+    for (const f of this.folks) out.push([f.at - 0.05, f.at + 0.05]);
     return out;
   }
 
@@ -377,6 +406,7 @@ class FireTruck {
 
   draw(c, W, H){
     this.town.drawBack(c, W, H);
+    for (const f of this.folks) this._drawFolk(c, f, W, H);
     for (const st of [this.past, this.stop]) if (st) this._drawStop(c, st, W, H);
     if (this.out) this._drawStation(c, W, H);
     this.town.drawRoad(c, W, H);
@@ -464,6 +494,17 @@ class FireTruck {
       for (let k = 1; k < 6; k++){ const px = x - w + (w * 2) * k / 6 + (k % 2 ? 0 : 0); c.moveTo(px, k % 2 ? base - h : base - h / 2); c.lineTo(px, k % 2 ? base - h / 2 : base); }
       c.stroke();
     }
+  }
+
+  _drawFolk(c, f, W, H){
+    const x = (f.at - this.dist) * W, base = SIDEWALK * H + H * 0.012, s = H / 900 * 3.3;
+    if (x < -W * 0.1 || x > W * 1.1) return;
+    animal(c, x, base, s, f.kind, this.t + f.at * 10, f.wave > 0);
+    /* A paw up, waving back - and a little wave even before, to invite one. */
+    const u = 10 * s, k = f.wave > 0 ? 1 : 0.35, a = -1.2 + Math.sin(this.t * (f.wave > 0 ? 12 : 3) + f.at * 7) * 0.5 * k;
+    c.strokeStyle = { cat: '#d9822e', kitten: '#8a91a0', bunny: '#e2d9cc', puppy: '#9c6b40' }[f.kind] || '#d9822e';
+    c.lineWidth = u * 0.55; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x + u * 1.1, base - u * 1.6); c.lineTo(x + u * 1.1 + Math.cos(a) * u * 1.6 * (0.6 + 0.4 * k), base - u * 1.6 + Math.sin(a) * u * 1.6 * (0.6 + 0.4 * k)); c.stroke();
   }
 
   _drawCrossing(c, st, W, H){

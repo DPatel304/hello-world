@@ -77,7 +77,7 @@ class Copycat {
     this.faces.step(dt);
     const a = this.cur;
     a.t += dt;
-    if (a.phase === 'enter' && a.t >= ENTER){ a.phase = 'pose'; a.t = 0; }
+    if (a.phase === 'enter' && a.t >= ENTER){ a.phase = 'pose'; a.t = 0; sfx.twinkle(); }
     else if (a.phase === 'pose') this._copying(dt, W, H);
     else if (a.phase === 'cheer' && a.t >= CHEER){ a.phase = 'leave'; a.t = 0; }
     else if (a.phase === 'leave' && a.t >= LEAVE){
@@ -95,7 +95,11 @@ class Copycat {
     if (!p.present) return null;
     if (pose.mouse.active){
       const lm = bodyIn('stand', clamp(p.hands.right.x, 0.25, 0.75), 0.6, 0.17);
-      lm[L.R_WRIST] = { x: p.hands.right.x, y: p.hands.right.y, v: 0.9 };
+      /* The hand goes toward the pointer, but only as far as an arm reaches. */
+      const sh = lm[L.R_SHOULDER], dx = (p.hands.right.x - sh.x) * 16 / 9, dy = p.hands.right.y - sh.y;
+      const k = Math.min(1, 0.17 * 1.1 / (Math.hypot(dx, dy) || 1));
+      lm[L.R_WRIST] = { x: sh.x + (p.hands.right.x - sh.x) * k, y: sh.y + dy * k, v: 0.9 };
+      lm[L.R_ELBOW] = { x: (sh.x + lm[L.R_WRIST].x) / 2, y: (sh.y + lm[L.R_WRIST].y) / 2 + 0.02, v: 0.9 };
       return lm;
     }
     return p.lm;
@@ -180,7 +184,11 @@ class Copycat {
 
   _drawPerformer(c, a, W, H){
     let x = a.x, base = BASE, s = SIZE, happy = a.phase === 'cheer';
-    if (a.phase === 'enter'){ const k = a.t / ENTER, e = 1 - (1 - k) * (1 - k); x = (a.side > 0 ? 1.15 : -0.15) + (a.x - (a.side > 0 ? 1.15 : -0.15)) * e; }
+    if (a.phase === 'enter'){
+      /* Hopping in from the side. */
+      const k = a.t / ENTER, e = 1 - (1 - k) * (1 - k), from = a.side > 0 ? 1.15 : -0.15;
+      x = from + (a.x - from) * e; base = BASE - Math.abs(Math.sin(k * Math.PI * 3)) * 0.04 * (1 - k);
+    }
     if (a.phase === 'leave'){
       /* Up and away to the back of the parade. */
       const k = a.t / LEAVE, e = k * k * (3 - 2 * k);

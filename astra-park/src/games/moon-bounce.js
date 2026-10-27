@@ -119,6 +119,12 @@ class MoonBounce {
       const b = this.bodies[i];
       if (!b.air) continue;
       b.lift += b.vy * dt; b.vy -= GRAVITY * dt;
+      /* Little puffs from the backpack while floating. */
+      const lm = this._lm(i);
+      if (lm && Math.random() < dt * 30){
+        const x = (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, y = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2 - b.lift;
+        this._bit('jet', x + (Math.random() - 0.5) * 0.02, y);
+      }
       if (b.lift <= 0){
         b.lift = 0; b.vy = 0; b.air = false;
         sfx.land();
@@ -239,6 +245,7 @@ class MoonBounce {
     if (kind === 'spark'){ b.vx = Math.cos(a) * 0.08; b.vy = Math.sin(a) * 0.12; }
     if (kind === 'dust'){ b.vx = (Math.random() - 0.5) * 0.1; b.vy = -0.02 - Math.random() * 0.03; b.life = 1.2; }
     if (kind === 'trail'){ b.life = 0.6; }
+    if (kind === 'jet'){ b.vx = (Math.random() - 0.5) * 0.03; b.vy = 0.12 + Math.random() * 0.06; b.life = 0.55; }
     this.bits.push(b);
     if (this.bits.length > 300) this.bits.shift();
   }
@@ -327,6 +334,7 @@ class MoonBounce {
     for (const b of this.bits){
       const k = b.age / b.life;
       if (b.kind === 'dust'){ c.fillStyle = `rgba(210,205,235,${0.6 * (1 - k)})`; c.beginPath(); c.arc(b.x * W, b.y * H, H * (0.008 + k * 0.012), 0, 6.2832); c.fill(); }
+      else if (b.kind === 'jet'){ c.fillStyle = `rgba(170,230,255,${0.7 * (1 - k)})`; c.beginPath(); c.arc(b.x * W, b.y * H, H * (0.01 + k * 0.012), 0, 6.2832); c.fill(); }
       else if (b.kind === 'trail'){ c.fillStyle = `rgba(255,180,220,${0.7 * (1 - k)})`; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.008 * (1 - k), 0, 6.2832); c.fill(); }
       else { c.fillStyle = `rgba(255,236,150,${1 - k})`; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.006, 0, 6.2832); c.fill(); }
     }
