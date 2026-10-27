@@ -110,9 +110,13 @@ function body(c, st){
   c.fillStyle = lamp; c.fillRect(918, -462, 180, 180);
   c.fillStyle = '#fff6d0'; c.beginPath(); c.arc(1006, -372, 22, 0, 6.2832); c.fill();
   c.strokeStyle = '#d7dbe4'; c.lineWidth = 6; c.stroke();
-  c.strokeStyle = '#4a4d58'; c.lineWidth = 8;
-  c.beginPath(); c.moveTo(1002, -470); c.lineTo(1040, -470); c.stroke();
-  c.fillStyle = '#4a4d58'; c.beginPath(); c.roundRect(1032, -518, 18, 86, 6); c.fill();
+  /* The side mirror: a chrome arm and a tall mirror with a glint of sky. */
+  c.strokeStyle = '#8b93a6'; c.lineWidth = 7; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(1002, -455); c.lineTo(1030, -478); c.stroke();
+  c.fillStyle = '#5a5f6e'; c.beginPath(); c.roundRect(1022, -548, 30, 92, 10); c.fill();
+  const glass = c.createLinearGradient(1026, -544, 1048, -462);
+  glass.addColorStop(0, '#e8f4ff'); glass.addColorStop(0.5, '#9fc9ea'); glass.addColorStop(1, '#cfe6fb');
+  c.fillStyle = glass; c.beginPath(); c.roundRect(1027, -543, 20, 82, 7); c.fill();
   const bumper = c.createLinearGradient(0, -134, 0, -92);
   bumper.addColorStop(0, '#f6f8fc'); bumper.addColorStop(1, '#8b93a6');
   c.fillStyle = bumper; c.beginPath(); c.roundRect(950, -134, 80, 40, 10); c.fill();

@@ -44,18 +44,7 @@ export class Town {
     const L = this._L();
     const tint = (col, haze = 0) => mix(mix(col, L.light, L.amt), L.low, haze);
 
-    const sky = c.createLinearGradient(0, 0, 0, H * 0.75);
-    sky.addColorStop(0, rgb(L.top)); sky.addColorStop(0.6, rgb(L.mid)); sky.addColorStop(1, rgb(L.low));
-    c.fillStyle = sky; c.fillRect(0, 0, W, H);
-
-    /* The sun, sinking slowly to the right over the round. */
-    const sx = W * (0.3 + this.p * 0.5), sy = H * (0.16 + this.p * 0.22), sr = H * 0.06;
-    if (!this.lite){
-      const glow = c.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 4);
-      glow.addColorStop(0, rgb(mix(L.sun, [255, 255, 255], 0.4), 0.7)); glow.addColorStop(1, rgb(L.sun, 0));
-      c.fillStyle = glow; c.fillRect(sx - sr * 4, sy - sr * 4, sr * 8, sr * 8);
-    }
-    c.fillStyle = rgb(L.sun); c.beginPath(); c.arc(sx, sy, sr, 0, 6.2832); c.fill();
+    this._sky(c, W, H, L);
 
     for (const cl of CLOUDS){
       const span = 1.6, x = ((((cl.x - this.dist * 0.03 - this.t * 0.004) % span) + span) % span - 0.3) * W;
@@ -90,6 +79,21 @@ export class Town {
     c.fillStyle = 'rgba(255,240,190,.85)';
     const dash = 0.16, off = ((this.dist / dash) % 1) * dash;
     for (let x = -off; x < 1.05; x += dash) c.fillRect(x * W, H * 0.972, W * dash * 0.5, H * 0.009);
+  }
+
+  /* The sky and the sun only change as the afternoon wears on, so they are
+     painted into a layer that's redone a hundred times a round, not sixty
+     times a second. */
+  _sky(c, W, H, L){
+    const key = `${W}x${H}:${Math.round(this.p * 100)}`;
+    if (this.skyKey !== key){
+      this.skyKey = key;
+      try { this.skyLayer = this.skyLayer || document.createElement('canvas'); } catch { this.skyLayer = null; }
+      const cv = this.skyLayer && this.skyLayer.getContext ? this.skyLayer : null;
+      if (cv){ cv.width = Math.round(W); cv.height = Math.round(H * 0.8); paintSky(cv.getContext('2d'), W, H, L, this.p, this.lite); }
+    }
+    if (this.skyLayer && this.skyLayer.getContext) c.drawImage(this.skyLayer, 0, 0, W, H * 0.8);
+    else paintSky(c, W, H, L, this.p, this.lite);
   }
 
   /* The row of houses and trees across the street, a little hazy. */
@@ -168,6 +172,20 @@ export class Town {
     }
     c.lineTo(W, H); c.closePath(); c.fill();
   }
+}
+
+function paintSky(c, W, H, L, p, lite){
+  const sky = c.createLinearGradient(0, 0, 0, H * 0.75);
+  sky.addColorStop(0, rgb(L.top)); sky.addColorStop(0.6, rgb(L.mid)); sky.addColorStop(1, rgb(L.low));
+  c.fillStyle = sky; c.fillRect(0, 0, W, H * 0.8);
+  /* The sun, sinking slowly to the right over the round. */
+  const sx = W * (0.3 + p * 0.5), sy = H * (0.16 + p * 0.22), sr = H * 0.06;
+  if (!lite){
+    const glow = c.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 4);
+    glow.addColorStop(0, rgb(mix(L.sun, [255, 255, 255], 0.4), 0.7)); glow.addColorStop(1, rgb(L.sun, 0));
+    c.fillStyle = glow; c.fillRect(sx - sr * 4, sy - sr * 4, sr * 8, sr * 8);
+  }
+  c.fillStyle = rgb(L.sun); c.beginPath(); c.arc(sx, sy, sr, 0, 6.2832); c.fill();
 }
 
 function puff(c, x, y, w, col){

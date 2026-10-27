@@ -169,9 +169,15 @@ export function pauseOverlay(onResume, onQuit){
 }
 
 /* ---------- lost player ---------- */
+/* A picture first - a child stepping into the camera's frame - for the
+   ones who can't read, and one short line for the ones who can. */
+const STEP_IN = '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+  '<rect x="10" y="10" width="100" height="100" rx="18" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="14 10"/>' +
+  '<g class="kid"><circle cx="60" cy="38" r="11" fill="currentColor"/>' +
+  '<path d="M60 52v26M60 60l-16 10M60 60l16 10M60 78l-11 20M60 78l11 20" stroke="currentColor" stroke-width="7" stroke-linecap="round" fill="none"/></g></svg>';
 export function lostOverlay(){
-  const s = screen('dim');
-  s.append(h('h2', '', 'Step back into frame'));
-  s.append(h('p', 'lede', 'The camera has lost you. The game will carry on as soon as it can see you again.'));
+  const s = screen('dim lost');
+  s.append(h('div', 'stepin', STEP_IN));
+  s.append(h('p', 'lede', 'Step back into view - the game carries on when it can see you.'));
   return s;
 }

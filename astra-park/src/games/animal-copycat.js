@@ -216,19 +216,25 @@ class Copycat {
     const P = (tx, ty) => [f.x + tx * f.u, f.y + ty * f.u];
     const col = `rgba(255,${(255 - 40 * k) | 0},${(255 - 175 * k) | 0},${done ? 0.85 : 0.35 + 0.35 * k})`;
     c.save();
-    c.strokeStyle = col; c.fillStyle = col; c.lineCap = 'round'; c.lineJoin = 'round';
-    c.shadowColor = done ? 'rgba(255,214,90,.9)' : 'rgba(255,255,255,.6)'; c.shadowBlur = f.u * 0.25;
-    c.lineWidth = f.u * 0.3;
-    const line = (...pts) => { c.beginPath(); pts.forEach(([x, y], n) => (n ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); };
-    const sL = P(0.45, -1), sR = P(-0.45, -1), hL = P(0.25, 0), hR = P(-0.25, 0);
-    line(sL, sR, hR, hL, sL);
-    line(sL, P(...tg[L.L_ELBOW]), P(...tg[L.L_WRIST]));
-    line(sR, P(...tg[L.R_ELBOW]), P(...tg[L.R_WRIST]));
-    c.lineWidth = f.u * 0.36;
-    line(hL, P(...tg[L.L_KNEE]), P(...tg[L.L_ANKLE]));
-    line(hR, P(...tg[L.R_KNEE]), P(...tg[L.R_ANKLE]));
-    const [nx, ny] = P(0, -1.45);
-    c.beginPath(); c.arc(nx, ny, f.u * 0.38, 0, 6.2832); c.lineWidth = f.u * 0.12; c.stroke();
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    const sL = P(0.45, -1), sR = P(-0.45, -1), hL = P(0.25, 0), hR = P(-0.25, 0), [nx, ny] = P(0, -1.45);
+    const figure = (arm, leg, head) => {
+      const line = (...pts) => { c.beginPath(); pts.forEach(([x, y], n) => (n ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); };
+      c.lineWidth = arm;
+      line(sL, sR, hR, hL, sL);
+      line(sL, P(...tg[L.L_ELBOW]), P(...tg[L.L_WRIST]));
+      line(sR, P(...tg[L.R_ELBOW]), P(...tg[L.R_WRIST]));
+      c.lineWidth = leg;
+      line(hL, P(...tg[L.L_KNEE]), P(...tg[L.L_ANKLE]));
+      line(hR, P(...tg[L.R_KNEE]), P(...tg[L.R_ANKLE]));
+      c.lineWidth = head; c.beginPath(); c.arc(nx, ny, f.u * 0.38, 0, 6.2832); c.stroke();
+    };
+    /* A soft halo first - a wide, faint copy of the figure - then the figure.
+       Cheaper than a blur, which matters with the camera sharing the laptop. */
+    c.strokeStyle = done ? 'rgba(255,214,90,.28)' : 'rgba(255,255,255,.16)';
+    figure(f.u * 0.55, f.u * 0.62, f.u * 0.34);
+    c.strokeStyle = col;
+    figure(f.u * 0.3, f.u * 0.36, f.u * 0.12);
     c.restore();
   }
 
