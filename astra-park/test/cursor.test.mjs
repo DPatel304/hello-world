@@ -187,3 +187,21 @@ test('a disabled cursor clears any half-filled button', () => {
   assert.equal(b.querySelector('.fill').style.transform, 'scaleX(0)');
   cursor.enabled = true;
 });
+
+/* Arriving at the menu from a wave, the waving hand is often right over a
+   tile: the menu must not take that as a choice. */
+test('hold ignores a hand resting on a button until it runs out', () => {
+  const ui = setup();
+  const b = place(button('Pop Party'), 500, 300, 280, 80);
+  ui.appendChild(b);
+  let picks = 0;
+  onPick(b, () => picks++);
+
+  const c = centreOf(b);
+  hand(c.x, c.y);
+  cursor.hold(2);
+  for (let i = 0; i < 20; i++) cursor.update(0.1, ui);
+  assert.equal(picks, 0, 'nothing picked during the hold');
+  for (let i = 0; i < 12; i++) cursor.update(0.1, ui);
+  assert.equal(picks, 1, 'an ordinary dwell after it');
+});

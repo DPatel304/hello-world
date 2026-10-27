@@ -18,7 +18,12 @@ const out = await build({
   define: { __BUILD__: JSON.stringify(stamp) }
 });
 const js  = out.outputFiles[0].text;
-const css = await readFile('src/style.css', 'utf8');
+/* The font goes in as a data URL, like everything else, so the one file
+   needs nothing beside it. */
+const font = (await readFile('src/fonts/fredoka.woff2')).toString('base64');
+const css = (await readFile('src/style.css', 'utf8'))
+  .replace('url(fonts/fredoka.woff2)', `url(data:font/woff2;base64,${font})`);
+if (!css.includes('base64,' + font.slice(0, 20))) throw new Error('font was not inlined');
 
 const html = `<!doctype html>
 <html lang="en">

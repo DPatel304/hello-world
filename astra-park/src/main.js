@@ -1,7 +1,7 @@
 import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
-import { title, wordmark } from './ui/title.js';
+import { title, logo } from './ui/title.js';
 import { calibration, splash, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
 import { audio, music, sfx } from './audio/sound.js';
@@ -59,7 +59,7 @@ function toTitle(){
        back - and the title screen already answers the only question that
        screen asked, with a dot that says whether anyone can be seen. It is
        still there under Settings for when tracking actually needs sorting. */
-    onPlay: toMenu,
+    onPlay: () => { toMenu(); cursor.hold(2); },
     onSettings: () => { toMenu(); openSettings(toCalibration); }
   }));
 }
@@ -267,9 +267,7 @@ document.addEventListener('visibilitychange', () => {
 (async function boot(){
   const debug = new URLSearchParams(location.search).has('debug');
   const s = screen('dim');
-  const brand = h('div', 'brandblock');
-  brand.append(wordmark('ASTRA'), wordmark('PARK'));
-  s.append(brand);
+  s.append(logo());
   s.append(h('p', 'lede', debug ? 'Debug mode — the mouse plays.' : 'Starting the camera…'));
 
   await pose.start(video, { forceMouse: debug });

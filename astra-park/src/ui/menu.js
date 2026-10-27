@@ -5,21 +5,17 @@ import { screen, h, clearUI } from './screens.js';
 import { audio } from '../audio/sound.js';
 import { pose } from '../tracking/pose.js';
 import { drawPark } from './backdrop.js';
-import { wordmark } from './title.js';
+import { logo } from './title.js';
+import { poster } from './posters.js';
 
-/* Filled and hollow glyphs render near-identically at tile size, so the
-   difficulty is carried by colour instead: lit stars gold, the rest faint. */
-const stars = (n) => `<b>${'★'.repeat(n)}</b>${'★'.repeat(5 - n)}`;
-
+/* The games, as big living pictures on the same dusk park as the title. A
+   child picks the one that looks fun - balloons or fireflies - so there are
+   no stars, scores or instructions on them; the name sits small underneath
+   for whoever can read it. */
 export function menu({ onPlay, onRecalibrate }){
   clearUI();
   const s = screen('picker');
-
-  /* The same park as the title, stepped back so the tiles can sit on top of
-     it. Two screens in one place rather than two designs. */
-  const brand = h('div', 'minibrand');
-  brand.append(wordmark('ASTRA'), wordmark('PARK'));
-  s.appendChild(brand);
+  s.appendChild(logo('small'));
 
   const tools = h('div', 'corners');
   tools.append(
@@ -35,30 +31,43 @@ export function menu({ onPlay, onRecalibrate }){
     s.appendChild(h('div', 'warnstrip', '\u26a0 No camera \u2014 the mouse is playing'));
   }
 
-  const n = Math.max(1, Math.min(2, pose.personCount || 1));
-  s.appendChild(h('p', 'pickline', n === 2
-    ? 'Two players \u2014 pick a game'
-    : 'Pick a game'));
-
   const grid = h('div', 'tiles');
-  grid.style.setProperty('--cols', Math.min(4, GAMES.length));
+  grid.style.setProperty('--cols', Math.min(3, GAMES.length));
+  const pics = [];
   for (const g of GAMES){
     const card = button('', 'tile');
     card.style.setProperty('--accent', g.accent);
-    card.querySelector('.lbl').innerHTML =
-      `<span class="nm">${g.name}</span>` +
-      `<span class="meta"><span class="stars">${stars(g.stars)}</span>` +
-      `<span class="best">${scores.best(g.id, n) ? 'Best ' + scores.best(g.id, n) : ''}</span></span>`;
+    const pic = document.createElement('canvas');
+    pic.className = 'pic';
+    card.insertBefore(pic, card.firstChild);
+    card.querySelector('.lbl').textContent = g.name;
     onPick(card, () => onPlay(g));
     grid.appendChild(card);
+    pics.push({ pic, paint: poster(g) });
   }
   s.appendChild(grid);
 
   let t = 0;
   return {
     tick(dt){ t += dt; },
-    draw(c, W, H){ drawPark(c, W, H, t, 0.55); }
+    draw(c, W, H){
+      drawPark(c, W, H, t, 0.3);
+      for (const p of pics) paintPoster(p, t);
+    }
   };
+}
+
+/* Each tile's picture is its own small canvas, sized to the tile as laid out. */
+function paintPoster(p, t){
+  if (!p.pic.getContext || !p.pic.getBoundingClientRect) return;
+  const r = p.pic.getBoundingClientRect();
+  if (!r.width) return;
+  const k = Math.min(2, devicePixelRatio || 1);
+  const w = Math.round(r.width * k), hgt = Math.round(r.height * k);
+  if (p.pic.width !== w || p.pic.height !== hgt){ p.pic.width = w; p.pic.height = hgt; }
+  const c = p.pic.getContext('2d');
+  c.setTransform(k, 0, 0, k, 0, 0);
+  p.paint(c, r.width, r.height, t);
 }
 
 function overlay(){

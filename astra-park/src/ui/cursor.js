@@ -20,6 +20,10 @@ export const cursor = {
 
   reset(){ for (const s of this._state){ s.el = null; s.t = 0; s.cool = COOLDOWN; } this._clearFills(); },
 
+  /* Ignore the hands for a while: arriving from a wave, they are still up
+     and swinging over whatever is now in the middle of the screen. */
+  hold(secs){ for (const s of this._state) s.cool = Math.max(s.cool, secs); },
+
   _clearFills(){
     document.querySelectorAll('.btn.hot').forEach(b => {
       b.classList.remove('hot');
