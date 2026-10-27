@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, toughness, upgradeCost } from '../src/games/castle-defense.js';
+import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, countOf, upgradeCost } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle } from '../src/games/castle-art.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -206,14 +206,14 @@ test('a monster reaching the castle takes hearts; an ogre takes more; no hearts 
   assert.ok(inst.over && inst.lost);
 });
 
-test('waves grow and toughen; an ogre every fifth', () => {
+test('waves grow in number; an ogre every fifth', () => {
   const kinds = (w) => waveOf(w).map(m => m.kind);
   assert.ok(waveOf(6).length > waveOf(1).length);
   assert.deepEqual([...new Set(kinds(1))], ['slime']);
   assert.ok(kinds(2).includes('goblin') && !kinds(2).includes('bat'));
   assert.ok(kinds(3).includes('bat'));
   assert.ok(kinds(5).includes('ogre') && !kinds(4).includes('ogre'));
-  assert.ok(toughness(10) > toughness(5) * 2);
+  for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1), 'a few more every wave, without end');
 });
 
 test('one trail, in at the top left and the long way round to the castle', () => {
@@ -301,6 +301,14 @@ test('no clock and no score on screen; the round ends with an ending', () => {
   let done = false, s = 0;
   for (; s < 8 && !done; s += DT) done = inst.outro(DT, W, H);
   assert.ok(done && s > 3);
+});
+
+test('monsters never get faster or tougher, wave after wave', () => {
+  const inst = quiet();
+  inst.wave = 1; inst._spawn('slime'); const first = inst.monsters.pop();
+  inst.wave = 20; inst._spawn('slime'); const later = inst.monsters.pop();
+  assert.equal(later.speed, first.speed);
+  assert.equal(later.max, first.max);
 });
 
 test('a well-defended castle holds many waves; an empty one falls fast', () => {

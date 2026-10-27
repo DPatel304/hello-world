@@ -44,18 +44,21 @@ export const STATS = {
   frost:  { range: [0.2, 0.22, 0.24], rate: [0.8, 1.0, 1.2], dmg: [0.4, 0.6, 0.8], slow: [0.55, 0.45, 0.35] }
 };
 export const MONSTERS = {
-  slime:  { hp: 3, speed: 0.09, size: 0.08, coins: 1, harm: 1 },
-  goblin: { hp: 2, speed: 0.14, size: 0.085, coins: 1, harm: 1 },
-  bat:    { hp: 2, speed: 0.115, size: 0.08, coins: 1, harm: 1, flies: true },
-  ogre:   { hp: 18, speed: 0.06, size: 0.13, coins: 5, harm: 3 }
+  slime:  { hp: 3, speed: 0.06, size: 0.08, coins: 1, harm: 1 },
+  goblin: { hp: 2, speed: 0.095, size: 0.085, coins: 1, harm: 1 },
+  bat:    { hp: 2, speed: 0.077, size: 0.08, coins: 1, harm: 1, flies: true },
+  ogre:   { hp: 18, speed: 0.04, size: 0.13, coins: 5, harm: 3 }
 };
 const SLOW_FOR = 1.6, CHOICE_R = 0.045, CHOICE_D = 0.12, MENU_IDLE = 2.5;
 const ASPECT = 16 / 9;
 
-/* What comes in wave w: more each time, goblins from the second, bats from
-   the third, an ogre (or more) every fifth. All along the one trail. */
+/* What comes in wave w: a few more each time - that's the whole challenge;
+   the monsters themselves never get faster or tougher - goblins from the
+   second, bats from the third, an ogre (or more) every fifth. All along the
+   one trail. */
+export const countOf = (w) => 4 + 2 * w;
 export function waveOf(w){
-  const n = Math.min(40, 4 + 2 * w), out = [];
+  const n = countOf(w), out = [];
   const path = () => 0;
   for (let k = 0; k < n; k++){
     const r = ((k * 7 + w * 3) % 12) / 12;
@@ -64,10 +67,6 @@ export function waveOf(w){
   if (w % 5 === 0) for (let k = 0; k < w / 5; k++) out.push({ kind: 'ogre', path: 0 });
   return out;
 }
-/* How much tougher everything is in wave w: a fifth more each wave, which
-   is gentle at first and then runs away, so even the best-defended castle
-   falls in the end. */
-export const toughness = (w) => Math.pow(1.2, w - 1);
 export const upgradeCost = (kind, lvl) => lvl === 1 ? Math.ceil(COST[kind] * 1.2) : COST[kind] * 2;
 
 export default {
@@ -160,10 +159,9 @@ class CastleDefense {
   }
 
   _spawn(kind, path = 0){
-    const M = MONSTERS[kind], k = toughness(this.wave);
-    const hp = M.hp * k;
+    const M = MONSTERS[kind], hp = M.hp;
     if (this.alive.has(this.wave)) this.alive.set(this.wave, this.alive.get(this.wave) + 1);
-    this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, hp, max: hp, speed: M.speed * Math.min(1.4, 1 + 0.02 * (this.wave - 1)),
+    this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, hp, max: hp, speed: M.speed,
                          slowT: 0, slowK: 1, hurt: 0, swat: new Map(), wob: Math.random() * 6 });
   }
 
