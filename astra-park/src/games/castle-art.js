@@ -330,7 +330,6 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp){
   c.save();
   const shadow = kind === 'bat' ? 0.5 : 1;
   c.fillStyle = `rgba(40,50,40,${0.25 * shadow})`; c.beginPath(); c.ellipse(x, y + s * 0.05, s * 0.45, s * 0.12, 0, 0, 6.2832); c.fill();
-  if (hurt > 0) c.filter = `brightness(${1 + hurt * 1.2})`;
   if (kind === 'slime'){
     const sq = 1 + Math.sin(t * 9) * 0.12;
     c.fillStyle = frozen ? '#8fd8ff' : '#6fdc6a';
@@ -367,6 +366,12 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp){
     c.fillStyle = '#8a5a34'; c.save(); c.translate(x + dir * s * 0.45, y - s * 0.55); c.rotate(dir * 0.5 + Math.sin(t * 6) * 0.15); c.fillRect(-s * 0.05, -s * 0.4, s * 0.1, s * 0.45); c.beginPath(); c.arc(0, -s * 0.42, s * 0.12, 0, 6.2832); c.fill(); c.restore();
   }
   c.restore();
+  /* A flash when it's hit: a quick white glow over it. (Not a canvas
+     filter - those are far too slow with a crowd of monsters.) */
+  if (hurt > 0){
+    c.fillStyle = `rgba(255,255,255,${0.55 * hurt})`;
+    c.beginPath(); c.ellipse(x, y - s * (kind === 'bat' ? 0.75 : kind === 'ogre' ? 0.6 : 0.38), s * 0.45, s * (kind === 'ogre' ? 0.6 : 0.4), 0, 0, 6.2832); c.fill();
+  }
   if (frozen){ c.fillStyle = 'rgba(220,245,255,.8)'; for (let k = 0; k < 3; k++) star(c, x + (k - 1) * s * 0.25, y - s * (kind === 'bat' ? 1.05 : 0.95), s * 0.06, 'rgba(220,245,255,.9)'); }
   if (hp < 1){
     const bw = s * 0.6, by = y - s * (kind === 'ogre' ? 1.45 : kind === 'bat' ? 1.15 : 1.0);

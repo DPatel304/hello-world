@@ -29,7 +29,7 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMe
    A ghostly hand shows how to build first thing, and how to swat the first
    time a monster gets near the castle. */
 
-export const ROUND = 600;
+export const ROUND = 900;
 export const HEARTS = 10;
 export const START_COINS = 7;
 export const COST = { archer: 3, cannon: 5, frost: 4 };
@@ -40,7 +40,7 @@ export const SWAT = 1.0;                              /* hand speed, screen widt
 export const BREAK = 7;                               /* seconds between waves */
 export const STATS = {
   archer: { range: [0.24, 0.27, 0.3], rate: [1.1, 1.5, 2.0], dmg: [1, 1.4, 2] },
-  cannon: { range: [0.21, 0.23, 0.26], rate: [0.45, 0.55, 0.65], dmg: [2.5, 3.5, 5], splash: [0.08, 0.095, 0.11] },
+  cannon: { range: [0.21, 0.23, 0.26], rate: [0.45, 0.55, 0.65], dmg: [2.5, 3.5, 5], splash: [0.08, 0.095, 0.11], most: [3, 4, 5] },
   frost:  { range: [0.2, 0.22, 0.24], rate: [0.8, 1.0, 1.2], dmg: [0.4, 0.6, 0.8], slow: [0.55, 0.45, 0.35] }
 };
 export const MONSTERS = {
@@ -52,11 +52,16 @@ export const MONSTERS = {
 const SLOW_FOR = 1.6, CHOICE_R = 0.045, CHOICE_D = 0.12, MENU_IDLE = 2.5;
 const ASPECT = 16 / 9;
 
-/* What comes in wave w: a few more each time - that's the whole challenge;
-   the monsters themselves never get faster or tougher - goblins from the
-   second, bats from the third, an ogre (or more) every fifth. All along the
-   one trail. */
-export const countOf = (w) => 4 + 2 * w;
+/* What comes in wave w: more each time - that's the whole challenge; the
+   monsters themselves never get faster or tougher. Each wave is about a
+   seventh bigger than the last, so it creeps up slowly at first (6, 7, 8,
+   9, 10...) and then snowballs: a strong team holds about a quarter of an
+   hour before the horde is too much. Goblins from the second wave, bats
+   from the third, an ogre (or more) every fifth. All along the one trail. */
+export const POUR = 16;   /* seconds a wave takes to come out, once it's big */
+export const countOf = (w) => Math.round(6 * Math.pow(1.15, w - 1));
+/* Seconds between monsters coming out in wave w. */
+export const gapOf = (w) => Math.min(1.3, POUR / countOf(w));
 export function waveOf(w){
   const n = countOf(w), out = [];
   const path = () => 0;
@@ -70,7 +75,9 @@ export function waveOf(w){
 export const upgradeCost = (kind, lvl) => lvl === 1 ? Math.ceil(COST[kind] * 1.2) : COST[kind] * 2;
 
 export default {
-  id: 'castle-defense', name: 'Castle Defense', stars: 2, accent: '#e5534b', secs: ROUND,
+  /* Endless: it lasts as long as the castle holds. secs is only how long
+     the music takes to build. */
+  id: 'castle-defense', name: 'Castle Defense', stars: 2, accent: '#e5534b', secs: ROUND, endless: true,
   /* Hands reach up to the top of the map; a pause is a longer hold. */
   pauseHold: 3,
   create(n){ return new CastleDefense(n); }
@@ -127,10 +134,13 @@ class CastleDefense {
       if (this.breakT <= 0) this._startWave();
       return;
     }
-    if (this.queue.length && (this.spawnT -= dt) <= 0){
+    /* Each wave comes out over about the same time, so a bigger wave pours
+       out faster - several at once, late on. */
+    this.spawnT -= dt;
+    while (this.queue.length && this.spawnT <= 0){
       const next = this.queue.shift();
       this._spawn(next.kind, next.path);
-      this.spawnT = Math.max(0.55, 1.3 - this.wave * 0.04);
+      this.spawnT += gapOf(this.wave);
     }
     /* Like real tower defense, the next wave doesn't wait for the last to
        be cleared: it sets off a little while after the last monster has
@@ -161,7 +171,9 @@ class CastleDefense {
   _spawn(kind, path = 0){
     const M = MONSTERS[kind], hp = M.hp;
     if (this.alive.has(this.wave)) this.alive.set(this.wave, this.alive.get(this.wave) + 1);
-    this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, hp, max: hp, speed: M.speed,
+    /* Each walks a little to one side or the other of the middle of the
+       trail, so a crowd looks like a crowd, not a queue. */
+    this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, side: (Math.random() - 0.5) * 0.05, hp, max: hp, speed: M.speed,
                          slowT: 0, slowK: 1, hurt: 0, swat: new Map(), wob: Math.random() * 6 });
   }
 
@@ -186,7 +198,10 @@ class CastleDefense {
 
   _gone(m){ if (this.alive.has(m.wave)) this.alive.set(m.wave, this.alive.get(m.wave) - 1); }
 
-  pos(m){ return along(m.s, m.path); }
+  pos(m){
+    const p = along(m.s, m.path), k = m.side || 0;
+    return { x: p.x + k / ASPECT * 0.7, y: p.y + k * 0.7, dir: p.dir };
+  }
 
   /* ---------- the children's hands: building and swatting ---------- */
 
@@ -349,7 +364,7 @@ class CastleDefense {
       else if (tw.kind === 'cannon'){
         /* Lobbed where the monster will be when it lands. */
         const lead = this.pos({ s: best.s + best.speed * best.slowK * 0.55, path: best.path });
-        this.shots.push({ kind: 'ball', x: top.x, y: top.y, from: { ...top }, to: lead, k: 0, dmg: S.dmg[L], splash: S.splash[L] });
+        this.shots.push({ kind: 'ball', x: top.x, y: top.y, from: { ...top }, to: lead, k: 0, dmg: S.dmg[L], splash: S.splash[L], most: S.most[L] });
         sfx.thud();
       } else { this.shots.push({ kind: 'frost', x: top.x, y: top.y - 0.03, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L], slow: S.slow[L] }); sfx.twinkle(); }
     }
@@ -364,11 +379,11 @@ class CastleDefense {
           s.done = true;
           sfx.pop(0.8);
           for (let k = 0; k < 10; k++) this._spark(s.x, s.y, '#ffb02e');
-          for (const m of this.monsters){
-            if (MONSTERS[m.kind].flies) continue;
-            const p = this.pos(m);
-            if (Math.hypot((p.x - s.x) * ASPECT, p.y - s.y) < s.splash) this._damage(m, s.dmg);
-          }
+          /* The blast catches the nearest few, not a whole crowd. */
+          const caught = this.monsters.filter(m => !MONSTERS[m.kind].flies)
+            .map(m => { const p = this.pos(m); return { m, d: Math.hypot((p.x - s.x) * ASPECT, p.y - s.y) }; })
+            .filter(q => q.d < s.splash).sort((a, b) => a.d - b.d).slice(0, s.most);
+          for (const q of caught) this._damage(q.m, s.dmg);
         }
         continue;
       }

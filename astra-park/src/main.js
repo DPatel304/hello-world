@@ -27,7 +27,7 @@ addEventListener('resize', resize); resize();
 
 /* ---------- router ---------- */
 let scene = null, mode = 'boot';
-let game = null, inst = null, players = 1, roundLeft = 0;
+let game = null, inst = null, players = 1, roundLeft = 0, played = 0;
 let paused = null, lost = null, handsUp = 0, empty = 0, joined = new Set();
 
 function go(next, build){
@@ -79,7 +79,9 @@ function toGame(g){
 function startRound(){
   joined = new Set();
   inst = game.create(players);
-  roundLeft = game.secs;
+  /* An endless game has no clock: it runs until it says it's over. */
+  roundLeft = game.endless ? Infinity : game.secs;
+  played = 0;
   music.intensity(game.loud ? 0.85 : 0.15);
   go('play', null);
 }
@@ -194,11 +196,12 @@ function tick(now){
 
   if (mode === 'play' && inst && !paused && !lost){
     inst.step(dt, W, H);
-    roundLeft -= dt;
+    roundLeft -= dt; played += dt;
     /* The band builds with the round: quiet fingerpicking through the
        opening, then strumming, and a new layer about every minute after,
-       until everything - up a key - for the last ten seconds. */
-    const done = game.secs - roundLeft;
+       until everything - up a key - for the last ten seconds. An endless
+       game builds over `secs` and stays there. */
+    const done = played;
     /* A dance party wants its music up from the first beat. */
     music.intensity(game.loud ? (roundLeft <= 10 ? 1 : 0.85)
       : roundLeft <= 10 ? 1

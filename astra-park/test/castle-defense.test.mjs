@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, countOf, upgradeCost } from '../src/games/castle-defense.js';
+import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle } from '../src/games/castle-art.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -301,6 +301,21 @@ test('no clock and no score on screen; the round ends with an ending', () => {
   let done = false, s = 0;
   for (; s < 8 && !done; s += DT) done = inst.outro(DT, W, H);
   assert.ok(done && s > 3);
+});
+
+test('there is no clock: it lasts as long as the castle does', () => {
+  assert.equal(game.endless, true);
+  assert.equal(quiet().hud().hideClock, true);
+});
+
+test('waves creep up slowly, then pour out ever faster', () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map(countOf), [6, 7, 8, 9, 10]);
+  assert.ok(countOf(30) > countOf(10) * 10);
+  assert.ok(gapOf(30) < gapOf(10) / 10, 'a big wave comes out several at a time');
+  const inst = quiet();
+  inst.wave = 29; inst._startWave();
+  inst.step(0.1, W, H);
+  assert.ok(inst.monsters.length > 1, `${inst.monsters.length} out in a tenth of a second`);
 });
 
 test('monsters never get faster or tougher, wave after wave', () => {
