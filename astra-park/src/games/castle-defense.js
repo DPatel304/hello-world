@@ -2,19 +2,25 @@ import { clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
-import { PATHS, PADS, PAD_R, CASTLE, CHEST, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest,
+import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest, heart,
          drawMonster, drawShot, coin, star } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
-   bats, and now and then a big ogre - come out of two caves at the top and
-   march down two winding paths to the castle at the bottom. The first wave
-   comes down the left path, the second the right, and from then on both. The children build towers beside the
+   bats, and now and then a big ogre - come over the top of the screen and
+   march down two paths to the wide castle in the bottom left: a short one
+   straight down, and a long one that wanders all round the meadow first.
+   The first wave takes the short path, the second the long one, and from
+   then on both. The children build towers beside the
    path to stop them, and swat any that get close with their own hands.
 
-   Building is holding: hold a hand over an empty stone pad and three
-   bubbles pop up - an archer tower, a cannon, a frost tower - with the
-   coins each costs as dots underneath; hold on one to build it. Hold on a
-   tower to make it bigger and stronger, up to three times. Monsters drop
+   Building is holding with both hands. Put a hand over an empty stone pad
+   and three bubbles pop up - an archer tower, a cannon, a frost tower -
+   with the coins each costs as dots underneath; hold both hands on one, a
+   good couple of seconds, to build it. Both hands on a tower make it
+   bigger and stronger, up to three times, and both hands on the castle
+   mend it, a heart at a time. Any two hands will do - two children can
+   build together, and more hands go faster. Let go and the work drains
+   away. Monsters drop
    coins into the treasure chest by the castle. Swatting is a quick hand
    through a monster: it knocks it back down the path.
 
@@ -30,7 +36,8 @@ export const HEARTS = 10;
 export const START_COINS = 7;
 export const COST = { archer: 3, cannon: 5, frost: 4 };
 export const KINDS = ['archer', 'cannon', 'frost'];
-export const OPEN = 0.5, PICK = 0.6, UPGRADE = 1.0;   /* seconds of holding */
+export const OPEN = 0.5;                              /* one hand, to bring up the bubbles */
+export const BUILD = 2, UPGRADE = 2.5, REPAIR = 2.5;  /* seconds of holding with both hands */
 export const SWAT = 1.0;                              /* hand speed, screen widths a second */
 export const BREAK = 7;                               /* seconds between waves */
 export const STATS = {
@@ -83,11 +90,15 @@ class CastleDefense {
     this.wave = 0;              /* waves started */
     this.held = 0;              /* waves held off */
     this.state = 'build';       /* 'build' between waves, 'wave' while one is on */
-    this.breakT = 16;           /* the first wave waits for a tower, or this long */
+    this.breakT = 22;           /* the first wave waits for a tower, or this long */
     this.queue = []; this.spawnT = 0;
     this.towers = new Map();    /* pad index -> tower */
     this.menus = new Map();     /* pad index -> open build bubbles */
-    this.dwell = new Map();     /* hand -> what it's holding over, and for how long */
+    this.dwell = new Map();     /* hand -> what it's resting on, and for how long */
+    this.work = new Map();      /* target -> building, upgrading or mending done so far */
+    this.lonely = [];           /* single hands on something that needs two */
+    this.mend = 0;
+    this.repaired = false;
     this.monsters = [];
     this.shots = [];
     this.bits = [];
@@ -186,42 +197,79 @@ class CastleDefense {
     });
   }
 
-  /* What a hand is over: a build bubble, a pad, or nothing. */
+  /* What a hand is over: a build bubble, a pad, the castle, or nothing. */
   _target(h){
     const d = (x, y) => Math.hypot((h.x - x) * ASPECT, h.y - y);
     for (const [i] of this.menus){
-      for (const ch of this.choices(i)) if (d(ch.x, ch.y) < CHOICE_R * 1.2) return { id: `c${i}${ch.kind}`, pad: i, kind: ch.kind };
+      for (const ch of this.choices(i)) if (d(ch.x, ch.y) < CHOICE_R * 1.6) return { id: `c${i}${ch.kind}`, pad: i, kind: ch.kind, x: ch.x, y: ch.y };
     }
-    for (const pad of PADS) if (d(pad.x, pad.y - 0.02) < PAD_R * 1.3) return { id: `p${pad.i}`, pad: pad.i };
+    for (const pad of PADS) if (d(pad.x, pad.y - 0.02) < PAD_R * 1.5) return { id: `p${pad.i}`, pad: pad.i, x: pad.x, y: pad.y - 0.06 };
+    if (onCastle(h.x, h.y)) return { id: 'castle', castle: true, x: CASTLE.x, y: CASTLE_BASE - 0.2 };
+    return null;
+  }
+
+  /* What holding on a target does, how long it takes, and whether it can
+     happen now. */
+  _job(tg){
+    if (tg.kind) return { need: BUILD, can: this.coins >= COST[tg.kind], act: (who) => this._build(tg.pad, tg.kind, who) };
+    if (tg.castle) return { need: REPAIR, can: this.hearts < HEARTS, act: () => this._repair(), again: true };
+    const tw = this.towers.get(tg.pad);
+    if (tw) return { need: UPGRADE, can: tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl), act: (who) => this._upgrade(tg.pad, who) };
     return null;
   }
 
   _hands(dt, W, H){
-    const seen = new Set();
+    /* Who has a hand on what. */
+    const on = new Map();
     for (const { who, key, h } of this._handsOf()){
-      seen.add(key);
       this._swat(who, key, h, W, H);
       const tg = this._target(h);
-      let dw = this.dwell.get(key);
       if (!tg){ this.dwell.delete(key); continue; }
+      const e = on.get(tg.id) || { tg, hands: [] };
+      e.hands.push({ who, key, h });
+      on.set(tg.id, e);
+      /* One hand resting on an empty pad brings up its bubbles. */
+      let dw = this.dwell.get(key);
       if (!dw || dw.id !== tg.id){ dw = { id: tg.id, t: 0 }; this.dwell.set(key, dw); }
       dw.t += dt;
-      const menu = this.menus.get(tg.pad);
+      if (tg.pad != null && !tg.kind && !this.towers.has(tg.pad) && dw.t >= OPEN && !this.menus.has(tg.pad)){ this.menus.set(tg.pad, { who, idle: 0 }); sfx.tick(); }
+      const menu = tg.pad != null && this.menus.get(tg.pad);
       if (menu) menu.idle = 0;
-      if (tg.kind){
-        dw.need = PICK; dw.can = this.coins >= COST[tg.kind];
-        if (dw.can && dw.t >= PICK) this._build(tg.pad, tg.kind, who);
-      } else if (this.towers.has(tg.pad)){
-        const tw = this.towers.get(tg.pad);
-        dw.need = UPGRADE; dw.can = tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl);
-        if (!dw.can) dw.t = 0;
-        else if (dw.t >= UPGRADE){ this._upgrade(tg.pad, who); dw.t = -0.6; }
-      } else {
-        dw.need = OPEN; dw.can = true;
-        if (dw.t >= OPEN && !menu){ this.menus.set(tg.pad, { who, idle: 0 }); sfx.tick(); }
-      }
     }
-    for (const k of [...this.dwell.keys()]) if (!seen.has(k)) this.dwell.delete(k);
+    for (const k of [...this.dwell.keys()]) if (![...on.values()].some(e => e.hands.some(x => x.key === k))) this.dwell.delete(k);
+
+    /* The work: two hands (or more) on a target fill it up; fewer let it
+       drain away. */
+    this.lonely = [];
+    for (const [id, e] of on){
+      const job = this._job(e.tg);
+      if (!job) continue;
+      const w = this.work.get(id) || { t: 0 };
+      w.need = job.need; w.can = job.can; w.tg = e.tg; w.seen = true;
+      const n = pose.mouse.active ? 2 : e.hands.length;
+      if (n >= 2 && job.can){
+        w.t += dt * (1 + 0.25 * (n - 2));
+        if (w.t >= job.need){ job.act(e.hands[0].who); w.t = job.again ? 0 : -0.8; }
+      } else {
+        w.t = Math.max(0, w.t - dt);
+        if (n < 2 && job.can) this.lonely.push(e.hands[0].h);
+      }
+      this.work.set(id, w);
+    }
+    for (const [id, w] of this.work){
+      if (!w.seen){ w.t = Math.max(0, w.t - dt); if (w.t <= 0) this.work.delete(id); }
+      w.seen = false;
+    }
+    this.mend = Math.max(0, (this.mend || 0) - dt * 2);
+    const rep = this.work.get('castle');
+    if (rep && rep.t > 0) this.mend = 1;
+  }
+
+  _repair(){
+    this.hearts = Math.min(HEARTS, this.hearts + 1);
+    this.repaired = true;
+    sfx.jar(this.hearts);
+    for (let k = 0; k < 16; k++) this._spark(CASTLE.x + (Math.random() - 0.5) * CASTLE.w * 0.8, CASTLE_BASE - 0.1 - Math.random() * 0.15, '#ffe27a');
   }
 
   _build(i, kind, who){
@@ -229,6 +277,7 @@ class CastleDefense {
     this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0 });
     this.menus.delete(i);
     for (const [k, d] of this.dwell) if (d.id.startsWith(`c${i}`) || d.id === `p${i}`) this.dwell.delete(k);
+    for (const id of [...this.work.keys()]) if (id.startsWith(`c${i}`)) this.work.delete(id);
     this.built = true;
     sfx.land();
     const pad = PADS[i];
@@ -363,7 +412,7 @@ class CastleDefense {
 
   /* Building: until the first tower, a ghostly hand holds over a pad, the
      bubbles pop up, and it holds on the archer. */
-  get buildHint(){ return !this.built && this.t > 1 ? (this.t - 1) % 4 : -1; }
+  get buildHint(){ return !this.built && this.t > 1 ? (this.t - 1) % 6.5 : -1; }
   /* Swatting: the first time a monster gets most of the way, until someone
      has swatted one. */
   get swatHint(){
@@ -393,9 +442,11 @@ class CastleDefense {
 
   draw(c, W, H){
     drawMeadow(c, W, H);
-    /* Pads glow while any hand is over them or their bubbles are up. */
+    /* How far along each bit of work is; pads glow while a hand is on them
+       or their bubbles are up. */
     const holding = new Map();
-    for (const d of this.dwell.values()) holding.set(d.id, Math.max(holding.get(d.id) || 0, d.need ? clamp(d.t / d.need, 0, 1) : 0));
+    for (const [id, w] of this.work) holding.set(id, clamp(w.t / w.need, 0, 1));
+    for (const d of this.dwell.values()) if (!holding.has(d.id)) holding.set(d.id, 0);
     const things = [];
     for (const pad of PADS){
       const tw = this.towers.get(pad.i);
@@ -406,7 +457,7 @@ class CastleDefense {
       const p = this.pos(m), M = MONSTERS[m.kind], dance = this.out && this.lost ? Math.abs(Math.sin(this.t * 6 + m.wob)) * 0.03 : 0;
       things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max) });
     }
-    things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, HEARTS, this.held, this.castleHit) });
+    things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, HEARTS, this.held, this.castleHit, this.mend) });
     things.sort((a, b) => a.y - b.y);
     for (const th of things) th.draw();
     drawChest(c, W, H, this.coins, this.t);
@@ -421,11 +472,27 @@ class CastleDefense {
     if (!this.out) this.avatars.drawMitts(c, W, H, this.players);
   }
 
-  /* A ring filling round a tower being upgraded. */
+  /* Rings filling round a tower being upgraded and over the castle being
+     mended; and beside a lone hand on either, a ghostly second hand
+     beckoning, because it takes two. */
   _drawRings(c, W, H, holding){
+    const mend = holding.get('castle');
+    if (mend != null && this.hearts < HEARTS){
+      const x = CASTLE.x * W, y = (CASTLE_BASE - 0.2) * H, r = H * 0.07;
+      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = H * 0.01; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
+      c.strokeStyle = '#ff4f6a'; c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + mend * 6.2832); c.stroke();
+      heart(c, x, y, r * 0.45, '#ff4f6a');
+    }
+    for (const h of this.lonely){
+      const a = 0.45 + 0.35 * Math.sin(this.t * 6), x = (h.x + 0.05 / ASPECT * 1.6) * W, y = h.y * H, r = H * 0.028;
+      c.save(); c.globalAlpha = a;
+      c.strokeStyle = '#fff6e2'; c.lineWidth = H * 0.006; c.setLineDash([H * 0.01, H * 0.008]);
+      c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
+      c.restore();
+    }
     for (const [i, tw] of this.towers){
       const k = holding.get(`p${i}`);
-      if (!k) continue;
+      if (k == null) continue;
       const pad = PADS[i], x = pad.x * W, y = (pad.y - 0.06) * H, r = H * 0.075;
       const can = tw.lvl < 3 && this.coins >= upgradeCost(tw.kind, tw.lvl);
       c.strokeStyle = 'rgba(255,255,255,.4)'; c.lineWidth = H * 0.008; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
@@ -465,20 +532,30 @@ class CastleDefense {
       if (fill > 0){ c.strokeStyle = 'rgba(255,210,74,.95)'; c.lineWidth = H * 0.007; c.beginPath(); c.arc(x, y, r * 1.5, -Math.PI / 2, -Math.PI / 2 + fill * 6.2832); c.stroke(); }
       c.restore();
     };
+    /* Building: one hand goes to a pad and the bubbles pop up; then both
+       hands come together on the archer and hold while it fills. */
     const u = this.buildHint;
     if (u >= 0){
-      const pad = PADS[2], ch = this.choices(2)[0];
+      const pad = PADS[9], ch = this.choices(9)[0];
       const ease = (a, b) => { const k = clamp((u - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
-      const show = Math.min(ease(0, 0.3), 1 - ease(3.6, 4));
-      const toPad = ease(0.2, 0.9), toCh = ease(1.6, 2.2);
-      const x = 0.5 + (pad.x - 0.5) * toPad + (ch.x - pad.x) * toCh, y = 0.55 + (pad.y - 0.02 - 0.55) * toPad + (ch.y - pad.y + 0.02) * toCh;
-      if (u > 1.4 && u < 3.6){
+      const show = Math.min(ease(0, 0.3), 1 - ease(5.4, 6));
+      const toPad = ease(0.2, 0.9), toCh = ease(1.5, 2.1), second = ease(1.8, 2.5);
+      const x = 0.6 + (pad.x - 0.6) * toPad + (ch.x - pad.x) * toCh, y = 0.7 + (pad.y - 0.02 - 0.7) * toPad + (ch.y - pad.y + 0.02) * toCh;
+      const fill = clamp((u - 2.6) / 2.4, 0, 1);
+      if (u > 1.2 && u < 5.4){
         /* The bubbles, ghostly. */
         c.save(); c.globalAlpha = 0.6 * show;
-        this.choices(2).forEach(q => drawChoice(c, q.x * W, q.y * H, CHOICE_R * H, q.kind, COST[q.kind], true, q === ch ? clamp((u - 2.3) / 1, 0, 1) : 0, '#fff6e2'));
+        this.choices(9).forEach(q => drawChoice(c, q.x * W, q.y * H, CHOICE_R * H, q.kind, COST[q.kind], true, q === ch ? fill : 0, '#fff6e2'));
         c.restore();
       }
-      ghost(x * W, y * H, show * 0.85, u > 0.9 && u < 1.5 ? (u - 0.9) / 0.5 : 0);
+      const off = 0.035 / ASPECT;
+      ghost((x - off * second) * W, y * H, show * 0.85, 0);
+      if (second > 0) ghost((x + off * second + (1 - second) * 0.15) * W, (y + (1 - second) * 0.1) * H, show * 0.85 * second, 0);
+    }
+    /* Mending: once the castle has lost a few hearts, two hands on it. */
+    if (this.hearts <= HEARTS - 3 && !this.repaired && !this.out){
+      const k = (this.t % 3) / 3, show = Math.min(1, k * 5, (1 - k) * 5), x = CASTLE.x, y = CASTLE_BASE - 0.2;
+      ghost((x - 0.03) * W, y * H, show * 0.8, 0); ghost((x + 0.03) * W, y * H, show * 0.8, 0);
     }
     const m = this.swatHint;
     if (m){
