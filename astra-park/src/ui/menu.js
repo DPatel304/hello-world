@@ -32,7 +32,9 @@ export function menu({ onPlay, onRecalibrate }){
   }
 
   const grid = h('div', 'tiles');
-  grid.style.setProperty('--cols', Math.min(3, GAMES.length));
+  const cols = Math.min(3, GAMES.length);
+  grid.style.setProperty('--cols', cols);
+  grid.style.setProperty('--rows', Math.ceil(GAMES.length / cols));
   const pics = [];
   for (const g of GAMES){
     const card = button('', 'tile');

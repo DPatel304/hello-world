@@ -170,9 +170,12 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 /* Big picture tiles: each a window onto its game, so it is chosen by look.
    The accent colour frames it; the name is small, underneath. */
 .tiles{
-  display:grid; gap:clamp(14px,3vw,48px);
-  grid-template-columns:repeat(var(--cols,2),1fr);
-  width:min(90vw, calc(var(--cols,2) * 760px));
+  /* As wide as the screen allows, but never so tall that a second row of
+     games falls off the bottom. */
+  --tile:min(760px, calc((90vw - (var(--cols,2) - 1) * 3vw) / var(--cols,2)),
+             calc((78vh / var(--rows,1) - 9vh) / 0.625));
+  display:grid; gap:clamp(14px,2.4vh,40px) clamp(14px,3vw,48px);
+  grid-template-columns:repeat(var(--cols,2),var(--tile));
 }
 @media (max-aspect-ratio:1/1){ .tiles{ grid-template-columns:1fr; width:min(80vw,560px); } }
 

@@ -156,6 +156,12 @@ export const sfx = {
   twinkle(){
     bell(96 + PENT[(Math.random() * 5) | 0], ctx().currentTime, 0.025, 0.6, master);
   },
+  /* ---- Moon Bounce ---- */
+  /* Floating back down onto the moon: a soft, low bump. */
+  land(){
+    blip({ freq: 150, to: 80, dur: 0.18, type: 'sine', gain: 0.18 });
+    hiss({ dur: 0.15, gain: 0.04, hp: 400 });
+  },
   /* ---- Fire Truck ---- */
   /* One note of the siren's two-tone, high or low: soft, not shrill. */
   siren(hi){ blip({ freq: hi ? 880 : 660, dur: 0.42, type: 'triangle', gain: 0.07 }); },

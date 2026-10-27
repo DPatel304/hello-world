@@ -10,6 +10,7 @@ import { NightScene } from '../games/firefly-scene.js';
 import { glow } from './backdrop.js';
 import { Town, ROAD, SIDEWALK } from '../games/fire-truck-scene.js';
 import { TRUCK, drawTruck, drawHelmet, drawKid, drawHouse, drawFlame } from '../games/fire-truck-art.js';
+import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from '../games/moon-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
 
@@ -100,6 +101,17 @@ function fireTruck(){
   };
 }
 
+function moonBounce(){
+  return (c, W, H, t) => {
+    drawMoon(c, W, H, t);
+    drawConstellation(c, SHAPES[0], W * 0.72, H * 0.3, H * 0.17, SHAPES[0].pts.length, 1, t);
+    const lift = Math.abs(Math.sin(t * 1.2)) * 0.18;
+    for (const [x, y, k] of [[0.22, 0.3, 0], [0.5, 0.18, 1], [0.86, 0.62, 2]]) drawStar(c, W * x, H * (y + Math.sin(t + k) * 0.02), H * 0.04, t + k);
+    drawAstronaut(c, standIn(0.36, 0.48, 0.2 + lift, 0.42), W, H, lift, '#3da9ff',
+      (x, y, r) => drawKid(c, x, y + r * 0.1, r, t, '#e9b892'));
+  };
+}
+
 function plain(accent){
   return (c, W, H) => {
     const g = c.createLinearGradient(0, 0, W, H);
@@ -108,7 +120,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck };
+const POSTERS = { 'pop-party': popParty, 'firefly-night': fireflyNight, 'fire-truck': fireTruck, 'moon-bounce': moonBounce };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
