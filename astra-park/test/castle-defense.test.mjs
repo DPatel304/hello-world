@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
+import game, { COST, OPEN, BUILD, UPGRADE, REPAIR, POINT_HOLD, CLAP_R, CLAP_COOL, KNIGHT_SPEED, HEARTS, START_COINS, BREAK, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle } from '../src/games/castle-art.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -177,18 +177,101 @@ test('a frost tower slows monsters down', () => {
   assert.ok(m.slowK < 1 && m.slowT > 0);
 });
 
-test('a swat knocks a monster back and hurts it; a slow hand does not', () => {
+/* A child's hands at (x, y), `gap` screen heights apart. */
+function hands(x, y, gap){ real(1); const p = pose.players[0], d = gap / 2 / (16 / 9); p.hands.left = { x: x - d, y, speed: 0 }; p.hands.right = { x: x + d, y, speed: 0 }; }
+/* A clap at (x, y): hands apart, then snapped together over a few frames. */
+function clapAt(inst, x = 0.5, y = 0.5){
+  hands(x, y, 0.3); run(inst, 0.1);
+  for (const g of [0.2, 0.1, 0.03]){ hands(x, y, g); inst.step(DT, W, H); }
+  hands(x, y, 0.3); run(inst, 0.05);
+}
+const knight = (inst) => inst.knights[0];
+/* A monster parked right by the knight. */
+function byKnight(inst, kind = 'slime'){
+  const k = knight(inst);
+  let best = 0, bd = 9;
+  for (let s = 0; s < PATHS[0].total; s += 0.01){ const p = along(s), d = Math.hypot((p.x - k.x) * 16 / 9, p.y - k.y); if (d < bd){ bd = d; best = s; } }
+  const m = monster(inst, kind, best); m.side = 0;
+  const p = along(best); k.x = k.tx = p.x; k.y = k.ty = p.y;
+  return m;
+}
+
+test('hands together held on a spot send the knight there; it walks, it does not jump', () => {
+  const inst = quiet(), k = knight(inst);
+  const from = { x: k.x, y: k.y }, to = { x: 0.6, y: 0.45 };
+  hands(to.x, to.y, 0.03); run(inst, POINT_HOLD + 0.05);
+  assert.ok(Math.abs(k.tx - to.x) < 0.01 && Math.abs(k.ty - to.y) < 0.01, 'a flag goes up there');
+  const d0 = Math.hypot((to.x - from.x) * 16 / 9, to.y - from.y);
+  assert.ok(Math.hypot((k.x - from.x) * 16 / 9, k.y - from.y) < KNIGHT_SPEED * 0.5, 'walking, not teleporting');
+  hands(0.5, 0.95, 0.5); run(inst, d0 / KNIGHT_SPEED + 0.5);
+  assert.ok(Math.hypot((k.x - to.x) * 16 / 9, k.y - to.y) < 0.01, 'and it gets there, hands down or not');
+});
+
+test('hands apart, one hand, or a quick touch together do not move the knight', () => {
+  const inst = quiet(), k = knight(inst), tx = k.tx;
+  hands(0.6, 0.45, 0.4); run(inst, 2);
+  one(0.6, 0.45); run(inst, 2);
+  hands(0.6, 0.45, 0.03); run(inst, POINT_HOLD * 0.5); hands(0.6, 0.45, 0.4); run(inst, 0.5);
+  assert.equal(k.tx, tx);
+});
+
+test('a clap hurts and knocks back the monsters round the knight - not one far off', () => {
   const inst = quiet();
-  const m = monster(inst, 'slime', 0.6), p = along(0.6), y = p.y - MONSTERS.slime.size * 0.4;
-  hand(p.x, y, 0.2); run(inst, 0.2);
-  assert.equal(m.hp, m.max, 'a gentle touch');
-  hand(p.x, y, 2); inst.step(DT, W, H);
+  const m = byKnight(inst), s0 = m.s;
+  const far = monster(inst, 'slime', s0 > 2 ? 0.3 : PATHS[0].total - 0.3);
+  clapAt(inst, 0.8, 0.2);
+  assert.ok(m.hp < m.max, 'wherever the hands are, it is the knight that claps');
+  assert.ok(m.s < s0, 'knocked back');
+  assert.equal(far.hp, far.max);
+  assert.ok(inst.clapped);
+});
+
+test('claps come one at a time, a moment apart; a slow bringing-together is not a clap', () => {
+  const inst = quiet();
+  const m = byKnight(inst, 'ogre'); m.speed = 0;
+  /* The hands stay over the knight, so holding them together there just
+     keeps it where it is. */
+  const k = knight(inst), x = k.x, y = k.y;
+  hands(x, y, 0.3); run(inst, 0.2);
+  for (let g = 0.3; g > 0.02; g -= 0.005){ hands(x, y, g); inst.step(DT, W, H); }
+  assert.equal(m.hp, m.max, 'slow hands');
+  clapAt(inst, x, y);
+  const after = m.hp;
+  assert.ok(after < m.max);
+  clapAt(inst, x, y);
+  assert.equal(m.hp, after, 'a second clap straight after does nothing yet');
+  run(inst, CLAP_COOL + 0.1); clapAt(inst, x, y);
+  assert.ok(m.hp < after, 'a second clap a moment later');
+});
+
+test('a clap is not a point: the knight stays where it was going', () => {
+  const inst = quiet(), k = knight(inst), tx = k.tx, ty = k.ty;
+  clapAt(inst, 0.7, 0.3); run(inst, 0.2);
+  assert.equal(k.tx, tx); assert.equal(k.ty, ty);
+});
+
+test('hands no longer swat: a fast hand through a monster does nothing', () => {
+  const inst = quiet();
+  const m = monster(inst, 'slime', 0.6), p = along(0.6);
+  hand(p.x, p.y - 0.03, 3); run(inst, 0.2);
+  assert.equal(m.hp, m.max);
+});
+
+test('with the mouse, a resting pointer sends the knight, and it claps by itself near monsters', () => {
+  const inst = quiet(), k = knight(inst);
+  hand(0.6, 0.45); run(inst, POINT_HOLD + 0.05);
+  assert.ok(Math.abs(k.tx - 0.6) < 0.01);
+  const m = byKnight(inst);
+  hand(k.x, k.y); run(inst, 0.2);
   assert.ok(m.hp < m.max);
-  assert.ok(m.s < 0.6, 'knocked back');
-  const s1 = m.s, hp1 = m.hp;
-  run(inst, 0.1);
-  assert.equal(m.hp, hp1, 'one swat is one hit, not one a frame');
-  assert.equal(m.s, s1);
+});
+
+test('every child has a knight of their own', () => {
+  const inst = quiet(2);
+  pair(0.6, 0.45);
+  assert.ok(inst.knights.length >= 4);
+  const xs = inst.knights.slice(0, 4).map(k => k.x);
+  assert.equal(new Set(xs).size, 4, 'waiting side by side');
 });
 
 test('a monster reaching the castle takes hearts; an ogre takes more; no hearts is the end', () => {
@@ -280,16 +363,16 @@ test('the first tower brings the first wave on; without one it comes anyway', ()
   run(b, 6); assert.equal(b.wave, 1);
 });
 
-test('the ghostly hand shows building until a tower is up, and swatting until a swat', () => {
+test('ghostly hands show building until a tower is up, then pointing and clapping until a clap', () => {
   const inst = quiet();
   run(inst, 2);
   assert.ok(inst.buildHint >= 0);
   build(inst, 2, 'archer');
   assert.equal(inst.buildHint, -1);
-  monster(inst, 'slime', PATH.total * 0.85);
-  assert.ok(inst.swatHint);
-  inst.swatted = true;
-  assert.equal(inst.swatHint, null);
+  monster(inst, 'slime', 0.5);
+  assert.ok(inst.clapHint);
+  inst.clap(0);
+  assert.equal(inst.clapHint, null);
 });
 
 test('no clock and no score on screen; the round ends with an ending', () => {

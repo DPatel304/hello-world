@@ -2,14 +2,22 @@ import { clamp } from './common.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
+import { FaceCam } from '../ui/faces.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChoice, drawChest, heart,
-         drawMonster, drawShot, coin, star } from './castle-art.js';
+         drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
    long way round the meadow, back and forth along one winding trail, to
    the wide castle in the bottom left. The children build towers beside the
-   path to stop them, and swat any that get close with their own hands.
+   path to stop them, and each has a little knight of their own out on the
+   meadow, in their colour with their face in the helmet.
+
+   To send your knight somewhere, put your hands together and point them
+   at the spot - hold them there a moment and a flag goes up, and off the
+   knight walks. To fight, clap: your knight's shockwave knocks back and
+   hurts the monsters round it, wherever your hands happen to be.
 
    Building is holding with both hands. Put a hand over an empty stone pad
    and three bubbles pop up - an archer tower, a cannon, a frost tower -
@@ -18,16 +26,14 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMe
    bigger and stronger, up to three times, and both hands on the castle
    mend it, a heart at a time. Any two hands will do - two children can
    build together, and more hands go faster. Let go and the work drains
-   away. Monsters drop
-   coins into the treasure chest by the castle. Swatting is a quick hand
-   through a monster: it knocks it back down the path.
+   away. Monsters drop coins into the treasure chest by the castle.
 
    The waves keep coming, each a little harder, until the castle's hearts
    run out - so the round is as long as the castle holds. Nothing is
    counted in numbers: the castle flies a pennant for every wave held off.
 
-   A ghostly hand shows how to build first thing, and how to swat the first
-   time a monster gets near the castle. */
+   Ghostly hands show how to build first thing, then how to point and clap
+   when the first monsters come. */
 
 export const ROUND = 900;
 export const HEARTS = 10;
@@ -36,7 +42,13 @@ export const COST = { archer: 3, cannon: 5, frost: 4 };
 export const KINDS = ['archer', 'cannon', 'frost'];
 export const OPEN = 0.5;                              /* one hand, to bring up the bubbles */
 export const BUILD = 2, UPGRADE = 2.5, REPAIR = 2.5;  /* seconds of holding with both hands */
-export const SWAT = 1.0;                              /* hand speed, screen widths a second */
+/* Knights. Hands together (closer than POINT_GAP, in screen heights) and
+   held still for POINT_HOLD point the way; a clap is the hands snapping
+   together from apart. */
+export const POINT_GAP = 0.13, POINT_HOLD = 0.35;
+export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_COOL = 0.35;
+export const CLAP_R = 0.13, CLAP_DMG = 1;               /* reach, in screen heights, and damage */
+export const KNIGHT_SPEED = 0.16, KNIGHT_SIZE = 0.085;
 export const BREAK = 7;                               /* seconds between waves */
 export const STATS = {
   archer: { range: [0.24, 0.27, 0.3], rate: [1.1, 1.5, 2.0], dmg: [1, 1.4, 2] },
@@ -106,7 +118,13 @@ class CastleDefense {
     this.shots = [];
     this.bits = [];
     this.castleHit = 0;
-    this.swatted = false;       /* has anyone swatted yet: the swat hint stops */
+    this.clapped = false;       /* has anyone clapped yet: the clap hint stops */
+    this.faces = new FaceCam();
+    /* The knights wait by the castle, side by side, till sent somewhere. */
+    this.knights = pose.players.map((_, i) => {
+      const x = CASTLE.x + CASTLE.w / 2 + 0.04 + i * 0.035, y = CASTLE_BASE - 0.3 - i * 0.02;
+      return { x, y, tx: x, ty: y, dir: 1, walk: 0, clap: 0, cool: 0, together: 0, apart: 0, gap: 1, rings: [] };
+    });
     this.built = false;
     this.avatars = new Avatars();
     this.out = null;
@@ -119,7 +137,9 @@ class CastleDefense {
     this.t += dt;
     this.castleHit = Math.max(0, this.castleHit - dt * 2);
     this._waves(dt);
+    this.faces.step(dt);
     this._hands(dt, W, H);
+    this._knights(dt);
     this._march(dt);
     this._towers(dt, W, H);
     this._shots(dt, W, H);
@@ -174,7 +194,7 @@ class CastleDefense {
     /* Each walks a little to one side or the other of the middle of the
        trail, so a crowd looks like a crowd, not a queue. */
     this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, side: (Math.random() - 0.5) * 0.05, hp, max: hp, speed: M.speed,
-                         slowT: 0, slowK: 1, hurt: 0, swat: new Map(), wob: Math.random() * 6 });
+                         slowT: 0, slowK: 1, hurt: 0, wob: Math.random() * 6 });
   }
 
   _march(dt){
@@ -182,7 +202,6 @@ class CastleDefense {
       m.hurt = Math.max(0, m.hurt - dt * 4);
       if (m.slowT > 0){ m.slowT -= dt; if (m.slowT <= 0) m.slowK = 1; }
       m.s += m.speed * m.slowK * dt;
-      for (const [k, v] of m.swat) if (v - dt <= 0) m.swat.delete(k); else m.swat.set(k, v - dt);
       if (m.s >= PATHS[m.path].total){
         m.gone = true;
         this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm);
@@ -203,7 +222,72 @@ class CastleDefense {
     return { x: p.x + k / ASPECT * 0.7, y: p.y + k * 0.7, dir: p.dir };
   }
 
-  /* ---------- the children's hands: building and swatting ---------- */
+  /* ---------- the knights: pointing and clapping ---------- */
+
+  _knights(dt){
+    for (let i = 0; i < this.knights.length; i++){
+      const k = this.knights[i], p = pose.players[i];
+      k.cool = Math.max(0, k.cool - dt);
+      k.clap = Math.max(0, k.clap - dt * 3);
+      for (const r of k.rings) r.k += dt / 0.45;
+      k.rings = k.rings.filter(r => r.k < 1);
+      if (i < this.players && p && p.present) this._hands2(i, k, p, dt);
+      /* Walk toward the flag. */
+      const dx = (k.tx - k.x) * ASPECT, dy = k.ty - k.y, d = Math.hypot(dx, dy), step = KNIGHT_SPEED * dt;
+      if (d > 0.004){
+        const u = Math.min(1, step / d);
+        k.x += dx * u / ASPECT; k.y += dy * u;
+        if (Math.abs(dx) > 0.002) k.dir = dx > 0 ? 1 : -1;
+        k.walk = Math.min(1, k.walk + dt * 6);
+      } else k.walk = Math.max(0, k.walk - dt * 6);
+    }
+  }
+
+  /* One child's two hands: held together on a spot, they point the way;
+     snapped together from apart, they clap. */
+  _hands2(i, k, p, dt){
+    if (pose.mouse.active){
+      /* The mouse: resting still points; the knight claps by itself when
+         monsters are near, so the game can be tried without a camera. */
+      const h = p.hands.right;
+      k.together = (h.speed || 0) < 0.15 ? k.together + dt : 0;
+      if (k.together >= POINT_HOLD && this._onMap(h.x, h.y)){ k.tx = h.x; k.ty = h.y; }
+      if (!k.cool && this.monsters.some(m => this._near(k, m))) this.clap(i);
+      return;
+    }
+    const l = p.hands.left, r = p.hands.right;
+    const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y), mx = (l.x + r.x) / 2, my = (l.y + r.y) / 2;
+    const closing = (k.gap - gap) / Math.max(dt, 1e-3);
+    k.apart = gap > CLAP_APART ? 0.4 : Math.max(0, k.apart - dt);
+    if (gap < CLAP_SHUT && k.apart > 0 && closing > CLAP_SPEED && !k.cool){ this.clap(i); k.apart = 0; }
+    k.gap = gap;
+    k.together = gap < POINT_GAP ? k.together + dt : 0;
+    if (k.together >= POINT_HOLD && this._onMap(mx, my)){ k.tx = mx; k.ty = my; }
+    k.aim = gap < POINT_GAP ? { x: mx, y: my, k: Math.min(1, k.together / POINT_HOLD) } : null;
+  }
+
+  _onMap(x, y){ return x > 0.01 && x < 0.99 && y > 0.04 && y < 0.98; }
+  _near(k, m){ const p = this.pos(m); return Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) < CLAP_R + MONSTERS[m.kind].size * 0.3; }
+
+  /* A clap: the knight's shockwave knocks back and hurts the monsters
+     round it. */
+  clap(i){
+    const k = this.knights[i];
+    k.cool = CLAP_COOL; k.clap = 1;
+    k.rings.push({ k: 0 });
+    this.clapped = true;
+    let hit = 0;
+    for (const m of [...this.monsters]){
+      if (!this._near(k, m)) continue;
+      m.s = Math.max(0, m.s - (m.kind === 'ogre' ? 0.015 : 0.04));
+      m.hurt = 1; hit++;
+      this._damage(m, CLAP_DMG);
+    }
+    sfx.pop(hit ? 0.9 : 0.3);
+    if (hit) sfx.boing(1);
+  }
+
+  /* ---------- the children's hands: building ---------- */
 
   _handsOf(){
     const out = [];
@@ -250,7 +334,6 @@ class CastleDefense {
     /* Who has a hand on what. */
     const on = new Map();
     for (const { who, key, h } of this._handsOf()){
-      this._swat(who, key, h, W, H);
       const tg = this._target(h);
       if (!tg){ this.dwell.delete(key); continue; }
       const e = on.get(tg.id) || { tg, hands: [] };
@@ -321,23 +404,6 @@ class CastleDefense {
     sfx.gold();
     const pad = PADS[i];
     for (let k = 0; k < 20; k++) this._spark(pad.x, pad.y - 0.08, PLAYER_COLORS[who]);
-  }
-
-  /* A quick hand through a monster knocks it back down the path. */
-  _swat(who, key, h, W, H){
-    if ((h.speed || 0) < SWAT) return;
-    for (const m of this.monsters){
-      if (m.swat.has(key)) continue;
-      const p = this.pos(m), M = MONSTERS[m.kind], my = p.y - M.size * (M.flies ? 0.75 : 0.4);
-      if (Math.hypot((h.x - p.x) * ASPECT, h.y - my) > M.size * 0.7 + 0.03) continue;
-      m.swat.set(key, 0.35);
-      m.s = Math.max(0, m.s - (m.kind === 'ogre' ? 0.02 : 0.06));
-      m.hurt = 1;
-      this.swatted = true;
-      sfx.boing(2);
-      for (let k = 0; k < 6; k++) this._spark(p.x, my, PLAYER_COLORS[who]);
-      this._damage(m, 1);
-    }
   }
 
   /* ---------- towers ---------- */
@@ -442,11 +508,10 @@ class CastleDefense {
   /* Building: until the first tower, a ghostly hand holds over a pad, the
      bubbles pop up, and it holds on the archer. */
   get buildHint(){ return !this.built && this.t > 1 ? (this.t - 1) % 6.5 : -1; }
-  /* Swatting: the first time a monster gets most of the way, until someone
-     has swatted one. */
-  get swatHint(){
-    if (this.swatted) return null;
-    return this.monsters.filter(m => m.s > PATHS[m.path].total * 0.7).sort((a, b) => b.s / PATHS[b.path].total - a.s / PATHS[a.path].total)[0] || null;
+  /* Pointing and clapping: once monsters are about, until someone claps. */
+  get clapHint(){
+    if (this.clapped || this.out || !this.monsters.length || this.buildHint >= 0) return null;
+    return this.monsters.slice().sort((a, b) => b.s - a.s)[0];
   }
 
   /* ---------- the ending ---------- */
@@ -486,6 +551,19 @@ class CastleDefense {
       const p = this.pos(m), M = MONSTERS[m.kind], dance = this.out && this.lost ? Math.abs(Math.sin(this.t * 6 + m.wob)) * 0.03 : 0;
       things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max) });
     }
+    /* The knights, among everything else; their flags on the ground. */
+    for (let i = 0; i < this.players; i++){
+      const k = this.knights[i];
+      if (!pose.players[i].present) continue;
+      if (!this.out && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+      things.push({ y: k.y, draw: () => {
+        for (const r of k.rings) drawClapRing(c, k.x * W, k.y * H, CLAP_R * H, r.k, PLAYER_COLORS[i]);
+        drawKnight(c, k.x * W, k.y * H, KNIGHT_SIZE * H, this.t + i, PLAYER_COLORS[i], k.dir, k.walk, k.clap, (x, y, r) => {
+          if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
+          else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
+        });
+      } });
+    }
     things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, HEARTS, this.held, this.castleHit, this.mend) });
     things.sort((a, b) => a.y - b.y);
     for (const th of things) th.draw();
@@ -495,6 +573,14 @@ class CastleDefense {
       this._drawRings(c, W, H, holding);
       this._drawMenus(c, W, H, holding);
       this._drawHints(c, W, H);
+      /* Hands together: a ring fills where they're pointing, and the flag
+         goes up when it's full. */
+      for (let i = 0; i < this.players; i++){
+        const a = this.knights[i].aim;
+        if (!a || a.k >= 1) continue;
+        c.strokeStyle = PLAYER_COLORS[i]; c.lineWidth = H * 0.007;
+        c.beginPath(); c.arc(a.x * W, a.y * H, H * 0.035, -Math.PI / 2, -Math.PI / 2 + a.k * 6.2832); c.stroke();
+      }
     }
     this._drawBits(c, W, H);
     this.avatars.drawBodies(c, W, H, this.players, [], 0.16);
@@ -586,11 +672,20 @@ class CastleDefense {
       const k = (this.t % 3) / 3, show = Math.min(1, k * 5, (1 - k) * 5), x = CASTLE.x, y = CASTLE_BASE - 0.2;
       ghost((x - 0.03) * W, y * H, show * 0.8, 0); ghost((x + 0.03) * W, y * H, show * 0.8, 0);
     }
-    const m = this.swatHint;
+    /* Point and clap: two ghostly hands come together on the monster and
+       hold (a flag goes up there), then clap, clap, clap. */
+    const m = this.clapHint;
     if (m){
-      /* A ghostly hand swishing through it. */
-      const p = this.pos(m), k = (this.t % 1.2) / 1.2, sw = Math.sin(k * Math.PI);
-      ghost((p.x + (k - 0.5) * 0.12) * W, (p.y - 0.05 - sw * 0.03) * H, sw * 0.8, 0);
+      const p = this.pos(m), u = this.t % 4, x = p.x, y = p.y - 0.05;
+      if (u < 1.6){
+        const c2 = Math.min(1, u / 0.6), off = 0.06 * (1 - c2) + 0.012;
+        ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85, 0); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85, u > 0.6 ? Math.min(1, (u - 0.6) / 0.6) : 0);
+        if (u > 1.2){ c.save(); c.globalAlpha = 0.6; drawMarker(c, p.x * W, p.y * H, KNIGHT_SIZE * H, '#fff6e2', this.t); c.restore(); }
+      } else {
+        const cl = Math.abs(Math.sin((u - 1.6) * Math.PI * 1.5)), off = 0.012 + cl * 0.05;
+        ghost((x - off / ASPECT * 1.6) * W, y * H, 0.85, 0); ghost((x + off / ASPECT * 1.6) * W, y * H, 0.85, 0);
+        if (cl < 0.15){ c.save(); c.globalAlpha = 0.5; drawClapRing(c, p.x * W, p.y * H, CLAP_R * H, 0.3, '#fff6e2'); c.restore(); }
+      }
     }
   }
 

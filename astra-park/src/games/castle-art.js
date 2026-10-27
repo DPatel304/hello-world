@@ -409,3 +409,70 @@ export function drawShot(c, W, H, s){
     c.fillStyle = g; c.beginPath(); c.arc(x, y, H * 0.02, 0, 6.2832); c.fill();
   }
 }
+
+/* ---------- the children's knights ---------- */
+
+/* A little knight, goblin-sized, at (x, y) - its feet - in the child's
+   colour: a tunic, a round helmet with a window for their face, a shield
+   and a little sword. walk: 0..1, how hard it's walking (legs and bob);
+   clap: 0..1 just after a clap, arms flung out. face(x, y, r) paints the
+   face into the clipped helmet window. */
+export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face){
+  const bob = Math.abs(Math.sin(t * 10)) * s * 0.05 * walk;
+  c.fillStyle = 'rgba(40,50,40,.28)'; c.beginPath(); c.ellipse(x, y + s * 0.03, s * 0.32, s * 0.09, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(x, y - bob);
+  /* Legs. */
+  c.strokeStyle = '#4a4f63'; c.lineWidth = s * 0.1; c.lineCap = 'round';
+  for (const k of [-1, 1]){ const st = Math.sin(t * 10 + (k > 0 ? Math.PI : 0)) * s * 0.06 * walk; c.beginPath(); c.moveTo(k * s * 0.08, -s * 0.28); c.lineTo(k * s * 0.09 + st, -s * 0.02); c.stroke(); }
+  /* Tunic over grey mail. */
+  c.fillStyle = '#9aa0b4'; c.beginPath(); c.roundRect(-s * 0.2, -s * 0.58, s * 0.4, s * 0.34, s * 0.08); c.fill();
+  c.fillStyle = col; c.beginPath(); c.moveTo(-s * 0.17, -s * 0.56); c.lineTo(s * 0.17, -s * 0.56); c.lineTo(s * 0.21, -s * 0.24); c.lineTo(-s * 0.21, -s * 0.24); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(-s * 0.03, -s * 0.54, s * 0.06, s * 0.28);
+  /* Arms: by the sides, or flung wide in a clap. */
+  const spread = clap > 0 ? 1 : 0;
+  c.strokeStyle = '#9aa0b4'; c.lineWidth = s * 0.09;
+  for (const k of [-1, 1]){
+    const hx = k * s * (0.24 + spread * 0.14), hy = -s * (0.36 + spread * 0.18);
+    c.beginPath(); c.moveTo(k * s * 0.17, -s * 0.52); c.lineTo(hx, hy); c.stroke();
+    if (k === dir){
+      /* The sword. */
+      c.strokeStyle = '#dfe3ee'; c.lineWidth = s * 0.05;
+      c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + k * s * 0.08, hy - s * 0.3); c.stroke();
+      c.strokeStyle = '#8a5a34'; c.lineWidth = s * 0.05; c.beginPath(); c.moveTo(hx - s * 0.06, hy - s * 0.02); c.lineTo(hx + s * 0.06, hy - s * 0.02); c.stroke();
+      c.strokeStyle = '#9aa0b4'; c.lineWidth = s * 0.09;
+    } else {
+      /* The shield, in their colour. */
+      c.fillStyle = col; c.strokeStyle = '#ffffff'; c.lineWidth = s * 0.025;
+      c.beginPath(); c.moveTo(hx - s * 0.09, hy - s * 0.1); c.lineTo(hx + s * 0.09, hy - s * 0.1); c.lineTo(hx + s * 0.08, hy + s * 0.04); c.lineTo(hx, hy + s * 0.12); c.lineTo(hx - s * 0.08, hy + s * 0.04); c.closePath(); c.fill(); c.stroke();
+      c.strokeStyle = '#9aa0b4'; c.lineWidth = s * 0.09;
+    }
+  }
+  /* Helmet with a round window for the face, and a plume in their colour. */
+  const hy = -s * 0.76, r = s * 0.2;
+  c.fillStyle = '#c4c9d8'; c.beginPath(); c.arc(0, hy, r * 1.18, 0, 6.2832); c.fill();
+  c.save(); c.beginPath(); c.arc(0, hy + r * 0.05, r * 0.86, 0, 6.2832); c.clip();
+  c.fillStyle = col; c.fillRect(-r, hy - r, r * 2, r * 2);
+  face(0, hy + r * 0.05, r * 0.86);
+  c.restore();
+  c.fillStyle = col;
+  c.beginPath(); c.ellipse(0, hy - r * 1.3, r * 0.3, r * 0.42, Math.sin(t * 3) * 0.2, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* The ring a clap sends out: k 0..1 through its life. */
+export function drawClapRing(c, x, y, r, k, col){
+  c.save();
+  c.globalAlpha = 1 - k;
+  c.strokeStyle = col; c.lineWidth = r * 0.12 * (1 - k * 0.6);
+  c.beginPath(); c.ellipse(x, y, r * (0.3 + 0.7 * k), r * (0.3 + 0.7 * k) * 0.55, 0, 0, 6.2832); c.stroke();
+  c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.05;
+  c.beginPath(); c.ellipse(x, y, r * (0.2 + 0.7 * k), r * (0.2 + 0.7 * k) * 0.55, 0, 0, 6.2832); c.stroke();
+  c.restore();
+}
+
+/* Where a knight is heading: a little flag in the child's colour. */
+export function drawMarker(c, x, y, s, col, t){
+  c.fillStyle = 'rgba(40,50,40,.25)'; c.beginPath(); c.ellipse(x, y, s * 0.18, s * 0.06, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = '#5b4636'; c.lineWidth = Math.max(1.5, s * 0.04); c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - s * 0.55); c.stroke();
+  c.fillStyle = col; c.beginPath(); c.moveTo(x, y - s * 0.55); c.lineTo(x + s * 0.3, y - s * 0.46 + Math.sin(t * 6) * s * 0.03); c.lineTo(x, y - s * 0.36); c.closePath(); c.fill();
+}
