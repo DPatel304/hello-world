@@ -900,6 +900,20 @@ test('a friend beside it clapping ten times gets a knight up, right there, level
   assert.ok(REVIVE_CLAPS >= 8 && REVIVE_CLAPS <= 12);
 });
 
+test('a small, soft, lopsided clap still counts', () => {
+  const inst = quiet(2);
+  const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.5 + REVIVE_R * 0.9 / ASPECT, 0.5);
+  /* Hands only a shoulder width apart, closing slowly to a little gap, one a bit higher. */
+  for (let c = 0; c < 4; c++) for (let f = 0; f < 24; f++){
+    still(2);
+    const u = Math.min(1, Math.max(0, (f - 6) / 12)), gap = 0.13 * (1 - u) + 0.05 * u, p = pose.players[1];
+    p.hands.left = { x: 0.5 - gap / 2 / ASPECT, y: 0.52 }; p.hands.right = { x: 0.5 + gap / 2 / ASPECT, y: 0.5 };
+    inst.step(DT, W, H);
+  }
+  assert.equal(k.claps, 4);
+});
+
 test('two friends clapping together count together', () => {
   const inst = quiet(3);
   const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
@@ -929,7 +943,7 @@ test('stop clapping a while and the claps wear off', () => {
   claps(inst, 5);
   run(inst, 2, () => still(2));
   assert.equal(k.claps, 5, 'a breather is fine');
-  run(inst, 6, () => still(2));
+  run(inst, 12, () => still(2));
   assert.ok(k.claps < 3, 'but not too long');
 });
 

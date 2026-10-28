@@ -132,16 +132,19 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
    friend to come and get it up: their knight goes over to it (within
    REVIVE_R, a good way) and the child claps - REVIVE_CLAPS claps, and up
    it gets, right there, every level kept. Friends clapping together all
-   count. Stop clapping for CLAP_FADE seconds and the claps begin to wear
-   off. A clap is the hands, CLAP_APART or more apart, snapping shut (to
-   within CLAP_SHUT) at CLAP_SPEED screen heights a second or faster - not
-   rolling the arms, which brings them close but never snaps. Only when every
+   count. It's meant to feel like "a few claps", not a count to get right -
+   small children clap small, soft and lopsided, and the camera is slow -
+   so a clap is very little: the hands coming together (to within
+   CLAP_SHUT shoulder widths) from a little apart (CLAP_APART, in the last
+   moment) at all briskly (CLAP_SPEED shoulder widths a second). Rolling
+   the arms never counts. Stop clapping for CLAP_FADE seconds and the
+   claps slowly wear off. Only when every
    knight is down does nobody need to: after ALL_DOWN seconds they're all
    back at the castle - but back to the very start, every level lost. Just
    up, a knight is safe for SAFE seconds. */
 export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SAFE = 3, DODGE = 0.6;
-export const REVIVE_R = 0.18, REVIVE_CLAPS = 10, CLAP_FADE = 4, ALL_DOWN = 10;
-export const CLAP_APART = 0.15, CLAP_SHUT = 0.1, CLAP_SPEED = 0.8;
+export const REVIVE_R = 0.22, REVIVE_CLAPS = 10, CLAP_FADE = 6, ALL_DOWN = 10;
+export const CLAP_APART = 0.8, CLAP_SHUT = 0.6, CLAP_SPEED = 1.5;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first). */
 export const BUILD_TIME = 15, FIRST_BUILD = 20;
@@ -544,11 +547,13 @@ class CastleDefense {
   /* A clap: the hands snapping together from apart. */
   _clapWatch(k, p, dt){
     k.clapped = false;
-    const l = p.hands.left, r = p.hands.right;
+    const l = p.hands.left, r = p.hands.right, lm = p.lm;
     if (!l || !r) return;
-    const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y);
+    /* In shoulder widths, so near the camera or far off is the same. */
+    const sw = lm ? Math.max(0.03, Math.hypot((lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x) * ASPECT, lm[L.L_SHOULDER].y - lm[L.R_SHOULDER].y)) : 0.1;
+    const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y) / sw;
     const closing = ((k.gap ?? gap) - gap) / Math.max(dt, 1e-3);
-    k.apart = gap > CLAP_APART ? 0.4 : Math.max(0, (k.apart || 0) - dt);
+    k.apart = gap > CLAP_APART ? 0.6 : Math.max(0, (k.apart || 0) - dt);
     if (gap < CLAP_SHUT && k.apart > 0 && closing > CLAP_SPEED && !this.rolling(k)){ k.clapped = true; k.apart = 0; }
     k.gap = gap;
   }
@@ -756,7 +761,7 @@ class CastleDefense {
       const f = this.knights[j];
       f.helper = -1;
       f.clapAgo = (f.clapAgo || 0) + dt;
-      if (f.clapAgo > CLAP_FADE) f.claps = Math.max(0, (f.claps || 0) - dt);
+      if (f.clapAgo > CLAP_FADE) f.claps = Math.max(0, (f.claps || 0) - dt * 0.5);
       for (const i of up){
         const k = this.knights[i];
         if (Math.hypot((k.x - f.fell.x) * ASPECT, k.y - f.fell.y) > REVIVE_R) continue;
