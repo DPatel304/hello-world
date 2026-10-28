@@ -930,6 +930,8 @@ class CastleDefense {
     c.save();
     if (this.shake > 0){ const a = this.shake * this.shake * H * 0.012; c.translate((Math.random() - 0.5) * a * 2, (Math.random() - 0.5) * a * 2); }
     drawMeadow(c, W, H);
+    /* The jungle, soft and in the background, swaying. */
+    for (const tr of TREES) drawTree(c, W, H, tr, this.leanOf(tr));
     /* Butterflies flitting over the meadow. */
     for (let q = 0; q < 5; q++){
       const u = this.t * 0.03 + q * 0.21, bx = (0.15 + 0.7 * ((Math.sin(u * 2.1 + q) + 1) / 2)), by = 0.12 + 0.7 * ((Math.sin(u * 1.3 + q * 2.4) + 1) / 2);
@@ -938,7 +940,7 @@ class CastleDefense {
     const things = [];
     for (const pad of PADS){
       const tw = this.towers.get(pad.i), here = this.knights.some((k, i) => i < this.players && k.at && k.at.id === `p${pad.i}`);
-      drawPad(c, W, H, pad, tw || this.out ? 0 : here ? 1 : 0.2 + 0.1 * Math.sin(this.t * 3 + pad.i));
+      inked(c, H * 0.0024, () => drawPad(c, W, H, pad, tw || this.out ? 0 : here ? 1 : 0.2 + 0.1 * Math.sin(this.t * 3 + pad.i)));
       if (tw) things.push({ y: pad.y, draw: () => {
         c.save(); if (tw.hit > 0) c.translate(Math.sin(this.t * 60) * tw.hit * H * 0.004, 0);
         /* Just built or built up: it springs up out of the pad. */
@@ -1042,8 +1044,6 @@ class CastleDefense {
       } });
     }
     things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, this.maxHearts, this.held, this.castleHit, this.mend, this.castleLvl) });
-    /* The jungle: every tree among everything else, nearer ones in front. */
-    for (const tr of TREES) things.push({ y: tr.y, draw: () => drawTree(c, W, H, tr, this.leanOf(tr)) });
     things.sort((a, b) => a.y - b.y);
     /* All of it in bold ink outlines - but a great crowd of monsters plain,
        or there's too much to draw. */

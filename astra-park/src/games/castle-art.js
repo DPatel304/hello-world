@@ -90,11 +90,11 @@ function meadow(W, H){
 
 function paintMeadow(c, W, H){
   let g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#88d45e'); g.addColorStop(1, '#5fb94b');
+  g.addColorStop(0, '#9fd585'); g.addColorStop(1, '#86c672');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   /* Soft patches of lighter and darker grass. */
   for (let i = 0; i < 60; i++){
-    c.fillStyle = hash(i, 3) < 0.5 ? 'rgba(160,220,120,.35)' : 'rgba(80,150,70,.25)';
+    c.fillStyle = hash(i, 3) < 0.5 ? 'rgba(180,230,150,.3)' : 'rgba(100,160,90,.16)';
     c.beginPath(); c.ellipse(hash(i, 5) * W, hash(i, 7) * H, H * (0.05 + hash(i, 9) * 0.08), H * (0.025 + hash(i, 11) * 0.04), 0, 0, 6.2832); c.fill();
   }
   /* The path: a darker edge, then sand, then a lighter middle. */
@@ -102,22 +102,22 @@ function paintMeadow(c, W, H){
     c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round';
     for (const P of PATHS){ c.beginPath(); P.pts.forEach(([x, y], i) => i ? c.lineTo(x * W, y * H) : c.moveTo(x * W, y * H)); c.stroke(); }
   };
-  stroke('#b88a55', H * 0.095); stroke('#e3c48e', H * 0.075); stroke('rgba(255,240,200,.45)', H * 0.03);
+  stroke('#cfb183', H * 0.095); stroke('#ecd8b0', H * 0.075); stroke('rgba(255,246,222,.45)', H * 0.03);
   for (let i = 0; i < 80; i++){
     const k = i % PATHS.length, p = along(hash(i, 13) * PATHS[k].total, k), off = (hash(i, 17) - 0.5) * 0.05;
-    c.fillStyle = 'rgba(150,115,70,.4)'; c.beginPath(); c.ellipse(p.x * W + off * H, p.y * H + off * H * 0.5, H * 0.006, H * 0.004, 0, 0, 6.2832); c.fill();
+    c.fillStyle = 'rgba(160,130,95,.25)'; c.beginPath(); c.ellipse(p.x * W + off * H, p.y * H + off * H * 0.5, H * 0.006, H * 0.004, 0, 0, 6.2832); c.fill();
   }
   /* Flowers dotted about. */
   for (let i = 0; i < 70; i++){
     const x = hash(i, 19) * W, y = hash(i, 23) * H;
     if (nearPath(x / W, y / H, 0.07)) continue;
-    c.fillStyle = ['#ffffff', '#ffd84a', '#ff8fb8', '#b9a2ff'][i % 4];
+    c.fillStyle = ['#f4fbef', '#f1dc8e', '#f0b8cc', '#cbbdf0'][i % 4];
     for (let k = 0; k < 5; k++){ const a = k * 1.2566; c.beginPath(); c.arc(x + Math.cos(a) * H * 0.005, y + Math.sin(a) * H * 0.005, H * 0.004, 0, 6.2832); c.fill(); }
     c.fillStyle = '#ffb02e'; c.beginPath(); c.arc(x, y, H * 0.003, 0, 6.2832); c.fill();
   }
   /* The trees' shadows on the grass (the trees themselves are drawn over
      everything, swaying). */
-  for (const t of TREES){ c.fillStyle = 'rgba(30,70,30,.28)'; c.beginPath(); c.ellipse((t.x + t.r * 0.25 / ASPECT) * W, (t.y + t.r * 0.3) * H, t.r * 0.95 * H, t.r * 0.36 * H, 0, 0, 6.2832); c.fill(); }
+  for (const t of TREES){ c.fillStyle = 'rgba(40,80,40,.14)'; c.beginPath(); c.ellipse((t.x + t.r * 0.25 / ASPECT) * W, (t.y + t.r * 0.3) * H, t.r * 0.95 * H, t.r * 0.36 * H, 0, 0, 6.2832); c.fill(); }
 }
 
 function nearPath(x, y, d){
@@ -147,8 +147,10 @@ export const TREES = (() => {
 export function drawTree(c, W, H, t, lean = 0){
   const x = t.x * W, y = t.y * H, r = t.r * H;
   c.save(); c.translate(x, y); c.rotate(lean); c.translate(-x, -y);
-  const greens = t.bush ? ['#3c9a4a', '#4cb55a', '#5fcb69'] : ['#2f8a47', '#3fa257', '#52b964'];
-  if (!t.bush){ c.fillStyle = '#7a5236'; c.beginPath(); c.roundRect(x - r * 0.12, y - r * 0.35, r * 0.24, r * 0.5, r * 0.06); c.fill(); }
+  /* Soft, muted greens close to the grass, so the jungle stays in the
+     background and everything that matters stands out against it. */
+  const greens = t.bush ? ['#6fb867', '#79c26f', '#86cb7a'] : ['#63aa60', '#6fb769', '#7cc274'];
+  if (!t.bush){ c.fillStyle = '#9a7a5c'; c.beginPath(); c.roundRect(x - r * 0.12, y - r * 0.35, r * 0.24, r * 0.5, r * 0.06); c.fill(); }
   const n = t.bush ? 3 : 5, cy = y - (t.bush ? r * 0.25 : r * 0.7);
   for (let k = 0; k < n; k++){
     const a = k / n * 6.2832 + t.seed, d = t.bush ? r * 0.42 : r * 0.38;
@@ -156,9 +158,9 @@ export function drawTree(c, W, H, t, lean = 0){
   }
   c.fillStyle = greens[2]; c.beginPath(); c.arc(x - r * 0.05, cy - r * 0.12, r * (t.bush ? 0.38 : 0.45), 0, 6.2832); c.fill();
   /* Sunlight on the top, and the odd berry or blossom. */
-  c.fillStyle = 'rgba(230,255,190,.45)'; c.beginPath(); c.arc(x - r * 0.22, cy - r * 0.32, r * 0.2, 0, 6.2832); c.fill();
-  if (hash(t.seed, 43) < 0.35){
-    c.fillStyle = ['#ff6b6b', '#ffd24a', '#ff9ad5'][t.seed % 3];
+  c.fillStyle = 'rgba(235,255,200,.3)'; c.beginPath(); c.arc(x - r * 0.22, cy - r * 0.32, r * 0.2, 0, 6.2832); c.fill();
+  if (hash(t.seed, 43) < 0.25){
+    c.fillStyle = ['#e8a0a0', '#e8d090', '#e8b0d0'][t.seed % 3];
     for (let k = 0; k < 3; k++){ c.beginPath(); c.arc(x + (hash(t.seed * 3 + k, 47) - 0.5) * r * 0.9, cy + (hash(t.seed * 3 + k, 53) - 0.5) * r * 0.6, r * 0.07, 0, 6.2832); c.fill(); }
   }
   c.restore();
@@ -178,16 +180,17 @@ export function inked(c, w, fn){
     draw();
     c.strokeStyle = ss; c.lineWidth = lw; c.lineJoin = lj; c.lineCap = lc;
   };
+  const on = (st) => !c.__noInk && solid(st) && st !== INK && c.globalAlpha > 0.95;
   c.fill = function(...a){
-    if (solid(this.fillStyle) && this.globalAlpha > 0.95) ink(() => { this.lineWidth = w * 2; stroke.call(this); });
+    if (on(this.fillStyle)) ink(() => { this.lineWidth = w * 2; stroke.call(this); });
     return fill.apply(this, a);
   };
   c.fillRect = function(x, y, rw, rh){
-    if (solid(this.fillStyle) && this.globalAlpha > 0.95) ink(() => { this.lineWidth = w * 2; this.strokeRect(x, y, rw, rh); });
+    if (on(this.fillStyle)) ink(() => { this.lineWidth = w * 2; this.strokeRect(x, y, rw, rh); });
     return fillRect.call(this, x, y, rw, rh);
   };
   c.stroke = function(...a){
-    if (solid(this.strokeStyle) && this.strokeStyle !== INK && this.globalAlpha > 0.95){ const lw = this.lineWidth; ink(() => { this.lineWidth = lw + w * 2; stroke.apply(this, a); }); }
+    if (on(this.strokeStyle)){ const lw = this.lineWidth; ink(() => { this.lineWidth = lw + w * 2; stroke.apply(this, a); }); }
     return stroke.apply(this, a);
   };
   try { fn(); }
@@ -351,8 +354,8 @@ export function drawPad(c, W, H, pad, glow = 0){
     c.fillStyle = g; c.beginPath(); c.arc(x, y, r * 1.8, 0, 6.2832); c.fill();
   }
   c.fillStyle = 'rgba(40,60,40,.25)'; c.beginPath(); c.ellipse(x, y + r * 0.2, r * 1.05, r * 0.55, 0, 0, 6.2832); c.fill();
-  c.fillStyle = '#a8a2b4'; c.beginPath(); c.ellipse(x, y, r, r * 0.5, 0, 0, 6.2832); c.fill();
-  c.fillStyle = '#c4bfd0'; c.beginPath(); c.ellipse(x, y - r * 0.06, r * 0.82, r * 0.38, 0, 0, 6.2832); c.fill();
+  c.fillStyle = '#9b93ad'; c.beginPath(); c.ellipse(x, y, r, r * 0.5, 0, 0, 6.2832); c.fill();
+  c.fillStyle = '#d2cde0'; c.beginPath(); c.ellipse(x, y - r * 0.06, r * 0.82, r * 0.38, 0, 0, 6.2832); c.fill();
   c.strokeStyle = 'rgba(120,110,140,.6)'; c.lineWidth = Math.max(1, r * 0.05);
   for (let k = 0; k < 6; k++){ const a = k * 1.047; c.beginPath(); c.moveTo(x, y - r * 0.06); c.lineTo(x + Math.cos(a) * r * 0.82, y - r * 0.06 + Math.sin(a) * r * 0.38); c.stroke(); }
 }
@@ -566,17 +569,24 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0
 
 /* A monster's face: a silly smile - or, mean, a scowl, with cross brows. */
 function face(c, x, y, s, mean = false){
+  /* A face draws its own fine lines, not the bold ink - small eyes drown in
+     a thick outline. */
+  const was = c.__noInk; c.__noInk = true;
   for (const k of [-1, 1]){
-    c.fillStyle = mean ? '#ffe27a' : '#ffffff'; c.beginPath(); c.arc(x + k * s * 0.22, y, s * 0.16, 0, 6.2832); c.fill();
-    c.fillStyle = '#2b2440'; c.beginPath(); c.arc(x + k * s * 0.22, y + s * 0.03, s * 0.09, 0, 6.2832); c.fill();
+    const ex = x + k * s * 0.22;
+    c.fillStyle = mean ? '#ffe27a' : '#ffffff'; c.strokeStyle = INK; c.lineWidth = Math.max(1, s * 0.035);
+    c.beginPath(); c.arc(ex, y, s * 0.17, 0, 6.2832); c.fill(); c.stroke();
+    c.fillStyle = INK; c.beginPath(); c.arc(ex + s * 0.02, y + s * 0.03, s * 0.075, 0, 6.2832); c.fill();
+    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(ex + s * 0.045, y - s * 0.005, s * 0.025, 0, 6.2832); c.fill();
   }
-  c.strokeStyle = '#2b2440'; c.lineWidth = Math.max(1, s * 0.06); c.lineCap = 'round';
+  c.strokeStyle = INK; c.lineWidth = Math.max(1, s * 0.05); c.lineCap = 'round';
   if (mean){
-    for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.4, y - s * 0.24); c.lineTo(x + k * s * 0.08, y - s * 0.12); c.stroke(); }
+    for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.4, y - s * 0.25); c.lineTo(x + k * s * 0.08, y - s * 0.13); c.stroke(); }
     c.beginPath(); c.arc(x, y + s * 0.32, s * 0.14, 1.2 * Math.PI, 1.8 * Math.PI); c.stroke();
-    return;
+  } else {
+    c.beginPath(); c.arc(x, y + s * 0.18, s * 0.14, 0.2 * Math.PI, 0.8 * Math.PI); c.stroke();
   }
-  c.beginPath(); c.arc(x, y + s * 0.18, s * 0.14, 0.2 * Math.PI, 0.8 * Math.PI); c.stroke();
+  c.__noInk = was;
 }
 
 /* ---------- shots ---------- */

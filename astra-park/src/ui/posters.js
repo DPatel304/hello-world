@@ -116,6 +116,7 @@ function forestRun(){
 function castleDefense(){
   return (c, W, H, t) => {
     drawMeadow(c, W, H);
+    for (const tr of TREES) drawCastleTree(c, W, H, tr, Math.sin(t * 1.2 + tr.seed) * 0.025);
     const things = [];
     for (const [i, kind, lvl, col] of [[4, 'archer', 5, '#3da9ff'], [7, 'frost', 2, '#ff8a3d'], [9, 'cannon', 3, '#3fcf7f']]){
       const pad = CASTLE_PADS[i]; things.push({ y: pad.y, f: () => drawTower(c, W, H, pad, kind, lvl, -0.6 + Math.sin(t) * 0.3, col, t) });
@@ -125,7 +126,6 @@ function castleDefense(){
       things.push({ y: p.y, f: () => drawMonster(c, p.x * W, p.y * H, H * 0.065, kind, t + k, p.dir, 0, false, 1) });
     }
     things.push({ y: 0.88, f: () => drawCastle(c, W, H, t, 15, 15, 3, 0, 0, 6) });
-    for (const tr of TREES) things.push({ y: tr.y, f: () => drawCastleTree(c, W, H, tr, Math.sin(t * 1.2 + tr.seed) * 0.025) });
     inked(c, H * 0.0024, () => things.sort((a, b) => a.y - b.y).forEach(th => th.f()));
   };
 }
