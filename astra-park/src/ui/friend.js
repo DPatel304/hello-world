@@ -1,68 +1,84 @@
-/* The park's little friend, who waves on the title screen and turns up in
-   the games now and then. Drawn, like everything, rather than loaded. */
-import { wind } from './backdrop.js';
+/* The park's little friend, who waves on the title screen: Astra, the
+   evening star come down to play. A plump golden star with the park's face
+   - big dark eyes, rosy cheeks, a small smile - bobbing over the meadow in
+   its own glow, twinkles drifting round it, one point waving hello. When
+   it's happy it throws both arms (points) up and spins with joy. Drawn,
+   like everything, rather than loaded. */
 
-/* The park's little friend: round and warm, rosy-cheeked, with a sprout on
-   top that leans in the wind. One arm waves; when it's happy, both go up. */
 /* Where the friend stands on the front door, across the screen. */
 export const FRIEND_X = 0.44;
 
+const INK = '#2b2440';
+
 export function friend(c, x, ground, H, t, happy){
-  const u = H / 900, bw = 50 * u, bh = 56 * u, y = ground - bh - 14 * u;
+  const u = H / 900, bob = Math.sin(t * 2.2) * 6 * u, cx = x, cy = ground - 72 * u + bob, R = 62 * u;
 
-  c.fillStyle = 'rgba(20,30,30,.25)';
-  c.beginPath(); c.ellipse(x, ground, bw * 0.95, 9 * u, 0, 0, 6.2832); c.fill();
+  /* Its shadow on the grass, smaller as it bobs up. */
+  c.fillStyle = 'rgba(20,30,30,.22)';
+  c.beginPath(); c.ellipse(x, ground, (46 - bob / u * 0.6) * u, 9 * u, 0, 0, 6.2832); c.fill();
 
-  c.fillStyle = '#e3a546';
-  for (const side of [-1, 1]){
-    c.beginPath(); c.ellipse(x + side * 20 * u, ground - 8 * u, 14 * u, 11 * u, 0, 0, 6.2832); c.fill();
+  /* Its glow. */
+  const g0 = c.createRadialGradient(cx, cy, 0, cx, cy, R * 2.2);
+  g0.addColorStop(0, `rgba(255,226,140,${0.38 + 0.1 * Math.sin(t * 4)})`); g0.addColorStop(1, 'rgba(255,226,140,0)');
+  c.fillStyle = g0; c.beginPath(); c.arc(cx, cy, R * 2.2, 0, 6.2832); c.fill();
+
+  c.save();
+  c.translate(cx, cy);
+  /* A little lean into the wave; a spin for joy. */
+  c.rotate(happy ? Math.sin(t * 7) * 0.25 : Math.sin(t * 6) * 0.05);
+  /* The five points; the top right one waves, and when happy the two
+     side ones go up too. */
+  const wave = Math.sin(t * 6) * 0.5, cheer = Math.sin(t * 9) * 0.3;
+  c.beginPath();
+  for (let i = 0; i < 10; i++){
+    let bend = 0, reach = 1;
+    if (i === 2){ bend = happy ? cheer : wave; reach = 1.08; }
+    if (happy && i === 8){ bend = -cheer; reach = 1.08; }
+    const a = -Math.PI / 2 + i * Math.PI / 5 + bend * 0.9, r = (i % 2 ? 0.55 : reach) * R;
+    c.lineTo(Math.cos(a) * r, Math.sin(a) * r * 0.95);
   }
+  c.closePath();
+  const g = c.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.1, 0, 0, R);
+  g.addColorStop(0, '#fff6c8'); g.addColorStop(0.6, '#ffd35a'); g.addColorStop(1, '#f2ad2e');
+  c.lineJoin = 'round'; c.strokeStyle = '#f2ad2e'; c.lineWidth = 11 * u; c.stroke();
+  c.fillStyle = g; c.fill();
+  /* A soft shine on the upper left. */
+  c.fillStyle = 'rgba(255,255,255,.35)';
+  c.beginPath(); c.ellipse(-R * 0.32, -R * 0.3, R * 0.14, R * 0.08, -0.6, 0, 6.2832); c.fill();
+  face(c, 0, 2 * u, u * 0.85, t, happy);
+  c.restore();
 
-  /* Arms behind the body, rounded caps for hands. */
-  c.strokeStyle = '#f0b850'; c.lineWidth = 15 * u; c.lineCap = 'round';
-  const waveA = Math.sin(t * 6) * 0.45;
-  for (const side of [-1, 1]){
-    const up = happy || side === 1;
-    c.save();
-    c.translate(x + side * bw * 0.78, y + bh * 0.05);
-    c.rotate(up ? side * (0.5 + (side === 1 && !happy ? waveA : Math.sin(t * 9) * 0.2)) + Math.PI : side * -0.35);
-    c.beginPath(); c.moveTo(0, 0); c.lineTo(0, 40 * u); c.stroke();
-    c.restore();
+  /* Twinkles drifting round it - more, and brighter, when it's happy. */
+  for (let k = 0; k < (happy ? 6 : 3); k++){
+    const a = t * 0.8 + k * (6.2832 / (happy ? 6 : 3)), tw = 0.5 + 0.5 * Math.sin(t * 5 + k * 2);
+    sparkle(c, cx + Math.cos(a) * R * 1.45, cy + Math.sin(a) * R * 1.1, (happy ? 10 : 7) * u * tw, '#fff6c8');
   }
+}
 
-  const body = c.createRadialGradient(x - bw * 0.35, y - bh * 0.4, bw * 0.1, x, y, bh * 1.1);
-  body.addColorStop(0, '#ffefb0'); body.addColorStop(0.6, '#ffd36e'); body.addColorStop(1, '#eeac48');
-  c.fillStyle = body;
-  c.beginPath(); c.ellipse(x, y, bw, bh, 0, 0, 6.2832); c.fill();
-
-  /* The sprout. */
-  const lean = wind(0.44, t) * 0.5;
-  c.strokeStyle = '#5f9a55'; c.lineWidth = 4 * u;
-  const tipX = x + lean * 18 * u, tipY = y - bh - 20 * u;
-  c.beginPath(); c.moveTo(x, y - bh + 2 * u); c.quadraticCurveTo(x, y - bh - 10 * u, tipX, tipY); c.stroke();
-  c.fillStyle = '#86c46e';
-  for (const side of [-1, 1]){
-    c.save(); c.translate(tipX, tipY); c.rotate(side * 0.9 + lean * 0.4);
-    c.beginPath(); c.ellipse(side * 9 * u, 0, 10 * u, 5 * u, 0, 0, 6.2832); c.fill();
-    c.restore();
-  }
-
-  /* Face: big dark eyes with two catchlights, rosy cheeks, a small smile. */
+/* The park's face: big dark eyes with a catchlight, rosy cheeks, a small
+   smile - an open one when happy. It blinks now and then. */
+function face(c, x, y, u, t, happy){
   const blink = (t % 3.7) < 0.12 && !happy ? 0.15 : 1;
   for (const side of [-1, 1]){
-    const ex = x + side * 18 * u, ey = y - 6 * u;
-    c.fillStyle = '#2b2440';
-    c.beginPath(); c.ellipse(ex, ey, 9 * u, 12 * u * blink, 0, 0, 6.2832); c.fill();
+    const ex = x + side * 15 * u;
+    c.fillStyle = INK;
+    c.beginPath(); c.ellipse(ex, y, 7 * u, 9.1 * u * blink, 0, 0, 6.2832); c.fill();
     if (blink === 1){
       c.fillStyle = '#fff';
-      c.beginPath(); c.arc(ex + 3 * u, ey - 4 * u, 3.4 * u, 0, 6.2832); c.fill();
-      c.beginPath(); c.arc(ex - 3 * u, ey + 4 * u, 1.6 * u, 0, 6.2832); c.fill();
+      c.beginPath(); c.arc(ex + 2.5 * u, y - 3.2 * u, 2.7 * u, 0, 6.2832); c.fill();
     }
-    c.fillStyle = 'rgba(255,130,120,.45)';
-    c.beginPath(); c.ellipse(x + side * 32 * u, y + 10 * u, 8 * u, 5 * u, 0, 0, 6.2832); c.fill();
+    c.fillStyle = 'rgba(255,120,120,.45)';
+    c.beginPath(); c.ellipse(x + side * 24 * u, y + 8.4 * u, 7 * u, 4.5 * u, 0, 0, 6.2832); c.fill();
   }
-  c.strokeStyle = '#2b2440'; c.lineWidth = 3 * u;
+  c.strokeStyle = INK; c.lineWidth = 3 * u; c.lineCap = 'round';
   c.beginPath();
-  if (happy) { c.fillStyle = '#7a3a3a'; c.ellipse(x, y + 13 * u, 9 * u, 8 * u, 0, 0, Math.PI); c.fill(); }
-  else { c.arc(x, y + 8 * u, 7 * u, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke(); }
+  if (happy){ c.fillStyle = '#7a3a3a'; c.ellipse(x, y + 12 * u, 8 * u, 7.2 * u, 0, 0, Math.PI); c.fill(); }
+  else { c.arc(x, y + 4.8 * u, 6.4 * u, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke(); }
+}
+
+function sparkle(c, x, y, r, col){
+  c.fillStyle = col; c.beginPath();
+  c.moveTo(x, y - r); c.quadraticCurveTo(x, y, x + r, y); c.quadraticCurveTo(x, y, x, y + r);
+  c.quadraticCurveTo(x, y, x - r, y); c.quadraticCurveTo(x, y, x, y - r);
+  c.fill();
 }
