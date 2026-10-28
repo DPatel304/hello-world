@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resetDom } from './harness/browser.mjs';
 import { pose } from '../src/tracking/pose.js';
-import { cursor, button, onPick } from '../src/ui/cursor.js';
+import { cursor, button, onPick, DWELL as HOLD_DWELL, STICK, CLICK_TURNS, WAVE_SWING } from '../src/ui/cursor.js';
 
 const DWELL = 1.0, COOLDOWN = 0.75;
 
@@ -15,7 +15,7 @@ function setup(){
   pose.players[1].present = false;
   cursor.enabled = true;
   cursor.rings.length = 0;
-  for (const s of cursor._state){ s.el = null; s.t = 0; s.cool = 0; s.x = .5; s.y = .5; }
+  cursor.reset(); for (const s of cursor._state) s.cool = 0;
   return ui;
 }
 
@@ -41,7 +41,7 @@ test('holding a hand on a button fires a pick after the dwell', () => {
 
   const c = centreOf(b);
   hand(c.x, c.y);
-  for (let i = 0; i < 20 && picks === 0; i++) cursor.update(0.1, ui);
+  for (let i = 0; i < 40 && picks === 0; i++) cursor.update(0.1, ui);
 
   assert.equal(picks, 1, 'exactly one pick');
 });
@@ -73,7 +73,7 @@ test('a cool-down stops the next screen firing under the same hand', () => {
 
   const c = centreOf(first);
   hand(c.x, c.y);
-  for (let i = 0; i < 20 && firstPicks === 0; i++) cursor.update(0.1, ui);
+  for (let i = 0; i < 40 && firstPicks === 0; i++) cursor.update(0.1, ui);
   assert.equal(firstPicks, 1);
 
   /* The screen changes: a different button appears in the same place and the
@@ -90,7 +90,7 @@ test('a cool-down stops the next screen firing under the same hand', () => {
   assert.equal(secondPicks, 0, 'must not fire during the cool-down');
 
   /* Once it expires the button becomes pickable in the normal way. */
-  for (let i = 0; i < 20 && secondPicks === 0; i++) cursor.update(0.1, ui);
+  for (let i = 0; i < 40 && secondPicks === 0; i++) cursor.update(0.1, ui);
   assert.equal(secondPicks, 1, 'and is pickable afterwards');
 });
 
@@ -108,7 +108,7 @@ test('reset arms the cool-down so a fresh screen is not instantly picked', () =>
   for (let i = 0; i < 14; i++) cursor.update(0.1, ui);
   assert.equal(picks, 0, 'reset should hold the cursor off for the cool-down');
 
-  for (let i = 0; i < 20 && picks === 0; i++) cursor.update(0.1, ui);
+  for (let i = 0; i < 40 && picks === 0; i++) cursor.update(0.1, ui);
   assert.equal(picks, 1, 'and releases it afterwards');
 });
 
@@ -141,7 +141,7 @@ test('the hit test forgives a hand just outside the edge', () => {
 
   /* pad is 18% of the smaller dimension: 14px here. Sit 8px past the right edge. */
   hand((780 + 8) / innerWidth, 340 / innerHeight);
-  for (let i = 0; i < 20 && picks === 0; i++) cursor.update(0.1, ui);
+  for (let i = 0; i < 40 && picks === 0; i++) cursor.update(0.1, ui);
   assert.equal(picks, 1);
 });
 
@@ -202,6 +202,67 @@ test('hold ignores a hand resting on a button until it runs out', () => {
   cursor.hold(2);
   for (let i = 0; i < 20; i++) cursor.update(0.1, ui);
   assert.equal(picks, 0, 'nothing picked during the hold');
-  for (let i = 0; i < 12; i++) cursor.update(0.1, ui);
+  for (let i = 0; i < 30; i++) cursor.update(0.1, ui);
   assert.equal(picks, 1, 'an ordinary dwell after it');
+});
+
+/* ---------- point and wave ---------- */
+
+/* The camera, not the mouse: a wave clicks. */
+function camera(){ pose.mouse.active = false; pose.players[0].lm = null; }
+
+test('point at a button and wave: it clicks, long before a dwell would', () => {
+  const ui = setup(); camera();
+  const b = place(button('Play'), 500, 300, 280, 160);
+  ui.appendChild(b);
+  let picks = 0;
+  onPick(b, () => picks++);
+  const c = centreOf(b);
+  hand(c.x, c.y);
+  for (let i = 0; i < 3; i++) cursor.update(0.1, ui);
+  assert.ok(b.classList.contains('hot'), 'lit');
+  /* Waving: side to side, a turn every 0.15s. */
+  let t = 0;
+  for (let i = 0; i < 12 && !picks; i++){ hand(c.x + (i % 2 ? 1 : -1) * WAVE_SWING * 1.6, c.y); cursor.update(0.15, ui); t += 0.15; }
+  assert.equal(picks, 1, 'clicked');
+  assert.ok(t < HOLD_DWELL, `in ${t.toFixed(2)}s`);
+  pose.mouse.active = true;
+});
+
+test('waving wide off the edge of the button still clicks the one pointed at', () => {
+  const ui = setup(); camera();
+  const b = place(button('Play'), 500, 300, 120, 120), next = place(button('Next'), 640, 300, 120, 120);
+  ui.append(b, next);
+  let picks = 0, wrong = 0;
+  onPick(b, () => picks++); onPick(next, () => wrong++);
+  const c = centreOf(b);
+  hand(c.x, c.y);
+  for (let i = 0; i < 3; i++) cursor.update(0.1, ui);
+  /* The swing reaches right over the next button. */
+  for (let i = 0; i < 12 && !picks; i++){ hand(c.x + (i % 2 ? 1 : -1) * 0.06, c.y); cursor.update(0.15, ui); }
+  assert.equal(picks, 1); assert.equal(wrong, 0);
+  pose.mouse.active = true;
+});
+
+test('a hand wobbling on the edge between two buttons does not flick between them', () => {
+  const ui = setup(); camera();
+  const a = place(button('A'), 500, 300, 200, 200), b = place(button('B'), 700, 300, 200, 200);
+  ui.append(a, b);
+  hand(centreOf(a).x, centreOf(a).y);
+  for (let i = 0; i < 3; i++) cursor.update(0.1, ui);
+  assert.ok(a.classList.contains('hot'));
+  /* Jitter right on the line between them - small, not a wave. */
+  const edge = 700 / innerWidth;
+  let flicks = 0, was = 'a';
+  for (let i = 0; i < 40; i++){
+    hand(edge + (i % 2 ? 0.004 : -0.004), centreOf(a).y); cursor.update(1 / 30, ui);
+    const now = a.classList.contains('hot') ? 'a' : b.classList.contains('hot') ? 'b' : '-';
+    if (now !== was) flicks++; was = now;
+  }
+  assert.equal(flicks, 0, 'stays on the lit one');
+  /* Moving clearly onto the other: it follows, after a moment. */
+  hand(centreOf(b).x, centreOf(b).y);
+  for (let i = 0; i < Math.ceil(STICK / 0.05) + 2; i++) cursor.update(0.05, ui);
+  assert.ok(b.classList.contains('hot'));
+  pose.mouse.active = true;
 });

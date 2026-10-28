@@ -11,14 +11,11 @@ import { logo } from './title.js';
 import { poster } from './posters.js';
 
 /* Home: the console's front room. Across the top, who's here - a bubble
-   for each player with their face. Then the picked game, big and alive: a
-   live preview, its name, pictures of the moves it uses, places for how
-   many can play, and the family's best. Across the bottom half, a grid of
-   everything: the games, and under them the console's own places - the
-   store, making a game, the family, settings and help.
-
-   A hand resting on a tile a moment shows it in the preview; held there,
-   it goes in. Arrows and Enter work too, for the grown-up at the laptop.
+   for each player with their face. Under it, a grid of everything: the
+   games, big and picture-led, with the moves each uses in little pictures
+   under its name; and under them the console's own places - the store,
+   making a game, the family, settings and help. The tile pointed at comes
+   alive and lifts; a wave goes in. Arrows and Enter work too, for the grown-up at the laptop.
    The park behind follows the time of day and the season, and takes on
    the picked game's colour; a soft ambience plays under it all. */
 export const MOVES = {
@@ -37,7 +34,7 @@ const PLACES = [
 ];
 /* What was picked last visit. */
 let lastFocus = 0;
-const HOVER_FOCUS = 0.25;      /* seconds of a hand on a tile to show it in the preview */
+const HOVER_FOCUS = 0.05;      /* seconds of a hand on a tile to pick it (the cursor's already sticky) */
 const LAUNCH = 0.5;            /* seconds of going in */
 
 export function menu({ onPlay, onRecalibrate }){
@@ -59,17 +56,11 @@ export function menu({ onPlay, onRecalibrate }){
   const items = [...GAMES.map(g => ({ kind: 'game', g, accent: g.accent, name: g.name, paint: poster(g) })),
                  ...PLACES.map(p => ({ kind: 'place', p, accent: p.accent, name: p.name, paint: placePoster(p, bar) }))];
 
-  /* The preview: the picked one, big and alive, and what it's about. */
-  const view = h('div', 'preview');
-  const big = document.createElement('canvas'); big.className = 'bigpic';
-  const about = h('div', 'about');
-  view.append(big, about);
-  s.appendChild(view);
-
-  /* The grid: games along the top row, the console's places under them. */
+  /* The grid: the games, three to a row, and the console's places in a
+     slimmer row along the bottom. */
   const grid = h('div', 'grid');
-  const cols = Math.max(GAMES.length, PLACES.length);
-  grid.style.setProperty('--cols', cols);
+  const games = h('div', 'gamegrid'), places = h('div', 'placerow');
+  grid.append(games, places);
   const cards = items.map((it, n) => {
     const card = button('', 'tile' + (it.kind === 'place' ? ' place' : ''));
     card.style.setProperty('--accent', it.accent);
@@ -77,10 +68,13 @@ export function menu({ onPlay, onRecalibrate }){
     pic.className = 'pic';
     card.insertBefore(pic, card.firstChild);
     card.querySelector('.lbl').textContent = it.name;
-    if (it.p?.soon) card.appendChild(h('span', 'soon', '\u{1F512}'));
-    card.style.gridRow = it.kind === 'game' ? 1 : 2;
+    if (it.kind === 'game'){
+      const mv = h('span', 'tilemoves', (it.g.moves || []).map(m => MOVES[m] ? `<span title="${MOVES[m][1]}">${MOVES[m][0]}</span>` : '').join(''));
+      card.appendChild(mv);
+    }
+    if (it.p?.soon) card.appendChild(h('span', 'soon', '\u{1F512} Coming soon'));
     onPick(card, () => choose(n));
-    grid.appendChild(card);
+    (it.kind === 'game' ? games : places).appendChild(card);
     return { card, pic, paint: it.paint, hot: 0, it, still: false };
   });
   s.appendChild(grid);
@@ -89,19 +83,6 @@ export function menu({ onPlay, onRecalibrate }){
 
   function show(){
     cards.forEach(({ card }, n) => card.classList.toggle('focus', n === focus));
-    const it = items[focus];
-    view.style.setProperty('--accent', it.accent);
-    about.innerHTML = '';
-    about.appendChild(h('div', 'pname', it.name));
-    if (it.kind === 'game'){
-      const moves = h('div', 'moves');
-      for (const m of it.g.moves || []){ const mv = MOVES[m]; if (mv) moves.appendChild(h('span', 'move', `<span class="mi">${mv[0]}</span><span class="ml">${mv[1]}</span>`)); }
-      const meta = h('div', 'meta');
-      meta.appendChild(h('span', 'who', '\u{1F464}'.repeat(4)));
-      const best = Math.max(...[1, 2, 3, 4].map(n => scores.best(it.g.id, n)));
-      if (best) meta.appendChild(h('span', 'best', `\u{1F3C6} ${best}`));
-      about.append(moves, meta);
-    } else if (it.p.soon) about.appendChild(h('div', 'meta', '<span class="best">\u{1F512} Coming soon</span>'));
   }
   function move(to){
     to = Math.max(0, Math.min(items.length - 1, to));
@@ -116,7 +97,7 @@ export function menu({ onPlay, onRecalibrate }){
     if (it.kind === 'game'){
       sfx.select();
       going = { t: 0, g: it.g };
-      cards[n].card.classList.add('launch'); view.classList.add('launch');
+      cards[n].card.classList.add('launch');
       return;
     }
     if (it.p.soon){ sfx.boing(0.7); const cd = cards[n].card; cd.classList.remove('nope'); void cd.offsetWidth; cd.classList.add('nope'); return; }
@@ -127,20 +108,20 @@ export function menu({ onPlay, onRecalibrate }){
   }
   function openFamily(){
     family = true;
-    grid.style.visibility = view.style.visibility = 'hidden';
+    grid.style.visibility = 'hidden';
     const o = overlay(); o.classList.add('family');
     o.append(h('h2', '', 'Family'));
     o.appendChild(h('div', 'familyspace'));
-    o.appendChild(onPick(button('Close'), () => { sfx.back(); family = false; o.remove(); grid.style.visibility = view.style.visibility = ''; }));
+    o.appendChild(onPick(button('Close'), () => { sfx.back(); family = false; o.remove(); grid.style.visibility = ''; }));
   }
   const key = (e) => {
     if (!s.isConnected){ removeEventListener('keydown', key); return; }
     if (family || document.querySelector('.screen.dim')) return;
-    const games = GAMES.length, row = focus < games ? 0 : 1, col = row ? focus - games : focus;
+    const n = GAMES.length, inPlaces = focus >= n;
     if (e.key === 'ArrowRight') move(focus + 1);
     else if (e.key === 'ArrowLeft') move(focus - 1);
-    else if (e.key === 'ArrowDown' && !row) move(games + Math.min(col, PLACES.length - 1));
-    else if (e.key === 'ArrowUp' && row) move(Math.min(col, games - 1));
+    else if (e.key === 'ArrowDown') move(inPlaces ? focus : focus + 3 < n ? focus + 3 : n + Math.min(PLACES.length - 1, Math.round((focus % 3) * 2)));
+    else if (e.key === 'ArrowUp') move(inPlaces ? Math.min(n - 1, Math.floor((n - 1) / 3) * 3 + Math.min(2, Math.round((focus - n) / 2))) : focus - 3 >= 0 ? focus - 3 : focus);
     else if (e.key === 'Enter') choose(focus);
   };
   addEventListener('keydown', key);
@@ -154,7 +135,7 @@ export function menu({ onPlay, onRecalibrate }){
       t += dt; tick += dt;
       bar.step(dt);
       mix += ((items[focus].kind === 'game' ? 1 : 0.6) - mix) * Math.min(1, dt * 2);
-      /* A hand resting on a tile a moment shows it in the preview. */
+      /* The tile pointed at is the picked one. */
       for (let n = 0; n < cards.length; n++){
         const cd = cards[n];
         cd.hot = cd.card.classList.contains('hot') && n !== focus ? cd.hot + dt : 0;
@@ -176,9 +157,11 @@ export function menu({ onPlay, onRecalibrate }){
       drawPark(c, W, H, t, 0.22);
       drawLiving(c, W, H, t, { accent: items[focus].accent, mix });
       drawBodies(c, W, H);
-      /* The preview is alive; the grid's pictures are painted once. */
-      paintPoster({ pic: big, paint: items[focus].paint }, t);
-      for (const cd of cards) if (!cd.still) cd.still = paintPoster(cd, 1.5);
+      /* The picked tile is alive; the rest are still pictures, painted once. */
+      cards.forEach((cd, n) => {
+        if (n === focus){ paintPoster(cd, t); cd.still = false; }
+        else if (!cd.still) cd.still = paintPoster(cd, 1.5);
+      });
       if (family){
         const sp = document.querySelector('.familyspace');
         const r = sp ? sp.getBoundingClientRect() : null;
@@ -240,7 +223,7 @@ function help(){
   const s = overlay();
   s.append(h('h2', '', 'How to play'));
   const bl = h('ul', 'bullets');
-  [['✋','Move a hand over a button and hold for a second to press it'],
+  [['👉','Point at a button, then wave to press it (or hold still on it a couple of seconds)'],
    ['🙌','Raise both hands above your head to pause'],
    ['📏','Stand about two metres back so your whole body is in frame'],
    ['💡','Lights on — the camera needs to see you'],
