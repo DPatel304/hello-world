@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, REVIVE_CLAPS, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
                DODGE, FEET_FAR, FEET_NEAR, ROOM_MOVE, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
@@ -768,11 +768,16 @@ test('a jump under a club is a dodge, not a change of tower', () => {
 
 /* Knock knight i out, there and then. */
 const knockOut = (inst, i = 0) => { const k = knight(inst, i); k.hp = 1; inst._knockOut(i, k); return k; };
-/* Children a and b high-five: a hand each, meeting up high. */
-function highFive(inst, a = 0, b = 1, x = 0.5, y = 0.3){
-  for (let f = 0; f < 3; f++){
-    for (const i of [a, b]) pose.players[i].hands.right = { x: x + (i === a ? -0.005 : 0.005), y, vx: 0, vy: 0, speed: 0 };
-    inst.step(DT, W, H);
+/* Child i claps `n` times, about three a second: hands apart, then
+   snapping shut in front of the chest. Everyone there stands still. */
+function claps(inst, n, i = 1, players = 2){
+  for (let c = 0; c < n; c++){
+    for (let f = 0; f < 20; f++){
+      still(players);
+      const shut = f >= 12, gap = shut ? 0.02 : 0.3, p = pose.players[i];
+      p.hands.left = { x: 0.5 - gap / 2 / ASPECT, y: 0.5, vx: 0, vy: 0, speed: 0 }; p.hands.right = { x: 0.5 + gap / 2 / ASPECT, y: 0.5, vx: 0, vy: 0, speed: 0 };
+      inst.step(DT, W, H);
+    }
   }
 }
 
@@ -873,7 +878,7 @@ test('while a friend is up, a fallen knight waits for them - however long', () =
   assert.ok(k.down > 0);
 });
 
-test('a friend beside it and a real high five gets a knight up, right there, levels kept', () => {
+test('a friend beside it clapping ten times gets a knight up, right there, levels kept', () => {
   const inst = quiet(2);
   const k = knight(inst);
   k.lvl = 6; put(k, 0.5, 0.5);
@@ -882,38 +887,50 @@ test('a friend beside it and a real high five gets a knight up, right there, lev
   put(helper, 0.5 + REVIVE_R * 0.5 / ASPECT, 0.5);
   run(inst, 0.2, () => still(2));
   assert.equal(k.helper, 1, 'help is here');
-  highFive(inst);
+  claps(inst, REVIVE_CLAPS - 1);
+  assert.ok(k.down > 0, 'not quite');
+  assert.equal(k.claps, REVIVE_CLAPS - 1, 'every clap counted');
+  inst.draw(fakeCtx(), W, H);
+  claps(inst, 1);
   assert.equal(k.down, 0, 'up');
   assert.equal(k.lvl, 6, 'levels kept');
   assert.ok(Math.hypot((k.x - 0.5) * ASPECT, k.y - 0.5) < 0.02, 'right where it fell');
   assert.equal(k.hp, KNIGHT_HP);
   assert.ok(k.safe > 0 && inst.seen.revived);
+  assert.ok(REVIVE_CLAPS >= 8 && REVIVE_CLAPS <= 12);
 });
 
-test('a sloppy high five still counts: hands only near each other, at chest height, the knights not quite touching', () => {
-  const inst = quiet(2);
-  put(knight(inst), 0.5, 0.5); knockOut(inst);
-  put(knight(inst, 1), 0.5 + 0.15 / ASPECT, 0.5);
-  still(2);
-  for (let f = 0; f < 2; f++){
-    pose.players[0].hands.right = { x: 0.5 - 0.06 / ASPECT, y: 0.53, vx: 0, vy: 0, speed: 0 };
-    pose.players[1].hands.left = { x: 0.5 + 0.06 / ASPECT, y: 0.52, vx: 0, vy: 0, speed: 0 };
-    inst.step(DT, W, H);
-  }
-  assert.equal(knight(inst).down, 0);
+test('two friends clapping together count together', () => {
+  const inst = quiet(3);
+  const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.52, 0.5); put(knight(inst, 2), 0.48, 0.5);
+  claps(inst, 3, 1, 3); claps(inst, 3, 2, 3);
+  assert.equal(k.claps, 6);
 });
 
-test('a high five from far off, a friend beside it without one, or hands meeting low, does nothing', () => {
+test('clapping from far off, a friend beside it not clapping, or rolling the arms, does nothing', () => {
   const far = quiet(2); put(knight(far), 0.5, 0.5); knockOut(far);
   put(knight(far, 1), OPEN_FIELD.x, OPEN_FIELD.y);
-  still(2); highFive(far);
+  claps(far, REVIVE_CLAPS + 2);
   assert.ok(knight(far).down > 0, 'the friend\'s knight is far off');
   const near = quiet(2); put(knight(near), 0.5, 0.5); knockOut(near);
   put(knight(near, 1), 0.51, 0.5);
   run(near, 3, () => still(2));
-  assert.ok(knight(near).down > 0, 'no high five');
-  still(2); highFive(near, 0, 1, 0.5, 0.75);
-  assert.ok(knight(near).down > 0, 'hands down low');
+  assert.ok(knight(near).down > 0, 'no claps');
+  const r = rolling({ n: 2 });
+  run(near, 4, (t) => { r(t); const a = pose.players[0].hands; pose.players[1].hands.left = a.left; pose.players[1].hands.right = a.right; pose.players[0].hands.left = { x: 0.45, y: 0.65 }; pose.players[0].hands.right = { x: 0.55, y: 0.65 }; });
+  assert.ok(!(knight(near).claps > 0), 'rolling is not clapping');
+});
+
+test('stop clapping a while and the claps wear off', () => {
+  const inst = quiet(2);
+  const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.52, 0.5);
+  claps(inst, 5);
+  run(inst, 2, () => still(2));
+  assert.equal(k.claps, 5, 'a breather is fine');
+  run(inst, 6, () => still(2));
+  assert.ok(k.claps < 3, 'but not too long');
 });
 
 test('when every knight is down, after a while they are all back at the castle - from the start', () => {

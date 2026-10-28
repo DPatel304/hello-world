@@ -129,16 +129,19 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
    Nothing else harms a knight.
 
    Bonked out, a knight lies there seeing stars - for as long as it takes a
-   friend to come and get it up: their knight walks over to it (within
-   REVIVE_R, a good way), and the two children high-five, for real, in the
-   room. It's meant to be easy - children's hands are quick and the camera
-   is not - so it's two of their hands coming anywhere near each other
-   (within HIGH_FIVE screen heights), anywhere above their tummies. Up it gets, right there, every level kept. Only when every
+   friend to come and get it up: their knight goes over to it (within
+   REVIVE_R, a good way) and the child claps - REVIVE_CLAPS claps, and up
+   it gets, right there, every level kept. Friends clapping together all
+   count. Stop clapping for CLAP_FADE seconds and the claps begin to wear
+   off. A clap is the hands, CLAP_APART or more apart, snapping shut (to
+   within CLAP_SHUT) at CLAP_SPEED screen heights a second or faster - not
+   rolling the arms, which brings them close but never snaps. Only when every
    knight is down does nobody need to: after ALL_DOWN seconds they're all
    back at the castle - but back to the very start, every level lost. Just
    up, a knight is safe for SAFE seconds. */
 export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SAFE = 3, DODGE = 0.6;
-export const REVIVE_R = 0.18, HIGH_FIVE = 0.2, ALL_DOWN = 10;
+export const REVIVE_R = 0.18, REVIVE_CLAPS = 10, CLAP_FADE = 4, ALL_DOWN = 10;
+export const CLAP_APART = 0.15, CLAP_SHUT = 0.1, CLAP_SPEED = 0.8;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first). */
 export const BUILD_TIME = 15, FIRST_BUILD = 20;
@@ -388,6 +391,7 @@ class CastleDefense {
         this._assist(k, dt);
         this._rollWatch(k, p, dt);
         this._squatWatch(k, p, dt);
+        this._clapWatch(k, p, dt);
       }
       this._hugWatch(i, k, p, dt);
       /* Walk: vx and vy are screen heights a second. */
@@ -537,6 +541,18 @@ class CastleDefense {
     k.vx = q.dx / q.d * sp; k.vy = q.dy / q.d * sp;
   }
 
+  /* A clap: the hands snapping together from apart. */
+  _clapWatch(k, p, dt){
+    k.clapped = false;
+    const l = p.hands.left, r = p.hands.right;
+    if (!l || !r) return;
+    const gap = Math.hypot((l.x - r.x) * ASPECT, l.y - r.y);
+    const closing = ((k.gap ?? gap) - gap) / Math.max(dt, 1e-3);
+    k.apart = gap > CLAP_APART ? 0.4 : Math.max(0, (k.apart || 0) - dt);
+    if (gap < CLAP_SHUT && k.apart > 0 && closing > CLAP_SPEED && !this.rolling(k)){ k.clapped = true; k.apart = 0; }
+    k.gap = gap;
+  }
+
   /* Squatting: the hips well below where they stand. Standing height follows
      the hips up quickly but down only slowly, so a squat stays a squat. */
   _squatWatch(k, p, dt){
@@ -666,7 +682,7 @@ class CastleDefense {
   /* Bonked out: down where it stands, seeing stars. */
   _knockOut(i, k){
     this.knockouts = (this.knockouts || 0) + 1;
-    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1; k.goal = null;
+    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1; k.goal = null; k.claps = 0; k.clapAgo = 0;
     k.vx = k.vy = 0; k.at = null;
     sfx.boing(0.5);
     for (let q = 0; q < 20; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, '#ffffff');
@@ -739,31 +755,29 @@ class CastleDefense {
     for (const j of down){
       const f = this.knights[j];
       f.helper = -1;
+      f.clapAgo = (f.clapAgo || 0) + dt;
+      if (f.clapAgo > CLAP_FADE) f.claps = Math.max(0, (f.claps || 0) - dt);
       for (const i of up){
         const k = this.knights[i];
         if (Math.hypot((k.x - f.fell.x) * ASPECT, k.y - f.fell.y) > REVIVE_R) continue;
         f.helper = i;
-        if (this.highFive(i, j)){ this._revive(j, i); break; }
+        if (!k.clapped) continue;
+        f.claps = Math.floor(f.claps || 0) + 1; f.clapAgo = 0;
+        sfx.pop(1 + f.claps * 0.1);
+        for (let q = 0; q < 5; q++) this._spark(f.fell.x + (Math.random() - 0.5) * 0.03, f.fell.y - KNIGHT_SIZE * 0.5, PLAYER_COLORS[i]);
       }
+      if ((f.claps || 0) >= REVIVE_CLAPS){ this._revive(j, f.helper); }
     }
   }
 
   /* Are children i and j high-fiving: a hand of each near the other's, up
      above their tummies (halfway from hips to shoulders)? */
-  highFive(i, j){
-    const raised = (p) => {
-      if (!p.lm) return [];
-      const sy = (p.lm[L.L_SHOULDER].y + p.lm[L.R_SHOULDER].y) / 2, hy = (p.lm[L.L_HIP].y + p.lm[L.R_HIP].y) / 2;
-      return [p.hands.left, p.hands.right].filter(h => h && h.y < (sy + hy) / 2);
-    };
-    const a = raised(pose.players[i]), b = raised(pose.players[j]);
-    return a.some(h => b.some(g => Math.hypot((h.x - g.x) * ASPECT, h.y - g.y) < HIGH_FIVE));
-  }
+
 
   /* Up again, right where it fell, every level kept. */
   _revive(j, by){
     const k = this.knights[j];
-    k.down = 0; k.downT = 0; k.hp = KNIGHT_HP; k.safe = SAFE; k.calm = 0; k.fell = null; k.helper = -1;
+    k.down = 0; k.downT = 0; k.claps = 0; k.hp = KNIGHT_HP; k.safe = SAFE; k.calm = 0; k.fell = null; k.helper = -1;
     this.seen.revived = true;
     sfx.gold();
     for (let q = 0; q < 24; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.6, q % 2 ? PLAYER_COLORS[j] : PLAYER_COLORS[by]);
@@ -1336,18 +1350,18 @@ class CastleDefense {
       }
     }
     /* A knight down: a ghostly hand waving over it, calling for a friend;
-       once one is beside it, two big ghostly hands meeting over the pair -
-       high five! With everyone down, a ring round each filling up to when
-       they're all back at the castle. */
+       once one is beside it, two ghostly hands clapping over it, and a ring
+       filling up clap by clap. With everyone down, a ring round each
+       filling up to when they're all back at the castle. */
     for (let j = 0; j < this.players; j++){
       const f = this.knights[j];
       if (!pose.players[j].present || !(f.down > 0)) continue;
       const fx = f.fell.x, fy = f.fell.y - KNIGHT_SIZE * 0.9;
       if (this.allDown > 0){ drawWorkRing(c, f.fell.x * W, (f.fell.y - KNIGHT_SIZE * 0.3) * H, KNIGHT_SIZE * H * 0.7, this.allDown / ALL_DOWN, PLAYER_COLORS[j]); continue; }
+      if (f.claps > 0) drawWorkRing(c, f.fell.x * W, (f.fell.y - KNIGHT_SIZE * 0.3) * H, KNIGHT_SIZE * H * 0.7, Math.min(1, f.claps / REVIVE_CLAPS), PLAYER_COLORS[f.helper >= 0 ? f.helper : j]);
       if (f.helper >= 0){
-        const h = this.knights[f.helper], mx = (fx + h.x) / 2, my = Math.min(fy, h.y - KNIGHT_SIZE * 0.9) - 0.03;
-        const u = Math.abs(Math.sin(this.t * 4)), off = (0.006 + 0.03 * u) / ASPECT;
-        ghost((mx - off) * W, my * H, 0.95); ghost((mx + off) * W, my * H, 0.95);
+        const u = Math.abs(Math.sin(this.t * 6)), off = (0.006 + 0.03 * u) / ASPECT, my = fy - 0.04;
+        ghost((fx - off) * W, my * H, 0.95); ghost((fx + off) * W, my * H, 0.95);
       } else {
         ghost((fx + Math.sin(this.t * 6) * 0.01 / ASPECT) * W, (fy - 0.02) * H, 0.5 + 0.3 * Math.abs(Math.sin(this.t * 3)));
       }
