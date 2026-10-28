@@ -12,13 +12,13 @@ import { sfx } from '../audio/sound.js';
    neighbours. A wave is the hand swinging side to side - WAVE_SWING screen
    widths each way, turning back CLICK_TURNS times within a moment; as soon
    as it starts, the lit button is held, so the waving hand can't wave
-   itself off it. Holding still on a button for DWELL seconds clicks it too,
-   for anyone who hasn't learnt to wave yet. */
-export const DWELL = 2.0, STICK = 0.2, CLICK_TURNS = 3, WAVE_SWING = 0.025;
+   itself off it. Only a wave clicks: holding a hand on a button just
+   points at it, however long - so nothing starts while someone's only
+   looking. (With the mouse, a real click.) */
+export const STICK = 0.2, CLICK_TURNS = 3, WAVE_SWING = 0.025;
 const STAY = 0.45;          /* how much further out the lit button reaches, of its size */
 const TURN_GAP = 0.08;      /* seconds: jitter can't turn faster than a hand */
 const WAVE_GONE = 0.6;      /* seconds without a turn and the wave's over */
-const DEADZONE = 0.012;   /* hand jitter under this does not reset the dwell */
 /* After a pick, whatever replaces the button is usually sitting right under
    the hand that just chose. Without a pause the cursor dwells straight through
    it and fires again, so picking a game would launch the next screen's button
@@ -86,11 +86,6 @@ export const cursor = {
       }
       const el = s.el;
       if (el && el.isConnected === false) s.el = null;
-      if (el){
-        const moved = Math.hypot(x - s.x, y - s.y);
-        s.t += dt;
-        if (moved > DEADZONE * 6 || waving) s.t = Math.max(0, s.t - dt);   /* moving, not resting */
-      }
       s.x = x; s.y = y;
 
       if (el){
@@ -102,12 +97,12 @@ export const cursor = {
            sofa - the thing this whole interface is meant to survive. */
         el.style.setProperty('--who', PLAYER_COLORS[i]);
         const f = el.querySelector('.fill');
-        const k = Math.max(Math.min(1, s.t / DWELL), Math.min(1, s.turns / CLICK_TURNS));
+        const k = Math.min(1, s.turns / CLICK_TURNS);
         if (f) f.style.transform = `scaleX(${k.toFixed(3)})`;
         const ring = this.rings[this.rings.length - 1];
         ring.progress = k; ring.waving = waving ? 1 : 0;
         if (s.lit !== el){ s.lit = el; sfx.tick(); }
-        if (s.t >= DWELL || s.turns >= CLICK_TURNS){
+        if (s.turns >= CLICK_TURNS){
           s.t = 0; s.el = null; s.cool = COOLDOWN; s.turns = 0; s.dir = 0; s.lit = null;
           if (f) f.style.transform = 'scaleX(0)';
           el.classList.remove('hot');
