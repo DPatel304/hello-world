@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare } from '../src/games/castle-defense.js';
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+               TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -15,7 +16,7 @@ const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i
    down at `hvy`, the middle of the body at `cy`, the body above the knees
    dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
    there, all standing still but the first. */
-function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, n = 1 } = {}){
+function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, n = 1 } = {}){
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < n; });
   for (let i = 0; i < n; i++){
@@ -25,6 +26,7 @@ function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, dro
       for (const j of [L.L_SHOULDER, L.R_SHOULDER]){ lm[j].x += lean * sw * LEAN_X * 1.2; lm[j].z = lz * sw * LEAN_Z * 1.2; }
       lm[L.L_KNEE].y -= knee; lm[L.R_KNEE].y += knee; lm[L.L_ANKLE].y -= knee; lm[L.R_ANKLE].y += knee;
       if (!knees){ lm[L.L_KNEE].v = lm[L.R_KNEE].v = 0.1; }
+      if (dx) lm.forEach(q => { q.x += dx; });
       if (drop) lm.forEach((q, j) => { if (![L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE].includes(j)) q.y += drop; });
       if (hug){ lm[L.L_WRIST] = { ...lm[L.R_SHOULDER], y: lm[L.R_SHOULDER].y + 0.01 }; lm[L.R_WRIST] = { ...lm[L.L_SHOULDER], y: lm[L.L_SHOULDER].y + 0.01 }; }
     }
@@ -583,6 +585,81 @@ function highFive(inst, a = 0, b = 1, x = 0.5, y = 0.3){
   }
 }
 
+/* Wiggling: the whole body shaking from side to side. */
+const wiggling = (o = {}) => (t) => body({ ...o, dx: Math.sin(t * 25) * 0.04 });
+/* A Frost Troll parked on the trail, about to let its blizzard go. */
+function troll(inst, cast = FROST_WARN + 0.5){
+  inst._spawn('troll', 0); const m = inst.monsters[inst.monsters.length - 1];
+  m.s = 0.3; m.speed = 0; m.side = 0; m.hp = m.max = 1e9; m.cast = cast;
+  return m;
+}
+
+test('a Frost Troll comes every tenth wave, and only then', () => {
+  const trolls = (w) => waveOf(w).filter(m => m.kind === 'troll').length;
+  for (let w = 1; w < TROLL_EVERY; w++) assert.equal(trolls(w), 0, `wave ${w}`);
+  assert.equal(trolls(TROLL_EVERY), 1);
+  assert.equal(trolls(TROLL_EVERY + 1), 0);
+  assert.ok(trolls(TROLL_EVERY * 3) > 1, 'more later on');
+  assert.ok(MONSTERS.troll.hp > MONSTERS.ogre.hp * 3, 'a big one');
+  assert.ok(MONSTERS.troll.speed <= MONSTERS.ogre.speed);
+});
+
+test('its blizzard gathers, then freezes every knight still standing - only the troll does that', () => {
+  const inst = quiet(2);
+  put(knight(inst, 0), 0.5, 0.5); put(knight(inst, 1), 0.6, 0.5);
+  knockOut(inst, 1);
+  const m = troll(inst);
+  run(inst, 1, () => still(2));
+  assert.ok(inst.blizzard > 0, 'snow gathering');
+  assert.equal(knight(inst).ice, 0, 'not yet');
+  run(inst, FROST_WARN, () => still(2));
+  assert.ok(knight(inst).ice > 0, 'frozen');
+  assert.equal(knight(inst, 1).ice, 0, 'a knight already down is left as it is');
+  assert.ok(m.cast > FROST_EVERY - FROST_WARN - 1, 'and again a while later');
+  const ogreOnly = quiet(); monster(ogreOnly, 'ogre', 0.3).hp = 1e9;
+  run(ogreOnly, FROST_FIRST + FROST_WARN + 1);
+  assert.equal(knight(ogreOnly).ice, 0, 'nobody else freezes anyone');
+});
+
+test('a frozen knight cannot walk, fight or build', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x, pad.y);
+  troll(inst, 0.01); run(inst, 0.1);
+  assert.ok(k.ice > 0);
+  const slime = monster(inst, 'slime', nearestS(pad)); slime.hp = slime.max = 1e9;
+  put(k, along(nearestS(pad)).x, along(nearestS(pad)).y);
+  body({ lean: 1 }); run(inst, 2);
+  assert.equal(slime.hp, slime.max, 'no sword');
+  assert.ok(Math.abs(k.x - along(nearestS(pad)).x) < 1e-9, 'no walking');
+  put(k, pad.x, pad.y); still(); run(inst, BUILD * 2);
+  assert.ok(!inst.towers.has(2), 'no building');
+});
+
+test('wiggling breaks the ice - five seconds of it; standing still never does; stopping keeps what is done', () => {
+  const inst = quiet(), k = knight(inst);
+  troll(inst, 0.01); run(inst, 0.1);
+  inst.monsters = [];
+  run(inst, 10);
+  assert.ok(k.ice > 0, 'standing still');
+  run(inst, ICE_BREAK * 0.6, wiggling());
+  assert.ok(k.ice > 0, 'not yet');
+  run(inst, 3);
+  assert.ok(k.ice > 0, 'a rest');
+  run(inst, ICE_BREAK * 0.5, wiggling());
+  assert.equal(k.ice, 0, 'free');
+  assert.ok(inst.seen.wiggled);
+  assert.equal(ICE_BREAK, 5);
+});
+
+test('ice is armour: an ogre cannot bonk a frozen knight', () => {
+  const inst = quiet(), k = knight(inst);
+  put(k, along(1.5).x, along(1.5).y);
+  troll(inst, 0.01); run(inst, 0.1);
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  run(inst, 6);
+  assert.equal(k.hp, KNIGHT_HP);
+});
+
 test('an ogre that bonks a knight out leaves it lying there, levels and all', () => {
   const inst = quiet(2);
   const k = knight(inst);
@@ -968,6 +1045,7 @@ test('drawing works at every stage, with hints, ghosts and work rings', () => {
   inst.draw(ctx, W, H);
   build(inst, 4, 'cannon'); inst.towers.get(4).hp = 2;
   monster(inst, 'ogre', 1.5).wind = 0.5; knight(inst).spin = 9; knight(inst).sword = 0.3;
+  troll(inst, 1); knight(inst, 1).ice = 1; knight(inst, 1).iceWork = 2;
   inst._startWave(); run(inst, 0.5);
   inst.draw(ctx, W, H);
   inst.over = true; inst.lost = true;

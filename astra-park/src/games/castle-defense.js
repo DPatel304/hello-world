@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -127,8 +127,18 @@ export const MONSTERS = {
   slime:  { hp: 3, speed: 0.06, size: 0.08, coins: 1, harm: 1 },
   goblin: { hp: 2, speed: 0.095, size: 0.085, coins: 1, harm: 1 },
   bat:    { hp: 2, speed: 0.077, size: 0.08, coins: 1, harm: 1, flies: true },
-  ogre:   { hp: 18, speed: 0.04, size: 0.13, coins: 5, harm: 3 }
+  ogre:   { hp: 18, speed: 0.04, size: 0.13, coins: 5, harm: 3 },
+  troll:  { hp: 70, speed: 0.032, size: 0.15, coins: 15, harm: 5 }
 };
+/* The Frost Troll: a great blue boss, every TROLL_EVERY waves. FROST_FIRST
+   seconds after it comes out, and then every FROST_EVERY, it raises its arms
+   and a blizzard gathers for FROST_WARN seconds - and then every knight
+   still standing is frozen solid in a block of ice: no walking, no sword,
+   no building. Wiggling breaks it: the whole body shaking, the ice cracking
+   as it goes - ICE_BREAK seconds of good wiggling (WIGGLE body sizes a
+   second of movement) shatters it, and stopping doesn't undo what's done.
+   Ice is hard: no ogre can bonk a knight inside it. */
+export const TROLL_EVERY = 10, FROST_FIRST = 6, FROST_EVERY = 30, FROST_WARN = 3, ICE_BREAK = 5, WIGGLE = 1.5;
 const SLOW_FOR = 1.6;
 const ASPECT = 16 / 9;
 
@@ -163,6 +173,9 @@ export function waveOf(w, n = 1){
   /* The ogres spread through the wave, not all at the end. */
   const ogres = Math.round(ogresOf(w) * crowd(n));
   for (let k = 0; k < ogres; k++) out.splice(Math.floor((k + 0.5) / ogres * out.length) + k, 0, { kind: 'ogre', path: 0, red: ((k * 7 + w) % 10 + 0.5) / 10 < red });
+  /* The Frost Troll, a third of the way in - more of them, later on. */
+  const trolls = w % TROLL_EVERY === 0 ? w / TROLL_EVERY : 0;
+  for (let k = 0; k < trolls; k++) out.splice(Math.floor(out.length * (0.3 + 0.4 * k / Math.max(1, trolls))), 0, { kind: 'troll', path: 0, red: w >= TROLL_EVERY * 3 && k % 2 === 1 });
   return out;
 }
 /* Ogres: one or more every fifth wave, and from wave OGRE_FROM on, more and
@@ -207,13 +220,13 @@ class CastleDefense {
     this.faces = new FaceCam();
     this.jumps = new JumpWatch();
     /* What's been done yet, for the hints. */
-    this.seen = { built: false, jumped: false, squatted: false, hugged: false, rolled: false, repaired: false, called: false };
+    this.seen = { built: false, jumped: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false, called: false };
     /* The knights wait by the castle, side by side. */
     this.knights = pose.players.map((_, i) => {
       const { x, y } = this.home(i);
       return { x, y, tx: x, ty: y, vx: 0, vy: 0, dir: 1, walk: 0, march: 0, lean: null, swing: 0, sword: 0,
                spin: 0, ra: null, hipBase: null, lowAgo: 9, hugT: 0, hugHeal: 0, hop: 0, at: null,
-               lvl: 0, xp: 0, hp: KNIGHT_HP, calm: 0, bonk: 0, down: 0, downT: 0, helper: -1, safe: 0, glow: 0 };
+               lvl: 0, xp: 0, hp: KNIGHT_HP, calm: 0, bonk: 0, down: 0, downT: 0, helper: -1, safe: 0, glow: 0, ice: 0, iceWork: 0 };
     });
     this.avatars = new Avatars();
     this.out = null;
@@ -236,6 +249,7 @@ class CastleDefense {
     this._march(dt);
     this._smash(dt);
     this._clubs(dt);
+    this._frost(dt);
     this._towers(dt, W, H);
     this._shots(dt, W, H);
     this._stepBits(dt);
@@ -320,6 +334,8 @@ class CastleDefense {
       if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
+      /* Frozen: nothing to do but wiggle free. */
+      if (k.ice > 0){ k.vx = k.vy = 0; k.at = null; k.walk = 0; this._wiggle(i, k, p, dt); continue; }
       /* Getting its breath back, away from ogres. */
       k.calm += dt;
       if (k.hp < KNIGHT_HP && k.calm > KNIGHT_MEND){ k.hp++; k.calm = 0; }
@@ -467,7 +483,7 @@ class CastleDefense {
   _clubs(dt){
     /* The knights an ogre at p could hit. */
     const inRing = (p) => this.knights.slice(0, this.players).map((k, i) => ({ k, i }))
-      .filter(({ k, i }) => pose.players[i].present && !(k.down > 0) && !(k.safe > 0) && Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) <= SLAM_R);
+      .filter(({ k, i }) => pose.players[i].present && !(k.down > 0) && !(k.ice > 0) && !(k.safe > 0) && Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) <= SLAM_R);
     for (const m of this.monsters){
       if (m.kind !== 'ogre') continue;
       m.club = Math.max(0, (m.club || 0) - dt);
@@ -500,6 +516,55 @@ class CastleDefense {
     k.vx = k.vy = 0; k.at = null;
     sfx.boing(0.5);
     for (let q = 0; q < 20; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, '#ffffff');
+  }
+
+  /* Wiggling in the ice: how much the whole body is moving, in body sizes a
+     second. With the mouse, how fast the pointer goes. */
+  wiggleOf(i, k, p, dt){
+    if (pose.mouse.active) return (p.hands.right.speed || 0) * 2;
+    const lm = p.lm;
+    if (!lm) return 0;
+    const joints = [L.NOSE, L.L_SHOULDER, L.R_SHOULDER, L.L_ELBOW, L.R_ELBOW, L.L_WRIST, L.R_WRIST, L.L_HIP, L.R_HIP, L.L_KNEE, L.R_KNEE];
+    const now = joints.map(j => ({ x: lm[j].x * ASPECT, y: lm[j].y }));
+    const was = k.wigWas; k.wigWas = now;
+    if (!was) return 0;
+    let d = 0;
+    for (let q = 0; q < joints.length; q++) d += Math.hypot(now[q].x - was[q].x, now[q].y - was[q].y);
+    return d / joints.length / (p.scale || 0.3) / Math.max(dt, 1e-3);
+  }
+  _wiggle(i, k, p, dt){
+    k.wig = (k.wig || 0) + (this.wiggleOf(i, k, p, dt) - (k.wig || 0)) * Math.min(1, dt * 6);
+    const before = Math.floor(k.iceWork / ICE_BREAK * 3);
+    k.iceWork += dt * clamp(k.wig / WIGGLE, 0, 1);
+    if (Math.floor(k.iceWork / ICE_BREAK * 3) > before && k.iceWork < ICE_BREAK){ sfx.pop(0.6); for (let q = 0; q < 5; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, '#e6f8ff'); }
+    if (k.iceWork >= ICE_BREAK){
+      k.ice = 0; k.iceWork = 0; k.wigWas = null;
+      this.seen.wiggled = true;
+      sfx.splash();
+      for (let q = 0; q < 26; q++) this._spark(k.x + (Math.random() - 0.5) * 0.03, k.y - KNIGHT_SIZE * Math.random(), q % 2 ? '#bfefff' : '#ffffff');
+    }
+  }
+
+  /* The Frost Troll's blizzard: gathering, then every knight still up is
+     frozen. */
+  _frost(dt){
+    this.blizzard = 0;
+    this.frostFlash = Math.max(0, (this.frostFlash || 0) - dt * 2);
+    for (const m of this.monsters){
+      if (m.kind !== 'troll') continue;
+      if (m.cast == null) m.cast = FROST_FIRST;
+      m.cast -= dt;
+      if (m.cast < FROST_WARN) this.blizzard = Math.max(this.blizzard, 1 - Math.max(0, m.cast) / FROST_WARN);
+      if (m.cast > 0) continue;
+      m.cast = FROST_EVERY;
+      this.frostFlash = 1;
+      sfx.twinkle(); sfx.whoosh();
+      for (let i = 0; i < this.players; i++){
+        const k = this.knights[i];
+        if (!pose.players[i].present || k.down > 0 || k.ice > 0) continue;
+        k.ice = 1; k.iceWork = 0; k.wig = 0; k.wigWas = null; k.vx = k.vy = 0; k.at = null;
+      }
+    }
   }
 
   /* Getting knights up again. While anyone is still standing, only a friend
@@ -854,8 +919,9 @@ class CastleDefense {
       const p = this.pos(m), M = MONSTERS[m.kind], dance = this.out && this.lost ? Math.abs(Math.sin(this.t * 6 + m.wob)) * 0.03 : 0;
       /* An ogre winding up lifts its club, and a warning ring spreads on
          the ground round it; bringing the club down, it lunges. */
-      const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02, lift = m.wind > 0 ? 1 - m.wind / WINDUP : 0;
-      if (lift > 0 && !this.out) drawSlamRing(c, p.x * W, p.y * H, SLAM_R * H, lift, this.t);
+      const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02;
+      const lift = m.kind === 'troll' ? (m.cast != null && m.cast < FROST_WARN ? 1 - Math.max(0, m.cast) / FROST_WARN : 0) : m.wind > 0 ? 1 - m.wind / WINDUP : 0;
+      if (lift > 0 && !this.out && m.kind === 'ogre') drawSlamRing(c, p.x * W, p.y * H, SLAM_R * H, lift, this.t);
       things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance - lunge) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max, lift, m.red) });
     }
     /* The knights, among everything else. */
@@ -907,6 +973,16 @@ class CastleDefense {
           for (let q = 0; q < 2; q++){ const a0 = this.t * 14 + q * Math.PI; c.beginPath(); c.arc(cx, cy, rr, a0, a0 + 1.4); c.stroke(); }
           c.restore();
         }
+        /* Frozen: in its block of ice, cracking as the child wiggles, with
+           arrows wobbling side to side - wiggle! */
+        if (k.ice > 0){
+          drawIceBlock(c, k.x * W, (k.y - hop) * H, KNIGHT_SIZE * H, k.iceWork / ICE_BREAK, this.t);
+          const s = KNIGHT_SIZE * H, w = Math.sin(this.t * 14) * s * 0.08;
+          c.save(); c.globalAlpha = 0.85;
+          arrow(c, k.x * W - s * 0.7 + w, (k.y - KNIGHT_SIZE * 0.55) * H, -1, 0, s * 0.34, '#e6f8ff');
+          arrow(c, k.x * W + s * 0.7 + w, (k.y - KNIGHT_SIZE * 0.55) * H, 1, 0, s * 0.34, '#e6f8ff');
+          c.restore();
+        }
         /* Hurt: little hearts over its head, for the bonks it has left. */
         if (k.hp < KNIGHT_HP && !this.out){
           for (let q = 0; q < KNIGHT_HP; q++) heart(c, (k.x + (q - (KNIGHT_HP - 1) / 2) * 0.014) * W, (k.y - KNIGHT_SIZE * 1.25 - hop) * H, H * 0.008, q < k.hp ? '#ff4f6a' : 'rgba(80,60,80,.4)');
@@ -923,6 +999,11 @@ class CastleDefense {
       drawHorn(c, HORN.x * W, HORN.y * H, H * 0.095, this.t, clamp(this.breakT / (this.wave ? BUILD_TIME : FIRST_BUILD), 0, 1), w ? clamp(w.t / HORN_HOLD, 0, 1) : 0);
     }
     for (const s of this.shots) drawShot(c, W, H, s);
+    /* The Frost Troll's blizzard gathering, and the white flash of the freeze. */
+    if (!this.out){
+      drawBlizzard(c, W, H, this.blizzard || 0, this.t);
+      if (this.frostFlash > 0){ c.fillStyle = `rgba(235,248,255,${0.7 * this.frostFlash})`; c.fillRect(0, 0, W, H); }
+    }
     if (!this.out){
       this._drawTowerBars(c, W, H);
       this._drawWork(c, W, H);
@@ -972,7 +1053,7 @@ class CastleDefense {
     };
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
-      if (!pose.players[i].present || k.down > 0) continue;
+      if (!pose.players[i].present || k.down > 0 || k.ice > 0) continue;
       const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H;
       /* Leaning and running: footprints stepping, arrows all round, under a
          knight that hasn't gone anywhere yet. */
@@ -1009,7 +1090,7 @@ class CastleDefense {
     }
     /* Building: until the first tower, the nearest empty pad to the first
        knight pulses, with a trail of dots leading to it. */
-    if (!this.seen.built && this.knights[0] && pose.players[0].present && !(this.knights[0].down > 0)){
+    if (!this.seen.built && this.knights[0] && pose.players[0].present && !(this.knights[0].down > 0) && !(this.knights[0].ice > 0)){
       const k = this.knights[0];
       let best = null, bd = 9;
       for (const pad of PADS){ if (this.towers.has(pad.i)) continue; const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = pad; } }

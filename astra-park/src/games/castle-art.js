@@ -374,7 +374,8 @@ const HUES = {
   slime:  [{ body: '#6fdc6a' }, { body: '#e5484d' }],
   goblin: [{ body: '#2f7d4a', skin: '#a6e27a' }, { body: '#7d1f2c', skin: '#e0605a' }],
   bat:    [{ body: '#4fae5c', wing: '#2f7d4a' }, { body: '#c53b46', wing: '#8e1f2e' }],
-  ogre:   [{ body: '#5c9e4a', skin: '#8fcf6a', club: '#8a5a34' }, { body: '#b02e2a', skin: '#d9534a', club: '#4a2a1c' }]
+  ogre:   [{ body: '#5c9e4a', skin: '#8fcf6a', club: '#8a5a34' }, { body: '#b02e2a', skin: '#d9534a', club: '#4a2a1c' }],
+  troll:  [{ body: '#3f9d7a', skin: '#7fd0b0', fur: '#eef9ff', horn: '#bfefff' }, { body: '#b8322e', skin: '#e0605a', fur: '#ffe3dc', horn: '#ffd9a0' }]
 };
 /* How much bigger the red ones are. */
 export const RED_SIZE = 1.35;
@@ -412,6 +413,27 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0
     c.fillStyle = frozen ? '#b5e6ff' : C.body; c.beginPath(); c.arc(x, fy, s * 0.2, 0, 6.2832); c.fill();
     for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.08, fy - s * 0.14); c.lineTo(x + k * s * 0.16, fy - s * 0.3); c.lineTo(x + k * s * 0.18, fy - s * 0.1); c.closePath(); c.fill(); }
     face(c, x, fy + s * 0.02, s * 0.3, red);
+  } else if (kind === 'troll'){
+    /* The Frost Troll: big and shaggy, white frosty fur along its back,
+       horns of ice; club here is its arms going up for a blizzard. */
+    const step = Math.sin(t * 4);
+    c.fillStyle = '#4a5560';
+    for (const k of [-1, 1]){ c.beginPath(); c.roundRect(x + k * s * 0.22 - s * 0.11, y - s * 0.22 + (k * step > 0 ? -s * 0.04 : 0), s * 0.22, s * 0.22, s * 0.07); c.fill(); }
+    c.fillStyle = frozen ? '#8fd8ff' : C.body; c.beginPath(); c.ellipse(x, y - s * 0.55, s * 0.46, s * 0.42, 0, 0, 6.2832); c.fill();
+    c.fillStyle = C.skin; c.beginPath(); c.ellipse(x, y - s * 0.36, s * 0.24, s * 0.2, 0, 0, 6.2832); c.fill();
+    /* Arms: down by its sides, or flung up high. */
+    c.strokeStyle = C.body; c.lineWidth = s * 0.14; c.lineCap = 'round';
+    for (const k of [-1, 1]){
+      const ex = x + k * s * 0.42, ey = y - s * 0.7, shake = club > 0 ? Math.sin(t * 30 + k) * s * 0.02 : 0;
+      c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex + k * s * (0.08 + 0.1 * club) + shake, ey + s * (0.3 - 0.8 * club)); c.stroke();
+    }
+    /* Frosty fur in a shaggy fringe over the top of its head. */
+    c.fillStyle = C.fur; c.beginPath(); c.moveTo(x - s * 0.36, y - s * 0.84);
+    for (let k = 0; k <= 8; k++) c.lineTo(x - s * 0.36 + k * s * 0.09, y - s * (k % 2 ? 0.9 : 1.04) - Math.sin(k / 8 * Math.PI) * s * 0.06);
+    c.lineTo(x + s * 0.36, y - s * 0.84); c.quadraticCurveTo(x, y - s * 0.9, x - s * 0.36, y - s * 0.84); c.closePath(); c.fill();
+    c.fillStyle = C.horn;
+    for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.18, y - s * 0.96); c.lineTo(x + k * s * 0.34, y - s * 1.3); c.lineTo(x + k * s * 0.3, y - s * 0.9); c.closePath(); c.fill(); }
+    face(c, x + dir * s * 0.03, y - s * 0.66, s * 0.4, true);
   } else {
     const step = Math.sin(t * 6);
     c.fillStyle = '#5b4636';
@@ -425,13 +447,14 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0
   c.restore();
   /* A flash when it's hit: a quick white glow over it. (Not a canvas
      filter - those are far too slow with a crowd of monsters.) */
+  const big = kind === 'ogre' || kind === 'troll';
   if (hurt > 0){
     c.fillStyle = `rgba(255,255,255,${0.55 * hurt})`;
-    c.beginPath(); c.ellipse(x, y - s * (kind === 'bat' ? 0.75 : kind === 'ogre' ? 0.6 : 0.38), s * 0.45, s * (kind === 'ogre' ? 0.6 : 0.4), 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.ellipse(x, y - s * (kind === 'bat' ? 0.75 : big ? 0.6 : 0.38), s * 0.45, s * (big ? 0.6 : 0.4), 0, 0, 6.2832); c.fill();
   }
   if (frozen){ c.fillStyle = 'rgba(220,245,255,.8)'; for (let k = 0; k < 3; k++) star(c, x + (k - 1) * s * 0.25, y - s * (kind === 'bat' ? 1.05 : 0.95), s * 0.06, 'rgba(220,245,255,.9)'); }
   if (hp < 1){
-    const bw = s * 0.6, by = y - s * (kind === 'ogre' ? 1.45 : kind === 'bat' ? 1.15 : 1.0);
+    const bw = s * 0.6, by = y - s * (big ? 1.45 : kind === 'bat' ? 1.15 : 1.0);
     c.fillStyle = 'rgba(40,30,50,.55)'; c.fillRect(x - bw / 2, by, bw, s * 0.07);
     c.fillStyle = hp > 0.5 ? '#6fdc6a' : hp > 0.25 ? '#ffd24a' : '#ff5d5d'; c.fillRect(x - bw / 2, by, bw * Math.max(0, hp), s * 0.07);
   }
@@ -523,6 +546,43 @@ export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face, swing = 0,
   c.restore();
   c.fillStyle = col;
   c.beginPath(); c.ellipse(0, hy - r * 1.3, r * 0.3, r * 0.42, Math.sin(t * 3) * 0.2, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* A knight frozen in a block of ice: crack 0..1 as it's wiggled free. */
+export function drawIceBlock(c, x, y, s, crack, t){
+  const w = s * 0.95, h = s * 1.3, top = y - s * 1.18, wob = Math.sin(t * 30) * s * 0.01 * crack;
+  c.save(); c.translate(wob, 0);
+  c.fillStyle = 'rgba(190,235,255,.6)'; c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = Math.max(1.5, s * 0.03);
+  c.beginPath(); c.roundRect(x - w / 2, top, w, h, s * 0.12); c.fill(); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.45)';
+  c.beginPath(); c.moveTo(x - w * 0.38, top + h * 0.1); c.lineTo(x - w * 0.2, top + h * 0.1); c.lineTo(x - w * 0.36, top + h * 0.55); c.lineTo(x - w * 0.42, top + h * 0.45); c.closePath(); c.fill();
+  /* Cracks, more of them the nearer it is to breaking. */
+  c.strokeStyle = 'rgba(255,255,255,.95)'; c.lineWidth = Math.max(1.5, s * 0.025);
+  const n = Math.floor(crack * 3);
+  for (let k = 0; k < n; k++){
+    const sx = x + (hash(k, 5) - 0.5) * w * 0.7, sy = top + h * (0.2 + hash(k, 7) * 0.6);
+    c.beginPath(); c.moveTo(sx, sy);
+    for (let q = 1; q <= 3; q++) c.lineTo(sx + (hash(k * 3 + q, 11) - 0.5) * w * 0.5, sy + (hash(k * 3 + q, 13) - 0.5) * h * 0.4);
+    c.stroke();
+  }
+  c.restore();
+}
+
+/* The blizzard gathering: snow swirling down over everything, the meadow
+   turning blue, k 0..1. */
+export function drawBlizzard(c, W, H, k, t){
+  if (k <= 0) return;
+  c.save();
+  c.fillStyle = `rgba(160,210,255,${0.22 * k})`; c.fillRect(0, 0, W, H);
+  c.fillStyle = '#ffffff';
+  const n = Math.round(160 * k);
+  for (let q = 0; q < n; q++){
+    const sp = 0.15 + hash(q, 3) * 0.25;
+    const fx = ((hash(q, 1) + t * 0.05 * (hash(q, 9) - 0.3) + Math.sin(t * 2 + q) * 0.01) % 1 + 1) % 1, fy = ((hash(q, 2) + t * sp) % 1 + 1) % 1;
+    c.globalAlpha = (0.5 + 0.5 * hash(q, 4)) * k;
+    c.beginPath(); c.arc(fx * W, fy * H, H * (0.003 + 0.004 * hash(q, 6)), 0, 6.2832); c.fill();
+  }
   c.restore();
 }
 
