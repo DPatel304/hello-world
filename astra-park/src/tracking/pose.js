@@ -29,6 +29,12 @@ export const SEATED = 0.45;         /* knee drop below the hips, in torso length
 export const WATCH_AFTER = 4;       /* seconds sitting or back before a player becomes a watcher */
 const MATCH = 0.25;                 /* how far a player can move between detections and still be them */
 const SAME = 0.5;                   /* torso lengths apart under which two skeletons are one person */
+/* One head, one person. Two skeletons whose heads are within HEAD_SAME
+   torso lengths are the same person, however their hips disagree; a
+   newcomer whose head is within HEAD_TAKEN of a player's is that player,
+   not someone new; and a player lost for a moment picks their body up again
+   by its head, within REFIND of where it was. */
+export const HEAD_SAME = 0.4, HEAD_TAKEN = 0.6, REFIND = 0.35;
 /* Joining takes a face and a moment. Phantoms - a coat on a chair, a
    shadow, a reflection, a glitch for a few frames - rarely show a clear
    face and rarely last; a child does both. Once in, a player stays in
@@ -36,9 +42,23 @@ const SAME = 0.5;                   /* torso lengths apart under which two skele
 export const JOIN_AFTER = 0.5;      /* seconds seen steadily, face and all, before joining */
 const FACE_SEEN = 0.7;              /* landmark confidence that counts as clearly seen */
 
+/* Where a head is: the nose, or between the eyes, or the ears; failing
+   all those, just above the shoulders. */
+export function headOf(lm){
+  const seen = (k) => lm[k] && (lm[k].v ?? lm[k].visibility ?? 1) > 0.5;
+  const mid = (a, b) => ({ x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 });
+  if (seen(L.NOSE)) return { x: lm[L.NOSE].x, y: lm[L.NOSE].y };
+  if (seen(L.L_EYE) && seen(L.R_EYE)) return mid(L.L_EYE, L.R_EYE);
+  if (seen(7) && seen(8)) return mid(7, 8);
+  const sh = mid(L.L_SHOULDER, L.R_SHOULDER);
+  return { x: sh.x, y: sh.y - sizeOf(lm) * 0.35 };
+}
+const apart = (a, b) => Math.hypot((a.x - b.x) * 16 / 9, a.y - b.y);
+
 /* The model sometimes reports one person twice, two skeletons nearly on top
-   of each other. Keep the clearer of any pair whose shoulders and hips
-   both sit within half a torso of each other. */
+   of each other - or sharing a head with the hips somewhere else. Keep the
+   clearer of any pair whose shoulders and hips both sit within half a torso
+   of each other, or whose heads are within HEAD_SAME. */
 export function onePerPerson(people){
   const mid = (lm, a, b) => ({ x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 });
   const vis = (lm) => lm.reduce((s, k) => s + (k.v ?? k.visibility ?? 1), 0);
@@ -47,7 +67,8 @@ export function onePerPerson(people){
     const sh = mid(lm, L.L_SHOULDER, L.R_SHOULDER), hp = mid(lm, L.L_HIP, L.R_HIP), size = sizeOf(lm);
     const twin = kept.some(o => {
       const osh = mid(o, L.L_SHOULDER, L.R_SHOULDER), ohp = mid(o, L.L_HIP, L.R_HIP), s = Math.max(size, sizeOf(o)) * SAME;
-      return Math.hypot((sh.x - osh.x) * 16 / 9, sh.y - osh.y) < s && Math.hypot((hp.x - ohp.x) * 16 / 9, hp.y - ohp.y) < s;
+      if (Math.hypot((sh.x - osh.x) * 16 / 9, sh.y - osh.y) < s && Math.hypot((hp.x - ohp.x) * 16 / 9, hp.y - ohp.y) < s) return true;
+      return apart(headOf(lm), headOf(o)) < Math.max(size, sizeOf(o)) * HEAD_SAME;
     });
     if (!twin) kept.push(lm);
   }
@@ -259,7 +280,7 @@ export const pose = {
       x: (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, y: (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2,
       playing: !seated(lm) && sizeOf(lm) >= CLOSE * biggest,
       close: sizeOf(lm) >= CLOSE * biggest,
-      face: faceSeen(lm)
+      face: faceSeen(lm), head: headOf(lm), size: sizeOf(lm)
     }));
 
     /* Players already in keep following their own body: whoever is nearest
@@ -276,6 +297,7 @@ export const pose = {
       if (matched.has(i) || dets[j].taken) continue;
       matched.add(i); dets[j].taken = true;
       const p = this.players[i], d = dets[j];
+      p.head = d.head;
       this._apply(p, d.lm, dt);
       this._track(p, d, dt + p.lostFor);
       p.lostFor = 0;
@@ -284,6 +306,17 @@ export const pose = {
       p.watching = d.playing || (this.keepSitters && d.close) ? 0 : p.watching + dt;
       if (p.watching > WATCH_AFTER){ p.present = false; p.lm = null; p.watching = 0; }
     }
+    /* A player not found where their hips were heading - they moved fast,
+       or the hips were misread - picks up a body left over by its head. */
+    this.players.forEach((p, i) => {
+      if (matched.has(i) || !p.present || !p.head) return;
+      let best = null, bd = REFIND;
+      for (const d of dets){ if (d.taken) continue; const dist = apart(d.head, p.head); if (dist < bd){ bd = dist; best = d; } }
+      if (!best) return;
+      matched.add(i); best.taken = true; p.head = best.head;
+      this._apply(p, best.lm, dt); p.at = null; this._track(p, best, dt);
+      p.lostFor = 0;
+    });
     /* Everyone in the game who wasn't seen this time ages toward gone. */
     this.players.forEach((p, i) => {
       if (matched.has(i) || !p.present) return;
@@ -296,8 +329,12 @@ export const pose = {
        flickers out for more than a moment starts again. */
     const cands = this._cands || (this._cands = []);
     for (const c of cands) c.hit = null;
+    /* A body whose head is a player's - even one lost for a moment - is
+       that player, never a newcomer. */
+    const heads = this.players.filter(p => p.present && p.head).map(p => p.head);
     for (const d of dets){
       if (d.taken || !d.playing || !d.face) continue;
+      if (heads.some(h => apart(h, d.head) < d.size * HEAD_TAKEN)) continue;
       let best = null, bd = MATCH;
       for (const c of cands){ const dist = Math.hypot(d.x - c.x, d.y - c.y); if (!c.hit && dist < bd){ bd = dist; best = c; } }
       if (!best){ best = { x: d.x, y: d.y, seen: 0, miss: 0 }; cands.push(best); }
@@ -311,7 +348,7 @@ export const pose = {
     for (const p of free){
       const d = joiners.shift();
       if (!d) break;
-      p.lm = null; this._apply(p, d.lm, dt);
+      p.lm = null; this._apply(p, d.lm, dt); p.head = d.head;
       p.at = null; this._track(p, d, dt);
       p.present = true; p.lostFor = 0; p.watching = 0;
     }

@@ -299,6 +299,32 @@ test('the clearer of two twin skeletons is the one kept', () => {
   assert.equal(kept[0], clear);
 });
 
+test('one head is one person: a second skeleton sharing my head, its hips elsewhere, is not a second player', () => {
+  resetPose();
+  const me = person(0.5), ghost = person(0.5);
+  /* Same head and shoulders; hips and knees drawn off to one side. */
+  for (const k of ['L_HIP', 'R_HIP', 'L_KNEE', 'R_KNEE']) ghost[L[k]] = { ...ghost[L[k]], x: ghost[L[k]].x + 0.12 };
+  for (let t = 0; t < 3; t += 0.05) see([me, ghost]);
+  assert.equal(pose.personCount, 1);
+  /* Two children shoulder to shoulder are still two. */
+  resetPose();
+  arrive([person(0.4), person(0.5)]);
+  assert.equal(pose.personCount, 2);
+});
+
+test('moving fast, I stay one player: my body is picked up again by my head, not taken for someone new', () => {
+  resetPose();
+  arrive([person(0.3)]);
+  assert.equal(pose.personCount, 1);
+  /* A big jump sideways in one frame - further than the hips are followed -
+     with the hips misread, so only the head is where it was. */
+  const moved = person(0.3);
+  for (const k of ['L_HIP', 'R_HIP', 'L_KNEE', 'R_KNEE', 'L_SHOULDER', 'R_SHOULDER']) moved[L[k]] = { ...moved[L[k]], x: moved[L[k]].x + 0.3 };
+  for (let t = 0; t < 2; t += 0.05) see([moved]);
+  assert.equal(pose.personCount, 1, 'still just me');
+  assert.equal(pose.players[1].present, false);
+});
+
 /* ---------- phantoms ---------- */
 
 test('something with no clear face never joins', () => {
