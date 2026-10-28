@@ -8,7 +8,7 @@ import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
          drawMonster, drawSlamRing, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
-/* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
+/* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
    long way round the meadow, back and forth along one winding trail, to
    the castle in the bottom left. Each child has a little knight out on
@@ -98,14 +98,15 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
 
    Bonked out, a knight lies there seeing stars - for as long as it takes a
    friend to come and get it up: their knight walks over to it (within
-   REVIVE_R), and the two children high-five, for real, in the room - two of
-   their hands meeting (within HIGH_FIVE screen heights), up above the
-   shoulders. Up it gets, right there, every level kept. Only when every
+   REVIVE_R, a good way), and the two children high-five, for real, in the
+   room. It's meant to be easy - children's hands are quick and the camera
+   is not - so it's two of their hands coming anywhere near each other
+   (within HIGH_FIVE screen heights), anywhere above their tummies. Up it gets, right there, every level kept. Only when every
    knight is down does nobody need to: after ALL_DOWN seconds they're all
    back at the castle - but back to the very start, every level lost. Just
    up, a knight is safe for SAFE seconds. */
 export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, KNIGHT_MEND = 3, SAFE = 3;
-export const REVIVE_R = 0.1, HIGH_FIVE = 0.07, ALL_DOWN = 10;
+export const REVIVE_R = 0.18, HIGH_FIVE = 0.2, ALL_DOWN = 10;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first), or
    until a knight has stood by the war horn for HORN_HOLD. */
@@ -140,7 +141,7 @@ const ASPECT = 16 / 9;
 export const POUR = 8;   /* seconds a wave takes to come out, once it's big */
 /* The more children playing, the bigger every wave: CROWD[n - 1] times as
    many for n of them - one child alone has it easiest, four hardest. */
-export const CROWD = [1, 1.35, 1.75, 2.4];
+export const CROWD = [1, 1.45, 1.85, 2.6];
 const crowd = (n) => CROWD[clamp(Math.round(n), 1, CROWD.length) - 1];
 /* At most CAP in a wave - past that, the ogres keep coming (a crowd much
    bigger is too much to draw smoothly). */
@@ -173,7 +174,7 @@ export const ogresOf = (w) => (w % 5 === 0 ? w / 5 : 0) + Math.floor(Math.max(0,
 export default {
   /* Endless: it lasts as long as the castle holds. secs is only how long
      the music takes to build. */
-  id: 'castle-defense', name: 'Castle Defense', stars: 2, accent: '#e5534b', secs: ROUND, endless: true,
+  id: 'castle-defense', name: 'Tower Defense', stars: 2, accent: '#e5534b', secs: ROUND, endless: true,
   /* Arms go up now and then; a pause is a longer hold. */
   pauseHold: 3,
   /* Squatting is a move here: a player who crouches stays in. */
@@ -527,13 +528,13 @@ class CastleDefense {
     }
   }
 
-  /* Are children i and j high-fiving: a hand of each meeting, up above
-     their shoulders? */
+  /* Are children i and j high-fiving: a hand of each near the other's, up
+     above their tummies (halfway from hips to shoulders)? */
   highFive(i, j){
     const raised = (p) => {
       if (!p.lm) return [];
-      const sy = Math.min(p.lm[L.L_SHOULDER].y, p.lm[L.R_SHOULDER].y);
-      return [p.hands.left, p.hands.right].filter(h => h && h.y < sy);
+      const sy = (p.lm[L.L_SHOULDER].y + p.lm[L.R_SHOULDER].y) / 2, hy = (p.lm[L.L_HIP].y + p.lm[L.R_HIP].y) / 2;
+      return [p.hands.left, p.hands.right].filter(h => h && h.y < (sy + hy) / 2);
     };
     const a = raised(pose.players[i]), b = raised(pose.players[j]);
     return a.some(h => b.some(g => Math.hypot((h.x - g.x) * ASPECT, h.y - g.y) < HIGH_FIVE));

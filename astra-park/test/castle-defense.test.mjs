@@ -622,6 +622,19 @@ test('a friend beside it and a real high five gets a knight up, right there, lev
   assert.ok(k.safe > 0 && inst.seen.revived);
 });
 
+test('a sloppy high five still counts: hands only near each other, at chest height, the knights not quite touching', () => {
+  const inst = quiet(2);
+  put(knight(inst), 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.5 + 0.15 / ASPECT, 0.5);
+  still(2);
+  for (let f = 0; f < 2; f++){
+    pose.players[0].hands.right = { x: 0.5 - 0.06 / ASPECT, y: 0.53, vx: 0, vy: 0, speed: 0 };
+    pose.players[1].hands.left = { x: 0.5 + 0.06 / ASPECT, y: 0.52, vx: 0, vy: 0, speed: 0 };
+    inst.step(DT, W, H);
+  }
+  assert.equal(knight(inst).down, 0);
+});
+
 test('a high five from far off, a friend beside it without one, or hands meeting low, does nothing', () => {
   const far = quiet(2); put(knight(far), 0.5, 0.5); knockOut(far);
   put(knight(far, 1), OPEN_FIELD.x, OPEN_FIELD.y);

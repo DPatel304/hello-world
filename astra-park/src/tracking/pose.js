@@ -279,7 +279,7 @@ export const pose = {
       this._apply(p, d.lm, dt);
       this._track(p, d, dt + p.lostFor);
       p.lostFor = 0;
-      /* In a game that says so (squats are a move in Castle Defense), a
+      /* In a game that says so (squats are a move in Tower Defense), a
          player who sits or crouches stays in; stepping back still counts. */
       p.watching = d.playing || (this.keepSitters && d.close) ? 0 : p.watching + dt;
       if (p.watching > WATCH_AFTER){ p.present = false; p.lm = null; p.watching = 0; }

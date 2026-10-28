@@ -1,4 +1,4 @@
-/* Castle Defense, painted. A sunny meadow seen from above at a slant: a
+/* Tower Defense, painted. A sunny meadow seen from above at a slant: a
    wide castle along the bottom left, and one long sandy trail that comes
    in at the top left and goes the long way round - across the top, back
    and forth down the meadow - to reach it, with round stone pads beside it
