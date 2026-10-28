@@ -530,7 +530,7 @@ class CastleDefense {
       const e = at.get(k.at.id) || { at: k.at, rate: 0, who: i };
       const ham = this.hammering(k);
       if (ham) this.seen.hammered = true;
-      e.rate += ham ? HAMMER : 1;
+      e.rate += ham ? HAMMER : 1; e.one = Math.max(e.one || 0, ham ? HAMMER : 1);
       at.set(k.at.id, e);
     }
     for (const [id, e] of at){
@@ -545,7 +545,9 @@ class CastleDefense {
         if (Math.random() < dt * 8) this._spark(PADS[e.at.i].x, PADS[e.at.i].y - 0.08, '#ffe27a');
         continue;
       }
-      w.t += dt * e.rate;
+      /* The castle's hearts mend at one knight's pace however many crowd
+         round: more knights only help build it up. */
+      w.t += dt * (job.what === 'mend' ? e.one : e.rate);
       if (w.t >= job.need){ job.act(e.who); w.t = job.again ? 0 : -0.6; }
     }
     /* Nobody there: the work drains away. */

@@ -437,6 +437,14 @@ test('standing at the castle mends its hearts, one at a time', () => {
   assert.equal(inst.hearts, HEARTS, 'and no further');
 });
 
+test('a crowd of knights mends the castle no faster than one', () => {
+  const inst = quiet(2); inst.hearts = HEARTS - 3;
+  const { x, y } = atCastle(inst);
+  put(knight(inst, 0), x, y); put(knight(inst, 1), x + 0.01, y);
+  run(inst, REPAIR * 1.6);
+  assert.equal(inst.hearts, HEARTS - 2);
+});
+
 test('a whole castle is slowly built up, for free, a little bigger with more hearts, ten times', () => {
   const inst = quiet(); inst.coins = 0;
   const k = knight(inst);
