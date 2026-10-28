@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
                WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, REVIVE_CLAPS, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
-               DODGE, FEET_FAR, FEET_NEAR, ROOM_MOVE, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
+               DODGE, FEET_FAR, FEET_NEAR, ROOM_MOVE, ROOM_EDGE, ROOM_RUN, HURT_SLOW, ARMS_HOLD, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -19,7 +19,7 @@ const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i
    dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
    there, all standing still with their hands by their sides but the first. */
 const TORSO = 0.15, CHEST = { x: 0.5, y: 0.475 + 0.15 * TORSO };
-function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, feet = 0, n = 1 } = {}){
+function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, feet = 0, arms = false, n = 1 } = {}){
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < n; });
   for (let i = 0; i < n; i++){
@@ -39,11 +39,12 @@ function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy
     p.hands.left = { x: 0.45 + hx, y: 0.65 + hy, vx: 0, vy: v, speed: Math.abs(v) };
     p.hands.right = { x: 0.55 + hx, y: 0.65 + hy, vx: 0, vy: -v, speed: Math.abs(v) };
     if (i === 0 && reach) p.hands.right = { x: CHEST.x + reach[0] * TORSO / ASPECT, y: CHEST.y + reach[1] * TORSO, vx: 0, vy: 0, speed: 0 };
+    if (i === 0 && arms){ p.hands.left = { x: 0.5 - 0.12 + dx, y: 0.3 + feet }; p.hands.right = { x: 0.5 + 0.12 + dx, y: 0.3 + feet }; }
     if (i === 0 && reach2) p.hands.left = { x: CHEST.x + reach2[0] * TORSO / ASPECT, y: CHEST.y + reach2[1] * TORSO, vx: 0, vy: 0, speed: 0 };
   }
 }
 /* The first child standing where, in the room, is (x, y) on the map. */
-const standAt = (x, y, o = {}) => body({ ...o, dx: 0.15 + (x - 0.04) / 0.92 * 0.7 - 0.5, feet: FEET_FAR + (y - 0.1) / 0.86 * (FEET_NEAR - FEET_FAR) - (0.55 + 0.85 * 0.3) });
+const standAt = (x, y, o = {}) => body({ ...o, dx: ROOM_EDGE + (x - 0.04) / 0.92 * (1 - 2 * ROOM_EDGE) - 0.5, feet: FEET_FAR + (y - 0.1) / 0.86 * (FEET_NEAR - FEET_FAR) - (0.55 + 0.85 * 0.3) });
 /* Standing still and upright: `n` children there. */
 const still = (n = 1) => body({ n });
 /* Nobody there at all. */
@@ -227,7 +228,7 @@ test('running about the room: across the room is across the map, nearer the came
   for (const [x, y] of [[0.9, 0.2], [0.35, 0.5], [0.15, 0.8], [0.62, 0.42]]){
     const inst = quiet(), k = knight(inst); put(k, 0.5, 0.5);
     run(inst, 0.5, () => still());
-    run(inst, 3, () => standAt(x, y));
+    run(inst, 6, () => standAt(x, y));
     assert.ok(Math.hypot((k.x - x) * ASPECT, k.y - y) < 0.02, `${x}, ${y}: at ${k.x.toFixed(2)}, ${k.y.toFixed(2)}`);
   }
 });
@@ -238,18 +239,33 @@ test('standing about, or shuffling a little, leaves the knight where it is', () 
   assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002);
 });
 
-test('running about, stand near a pad and the knight steps onto it', () => {
+test('running about, you stand right on a pad to be on it - near it is not enough', () => {
   const inst = quiet(), k = knight(inst), pad = PADS[4];
   run(inst, 2, () => standAt(0.9, 0.2));
-  run(inst, 3, () => standAt(pad.x + 0.03, pad.y + 0.03));
+  run(inst, 6, () => standAt(pad.x + 0.06 / ASPECT, pad.y + 0.05));
+  assert.notEqual(k.at?.id, 'p4');
+  run(inst, 3, () => standAt(pad.x, pad.y));
   assert.equal(k.at?.id, 'p4');
 });
 
+test('running about, the knight runs along after you, a little behind', () => {
+  const inst = quiet(), k = knight(inst);
+  run(inst, 0.5, () => still());
+  run(inst, 0.5, () => standAt(0.1, 0.42));
+  assert.ok(k.x > 0.25, 'still on its way');
+  assert.ok(ROOM_RUN <= 0.25);
+});
+
+test('down to its last heart, a knight limps', () => {
+  const go = (hp) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); k.hp = hp; run(inst, 1.5, marching({ reach: [1.3, 0] })); return moved(k).x; };
+  const fine = go(KNIGHT_HP), hurt = go(1);
+  assert.ok(Math.abs(hurt / fine - HURT_SLOW) < 0.1, `${fine.toFixed(3)} fine, ${hurt.toFixed(3)} hurt`);
+});
 test('after pointing, walking off across the room is running about again', () => {
   const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
   run(inst, 0.6, () => body({ reach: [1.3, 0] }));
   assert.equal(k.mode, 'point');
-  run(inst, 3, () => standAt(0.15, 0.8));
+  run(inst, 8, () => standAt(0.15, 0.8));
   assert.equal(k.mode, 'room');
   assert.ok(Math.hypot((k.x - 0.15) * ASPECT, k.y - 0.8) < 0.03);
 });
@@ -380,41 +396,50 @@ test('ghostly hands roll over a knight in a fight, until someone rolls', () => {
 
 /* ---------- building ---------- */
 
-test('standing on an empty pad builds the tower it shows', () => {
+test('standing on an empty pad only shows the tower; a jump builds it', () => {
   const inst = quiet(), pad = PADS[2], kind = KINDS[inst.picks.get(2)];
   put(knight(inst), pad.x, pad.y);
-  run(inst, BUILD * 0.6);
-  assert.ok(!inst.towers.has(2), 'it takes a while');
-  run(inst, BUILD * 0.5);
+  run(inst, BUILD * 4);
+  assert.ok(!inst.towers.has(2), 'standing about builds nothing');
+  inst.draw(fakeCtx(), W, H);
+  jump(inst);
   assert.equal(inst.towers.get(2)?.kind, kind);
   assert.equal(inst.coins, START_COINS - COST[kind]);
-  assert.ok(inst.seen.built);
+  assert.ok(inst.seen.built && inst.seen.jumped);
 });
 
+test('a jump without the coins builds nothing', () => {
+  const inst = quiet(), pad = PADS[2];
+  inst.coins = 0;
+  put(knight(inst), pad.x, pad.y); run(inst, 0.2);
+  jump(inst);
+  assert.ok(!inst.towers.has(2));
+});
 test('neighbouring pads start out showing different kinds', () => {
   const inst = quiet();
   assert.deepEqual(new Set([0, 1, 2].map(i => KINDS[inst.picks.get(i)])), new Set(KINDS));
 });
 
-test('a jump on an empty pad changes which tower it will be, and starts the building over', () => {
+test('arms up over your head on an empty pad switches which tower it will be, once each time', () => {
   const inst = quiet(), pad = PADS[2];
   inst.picks.set(2, 0);
-  put(knight(inst), pad.x, pad.y);
-  run(inst, BUILD * 0.7);
-  jump(inst);
+  put(knight(inst), pad.x, pad.y); run(inst, 0.2);
+  const up = () => { run(inst, ARMS_HOLD + 0.2, () => body({ arms: true })); run(inst, 0.3, () => still()); };
+  run(inst, ARMS_HOLD * 0.5, () => body({ arms: true })); run(inst, 0.3, () => still());
+  assert.equal(KINDS[inst.picks.get(2)], 'archer', 'a quick flap is nothing');
+  up();
   assert.equal(KINDS[inst.picks.get(2)], 'cannon');
-  run(inst, BUILD * 0.5);
-  assert.ok(!inst.towers.has(2), 'started over');
-  jump(inst);
-  assert.equal(KINDS[inst.picks.get(2)], 'frost');
-  jump(inst);
+  run(inst, 3, () => body({ arms: true }));
+  assert.equal(KINDS[inst.picks.get(2)], 'frost', 'held up three seconds: just the once');
+  run(inst, 0.3, () => still());
+  up();
   assert.equal(KINDS[inst.picks.get(2)], 'archer', 'and round again');
-  jump(inst); jump(inst);
-  assert.ok(inst.seen.jumped);
-  run(inst, BUILD + 0.2);
+  assert.ok(inst.seen.switched);
+  assert.ok(Math.hypot((knight(inst).x - pad.x) * ASPECT, knight(inst).y - pad.y) < 0.01, 'arms up is not pointing up');
+  up(); up();
+  jump(inst);
   assert.equal(inst.towers.get(2)?.kind, 'frost');
 });
-
 test('a jump out in the field changes nothing', () => {
   const inst = quiet(), before = [...inst.picks];
   put(knight(inst), OPEN_FIELD.x, OPEN_FIELD.y);
@@ -460,7 +485,7 @@ test('walking off partway lets the work drain away', () => {
 test('a tower can be built in the middle of a wave', () => {
   const inst = quiet(), pad = PADS[2];
   inst._startWave(); inst.spawnT = 1e9;
-  put(knight(inst), pad.x, pad.y); run(inst, BUILD + 0.2);
+  put(knight(inst), pad.x, pad.y); run(inst, 0.2); jump(inst);
   assert.ok(inst.towers.has(2));
 });
 
@@ -469,9 +494,9 @@ test('standing at a tower builds it up, slowly and for free, all the way to ten 
   const pad = PADS[2];
   inst.picks.set(2, 0);
   put(knight(inst), pad.x, pad.y);
-  run(inst, BUILD + 0.05);
+  run(inst, 0.2); jump(inst);
   assert.equal(inst.towers.get(2).lvl, 1);
-  run(inst, upgradeTime(1) + 0.2);
+  run(inst, upgradeTime(1) + 0.2 - 0.25);
   assert.equal(inst.towers.get(2).lvl, 1, 'it takes a while, after a moment to admire it');
   run(inst, 0.5);
   assert.equal(inst.towers.get(2).lvl, 2);
@@ -507,24 +532,25 @@ test('a high archer tower shoots several monsters at once', () => {
 
 test('two knights on one spot work twice as fast', () => {
   const inst = quiet(2), pad = PADS[2];
+  build(inst, 2, 'archer');
   put(knight(inst, 0), pad.x, pad.y); put(knight(inst, 1), pad.x + 0.01, pad.y);
-  run(inst, BUILD * 0.55);
-  assert.ok(inst.towers.has(2));
+  run(inst, upgradeTime(1) * 0.55);
+  assert.equal(inst.towers.get(2).lvl, 2);
 });
-
 test('squatting makes the work go twice as fast - bobbing squats, no need to hold one', () => {
   const inst = quiet(), pad = PADS[2];
+  build(inst, 2, 'archer');
   put(knight(inst), pad.x, pad.y);
   run(inst, 0.5);
-  run(inst, BUILD / SQUAT_FAST + 0.3, squats());
-  assert.ok(inst.towers.has(2));
+  run(inst, upgradeTime(1) / SQUAT_FAST + 0.3, squats());
+  assert.equal(inst.towers.get(2).lvl, 2);
   assert.ok(inst.seen.squatted);
   const slow = quiet();
+  build(slow, 2, 'archer');
   put(knight(slow), pad.x, pad.y);
-  run(slow, 0.5 + BUILD / SQUAT_FAST + 0.3);
-  assert.ok(!slow.towers.has(2), 'just standing there takes longer');
+  run(slow, 0.5 + upgradeTime(1) / SQUAT_FAST + 0.3);
+  assert.equal(slow.towers.get(2).lvl, 1, 'just standing there takes longer');
 });
-
 test('a little dip, running on the spot or reaching out is not a squat', () => {
   for (const each of [squats({}, 0.01), marching(), () => body({ reach: [1.3, 0] }), () => body({ reach: [0, -1.2] })]){
     const inst = quiet();
@@ -754,18 +780,16 @@ test('jumping just as the club comes down hops over it', () => {
   assert.equal(early.k.hp, KNIGHT_HP - 1, 'too soon: back down in time to be bonked');
 });
 
-test('a jump under a club is a dodge, not a change of tower', () => {
+test('a jump under a club is a dodge, not a build', () => {
   const inst = quiet(), k = knight(inst), pad = PADS[2];
   put(k, pad.x, pad.y); run(inst, 0.2);
-  const pick = inst.picks.get(2);
   inst.underClub = () => true;
   jump(inst);
-  assert.equal(inst.picks.get(2), pick);
+  assert.ok(!inst.towers.has(2));
   inst.underClub = () => false;
   jump(inst);
-  assert.notEqual(inst.picks.get(2), pick);
+  assert.ok(inst.towers.has(2));
 });
-
 /* Knock knight i out, there and then. */
 const knockOut = (inst, i = 0) => { const k = knight(inst, i); k.hp = 1; inst._knockOut(i, k); return k; };
 /* Child i claps `n` times, about three a second: hands apart, then

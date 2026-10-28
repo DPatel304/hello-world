@@ -15,13 +15,13 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, tow
    the meadow, in their colour with their face in the helmet, and the
    knights do everything just by where they stand.
 
-   Reach a hand out to walk your knight - out to the side, up high to go up
-   the map, down low to come down - and run on the spot to hurry. Near a
+   Run about the room and your knight runs about the map with you - or
+   point the way and march on the spot to go there. Near a
    monster, the knight swings its sword by itself - and rolling your arms
    round each other, like the wheels on the bus, makes it swing twice as
    fast. Stand on an empty stone pad and a see-through tower appears:
-   jump to change which kind (archer, cannon, frost), and stay put to build
-   it. Stand at a tower and the knight mends it if an ogre has been smashing
+   arms up over your head to change which kind (archer, cannon, frost),
+   and jump to build it. Stand at a tower and the knight mends it if an ogre has been smashing
    it, or else, slowly, makes it bigger and stronger, up to ten times. The
    castle starts out small, with only a few hearts: stand at it and the
    knight mends them, or once it's whole, slowly builds it a little bigger,
@@ -74,8 +74,9 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    lower in the picture, FEET_FAR to FEET_NEAR down it) is further down.
    It starts once you've moved ROOM_MOVE across the map from where you
    were, so standing about leaves the knight where it is, and the knight
-   runs to keep up (up to ROOM_RUN). Stand near a pad, the tent or the
-   castle (within SNAP_R) and it steps onto it.
+   runs along after you (up to ROOM_RUN), a little behind. Stand near the
+   tent or the castle (within SNAP_R) and it steps onto it; a pad you have
+   to stand right on.
 
    Point and march: reach a hand out from your chest (HAND_CENTRE
    torso-lengths below the shoulders) the way you want to go, from the
@@ -96,11 +97,15 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    your arms.
 
    With the mouse, the knight walks to where the pointer rests. */
-export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.15, AIM = 0.75;
-export const FEET_FAR = 0.72, FEET_NEAR = 0.97, ROOM_MOVE = 0.15, ROOM_RUN = 0.4;
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.3, AIM = 0.75;
+export const FEET_FAR = 0.72, FEET_NEAR = 0.97, ROOM_MOVE = 0.15, ROOM_RUN = 0.2, ROOM_EDGE = 0.05;
 export const SNAP_R = 0.1;
-export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
-export const KNIGHT_SPEED = Math.max(RUN * TWO_HANDS, ROOM_RUN);
+export const WALK = 0.08, RUN = 0.16, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
+/* A knight down to its last heart limps, HURT_SLOW as fast, either way. */
+export const HURT_SLOW = 0.6;
+/* With the mouse, it just walks at MOUSE_RUN. */
+export const MOUSE_RUN = 0.24;
+export const KNIGHT_SPEED = Math.max(MOUSE_RUN, RUN * TWO_HANDS, ROOM_RUN);
 /* The sword: swung by itself at a monster within reach - ROLL_FAST times as
    often while the child rolls their arms round each other, the wheels on
    the bus going round. That's the hands circling each other: the line from
@@ -146,6 +151,12 @@ export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SA
 export const REVIVE_R = 0.22, REVIVE_CLAPS = 10, CLAP_FADE = 6, ALL_DOWN = 10;
 export const CLAP_APART = 0.8, CLAP_SHUT = 0.6, CLAP_SPEED = 1.5;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
+/* Building: on an empty pad, both arms up over your head (a good way
+   apart - ARMS_APART shoulder widths - not pointing up together), held
+   ARMS_HOLD seconds, switches which tower it'll be, once each time; and a
+   jump builds it, if there are the coins. Just standing there only shows
+   the tower it would be. (With the mouse, standing there builds it.) */
+export const ARMS_APART = 1.2, ARMS_HOLD = 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first). */
 export const BUILD_TIME = 15, FIRST_BUILD = 20;
 const BREAK = BUILD_TIME;
@@ -258,7 +269,7 @@ class CastleDefense {
     this.faces = new FaceCam();
     this.jumps = new JumpWatch();
     /* What's been done yet, for the hints. */
-    this.seen = { built: false, jumped: false, dodged: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false };
+    this.seen = { built: false, jumped: false, switched: false, dodged: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false };
     /* The knights wait by the castle, side by side. */
     this.knights = pose.players.map((_, i) => {
       const { x, y } = this.home(i);
@@ -387,11 +398,13 @@ class CastleDefense {
         k.rest = (h.speed || 0) < 0.15 ? (k.rest || 0) + dt : 0;
         if (k.rest >= POINT_HOLD && this._onMap(h.x, h.y)){ k.tx = h.x; k.ty = h.y; }
         const dx = (k.tx - k.x) * ASPECT, dy = k.ty - k.y, d = Math.hypot(dx, dy);
-        k.vx = d > 0.004 ? dx / d * RUN : 0; k.vy = d > 0.004 ? dy / d * RUN : 0;
-        if (d < RUN * dt){ k.vx = dx / dt; k.vy = dy / dt; }
+        k.vx = d > 0.004 ? dx / d * MOUSE_RUN : 0; k.vy = d > 0.004 ? dy / d * MOUSE_RUN : 0;
+        if (d < MOUSE_RUN * dt){ k.vx = dx / dt; k.vy = dy / dt; }
       } else {
+        this._armsWatch(i, k, p, dt);
         this._drive(k, p, dt);
         this._assist(k, dt);
+        if (k.hp <= 1){ k.vx *= HURT_SLOW; k.vy *= HURT_SLOW; }
         this._rollWatch(k, p, dt);
         this._squatWatch(k, p, dt);
         this._clapWatch(k, p, dt);
@@ -434,7 +447,7 @@ class CastleDefense {
     const sy = (lm[L.L_SHOULDER].y + lm[L.R_SHOULDER].y) / 2, hy = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2;
     const T = Math.max(0.02, hy - sy), cx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, cy = sy + HAND_CENTRE * T;
     const reach = [];
-    if (Math.abs(k.spin || 0) < ROLL_SPIN * 0.5 && !(k.hugT > 0.1)){
+    if (Math.abs(k.spin || 0) < ROLL_SPIN * 0.5 && !(k.hugT > 0.1) && !this.armsUp(p)){
       for (const h of [p.hands.left, p.hands.right]){
         if (!h || h.y > hy - HAND_REST * T) continue;
         const vx = (h.x - cx) * ASPECT / T, vy = (h.y - cy) / T, d = Math.hypot(vx, vy);
@@ -462,11 +475,11 @@ class CastleDefense {
       /* Running about: the knight runs to keep up with you, and steps onto
          a place you're standing near. */
       let to = k.room;
-      const q = this._spotsNear(to, SNAP_R)[0];
+      const q = this._spotsNear(to, SNAP_R).find(q => !q.pad);
       if (q) to = q;
       const dx = (to.x - k.x) * ASPECT, dy = to.y - k.y, d = Math.hypot(dx, dy);
       if (d < 0.006) return;
-      const sp = Math.min(ROOM_RUN, d * 6, d / Math.max(dt, 1e-3));
+      const sp = Math.min(ROOM_RUN, d * 3, d / Math.max(dt, 1e-3));
       k.vx = dx / d * sp; k.vy = dy / d * sp;
       return;
     }
@@ -495,7 +508,7 @@ class CastleDefense {
     let u;
     if (seen(L.L_ANKLE) && seen(L.R_ANKLE)) u = (Math.max(lm[L.L_ANKLE].y, lm[L.R_ANKLE].y) - FEET_FAR) / (FEET_NEAR - FEET_FAR);
     else u = 1;                              /* feet out of the picture: right up close */
-    const x = 0.04 + 0.92 * clamp((p.centre.x - 0.15) / 0.7, 0, 1), y = 0.1 + 0.86 * clamp(u, 0, 1);
+    const x = 0.04 + 0.92 * clamp((p.centre.x - ROOM_EDGE) / (1 - 2 * ROOM_EDGE), 0, 1), y = 0.1 + 0.86 * clamp(u, 0, 1);
     return { x, y };
   }
 
@@ -527,7 +540,7 @@ class CastleDefense {
   /* Places to stand near k (a knight, or any spot), within r, nearest first: { x, y, dx, dy, d }
      (dx, dy, d in screen heights). */
   _spotsNear(k, r){
-    const spots = PADS.map(p => ({ x: p.x, y: p.y }));
+    const spots = PADS.map(p => ({ x: p.x, y: p.y, pad: true }));
     spots.push({ x: TENT.x, y: TENT.y + 0.02 });
     spots.push({ x: castleBox(this.castleLvl).x, y: CASTLE_BASE - 0.12 });
     return spots.map(q => { const dx = (q.x - k.x) * ASPECT, dy = q.y - k.y; return { ...q, dx, dy, d: Math.hypot(dx, dy) }; })
@@ -803,15 +816,39 @@ class CastleDefense {
   home(i){ return { x: CASTLE.x + CASTLE.w / 2 + 0.04 + i * 0.035, y: CASTLE_BASE - 0.3 - i * 0.02 }; }
 
   /* A jump: over an ogre's club, if one's coming down on you; else, on an
-     empty pad, it changes which tower that will be. */
+     empty pad, it builds the tower there - if there are the coins. */
   _jump(i, k){
     k.hop = 1; k.air = DODGE;
     if (this.underClub(k)) return;
     const at = k.at;
     if (!at || at.kind !== 'pad' || this.towers.has(at.i)) return;
-    this.picks.set(at.i, (this.picks.get(at.i) + 1) % KINDS.length);
-    this.work.delete(`p${at.i}`);
+    const kind = KINDS[this.picks.get(at.i)], pad = PADS[at.i];
+    if (this.coins < COST[kind]){ sfx.boing(0.6); return; }
     this.seen.jumped = true;
+    this._build(at.i, kind, i);
+    /* A moment to admire it before it's built up. */
+    this.work.set(at.id, { t: -0.6 });
+    for (let q = 0; q < 10; q++) this._spark(pad.x, pad.y - 0.06, PLAYER_COLORS[i]);
+  }
+
+  /* Both arms up over the head, a good way apart. */
+  armsUp(p){
+    const lm = p.lm, l = p.hands.left, r = p.hands.right;
+    if (!lm || !l || !r) return false;
+    const sw = Math.max(0.03, Math.hypot((lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x) * ASPECT, lm[L.L_SHOULDER].y - lm[L.R_SHOULDER].y));
+    const top = lm[L.NOSE].y;
+    return l.y < top && r.y < top && Math.hypot((l.x - r.x) * ASPECT, l.y - r.y) > ARMS_APART * sw;
+  }
+  /* Arms up on an empty pad, held a moment: the next kind of tower. Once
+     each time - arms down again before the next. */
+  _armsWatch(i, k, p, dt){
+    if (!this.armsUp(p)){ k.armsT = 0; k.switched = false; return; }
+    k.armsT = (k.armsT || 0) + dt;
+    const at = k.at;
+    if (k.switched || k.armsT < ARMS_HOLD || !at || at.kind !== 'pad' || this.towers.has(at.i)) return;
+    k.switched = true;
+    this.picks.set(at.i, (this.picks.get(at.i) + 1) % KINDS.length);
+    this.seen.switched = true;
     sfx.boing(2);
     const pad = PADS[at.i];
     for (let q = 0; q < 10; q++) this._spark(pad.x, pad.y - 0.06, PLAYER_COLORS[i]);
@@ -866,6 +903,8 @@ class CastleDefense {
       w.seen = true; w.job = job;
       this.work.set(id, w);
       if (!job || !job.can){ w.t = Math.max(0, w.t - dt); continue; }
+      /* Building takes a jump, not standing about (but the mouse just stands). */
+      if (job.what === 'build' && !pose.mouse.active){ w.t = 0; continue; }
       if (job.fix){
         const tw = this.towers.get(e.at.i);
         tw.hp = Math.min(tw.max, tw.hp + TOWER_FIX * e.rate * dt);
@@ -1265,7 +1304,7 @@ class CastleDefense {
       const k = this.knights[i];
       if (!k.at || !pose.players[i].present) continue;
       const w = this.work.get(k.at.id), job = w && w.job;
-      if (!job) continue;
+      if (!job || (job.what === 'build' && !pose.mouse.active)) continue;
       let x, y;
       if (k.at.kind === 'castle'){ const b = castleBox(this.castleLvl); x = b.x * W; y = (CASTLE_BASE - 0.24 * b.scale - 0.06) * H; }
       else { const pad = PADS[k.at.i]; x = pad.x * W; y = (pad.y - 0.07) * H; }
@@ -1316,11 +1355,18 @@ class CastleDefense {
         c.save(); c.globalAlpha = 0.9; arrow(c, x, y - s * 1.4 - b, 0, -1, s * 0.4, '#fff6e2'); c.restore();
         continue;
       }
-      /* Jumping: standing on an empty pad, until someone has jumped to change
-         a tower - a little bouncing arrow over the knight. */
-      if (!this.seen.jumped && k.at && k.at.kind === 'pad' && !this.towers.has(k.at.i)){
-        const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
-        c.save(); c.globalAlpha = 0.8; arrow(c, x, y - s * 1.2 - b, 0, -1, s * 0.3, '#fff6e2'); c.restore();
+      /* Building: standing on an empty pad - until someone has built by
+         jumping, a little bouncing arrow over the knight; until someone has
+         switched a tower, now and then two ghostly arms going up. */
+      if (!pose.mouse.active && k.at && k.at.kind === 'pad' && !this.towers.has(k.at.i)){
+        const showArms = !this.seen.switched && (this.seen.jumped || (this.t % 4) > 2);
+        if (showArms){
+          const u = Math.min(1, ((this.t * 1.2) % 1) * 2), hy = y - s * (0.7 + 0.8 * u), off = s * (0.3 + 0.2 * u);
+          ghost(x - off, hy, 0.85); ghost(x + off, hy, 0.85);
+        } else if (!this.seen.jumped){
+          const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
+          c.save(); c.globalAlpha = 0.8; arrow(c, x, y - s * 1.2 - b, 0, -1, s * 0.3, '#fff6e2'); c.restore();
+        }
       }
       /* Squatting: while working on something, until someone has squatted -
          a ghostly arrow bobbing down and up beside the knight. */
