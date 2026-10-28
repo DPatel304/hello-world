@@ -45,15 +45,15 @@ const levels = (f) => Array.from({ length: MAX_LVL }, (_, l) => f(l));
 export const CASTLE_HEARTS = levels(l => 5 + 2 * l);
 export const HEARTS = CASTLE_HEARTS[0];
 /* Towers' health, by level; ogres passing close smash at it. */
-export const TOWER_HP = levels(l => 8 + 2 * l), OGRE_SMASH = 1.5, SMASH_R = 0.15;
+export const TOWER_HP = levels(l => 8 + 6 * l), OGRE_SMASH = 1.5, SMASH_R = 0.15;
 /* Seconds of standing there: to build, to mend a heart; towers mend
    TOWER_FIX health a second. Hammering makes it all go HAMMER times as
    fast. Building costs coins; building up is free, but slow, and slower
    with every level: upgradeTime(lvl) to take a tower from lvl to the next,
    castleTime(lvl) the castle - several minutes' standing, all told, to take
    one all the way to the top. */
-export const BUILD = 2.5, REPAIR = 2.5, TOWER_FIX = 3, HAMMER = 2;
-export const upgradeTime = (lvl) => 10 + 5 * lvl, castleTime = (lvl) => 12 + 5 * lvl;
+export const BUILD = 2.5, REPAIR = 4, TOWER_FIX = 3, HAMMER = 2;
+export const upgradeTime = (lvl) => 5 + 2 * lvl, castleTime = (lvl) => 7 + 2 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
 /* Knights. Leaning walks them - shoulders over to one side of the hips,
    LEAN_X shoulder-widths for full lean, or toward or away from the screen,
@@ -116,29 +116,40 @@ const ASPECT = 16 / 9;
 /* What comes in wave w: more each time - that's the whole challenge; the
    monsters themselves never get faster or tougher. It creeps up slowly at
    first (7, 9, 11, 13, 17...) and then snowballs, so a strong team holds
-   about a quarter of an hour before the horde is too much. Goblins from the
-   second wave, bats from the third, an ogre (or more) every fifth. All
-   along the one trail. */
+   about half an hour before the horde is too much. Goblins from the
+   second wave, bats from the third, an ogre (or more) every fifth, and red
+   ones creeping in. All along the one trail. */
 export const POUR = 8;   /* seconds a wave takes to come out, once it's big */
-export const countOf = (w) => Math.min(1500, Math.round(5 + w + Math.pow(1.30, w - 1)));
+/* The more children playing, the bigger every wave: CROWD[n - 1] times as
+   many for n of them - one child alone has it easiest, four hardest. */
+export const CROWD = [1, 1.3, 1.65, 2];
+const crowd = (n) => CROWD[clamp(Math.round(n), 1, CROWD.length) - 1];
+/* At most CAP in a wave - past that, the ogres keep coming (a crowd much
+   bigger is too much to draw smoothly). */
+export const CAP = 800;
+export const countOf = (w, n = 1) => Math.min(CAP, Math.round((5 + w + Math.pow(1.36, w - 1)) * crowd(n)));
 /* Seconds between monsters coming out in wave w. */
-export const gapOf = (w) => Math.min(1.3, POUR / countOf(w));
-export function waveOf(w){
-  const n = countOf(w), out = [];
-  const path = () => 0;
-  for (let k = 0; k < n; k++){
-    const r = ((k * 7 + w * 3) % 12) / 12;
-    out.push({ kind: w >= 3 && r < 0.25 ? 'bat' : w >= 2 && r < 0.55 ? 'goblin' : 'slime', path: path(k) });
+export const gapOf = (w, n = 1) => Math.min(1.3, POUR / countOf(w, n));
+/* Red ones: every kind has a meaner, red, level-two sort, with more life,
+   that hits harder (RED). None at first, then more and more of each wave,
+   up to RED_MOST of it - a little sooner with more children playing. */
+export const RED = { hp: 2, harm: 2, coins: 2, smash: 1.6, bonk: 2 }, RED_FROM = 4, RED_RAMP = 30, RED_MOST = 0.6;
+export const redShare = (w, n = 1) => clamp((w - RED_FROM) / RED_RAMP + (crowd(n) - 1) * 0.05, 0, RED_MOST) * (w > RED_FROM ? 1 : 0);
+export function waveOf(w, n = 1){
+  const count = countOf(w, n), out = [], red = redShare(w, n);
+  for (let k = 0; k < count; k++){
+    const r = ((k * 7 + w * 3) % 12) / 12, r2 = ((k * 13 + w * 5) % 20 + 0.5) / 20;
+    out.push({ kind: w >= 3 && r < 0.25 ? 'bat' : w >= 2 && r < 0.55 ? 'goblin' : 'slime', path: 0, red: r2 < red });
   }
   /* The ogres spread through the wave, not all at the end. */
-  const ogres = ogresOf(w);
-  for (let k = 0; k < ogres; k++) out.splice(Math.floor((k + 0.5) / ogres * out.length) + k, 0, { kind: 'ogre', path: 0 });
+  const ogres = Math.round(ogresOf(w) * crowd(n));
+  for (let k = 0; k < ogres; k++) out.splice(Math.floor((k + 0.5) / ogres * out.length) + k, 0, { kind: 'ogre', path: 0, red: ((k * 7 + w) % 10 + 0.5) / 10 < red });
   return out;
 }
 /* Ogres: one or more every fifth wave, and from wave OGRE_FROM on, more and
    more in every wave - smashing towers and bonking knights, they're what
    finally wears down even the best-built meadow. */
-export const OGRE_FROM = 8, OGRE_K = 10;
+export const OGRE_FROM = 14, OGRE_K = 12;
 export const ogresOf = (w) => (w % 5 === 0 ? w / 5 : 0) + Math.floor(Math.max(0, w - OGRE_FROM) ** 2 / OGRE_K);
 
 export default {
@@ -219,8 +230,8 @@ class CastleDefense {
     this.spawnT -= dt;
     while (this.queue.length && this.spawnT <= 0){
       const next = this.queue.shift();
-      this._spawn(next.kind, next.path);
-      this.spawnT += gapOf(this.wave);
+      this._spawn(next.kind, next.path, next.red);
+      this.spawnT += this.gap;
     }
     /* The wave is held off once every monster in it is gone - beaten, or
        got in: a pennant, a few coins, and time to build. */
@@ -234,16 +245,19 @@ class CastleDefense {
 
   _startWave(){
     this.wave++; this.state = 'wave';
-    this.queue = waveOf(this.wave); this.spawnT = 0;
+    /* Sized for however many children are playing now. */
+    const n = Math.max(1, pose.players.slice(0, this.players).filter(p => p.present).length);
+    this.queue = waveOf(this.wave, n); this.spawnT = 0;
+    this.gap = Math.min(1.3, POUR / Math.max(1, this.queue.length));
     sfx.trumpet(1);
   }
 
-  _spawn(kind, path = 0){
-    const M = MONSTERS[kind], hp = M.hp;
+  _spawn(kind, path = 0, red = false){
+    const M = MONSTERS[kind], hp = M.hp * (red ? RED.hp : 1);
     /* Each walks a little to one side or the other of the middle of the
        trail, so a crowd looks like a crowd, not a queue. */
     this.monsters.push({ id: this.nextId++, wave: this.wave, kind, path, s: 0, side: (Math.random() - 0.5) * 0.05, hp, max: hp, speed: M.speed,
-                         slowT: 0, slowK: 1, hurt: 0, wob: Math.random() * 6 });
+                         slowT: 0, slowK: 1, hurt: 0, wob: Math.random() * 6, red });
   }
 
   _march(dt){
@@ -253,7 +267,7 @@ class CastleDefense {
       m.s += m.speed * m.slowK * dt;
       if (m.s >= PATHS[m.path].total){
         m.gone = true;
-        this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm);
+        this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm * (m.red ? RED.harm : 1));
         this.castleHit = 1;
         sfx.thud();
         if (this.hearts <= 0 && !this.lost){ this.lost = true; this.over = true; }
@@ -396,7 +410,7 @@ class CastleDefense {
   _beat(i, m){
     const k = this.knights[i];
     if (!k || k.lvl >= KNIGHT_MAX) return;
-    k.xp += MONSTERS[m.kind].coins;
+    k.xp += MONSTERS[m.kind].coins * (m.red ? RED.coins : 1);
     while (k.lvl < KNIGHT_MAX && k.xp >= killsFor(k.lvl)){
       k.xp -= killsFor(k.lvl); k.lvl++; k.glow = 1;
       sfx.twinkle();
@@ -423,7 +437,7 @@ class CastleDefense {
         sfx.thud();
         for (let q = 0; q < 10; q++) this._spark(p.x + (Math.random() - 0.5) * SLAM_R / ASPECT * 2, p.y + (Math.random() - 0.5) * 0.02, '#c9a66b');
         for (const { k, i } of inRing(p)){
-          k.hp--; k.calm = 0; k.bonk = 1;
+          k.hp -= m.red ? RED.bonk : 1; k.calm = 0; k.bonk = 1;
           for (let q = 0; q < 6; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.8, '#ffe27a');
           if (k.hp <= 0) this._knockOut(i, k);
         }
@@ -579,7 +593,7 @@ class CastleDefense {
       for (const [i, tw] of this.towers){
         const pad = PADS[i];
         if (Math.hypot((pad.x - p.x) * ASPECT, pad.y - p.y) > SMASH_R) continue;
-        tw.hp -= OGRE_SMASH * dt; tw.hit = 1;
+        tw.hp -= OGRE_SMASH * (m.red ? RED.smash : 1) * dt; tw.hit = 1;
         if (Math.random() < dt * 4) this._spark(pad.x, pad.y - 0.06, '#c9a66b');
         if (tw.hp <= 0){
           this.towers.delete(i);
@@ -661,12 +675,12 @@ class CastleDefense {
     if (m.hp > 0) return;
     m.dead = true; m.gone = true;
     if (by >= 0) this._beat(by, m);
-    const M = MONSTERS[m.kind];
-    this.coins += M.coins;
+    const M = MONSTERS[m.kind], coins = M.coins * (m.red ? RED.coins : 1);
+    this.coins += coins;
     const p = this.pos(m);
-    sfx.pop(M.coins > 1 ? 1 : 0.4);
+    sfx.pop(coins > 1 ? 1 : 0.4);
     /* Its coins fly to the chest; a puff where it was. */
-    for (let k = 0; k < M.coins; k++) this.bits.push({ kind: 'coin', x: p.x, y: p.y - 0.04, from: { x: p.x, y: p.y - 0.04 }, age: -k * 0.08, life: 0.7 });
+    for (let k = 0; k < coins; k++) this.bits.push({ kind: 'coin', x: p.x, y: p.y - 0.04, from: { x: p.x, y: p.y - 0.04 }, age: -k * 0.08, life: 0.7 });
     for (let k = 0; k < 8; k++) this._spark(p.x, p.y - 0.03, '#ffffff');
     this.monsters = this.monsters.filter(q => q !== m);
   }
@@ -748,7 +762,7 @@ class CastleDefense {
          the ground round it; bringing the club down, it lunges. */
       const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02, lift = m.wind > 0 ? 1 - m.wind / WINDUP : 0;
       if (lift > 0 && !this.out) drawSlamRing(c, p.x * W, p.y * H, SLAM_R * H, lift, this.t);
-      things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance - lunge) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max, lift) });
+      things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance - lunge) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max, lift, m.red) });
     }
     /* The knights, among everything else. */
     for (let i = 0; i < this.players; i++){

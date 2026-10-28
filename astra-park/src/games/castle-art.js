@@ -368,45 +368,56 @@ export function drawChest(c, W, H, coins, t){
 /* A monster at (x, y): kind slime / goblin / bat / ogre; dir which way it's
    walking; hurt: 0..1, a flash when hit; frozen: chilled blue; hp: share of
    health left, for the little bar. */
-/* club: an ogre's club lifted, 0..1, winding up to bring it down. */
-export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0){
+/* Each kind's colours, and its red, meaner level-two sort's. */
+const HUES = {
+  slime:  [{ body: '#6fdc6a' }, { body: '#e5484d' }],
+  goblin: [{ body: '#7a5ad6', skin: '#8fd06a' }, { body: '#7d1f2c', skin: '#e0605a' }],
+  bat:    [{ body: '#8a6cc0', wing: '#6a4f9a' }, { body: '#c53b46', wing: '#8e1f2e' }],
+  ogre:   [{ body: '#d27a5a', skin: '#e8a07e', club: '#8a5a34' }, { body: '#b02e2a', skin: '#d9534a', club: '#4a2a1c' }]
+};
+
+/* club: an ogre's club lifted, 0..1, winding up to bring it down. red: the
+   meaner sort - red, a touch bigger, scowling. */
+export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0, red = false){
+  const C = HUES[kind][red ? 1 : 0];
+  if (red) s *= 1.12;
   c.save();
   const shadow = kind === 'bat' ? 0.5 : 1;
   c.fillStyle = `rgba(40,50,40,${0.25 * shadow})`; c.beginPath(); c.ellipse(x, y + s * 0.05, s * 0.45, s * 0.12, 0, 0, 6.2832); c.fill();
   if (kind === 'slime'){
     const sq = 1 + Math.sin(t * 9) * 0.12;
-    c.fillStyle = frozen ? '#8fd8ff' : '#6fdc6a';
+    c.fillStyle = frozen ? '#8fd8ff' : C.body;
     c.beginPath(); c.moveTo(x - s * 0.45 * sq, y); c.quadraticCurveTo(x - s * 0.5 * sq, y - s * 0.7 / sq, x, y - s * 0.72 / sq); c.quadraticCurveTo(x + s * 0.5 * sq, y - s * 0.7 / sq, x + s * 0.45 * sq, y); c.closePath(); c.fill();
     c.fillStyle = 'rgba(255,255,255,.45)'; c.beginPath(); c.ellipse(x - s * 0.15, y - s * 0.5 / sq, s * 0.1, s * 0.06, -0.5, 0, 6.2832); c.fill();
-    face(c, x + dir * s * 0.08, y - s * 0.32 / sq, s * 0.5);
+    face(c, x + dir * s * 0.08, y - s * 0.32 / sq, s * 0.5, red);
   } else if (kind === 'goblin'){
     const step = Math.sin(t * 14);
     c.fillStyle = '#3b3d4a';
     for (const k of [-1, 1]){ c.beginPath(); c.ellipse(x + k * s * 0.12, y - s * 0.05 + (k * step > 0 ? -s * 0.06 : 0), s * 0.08, s * 0.06, 0, 0, 6.2832); c.fill(); }
-    c.fillStyle = frozen ? '#8fd8ff' : '#7a5ad6'; c.beginPath(); c.roundRect(x - s * 0.22, y - s * 0.45, s * 0.44, s * 0.38, s * 0.12); c.fill();
-    c.fillStyle = frozen ? '#b5e6ff' : '#8fd06a';
+    c.fillStyle = frozen ? '#8fd8ff' : C.body; c.beginPath(); c.roundRect(x - s * 0.22, y - s * 0.45, s * 0.44, s * 0.38, s * 0.12); c.fill();
+    c.fillStyle = frozen ? '#b5e6ff' : C.skin;
     c.beginPath(); c.arc(x, y - s * 0.62, s * 0.24, 0, 6.2832); c.fill();
     for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.18, y - s * 0.66); c.lineTo(x + k * s * 0.45, y - s * 0.78); c.lineTo(x + k * s * 0.2, y - s * 0.55); c.closePath(); c.fill(); }
-    face(c, x + dir * s * 0.06, y - s * 0.62, s * 0.36);
+    face(c, x + dir * s * 0.06, y - s * 0.62, s * 0.36, red);
   } else if (kind === 'bat'){
     const flap = Math.sin(t * 16), fy = y - s * (0.75 + Math.sin(t * 3) * 0.06);
-    c.fillStyle = frozen ? '#8fd8ff' : '#6a4f9a';
+    c.fillStyle = frozen ? '#8fd8ff' : C.wing;
     for (const k of [-1, 1]){
       c.beginPath(); c.moveTo(x, fy); c.quadraticCurveTo(x + k * s * 0.4, fy - s * 0.3 * flap, x + k * s * 0.7, fy - s * 0.1 * flap);
       c.quadraticCurveTo(x + k * s * 0.45, fy + s * 0.05, x + k * s * 0.3, fy + s * 0.15); c.quadraticCurveTo(x + k * s * 0.15, fy + s * 0.05, x, fy + s * 0.1); c.closePath(); c.fill();
     }
-    c.fillStyle = frozen ? '#b5e6ff' : '#8a6cc0'; c.beginPath(); c.arc(x, fy, s * 0.2, 0, 6.2832); c.fill();
+    c.fillStyle = frozen ? '#b5e6ff' : C.body; c.beginPath(); c.arc(x, fy, s * 0.2, 0, 6.2832); c.fill();
     for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.08, fy - s * 0.14); c.lineTo(x + k * s * 0.16, fy - s * 0.3); c.lineTo(x + k * s * 0.18, fy - s * 0.1); c.closePath(); c.fill(); }
-    face(c, x, fy + s * 0.02, s * 0.3);
+    face(c, x, fy + s * 0.02, s * 0.3, red);
   } else {
     const step = Math.sin(t * 6);
     c.fillStyle = '#5b4636';
     for (const k of [-1, 1]){ c.beginPath(); c.roundRect(x + k * s * 0.2 - s * 0.1, y - s * 0.25 + (k * step > 0 ? -s * 0.05 : 0), s * 0.2, s * 0.25, s * 0.06); c.fill(); }
-    c.fillStyle = frozen ? '#8fd8ff' : '#d27a5a'; c.beginPath(); c.ellipse(x, y - s * 0.55, s * 0.42, s * 0.38, 0, 0, 6.2832); c.fill();
-    c.fillStyle = frozen ? '#b5e6ff' : '#e8a07e'; c.beginPath(); c.arc(x, y - s * 0.95, s * 0.24, 0, 6.2832); c.fill();
+    c.fillStyle = frozen ? '#8fd8ff' : C.body; c.beginPath(); c.ellipse(x, y - s * 0.55, s * 0.42, s * 0.38, 0, 0, 6.2832); c.fill();
+    c.fillStyle = frozen ? '#b5e6ff' : C.skin; c.beginPath(); c.arc(x, y - s * 0.95, s * 0.24, 0, 6.2832); c.fill();
     c.fillStyle = '#ffd24a'; c.beginPath(); c.moveTo(x - s * 0.2, y - s * 1.12); for (let k = 0; k < 5; k++){ c.lineTo(x - s * 0.2 + (k + 0.5) * s * 0.08, y - s * (k % 2 ? 1.22 : 1.32)); } c.lineTo(x + s * 0.2, y - s * 1.12); c.closePath(); c.fill();
-    face(c, x + dir * s * 0.04, y - s * 0.93, s * 0.36);
-    c.fillStyle = '#8a5a34'; c.save(); c.translate(x + dir * s * 0.45, y - s * 0.55); c.rotate(dir * (0.5 - club * 2.1) + Math.sin(t * 6) * 0.15 * (1 - club) + (club > 0 ? Math.sin(t * 40) * 0.05 : 0)); c.fillRect(-s * 0.05, -s * 0.4, s * 0.1, s * 0.45); c.beginPath(); c.arc(0, -s * 0.42, s * 0.12 * (1 + club * 0.3), 0, 6.2832); c.fill(); c.restore();
+    face(c, x + dir * s * 0.04, y - s * 0.93, s * 0.36, red);
+    c.fillStyle = C.club; c.save(); c.translate(x + dir * s * 0.45, y - s * 0.55); c.rotate(dir * (0.5 - club * 2.1) + Math.sin(t * 6) * 0.15 * (1 - club) + (club > 0 ? Math.sin(t * 40) * 0.05 : 0)); c.fillRect(-s * 0.05, -s * 0.4, s * 0.1, s * 0.45); c.beginPath(); c.arc(0, -s * 0.42, s * 0.12 * (1 + club * 0.3), 0, 6.2832); c.fill(); c.restore();
   }
   c.restore();
   /* A flash when it's hit: a quick white glow over it. (Not a canvas
@@ -423,12 +434,18 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0
   }
 }
 
-function face(c, x, y, s){
+/* A monster's face: a silly smile - or, mean, a scowl, with cross brows. */
+function face(c, x, y, s, mean = false){
   for (const k of [-1, 1]){
-    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x + k * s * 0.22, y, s * 0.16, 0, 6.2832); c.fill();
+    c.fillStyle = mean ? '#ffe27a' : '#ffffff'; c.beginPath(); c.arc(x + k * s * 0.22, y, s * 0.16, 0, 6.2832); c.fill();
     c.fillStyle = '#2b2440'; c.beginPath(); c.arc(x + k * s * 0.22, y + s * 0.03, s * 0.09, 0, 6.2832); c.fill();
   }
   c.strokeStyle = '#2b2440'; c.lineWidth = Math.max(1, s * 0.06); c.lineCap = 'round';
+  if (mean){
+    for (const k of [-1, 1]){ c.beginPath(); c.moveTo(x + k * s * 0.4, y - s * 0.24); c.lineTo(x + k * s * 0.08, y - s * 0.12); c.stroke(); }
+    c.beginPath(); c.arc(x, y + s * 0.32, s * 0.14, 1.2 * Math.PI, 1.8 * Math.PI); c.stroke();
+    return;
+  }
   c.beginPath(); c.arc(x, y + s * 0.18, s * 0.14, 0.2 * Math.PI, 0.8 * Math.PI); c.stroke();
 }
 

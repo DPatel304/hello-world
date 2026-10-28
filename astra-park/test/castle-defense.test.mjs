@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -727,7 +727,57 @@ test('waves grow in number; an ogre every fifth', () => {
   assert.ok(kinds(2).includes('goblin') && !kinds(2).includes('bat'));
   assert.ok(kinds(3).includes('bat'));
   assert.ok(kinds(5).includes('ogre') && !kinds(4).includes('ogre'));
-  for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1) || countOf(w) === 1500, 'more every wave, till far past where anyone gets');
+  for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1) || countOf(w) === CAP, 'more every wave, up to as many as can be drawn');
+});
+
+test('the more children playing, the bigger every wave', () => {
+  for (const w of [1, 5, 12]) assert.ok(countOf(w, 4) > countOf(w, 3) && countOf(w, 3) > countOf(w, 2) && countOf(w, 2) > countOf(w, 1), `wave ${w}`);
+  const ogres = (w, n) => waveOf(w, n).filter(m => m.kind === 'ogre').length;
+  assert.ok(ogres(20, 4) > ogres(20, 1));
+  for (const n of [1, 2, 4]){
+    body({ n });
+    const inst = game.create(4); inst.breakT = 0;
+    inst.step(DT, W, H);
+    assert.equal(inst.queue.length + inst.monsters.length, waveOf(1, n).length, `sized for ${n}`);
+  }
+  assert.equal(CROWD[0], 1);
+});
+
+test('red monsters: none at first, then more and more of each wave', () => {
+  const reds = (w, n = 1) => waveOf(w, n).filter(m => m.red).length / waveOf(w, n).length;
+  for (let w = 1; w <= 4; w++) assert.equal(reds(w), 0, `wave ${w}`);
+  assert.ok(reds(8) > 0 && reds(8) < 0.25, `a few by wave 8: ${reds(8).toFixed(2)}`);
+  assert.ok(reds(20) > reds(12) && reds(12) > reds(8));
+  assert.ok(reds(40) <= 0.65, 'never all of them');
+  for (const kind of ['slime', 'goblin', 'bat', 'ogre']) assert.ok(waveOf(30).some(m => m.kind === kind && m.red), `red ${kind}s`);
+  assert.ok(redShare(10, 4) > redShare(10, 1), 'a little sooner with more children');
+});
+
+test('a red monster has more life, hurts the castle more and drops more coins - but is no faster', () => {
+  const inst = quiet(0);
+  inst._spawn('slime', 0, false); inst._spawn('slime', 0, true);
+  const [plain, red] = inst.monsters;
+  assert.equal(red.max, plain.max * RED.hp);
+  assert.equal(red.speed, plain.speed);
+  const coins = inst.coins;
+  inst._damage(red, 99);
+  assert.equal(inst.coins, coins + MONSTERS.slime.coins * RED.coins);
+  inst.monsters = [];
+  monster(inst, 'slime', PATH.total - 0.001).speed = 1;
+  run(inst, 0.1);
+  const after1 = inst.hearts;
+  inst._spawn('slime', 0, true); const m = inst.monsters[0]; m.s = PATH.total - 0.001; m.speed = 1;
+  run(inst, 0.1);
+  assert.equal(after1 - inst.hearts, MONSTERS.slime.harm * RED.harm);
+});
+
+test('a red ogre bonks a knight harder', () => {
+  const inst = quiet();
+  inst._spawn('ogre', 0, true); const m = inst.monsters[0]; m.s = 1.5; m.speed = 0; m.side = 0; m.hp = m.max = 1e9;
+  const k = knight(inst);
+  put(k, along(1.5).x, along(1.5).y);
+  run(inst, 0.2 + WINDUP);
+  assert.equal(k.hp, KNIGHT_HP - RED.bonk);
 });
 
 test('later waves bring more and more ogres, spread through the wave', () => {
