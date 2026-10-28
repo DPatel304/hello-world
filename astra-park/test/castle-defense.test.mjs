@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, CALIB, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+               WALK, RUN, CALIB, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
                TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
@@ -102,7 +102,7 @@ function byKnight(inst, kind = 'slime', s = 1.5){
   put(knight(inst), p.x, p.y);
   return m;
 }
-/* The spot furthest from any pad, the castle, the horn or the trail. */
+/* The spot furthest from any pad, the castle, the tent or the trail. */
 const OPEN_FIELD = (() => {
   let best = null, bd = 0;
   for (let x = 0.05; x < 0.95; x += 0.02) for (let y = 0.1; y < 0.95; y += 0.02){
@@ -110,7 +110,7 @@ const OPEN_FIELD = (() => {
     const t = along(nearestS({ x, y }));
     let d = Math.hypot((t.x - x) * ASPECT, t.y - y);
     for (const pad of PADS) d = Math.min(d, Math.hypot((pad.x - x) * ASPECT, pad.y - y));
-    d = Math.min(d, Math.hypot((HORN.x - x) * ASPECT, HORN.y - y));
+    d = Math.min(d, Math.hypot((TENT.x - x) * ASPECT, TENT.y - y));
     if (d > bd){ bd = d; best = { x, y }; }
   }
   return best;
@@ -833,26 +833,14 @@ test('a higher knight has a bigger, harder, quicker sword - and kills faster', (
   assert.ok(time(KNIGHT_MAX) < time(0) / 4);
 });
 
-/* ---------- the waves, and the horn ---------- */
+/* ---------- the waves ---------- */
 
-test('a knight by the war horn calls the wave in early', () => {
+test('the waves come on their own: no horn to call them early', () => {
   still();
   const inst = game.create(1);
-  put(knight(inst), HORN.x, HORN.y);
-  run(inst, HORN_HOLD * 0.5);
-  assert.equal(inst.wave, 0, 'not straight away');
-  run(inst, HORN_HOLD * 0.6);
-  assert.equal(inst.wave, 1);
-  assert.ok(inst.t < FIRST_BUILD);
-  assert.ok(inst.seen.called);
-});
-
-test('in a wave the horn is gone: standing there does nothing', () => {
-  const inst = quiet();
-  inst._startWave(); inst.spawnT = 1e9;
-  put(knight(inst), HORN.x, HORN.y);
-  run(inst, HORN_HOLD * 2);
-  assert.equal(knight(inst).at, null);
+  run(inst, FIRST_BUILD - 1);
+  assert.equal(inst.wave, 0);
+  assert.equal(inst.horn, undefined);
 });
 
 test('the next wave waits until this one is cleared, then a break', () => {

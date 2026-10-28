@@ -138,17 +138,28 @@ export function drawTent(c, W, H, t, glow = 0){
   }
   c.fillStyle = 'rgba(40,80,40,.2)'; c.beginPath(); c.ellipse(x + s * 0.06, y + s * 0.02, s * 0.62, s * 0.14, 0, 0, 6.2832); c.fill();
   /* The canvas: a ridge tent seen from the front, a shaded side. */
-  c.fillStyle = '#c23a3a'; c.beginPath(); c.moveTo(x - s * 0.58, y); c.lineTo(x - s * 0.1, y - s * 0.72); c.lineTo(x + s * 0.12, y - s * 0.72); c.lineTo(x + s * 0.62, y); c.closePath(); c.fill();
-  c.fillStyle = '#e24a4a'; c.beginPath(); c.moveTo(x - s * 0.48, y); c.lineTo(x, y - s * 0.74); c.lineTo(x + s * 0.48, y); c.closePath(); c.fill();
+  c.fillStyle = '#ddd5c6'; c.beginPath(); c.moveTo(x - s * 0.58, y); c.lineTo(x - s * 0.1, y - s * 0.72); c.lineTo(x + s * 0.12, y - s * 0.72); c.lineTo(x + s * 0.62, y); c.closePath(); c.fill();
+  c.fillStyle = '#f6f2ea'; c.beginPath(); c.moveTo(x - s * 0.48, y); c.lineTo(x, y - s * 0.74); c.lineTo(x + s * 0.48, y); c.closePath(); c.fill();
   /* The door, flaps tied back. */
   c.fillStyle = '#5a4f66'; c.beginPath(); c.moveTo(x - s * 0.16, y); c.lineTo(x, y - s * 0.36); c.lineTo(x + s * 0.16, y); c.closePath(); c.fill();
-  /* The sign over the door: a red cross on white. */
-  const by = y - s * 0.5, b = s * 0.15;
-  c.fillStyle = '#ffffff'; c.beginPath(); c.roundRect(x - b, by - b, b * 2, b * 2, b * 0.3); c.fill();
-  c.fillStyle = '#e02626'; c.fillRect(x - b * 0.66, by - b * 0.22, b * 1.32, b * 0.44); c.fillRect(x - b * 0.22, by - b * 0.66, b * 0.44, b * 1.32);
+  /* The sign over the door: a round red badge - a red rim, a thin white
+     ring, a red middle - with a bold white cross. */
+  const by = y - s * 0.47, b = s * 0.19;
+  /* Its own fine dark red lines, not the bold ink - the white ring is thin. */
+  const was = c.__noInk; c.__noInk = true;
+  c.strokeStyle = '#9e0000'; c.lineWidth = Math.max(1, b * 0.025);
+  c.fillStyle = '#d80000'; c.beginPath(); c.arc(x, by, b, 0, 6.2832); c.fill(); c.stroke();
+  c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, by, b * 0.88, 0, 6.2832); c.fill(); c.stroke();
+  c.fillStyle = '#d80000'; c.beginPath(); c.arc(x, by, b * 0.81, 0, 6.2832); c.fill(); c.stroke();
+  const arm = b * 0.5, half = b * 0.155;
+  c.fillStyle = '#ffffff'; c.beginPath();
+  c.moveTo(x - half, by - arm); c.lineTo(x + half, by - arm); c.lineTo(x + half, by - half); c.lineTo(x + arm, by - half); c.lineTo(x + arm, by + half);
+  c.lineTo(x + half, by + half); c.lineTo(x + half, by + arm); c.lineTo(x - half, by + arm); c.lineTo(x - half, by + half); c.lineTo(x - arm, by + half);
+  c.lineTo(x - arm, by - half); c.lineTo(x - half, by - half); c.closePath(); c.fill(); c.stroke();
+  c.__noInk = was;
   /* A little pennant on the pole. */
   c.strokeStyle = '#8a6a4c'; c.lineWidth = Math.max(1.5, s * 0.025); c.beginPath(); c.moveTo(x, y - s * 0.74); c.lineTo(x, y - s * 0.98); c.stroke();
-  c.fillStyle = '#ffffff'; c.beginPath(); c.moveTo(x, y - s * 0.98); c.lineTo(x + s * 0.2, y - s * 0.92 + Math.sin(t * 4) * s * 0.02); c.lineTo(x, y - s * 0.86); c.closePath(); c.fill();
+  c.fillStyle = '#d80000'; c.beginPath(); c.moveTo(x, y - s * 0.98); c.lineTo(x + s * 0.2, y - s * 0.92 + Math.sin(t * 4) * s * 0.02); c.lineTo(x, y - s * 0.86); c.closePath(); c.fill();
 }
 /* The trees and bushes: a thick jungle round the edges and in the
    corners, kept off the trail, the pads, the castle and the chest. Where
@@ -160,10 +171,10 @@ export const TREES = (() => {
     const x = hash(i, 29), y = 0.04 + hash(i, 31) * 0.96, bush = hash(i, 41) < 0.4;
     const r = bush ? 0.035 + hash(i, 37) * 0.015 : 0.055 + hash(i, 37) * 0.035;
     /* Clear of the trail, the pads (towers grow tall), the castle as big as
-       it gets, the chest and the war horn. */
+       it gets and the medical tent. */
     if (nearPath(x, y, bush ? 0.075 : 0.095) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.11 || (Math.abs(p.x - x) * ASPECT < 0.09 && y < p.y && y > p.y - 0.24))) continue;
     if (Math.hypot((x - TENT.x) * ASPECT, y - TENT.y + 0.06) < 0.17 + r) continue;
-    if ((Math.abs(x - CASTLE.x) < CASTLE.w / 2 + 0.03 && y > CASTLE_BASE - 0.42) || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.12 || Math.hypot((x - 0.06) * ASPECT, y - r * 0.7 - 0.34) < 0.1 + r) continue;
+    if ((Math.abs(x - CASTLE.x) < CASTLE.w / 2 + 0.03 && y > CASTLE_BASE - 0.42) || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.12) continue;
     if (out.some(t => Math.hypot((t.x - x) * ASPECT, t.y - y) < (t.r + r) * 0.75)) continue;
     out.push({ x, y, r, bush, seed: i });
   }
@@ -761,27 +772,6 @@ export function drawMarker(c, x, y, s, col, t){
   c.fillStyle = 'rgba(40,50,40,.25)'; c.beginPath(); c.ellipse(x, y, s * 0.18, s * 0.06, 0, 0, 6.2832); c.fill();
   c.strokeStyle = '#5b4636'; c.lineWidth = Math.max(1.5, s * 0.04); c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - s * 0.55); c.stroke();
   c.fillStyle = col; c.beginPath(); c.moveTo(x, y - s * 0.55); c.lineTo(x + s * 0.3, y - s * 0.46 + Math.sin(t * 6) * s * 0.03); c.lineTo(x, y - s * 0.36); c.closePath(); c.fill();
-}
-
-/* The war horn on its post, where the monsters come in. left: 0..1 of the
-   build phase still to go, as a ring round it; hold: 0..1 of the two-hand
-   hold that blows it to call the wave early. */
-export function drawHorn(c, x, y, s, t, left, hold){
-  c.fillStyle = 'rgba(40,50,40,.25)'; c.beginPath(); c.ellipse(x, y + s * 0.62, s * 0.3, s * 0.08, 0, 0, 6.2832); c.fill();
-  c.fillStyle = '#6b4a34'; c.fillRect(x - s * 0.05, y, s * 0.1, s * 0.62);
-  /* The ring: the time left, draining; and the hold, filling over it. */
-  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = s * 0.07;
-  c.beginPath(); c.arc(x, y - s * 0.05, s * 0.62, 0, 6.2832); c.stroke();
-  c.strokeStyle = '#ffd24a'; c.beginPath(); c.arc(x, y - s * 0.05, s * 0.62, -Math.PI / 2, -Math.PI / 2 + left * 6.2832); c.stroke();
-  if (hold > 0){ c.strokeStyle = '#ff5d5d'; c.lineWidth = s * 0.1; c.beginPath(); c.arc(x, y - s * 0.05, s * 0.74, -Math.PI / 2, -Math.PI / 2 + hold * 6.2832); c.stroke(); }
-  /* The horn: a curl of ivory with a gold rim, wobbling when it's held. */
-  c.save(); c.translate(x, y - s * 0.05); c.rotate(-0.3 + (hold > 0 ? Math.sin(t * 30) * 0.05 : 0));
-  c.fillStyle = '#f3e6c4';
-  c.beginPath(); c.moveTo(-s * 0.42, s * 0.04); c.quadraticCurveTo(-s * 0.05, s * 0.3, s * 0.3, -s * 0.05);
-  c.lineTo(s * 0.36, -s * 0.28); c.quadraticCurveTo(-s * 0.05, s * 0.08, -s * 0.42, -s * 0.02); c.closePath(); c.fill();
-  c.fillStyle = '#e8a91c'; c.beginPath(); c.ellipse(s * 0.33, -s * 0.17, s * 0.06, s * 0.14, 0.3, 0, 6.2832); c.fill();
-  c.fillStyle = '#c9a66b'; for (const u of [-0.2, 0.05]){ c.fillRect(s * u - s * 0.02, -s * 0.06 + u * s * 0.3, s * 0.04, s * 0.16); }
-  c.restore();
 }
 
 /* A ring filling over something being worked on, with an icon inside. */

@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawTent, TENT, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawTent, TENT, inked, drawShot, coin, star, drawKnight, drawMarker, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -27,12 +27,10 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, tow
    with two more. Squatting makes any of that go twice as fast, and the
    knight bangs away with its hammer. Hurt? Walk to the medical tent and
    give yourself a hug.
-   Monsters drop coins into the treasure chest; new towers cost coins,
+   Monsters drop coins, which fly into the castle; new towers cost coins,
    building them up and mending is free - it only takes time.
 
-   Between waves there's a breather, with the war horn standing where the
-   monsters come in - stand your knight by it to call the next wave early.
-   The waves keep coming, each bigger than the last, until the castle's
+   Between waves there's a breather, to build and mend. The waves keep coming, each bigger than the last, until the castle's
    hearts run out. Nothing is counted in numbers: the castle flies a pennant
    for every wave held off. */
 
@@ -116,10 +114,8 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
 export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SAFE = 3;
 export const REVIVE_R = 0.18, HIGH_FIVE = 0.2, ALL_DOWN = 10;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
-/* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first), or
-   until a knight has stood by the war horn for HORN_HOLD. */
-export const BUILD_TIME = 15, FIRST_BUILD = 20, HORN_HOLD = 1.5;
-export const HORN = { x: 0.06, y: 0.34 };
+/* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first). */
+export const BUILD_TIME = 15, FIRST_BUILD = 20;
 const BREAK = BUILD_TIME;
 /* What towers do at each level: each step a little further, faster and
    harder, and every few levels archers and frost towers shoot at one more
@@ -230,7 +226,7 @@ class CastleDefense {
     this.faces = new FaceCam();
     this.jumps = new JumpWatch();
     /* What's been done yet, for the hints. */
-    this.seen = { built: false, jumped: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false, called: false };
+    this.seen = { built: false, jumped: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false };
     /* The knights wait by the castle, side by side. */
     this.knights = pose.players.map((_, i) => {
       const { x, y } = this.home(i);
@@ -670,14 +666,13 @@ class CastleDefense {
     for (let q = 0; q < 10; q++) this._spark(pad.x, pad.y - 0.06, PLAYER_COLORS[i]);
   }
 
-  /* Where a knight is standing: on a pad, at the castle, by the horn, or
-     out in the meadow. */
+  /* Where a knight is standing: on a pad, at the castle, or out in the
+     meadow. */
   _spot(k){
     let best = null, bd = AT_PAD;
     for (const pad of PADS){ const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = { kind: 'pad', i: pad.i, id: `p${pad.i}` }; } }
     if (best) return best;
     if (onCastle(k.x, k.y + 0.03, this.castleLvl)) return { kind: 'castle', id: 'castle' };
-    if (this.state === 'build' && Math.hypot((HORN.x - k.x) * ASPECT, HORN.y - k.y) < 0.09) return { kind: 'horn', id: 'horn' };
     return null;
   }
 
@@ -685,7 +680,6 @@ class CastleDefense {
 
   /* What standing at a spot does now, and whether it can. */
   _job(at){
-    if (at.kind === 'horn') return { need: HORN_HOLD, can: this.state === 'build', act: () => { this.breakT = 0; this.seen.called = true; } };
     if (at.kind === 'castle'){
       if (this.hearts < this.maxHearts) return { what: 'mend', need: REPAIR, can: true, act: () => this._repair(), again: true };
       if (this.castleLvl < MAX_LVL) return { what: 'up', need: castleTime(this.castleLvl), can: true, act: () => this._castleUp() };
@@ -1071,11 +1065,6 @@ class CastleDefense {
        or there's too much to draw. */
     const crowd = this.monsters.length > INK_MOST;
     for (const th of things){ if (crowd && th.monster) th.draw(); else inked(c, H * 0.0024, th.draw); }
-    /* The war horn, between waves: its ring is the time left. */
-    if (this.state === 'build' && !this.out){
-      const w = this.work.get('horn');
-      drawHorn(c, HORN.x * W, HORN.y * H, H * 0.095, this.t, clamp(this.breakT / (this.wave ? BUILD_TIME : FIRST_BUILD), 0, 1), w ? clamp(w.t / HORN_HOLD, 0, 1) : 0);
-    }
     for (const s of this.shots) drawShot(c, W, H, s);
     /* The Frost Troll's blizzard gathering, and the white flash of the freeze. */
     if (!this.out){
@@ -1107,7 +1096,7 @@ class CastleDefense {
   _drawWork(c, W, H){
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
-      if (!k.at || !pose.players[i].present || k.at.kind === 'horn') continue;
+      if (!k.at || !pose.players[i].present) continue;
       const w = this.work.get(k.at.id), job = w && w.job;
       if (!job) continue;
       let x, y;
@@ -1157,7 +1146,7 @@ class CastleDefense {
       }
       /* Squatting: while working on something, until someone has squatted -
          a ghostly arrow bobbing down and up beside the knight. */
-      if (!this.seen.squatted && !pose.mouse.active && k.at && k.at.kind !== 'horn' && this.work.get(k.at.id)?.job?.can){
+      if (!this.seen.squatted && !pose.mouse.active && k.at && this.work.get(k.at.id)?.job?.can){
         const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
         c.save(); c.globalAlpha = 0.8; arrow(c, x + s * 0.8, y - s * 1.1 + b, 0, 1, s * 0.3, '#fff6e2'); c.restore();
       }
@@ -1186,14 +1175,6 @@ class CastleDefense {
         for (let q = 1; q < 8; q++){ const u = q / 8, a = 0.25 + 0.6 * Math.max(0, Math.sin(this.t * 4 - q * 0.6)); c.globalAlpha = a; c.beginPath(); c.arc((k.x + (best.x - k.x) * u) * W, (k.y + (best.y - k.y) * u) * H, H * 0.007, 0, 6.2832); c.fill(); }
         c.restore();
       }
-    }
-    /* The horn: once there's a tower up, before the first wave, it glows. */
-    if (this.seen.built && this.wave === 0 && this.state === 'build' && !this.seen.called){
-      c.save(); c.globalAlpha = 0.35 + 0.3 * Math.sin(this.t * 5);
-      const g = c.createRadialGradient(HORN.x * W, HORN.y * H, 0, HORN.x * W, HORN.y * H, H * 0.12);
-      g.addColorStop(0, 'rgba(255,240,180,.9)'); g.addColorStop(1, 'rgba(255,240,180,0)');
-      c.fillStyle = g; c.beginPath(); c.arc(HORN.x * W, HORN.y * H, H * 0.12, 0, 6.2832); c.fill();
-      c.restore();
     }
     /* A knight down: a ghostly hand waving over it, calling for a friend;
        once one is beside it, two big ghostly hands meeting over the pair -
