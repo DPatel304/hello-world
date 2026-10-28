@@ -93,10 +93,19 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
    it, and only after WINDUP seconds does the club come down - on whoever is
    still inside the ring. Then OGRE_CLUB seconds before it can try again.
    A knight takes KNIGHT_HP bonks, getting its breath back after a while (a
-   bonk's worth every KNIGHT_MEND seconds, once clear). Bonked out, it loses
-   every level, and after DOWN seconds is back at the castle, safe for a
-   moment. Nothing else harms a knight. */
-export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, KNIGHT_MEND = 3, DOWN = 2.5, SAFE = 3;
+   bonk's worth every KNIGHT_MEND seconds, once clear). Nothing else harms a
+   knight.
+
+   Bonked out, a knight lies there seeing stars - for as long as it takes a
+   friend to come and get it up: their knight walks over to it (within
+   REVIVE_R), and the two children high-five, for real, in the room - two of
+   their hands meeting (within HIGH_FIVE screen heights), up above the
+   shoulders. Up it gets, right there, every level kept. Only when every
+   knight is down does nobody need to: after ALL_DOWN seconds they're all
+   back at the castle - but back to the very start, every level lost. Just
+   up, a knight is safe for SAFE seconds. */
+export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, KNIGHT_MEND = 3, SAFE = 3;
+export const REVIVE_R = 0.1, HIGH_FIVE = 0.07, ALL_DOWN = 10;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first), or
    until a knight has stood by the war horn for HORN_HOLD. */
@@ -189,6 +198,7 @@ class CastleDefense {
     this.picks = new Map(PADS.map(p => [p.i, p.i % KINDS.length]));
     this.work = new Map();      /* what's being built, upgraded or mended -> how far along */
     this.mend = 0;
+    this.allDown = 0;            /* how long every knight has been down */
     this.monsters = [];
     this.shots = [];
     this.bits = [];
@@ -202,7 +212,7 @@ class CastleDefense {
       const { x, y } = this.home(i);
       return { x, y, tx: x, ty: y, vx: 0, vy: 0, dir: 1, walk: 0, march: 0, lean: null, swing: 0, sword: 0,
                spin: 0, ra: null, hipBase: null, lowAgo: 9, hugT: 0, hugHeal: 0, hop: 0, at: null,
-               lvl: 0, xp: 0, hp: KNIGHT_HP, calm: 0, bonk: 0, down: 0, safe: 0, glow: 0 };
+               lvl: 0, xp: 0, hp: KNIGHT_HP, calm: 0, bonk: 0, down: 0, downT: 0, helper: -1, safe: 0, glow: 0 };
     });
     this.avatars = new Avatars();
     this.out = null;
@@ -220,6 +230,7 @@ class CastleDefense {
     this._waves(dt);
     this.faces.step(dt);
     this._knights(dt);
+    this._rescues(dt);
     this._work(dt);
     this._march(dt);
     this._smash(dt);
@@ -306,12 +317,8 @@ class CastleDefense {
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
       if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; continue; }
-      /* Bonked out: seeing stars a moment, then back at the castle. */
-      if (k.down > 0){
-        k.down -= dt; k.vx = k.vy = 0; k.at = null;
-        if (k.down <= 0) this._respawn(i, k);
-        continue;
-      }
+      /* Bonked out: lying there till a friend comes. */
+      if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Getting its breath back, away from ogres. */
       k.calm += dt;
       if (k.hp < KNIGHT_HP && k.calm > KNIGHT_MEND){ k.hp++; k.calm = 0; }
@@ -485,20 +492,69 @@ class CastleDefense {
     }
   }
 
-  /* Bonked out: every level lost, and a moment seeing stars. */
+  /* Bonked out: down where it stands, seeing stars. */
   _knockOut(i, k){
     this.knockouts = (this.knockouts || 0) + 1;
-    k.down = DOWN; k.lvl = 0; k.xp = 0; k.fell = { x: k.x, y: k.y };
+    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1;
     k.vx = k.vy = 0; k.at = null;
     sfx.boing(0.5);
     for (let q = 0; q < 20; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, '#ffffff');
   }
 
-  /* Back at the castle, whole, and safe for a moment. */
+  /* Getting knights up again. While anyone is still standing, only a friend
+     can - a knight beside the fallen one, and a real high five. With every
+     knight down, after a while they're all back at the castle, from the
+     start. */
+  _rescues(dt){
+    const playing = [];
+    for (let i = 0; i < this.players; i++) if (pose.players[i].present) playing.push(i);
+    const down = playing.filter(i => this.knights[i].down > 0), up = playing.filter(i => !(this.knights[i].down > 0));
+    if (down.length && !up.length && !this.out){
+      this.allDown += dt;
+      if (this.allDown >= ALL_DOWN){ this.allDown = 0; for (const j of down) this._respawn(j, this.knights[j]); }
+      return;
+    }
+    this.allDown = 0;
+    for (const j of down){
+      const f = this.knights[j];
+      f.helper = -1;
+      for (const i of up){
+        const k = this.knights[i];
+        if (Math.hypot((k.x - f.fell.x) * ASPECT, k.y - f.fell.y) > REVIVE_R) continue;
+        f.helper = i;
+        if (this.highFive(i, j)){ this._revive(j, i); break; }
+      }
+    }
+  }
+
+  /* Are children i and j high-fiving: a hand of each meeting, up above
+     their shoulders? */
+  highFive(i, j){
+    const raised = (p) => {
+      if (!p.lm) return [];
+      const sy = Math.min(p.lm[L.L_SHOULDER].y, p.lm[L.R_SHOULDER].y);
+      return [p.hands.left, p.hands.right].filter(h => h && h.y < sy);
+    };
+    const a = raised(pose.players[i]), b = raised(pose.players[j]);
+    return a.some(h => b.some(g => Math.hypot((h.x - g.x) * ASPECT, h.y - g.y) < HIGH_FIVE));
+  }
+
+  /* Up again, right where it fell, every level kept. */
+  _revive(j, by){
+    const k = this.knights[j];
+    k.down = 0; k.downT = 0; k.hp = KNIGHT_HP; k.safe = SAFE; k.calm = 0; k.fell = null; k.helper = -1;
+    this.seen.revived = true;
+    sfx.gold();
+    for (let q = 0; q < 24; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.6, q % 2 ? PLAYER_COLORS[j] : PLAYER_COLORS[by]);
+  }
+
+  /* Back at the castle, whole, and safe for a moment - but from the very
+     start, every level gone. */
   _respawn(i, k){
     const h = this.home(i);
     k.x = k.tx = h.x; k.y = k.ty = h.y;
-    k.hp = KNIGHT_HP; k.safe = SAFE; k.down = 0; k.calm = 0; k.fell = null;
+    k.lvl = 0; k.xp = 0;
+    k.hp = KNIGHT_HP; k.safe = SAFE; k.down = 0; k.downT = 0; k.calm = 0; k.fell = null; k.helper = -1;
     sfx.pop(1);
     for (let q = 0; q < 14; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, PLAYER_COLORS[i]);
   }
@@ -805,11 +861,18 @@ class CastleDefense {
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
       if (!pose.players[i].present) continue;
-      /* Bonked out: stars going round where it fell. */
+      /* Bonked out: lying flat where it fell, stars going round its head. */
       if (k.down > 0){
-        const f = k.fell;
+        const f = k.fell, s = KNIGHT_SIZE * H, fx = f.x * W, fy = f.y * H;
         things.push({ y: f.y, draw: () => {
-          for (let q = 0; q < 5; q++){ const a = this.t * 5 + q * 1.2566; star(c, (f.x + Math.cos(a) * 0.03 / ASPECT) * W, (f.y - KNIGHT_SIZE * 0.5 + Math.sin(a) * 0.012) * H, H * 0.012, q % 2 ? '#ffd24a' : '#ffffff'); }
+          c.save(); c.translate(fx, fy - s * 0.12); c.rotate(-Math.PI / 2 * k.dir); c.translate(-fx, -(fy - s * 0.12));
+          drawKnight(c, fx, fy, s, 0, PLAYER_COLORS[i], k.dir, 0, 0, (x, y, r) => {
+            if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
+            else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
+          }, 0, swordAt(k.lvl).size, k.lvl >= KNIGHT_MAX ? '#ffd24a' : '#dfe3ee');
+          c.restore();
+          const hx = fx - k.dir * s * 0.75, hy = fy - s * 0.2;
+          for (let q = 0; q < 5; q++){ const a = this.t * 5 + q * 1.2566; star(c, hx + Math.cos(a) * s * 0.3, hy - s * 0.15 + Math.sin(a) * s * 0.12, H * 0.011, q % 2 ? '#ffd24a' : '#ffffff'); }
         } });
         continue;
       }
@@ -908,7 +971,7 @@ class CastleDefense {
     };
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
-      if (!pose.players[i].present) continue;
+      if (!pose.players[i].present || k.down > 0) continue;
       const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H;
       /* Leaning and running: footprints stepping, arrows all round, under a
          knight that hasn't gone anywhere yet. */
@@ -945,7 +1008,7 @@ class CastleDefense {
     }
     /* Building: until the first tower, the nearest empty pad to the first
        knight pulses, with a trail of dots leading to it. */
-    if (!this.seen.built && this.knights[0] && pose.players[0].present){
+    if (!this.seen.built && this.knights[0] && pose.players[0].present && !(this.knights[0].down > 0)){
       const k = this.knights[0];
       let best = null, bd = 9;
       for (const pad of PADS){ if (this.towers.has(pad.i)) continue; const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = pad; } }
@@ -962,6 +1025,23 @@ class CastleDefense {
       g.addColorStop(0, 'rgba(255,240,180,.9)'); g.addColorStop(1, 'rgba(255,240,180,0)');
       c.fillStyle = g; c.beginPath(); c.arc(HORN.x * W, HORN.y * H, H * 0.12, 0, 6.2832); c.fill();
       c.restore();
+    }
+    /* A knight down: a ghostly hand waving over it, calling for a friend;
+       once one is beside it, two big ghostly hands meeting over the pair -
+       high five! With everyone down, a ring round each filling up to when
+       they're all back at the castle. */
+    for (let j = 0; j < this.players; j++){
+      const f = this.knights[j];
+      if (!pose.players[j].present || !(f.down > 0)) continue;
+      const fx = f.fell.x, fy = f.fell.y - KNIGHT_SIZE * 0.9;
+      if (this.allDown > 0){ drawWorkRing(c, f.fell.x * W, (f.fell.y - KNIGHT_SIZE * 0.3) * H, KNIGHT_SIZE * H * 0.7, this.allDown / ALL_DOWN, PLAYER_COLORS[j]); continue; }
+      if (f.helper >= 0){
+        const h = this.knights[f.helper], mx = (fx + h.x) / 2, my = Math.min(fy, h.y - KNIGHT_SIZE * 0.9) - 0.03;
+        const u = Math.abs(Math.sin(this.t * 4)), off = (0.006 + 0.03 * u) / ASPECT;
+        ghost((mx - off) * W, my * H, 0.95); ghost((mx + off) * W, my * H, 0.95);
+      } else {
+        ghost((fx + Math.sin(this.t * 6) * 0.01 / ASPECT) * W, (fy - 0.02) * H, 0.5 + 0.3 * Math.abs(Math.sin(this.t * 3)));
+      }
     }
     /* Rolling the arms: over a knight swinging its sword, until someone
        has rolled, two ghostly hands go round and round each other. */

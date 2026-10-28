@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare } from '../src/games/castle-defense.js';
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -573,24 +573,93 @@ test('stepping out of the ring while the club is up gets away', () => {
   assert.ok(WALK * WINDUP > SLAM_R, 'even just leaning');
 });
 
-test('a knight bonked out loses every level and comes back at the castle, safe for a moment', () => {
-  const inst = quiet();
+/* Knock knight i out, there and then. */
+const knockOut = (inst, i = 0) => { const k = knight(inst, i); k.hp = 1; inst._knockOut(i, k); return k; };
+/* Children a and b high-five: a hand each, meeting up high. */
+function highFive(inst, a = 0, b = 1, x = 0.5, y = 0.3){
+  for (let f = 0; f < 3; f++){
+    for (const i of [a, b]) pose.players[i].hands.right = { x: x + (i === a ? -0.005 : 0.005), y, vx: 0, vy: 0, speed: 0 };
+    inst.step(DT, W, H);
+  }
+}
+
+test('an ogre that bonks a knight out leaves it lying there, levels and all', () => {
+  const inst = quiet(2);
   const k = knight(inst);
-  k.lvl = 7; k.xp = 4;
+  k.lvl = 7;
   const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
   put(k, along(1.5).x, along(1.5).y);
-  run(inst, (OGRE_CLUB + WINDUP) * (KNIGHT_HP - 1) + WINDUP + 0.3);
+  put(knight(inst, 1), OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, (OGRE_CLUB + WINDUP) * (KNIGHT_HP - 1) + WINDUP + 0.3, () => still(2));
   assert.ok(k.down > 0, 'down');
-  assert.equal(k.lvl, 0); assert.equal(k.xp, 0);
-  body({ lean: 1 }); run(inst, 1);
-  assert.ok(Math.abs(k.fell.x - k.x) < 1e-9, 'it goes nowhere while it sees stars');
-  still(); run(inst, DOWN - 1 + 0.05);
-  assert.equal(k.down, 0);
-  assert.ok(Math.hypot(k.x - inst.home(0).x, k.y - inst.home(0).y) < 0.05, 'back by the castle');
+  assert.equal(k.lvl, 7, 'its levels wait for it');
+  run(inst, 1, () => { still(2); body({ lean: 1, n: 2 }); });
+  assert.ok(Math.abs(k.fell.x - k.x) < 1e-9, 'it goes nowhere while it lies there');
+});
+
+test('while a friend is up, a fallen knight waits for them - however long', () => {
+  const inst = quiet(2);
+  const k = knockOut(inst);
+  put(knight(inst, 1), OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, ALL_DOWN * 3, () => still(2));
+  assert.ok(k.down > 0);
+});
+
+test('a friend beside it and a real high five gets a knight up, right there, levels kept', () => {
+  const inst = quiet(2);
+  const k = knight(inst);
+  k.lvl = 6; put(k, 0.5, 0.5);
+  knockOut(inst);
+  const helper = knight(inst, 1);
+  put(helper, 0.5 + REVIVE_R * 0.5 / ASPECT, 0.5);
+  run(inst, 0.2, () => still(2));
+  assert.equal(k.helper, 1, 'help is here');
+  highFive(inst);
+  assert.equal(k.down, 0, 'up');
+  assert.equal(k.lvl, 6, 'levels kept');
+  assert.ok(Math.abs(k.x - 0.5) < 1e-9 && Math.abs(k.y - 0.5) < 1e-9, 'right where it fell');
   assert.equal(k.hp, KNIGHT_HP);
-  assert.ok(k.safe > 0);
+  assert.ok(k.safe > 0 && inst.seen.revived);
+});
+
+test('a high five from far off, a friend beside it without one, or hands meeting low, does nothing', () => {
+  const far = quiet(2); put(knight(far), 0.5, 0.5); knockOut(far);
+  put(knight(far, 1), OPEN_FIELD.x, OPEN_FIELD.y);
+  still(2); highFive(far);
+  assert.ok(knight(far).down > 0, 'the friend\'s knight is far off');
+  const near = quiet(2); put(knight(near), 0.5, 0.5); knockOut(near);
+  put(knight(near, 1), 0.51, 0.5);
+  run(near, 3, () => still(2));
+  assert.ok(knight(near).down > 0, 'no high five');
+  still(2); highFive(near, 0, 1, 0.5, 0.75);
+  assert.ok(knight(near).down > 0, 'hands down low');
+});
+
+test('when every knight is down, after a while they are all back at the castle - from the start', () => {
+  const inst = quiet(2);
+  for (const i of [0, 1]){ const k = knight(inst, i); k.lvl = 5; put(k, 0.4 + i * 0.1, 0.5); knockOut(inst, i); }
+  run(inst, ALL_DOWN * 0.9, () => still(2));
+  assert.ok(knight(inst, 0).down > 0 && knight(inst, 1).down > 0);
+  run(inst, ALL_DOWN * 0.15, () => still(2));
+  for (const i of [0, 1]){
+    const k = knight(inst, i);
+    assert.equal(k.down, 0);
+    assert.equal(k.lvl, 0, 'every level gone');
+    assert.ok(Math.hypot(k.x - inst.home(i).x, k.y - inst.home(i).y) < 0.05, 'back by the castle');
+    assert.ok(k.safe > 0);
+  }
+});
+
+test('playing alone, a fallen knight is back at the castle after the wait', () => {
+  const inst = quiet();
+  const k = knight(inst); k.lvl = 4; put(k, 0.5, 0.5);
+  knockOut(inst);
+  run(inst, ALL_DOWN + 0.1);
+  assert.equal(k.down, 0);
+  assert.equal(k.lvl, 0);
   still();
   put(k, along(1.5).x, along(1.5).y);
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
   run(inst, 1);
   assert.equal(k.hp, KNIGHT_HP, 'safe while it blinks');
 });
