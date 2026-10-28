@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -140,6 +140,8 @@ export const MONSTERS = {
    Ice is hard: no ogre can bonk a knight inside it. */
 export const TROLL_EVERY = 10, FROST_FIRST = 6, FROST_EVERY = 30, FROST_WARN = 3, ICE_BREAK = 5, WIGGLE = 1.5;
 const SLOW_FOR = 1.6;
+/* Monsters drawn in ink outlines while there are no more than this many. */
+const INK_MOST = 150;
 const ASPECT = 16 / 9;
 
 /* What comes in wave w: more each time - that's the whole challenge; the
@@ -243,6 +245,7 @@ class CastleDefense {
     if (this.stop > 0){ this.stop -= dt; dt *= 0.2; }
     this.shake = Math.max(0, (this.shake || 0) - dt * 3);
     this.chestBump = Math.max(0, (this.chestBump || 0) - dt * 4);
+    if (this.stomp) this.stomp.age += dt;
     this.t += dt;
     this.castleHit = Math.max(0, this.castleHit - dt * 2);
     this._waves(dt);
@@ -311,6 +314,7 @@ class CastleDefense {
         this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm * (m.red ? RED.harm : 1));
         this.castleHit = 1;
         this.jolt(0.25 + 0.1 * MONSTERS[m.kind].harm);
+        if (m.kind === 'ogre' || m.kind === 'troll') this.stompAt(CASTLE.x, CASTLE_BASE, 0.7);
         sfx.thud();
         if (this.hearts <= 0 && !this.lost){ this.lost = true; this.over = true; }
       }
@@ -499,7 +503,7 @@ class CastleDefense {
         m.wind -= dt;
         if (m.wind > 0) continue;
         m.wind = 0; m.club = OGRE_CLUB; m.bonk = 1;
-        this.jolt(0.35);
+        this.jolt(0.35); this.stompAt(p.x, p.y, 0.6);
         sfx.thud();
         for (let q = 0; q < 10; q++) this._spark(p.x + (Math.random() - 0.5) * SLAM_R / ASPECT * 2, p.y + (Math.random() - 0.5) * 0.02, '#c9a66b');
         for (const { k, i } of inRing(p)){
@@ -564,7 +568,7 @@ class CastleDefense {
       if (m.cast > 0) continue;
       m.cast = FROST_EVERY;
       this.frostFlash = 1;
-      this.jolt(0.6);
+      this.jolt(0.6); { const tp = this.pos(m); this.stompAt(tp.x, tp.y, 1); }
       sfx.twinkle(); sfx.whoosh();
       for (let i = 0; i < this.players; i++){
         const k = this.knights[i];
@@ -851,12 +855,25 @@ class CastleDefense {
     for (let k = 0; k < 8; k++) this._spark(p.x, p.y - 0.03, '#ffffff');
     this.bits.push({ kind: 'poof', x: p.x, y: p.y - M.size * 0.4, r: M.size * (m.red ? 0.6 : 0.45), age: 0, life: 0.45 });
     /* A big one going down: the screen jolts, the moment holds. */
-    if (m.kind === 'ogre' || m.kind === 'troll'){ this.jolt(m.kind === 'troll' ? 0.8 : 0.3); this.stop = m.kind === 'troll' ? 0.12 : 0.05; }
+    if (m.kind === 'ogre' || m.kind === 'troll'){ this.jolt(m.kind === 'troll' ? 0.8 : 0.3); this.stop = m.kind === 'troll' ? 0.12 : 0.05; this.stompAt(p.x, p.y, m.kind === 'troll' ? 1 : 0.5); }
     this.monsters = this.monsters.filter(q => q !== m);
   }
 
   /* Shake the screen a little, `k` 0..1. */
   jolt(k){ this.shake = Math.min(1, Math.max(this.shake || 0, k)); }
+  /* Something big thumps down at (x, y): the trees round about lean away
+     and wobble back, `k` 0..1. */
+  stompAt(x, y, k){ this.stomp = { x, y, k, age: 0 }; }
+  /* How far tree t leans now: a gentle sway, and a stomp's push. */
+  leanOf(t){
+    let a = Math.sin(this.t * 1.2 + t.seed) * (t.bush ? 0.015 : 0.025);
+    const st = this.stomp;
+    if (st && st.age < 2.5){
+      const d = Math.hypot((t.x - st.x) * ASPECT, t.y - st.y), f = Math.max(0, 1 - d / 0.7);
+      a += (t.x >= st.x ? 1 : -1) * 0.3 * st.k * f * Math.exp(-st.age * 2.2) * Math.cos(st.age * 9);
+    }
+    return a;
+  }
 
   /* ---------- little things ---------- */
 
@@ -948,7 +965,7 @@ class CastleDefense {
       const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02;
       const lift = m.kind === 'troll' ? (m.cast != null && m.cast < FROST_WARN ? 1 - Math.max(0, m.cast) / FROST_WARN : 0) : m.wind > 0 ? 1 - m.wind / WINDUP : 0;
       if (lift > 0 && !this.out && m.kind === 'ogre') drawSlamRing(c, p.x * W, p.y * H, SLAM_R * H, lift, this.t);
-      things.push({ y: p.y, draw: () => {
+      things.push({ y: p.y, monster: true, draw: () => {
         /* Hit: squashed flat a moment. */
         const sq = m.hurt * 0.14, fx = p.x * W, fy = (p.y - dance - lunge) * H;
         if (sq > 0){ c.save(); c.translate(fx, fy); c.scale(1 + sq, 1 - sq); c.translate(-fx, -fy); }
@@ -1025,12 +1042,17 @@ class CastleDefense {
       } });
     }
     things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, this.maxHearts, this.held, this.castleHit, this.mend, this.castleLvl) });
+    /* The jungle: every tree among everything else, nearer ones in front. */
+    for (const tr of TREES) things.push({ y: tr.y, draw: () => drawTree(c, W, H, tr, this.leanOf(tr)) });
     things.sort((a, b) => a.y - b.y);
-    for (const th of things) th.draw();
+    /* All of it in bold ink outlines - but a great crowd of monsters plain,
+       or there's too much to draw. */
+    const crowd = this.monsters.length > INK_MOST;
+    for (const th of things){ if (crowd && th.monster) th.draw(); else inked(c, H * 0.0024, th.draw); }
     /* The chest bounces as coins land in it. */
     const cb = this.chestBump || 0;
     c.save(); c.translate(CHEST.x * W, CHEST.y * H); c.scale(1 + cb * 0.12, 1 - cb * 0.1); c.translate(-CHEST.x * W, -CHEST.y * H);
-    drawChest(c, W, H, this.coins, this.t);
+    inked(c, H * 0.0024, () => drawChest(c, W, H, this.coins, this.t));
     c.restore();
     /* The war horn, between waves: its ring is the time left. */
     if (this.state === 'build' && !this.out){

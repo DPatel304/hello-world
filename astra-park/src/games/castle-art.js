@@ -90,7 +90,7 @@ function meadow(W, H){
 
 function paintMeadow(c, W, H){
   let g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#8fcf6e'); g.addColorStop(1, '#6db657');
+  g.addColorStop(0, '#88d45e'); g.addColorStop(1, '#5fb94b');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   /* Soft patches of lighter and darker grass. */
   for (let i = 0; i < 60; i++){
@@ -115,24 +115,83 @@ function paintMeadow(c, W, H){
     for (let k = 0; k < 5; k++){ const a = k * 1.2566; c.beginPath(); c.arc(x + Math.cos(a) * H * 0.005, y + Math.sin(a) * H * 0.005, H * 0.004, 0, 6.2832); c.fill(); }
     c.fillStyle = '#ffb02e'; c.beginPath(); c.arc(x, y, H * 0.003, 0, 6.2832); c.fill();
   }
-  /* Trees round the edges, kept off the path and the pads. */
-  for (let i = 0; i < 46; i++){
-    const x = hash(i, 29), y = 0.05 + hash(i, 31) * 0.95;
-    if (nearPath(x, y, 0.1) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.1) || onCastle(x, y + 0.08) || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.1) continue;
-    tree(c, x * W, y * H, H * (0.06 + hash(i, 37) * 0.03), i);
-  }
+  /* The trees' shadows on the grass (the trees themselves are drawn over
+     everything, swaying). */
+  for (const t of TREES){ c.fillStyle = 'rgba(30,70,30,.28)'; c.beginPath(); c.ellipse((t.x + t.r * 0.25 / ASPECT) * W, (t.y + t.r * 0.3) * H, t.r * 0.95 * H, t.r * 0.36 * H, 0, 0, 6.2832); c.fill(); }
 }
 
 function nearPath(x, y, d){
   return PATHS.some(P => P.pts.some(([px, py]) => Math.hypot((px - x) * ASPECT, py - y) < d));
 }
 
-function tree(c, x, y, r, seed){
-  c.fillStyle = 'rgba(40,80,40,.25)'; c.beginPath(); c.ellipse(x + r * 0.2, y + r * 0.35, r * 0.9, r * 0.35, 0, 0, 6.2832); c.fill();
-  c.fillStyle = '#6b4a34'; c.fillRect(x - r * 0.12, y - r * 0.1, r * 0.24, r * 0.45);
-  const greens = ['#3f8f4f', '#4fa65a', '#5cb866'];
-  for (let k = 0; k < 4; k++){ const a = k * 1.57 + seed; c.fillStyle = greens[k % 3]; c.beginPath(); c.arc(x + Math.cos(a) * r * 0.35, y - r * 0.45 + Math.sin(a) * r * 0.25, r * 0.55, 0, 6.2832); c.fill(); }
-  c.fillStyle = 'rgba(220,255,190,.35)'; c.beginPath(); c.arc(x - r * 0.2, y - r * 0.75, r * 0.25, 0, 6.2832); c.fill();
+/* The trees and bushes: a thick jungle round the edges and in the
+   corners, kept off the trail, the pads, the castle and the chest. Where
+   they are never changes; they're drawn every frame so they can sway, and
+   lean when something big stomps. */
+export const TREES = (() => {
+  const out = [];
+  for (let i = 0; i < 260 && out.length < 70; i++){
+    const x = hash(i, 29), y = 0.04 + hash(i, 31) * 0.96, bush = hash(i, 41) < 0.4;
+    const r = bush ? 0.035 + hash(i, 37) * 0.015 : 0.055 + hash(i, 37) * 0.035;
+    /* Clear of the trail, the pads (towers grow tall), the castle as big as
+       it gets, the chest and the war horn. */
+    if (nearPath(x, y, bush ? 0.075 : 0.095) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.11 || (Math.abs(p.x - x) * ASPECT < 0.09 && y < p.y && y > p.y - 0.24))) continue;
+    if ((Math.abs(x - CASTLE.x) < CASTLE.w / 2 + 0.03 && y > CASTLE_BASE - 0.42) || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.12 || Math.hypot((x - 0.06) * ASPECT, y - r * 0.7 - 0.34) < 0.1 + r) continue;
+    if (out.some(t => Math.hypot((t.x - x) * ASPECT, t.y - y) < (t.r + r) * 0.75)) continue;
+    out.push({ x, y, r, bush, seed: i });
+  }
+  return out;
+})();
+
+/* One tree, or a bush: lean is how far it tips over, in radians. */
+export function drawTree(c, W, H, t, lean = 0){
+  const x = t.x * W, y = t.y * H, r = t.r * H;
+  c.save(); c.translate(x, y); c.rotate(lean); c.translate(-x, -y);
+  const greens = t.bush ? ['#3c9a4a', '#4cb55a', '#5fcb69'] : ['#2f8a47', '#3fa257', '#52b964'];
+  if (!t.bush){ c.fillStyle = '#7a5236'; c.beginPath(); c.roundRect(x - r * 0.12, y - r * 0.35, r * 0.24, r * 0.5, r * 0.06); c.fill(); }
+  const n = t.bush ? 3 : 5, cy = y - (t.bush ? r * 0.25 : r * 0.7);
+  for (let k = 0; k < n; k++){
+    const a = k / n * 6.2832 + t.seed, d = t.bush ? r * 0.42 : r * 0.38;
+    c.fillStyle = greens[k % 3]; c.beginPath(); c.arc(x + Math.cos(a) * d, cy + Math.sin(a) * d * 0.6, r * (t.bush ? 0.45 : 0.5), 0, 6.2832); c.fill();
+  }
+  c.fillStyle = greens[2]; c.beginPath(); c.arc(x - r * 0.05, cy - r * 0.12, r * (t.bush ? 0.38 : 0.45), 0, 6.2832); c.fill();
+  /* Sunlight on the top, and the odd berry or blossom. */
+  c.fillStyle = 'rgba(230,255,190,.45)'; c.beginPath(); c.arc(x - r * 0.22, cy - r * 0.32, r * 0.2, 0, 6.2832); c.fill();
+  if (hash(t.seed, 43) < 0.35){
+    c.fillStyle = ['#ff6b6b', '#ffd24a', '#ff9ad5'][t.seed % 3];
+    for (let k = 0; k < 3; k++){ c.beginPath(); c.arc(x + (hash(t.seed * 3 + k, 47) - 0.5) * r * 0.9, cy + (hash(t.seed * 3 + k, 53) - 0.5) * r * 0.6, r * 0.07, 0, 6.2832); c.fill(); }
+  }
+  c.restore();
+}
+
+/* Ink: everything drawn inside fn gets a bold dark outline - each solid
+   shape is first stroked thick in ink, then filled over, so the ink shows
+   round its edges (and between its parts, like a cartoon). See-through
+   shapes and gradients - shadows, glows, highlights - are left as they are. */
+export const INK = '#2b2440';
+const solid = (st) => typeof st === 'string' && !/rgba\([^)]*,\s*(0?\.\d+|0)\s*\)/.test(st);
+export function inked(c, w, fn){
+  const fill = c.fill, stroke = c.stroke, fillRect = c.fillRect;
+  const ink = (draw) => {
+    const ss = c.strokeStyle, lw = c.lineWidth, lj = c.lineJoin, lc = c.lineCap;
+    c.strokeStyle = INK; c.lineJoin = 'round'; c.lineCap = 'round';
+    draw();
+    c.strokeStyle = ss; c.lineWidth = lw; c.lineJoin = lj; c.lineCap = lc;
+  };
+  c.fill = function(...a){
+    if (solid(this.fillStyle) && this.globalAlpha > 0.95) ink(() => { this.lineWidth = w * 2; stroke.call(this); });
+    return fill.apply(this, a);
+  };
+  c.fillRect = function(x, y, rw, rh){
+    if (solid(this.fillStyle) && this.globalAlpha > 0.95) ink(() => { this.lineWidth = w * 2; this.strokeRect(x, y, rw, rh); });
+    return fillRect.call(this, x, y, rw, rh);
+  };
+  c.stroke = function(...a){
+    if (solid(this.strokeStyle) && this.strokeStyle !== INK && this.globalAlpha > 0.95){ const lw = this.lineWidth; ink(() => { this.lineWidth = lw + w * 2; stroke.apply(this, a); }); }
+    return stroke.apply(this, a);
+  };
+  try { fn(); }
+  finally { c.fill = fill; c.stroke = stroke; c.fillRect = fillRect; }
 }
 
 export function drawMeadow(c, W, H){

@@ -12,7 +12,7 @@ import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
 import { P as forestP, RUN as FOREST_RUN, drawForest, drawLeaves, drawTree, drawLog, drawCrystal, drawFox, drawRunner } from '../games/forest-art.js';
-import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster } from '../games/castle-art.js';
+import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster, drawTree as drawCastleTree, TREES, inked } from '../games/castle-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
@@ -125,7 +125,8 @@ function castleDefense(){
       things.push({ y: p.y, f: () => drawMonster(c, p.x * W, p.y * H, H * 0.065, kind, t + k, p.dir, 0, false, 1) });
     }
     things.push({ y: 0.88, f: () => drawCastle(c, W, H, t, 15, 15, 3, 0, 0, 6) });
-    things.sort((a, b) => a.y - b.y).forEach(th => th.f());
+    for (const tr of TREES) things.push({ y: tr.y, f: () => drawCastleTree(c, W, H, tr, Math.sin(t * 1.2 + tr.seed) * 0.025) });
+    inked(c, H * 0.0024, () => things.sort((a, b) => a.y - b.y).forEach(th => th.f()));
   };
 }
 
