@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FaceCam, forgetFaces, STEADY, FORGET } from '../src/ui/faces.js';
+import { FaceCam, forgetFaces, STEADY, FORGET, LATE } from '../src/ui/faces.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 /* A stand-in for a canvas to take the picture into. */
@@ -35,13 +35,34 @@ test('a face held steady and straight on is snapped, once, and kept', () => {
   assert.equal(cam.has(0), true, 'the picture stays, camera or no camera');
 });
 
-test('a face turned away is not snapped', () => {
+test('a face turned right away is never snapped', () => {
   forgetFaces(); camera();
   pose.players.forEach(p => { p.present = false; });
   const cam = new FaceCam();
-  face(0, 0.5, 0.6);
-  run(cam, STEADY * 4);
+  face(0, 0.5, 1.5);
+  run(cam, LATE * 2);
   assert.equal(cam.has(0), false);
+});
+
+test('a face that is never quite still - marching, bouncing - is still snapped, soon enough', () => {
+  forgetFaces(); camera();
+  pose.players.forEach(p => { p.present = false; });
+  const cam = new FaceCam();
+  /* Bobbing up and down a lot, and a bit turned. */
+  for (let t = 0; t < LATE + 0.5; t += DT){
+    face(0, 0.5 + Math.sin(t * 13) * 0.03, 0.45);
+    pose.players[0].lm.forEach(q => { q.y += Math.sin(t * 13) * 0.03; });
+    cam.step(DT);
+  }
+  assert.equal(cam.has(0), true);
+});
+
+test('a little bob while marching does not stop a good picture', () => {
+  forgetFaces(); camera();
+  pose.players.forEach(p => { p.present = false; });
+  const cam = new FaceCam();
+  for (let t = 0; t < 1; t += DT){ face(0); pose.players[0].lm.forEach(q => { q.y += Math.sin(t * 12) * 0.003; }); cam.step(DT); }
+  assert.equal(cam.has(0), true);
 });
 
 test('the picture is for the whole session, in every game', () => {

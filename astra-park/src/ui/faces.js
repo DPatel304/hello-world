@@ -17,10 +17,15 @@
 import { pose, L, MAX_PLAYERS } from '../tracking/pose.js';
 
 const EAR_L = 7, EAR_R = 8;
-/* A good picture: the face held steady this long, looking this straight on
-   (nose this near the middle of the eyes, in eye-widths) and level (tilt in
-   radians), and this big in the video (pixels). */
-export const STEADY = 0.6, STRAIGHT = 0.18, LEVEL = 0.25, BIG = 24, FORGET = 5;
+/* A good picture: the face held steady (moving less than STILL of its size
+   a frame) this long, looking this straight on (nose this near the middle
+   of the eyes, in eye-widths) and level (tilt in radians), and this big in
+   the video (pixels). Grown-ups marching and pointing, children bouncing:
+   nobody holds still for long, so it's forgiving - and if there's still no
+   picture after LATE seconds of seeing a face, it takes the first that's
+   roughly facing the TV (within ROUGHLY), and swaps it for a better one
+   when one comes. */
+export const STEADY = 0.3, STILL = 0.15, STRAIGHT = 0.3, LEVEL = 0.4, BIG = 24, FORGET = 5, LATE = 3, ROUGHLY = 0.6;
 const SNAP = 128, FLASH = 0.5;
 /* How much of the head to show around the face: the crop is this many
    ear-widths across. */
@@ -51,8 +56,8 @@ export function faceBox(lm, vw, vh){
 
 /* The pictures, one per player, shared by every game for the session. */
 const snaps = Array(MAX_PLAYERS).fill(null);
-const gone = Array(MAX_PLAYERS).fill(0), steady = Array(MAX_PLAYERS).fill(0);
-export function forgetFaces(){ snaps.fill(null); gone.fill(0); steady.fill(0); }
+const gone = Array(MAX_PLAYERS).fill(0), steady = Array(MAX_PLAYERS).fill(0), looked = Array(MAX_PLAYERS).fill(0);
+export function forgetFaces(){ snaps.fill(null); gone.fill(0); steady.fill(0); looked.fill(0); }
 const makeCanvas = (n) => typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n)
   : typeof document !== 'undefined' ? Object.assign(document.createElement('canvas'), { width: n, height: n }) : null;
 
@@ -73,7 +78,7 @@ export class FaceCam {
       const p = pose.players[i];
       /* Gone a while: forget them, so the next to play here is snapped anew. */
       gone[i] = p.present ? 0 : gone[i] + dt;
-      if (gone[i] > FORGET){ snaps[i] = null; this.boxes[i] = null; }
+      if (gone[i] > FORGET){ snaps[i] = null; this.boxes[i] = null; looked[i] = 0; }
       if (snaps[i]) snaps[i].age += dt;
       const box = this.live && p.present ? faceBox(p.lm, v.videoWidth, v.videoHeight) : null;
       if (!box){ this.seen[i] = Math.max(0, this.seen[i] - dt * 2); steady[i] = 0; continue; }
@@ -81,22 +86,27 @@ export class FaceCam {
       const b = this.boxes[i];
       if (!b){ this.boxes[i] = { ...box }; continue; }
       /* Held still, straight on and level? */
-      const still = Math.hypot(box.x - b.x, box.y - b.y) < box.size * 0.06;
+      const still = Math.hypot(box.x - b.x, box.y - b.y) < box.size * STILL;
       const good = box.turn < STRAIGHT && Math.abs(box.roll) < LEVEL && box.size >= BIG;
       steady[i] = still && good ? steady[i] + dt : 0;
       b.x += (box.x - b.x) * k; b.y += (box.y - b.y) * k;
       b.size += (box.size - b.size) * k * 0.6; b.roll += (box.roll - b.roll) * k;
-      if (!snaps[i] && steady[i] >= STEADY) this._snap(i, v, b);
+      if (!snaps[i]) looked[i] += dt;
+      /* A good one: take it - or swap it in for a rough one. */
+      if ((!snaps[i] || snaps[i].rough) && steady[i] >= STEADY) this._snap(i, v, b, false, !!snaps[i]);
+      /* Still nothing after a while: the first roughly facing the TV will do. */
+      else if (!snaps[i] && looked[i] >= LATE && box.turn < ROUGHLY && box.size >= BIG) this._snap(i, v, { ...box }, true);
     }
   }
 
   /* Take player i's picture from the video. */
-  _snap(i, v, b){
+  _snap(i, v, b, rough = false, quiet = false){
     const cv = makeCanvas(SNAP);
     if (!cv) return;
     try { cv.getContext('2d').drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, 0, 0, SNAP, SNAP); }
     catch (e){ return; }
-    snaps[i] = { canvas: cv, age: 0 };
+    /* A better one swapped in quietly, without the flash. */
+    snaps[i] = { canvas: cv, age: quiet ? FLASH : 0, rough };
   }
 
   /* Is player i's picture there to draw? */
