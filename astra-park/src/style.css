@@ -233,9 +233,9 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 .btn.tile.hot{ transform:scale(1.04); border-color:var(--accent); }
 
 /* ---------- home: the console's front room ----------
-   Who's here along the top (drawn on the canvas), the shelf across the
-   middle - the picked tile big, its neighbours smaller either side - and
-   the picked game's moves under it. */
+   Who's here along the top (drawn on the canvas); the picked game big and
+   alive across the top half, with its moves; and a grid of everything
+   across the bottom half - the games, and the console's places under. */
 .screen.home{ padding:0; animation:homein .45s ease-out both; }
 @keyframes homein{ from{ opacity:0; transform:scale(1.03) } to{ opacity:1; transform:none } }
 .screen.home .logo.small{ z-index:20; }
@@ -249,47 +249,54 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 .camdot.ok{ background:var(--good); } .camdot.off{ background:var(--bad); }
 .screen.home .warnstrip{ position:absolute; top:calc(var(--safe) + 7vh); left:50%; transform:translateX(-50%); z-index:20; }
 
-.shelf{ position:absolute; left:0; right:0; top:50%; height:0; --tw:min(44vw,80vh); }
-.shelf .btn.tile{
-  position:absolute; left:50%; top:0; width:var(--tw);
-  transition:transform .5s cubic-bezier(.2,.8,.2,1), opacity .4s ease, box-shadow .4s ease;
-  will-change:transform;
+.preview{
+  position:absolute; top:12vh; height:40vh; left:5vw; right:5vw;
+  display:flex; align-items:center; gap:3vw;
 }
-.shelf .btn.tile.focus{
+.preview .bigpic{
+  height:100%; aspect-ratio:16/10; flex:none; display:block;
+  border:clamp(4px,.7vh,8px) solid var(--accent); border-radius:clamp(20px,3.4vh,40px);
   box-shadow:0 clamp(10px,2vh,26px) clamp(24px,6vh,70px) rgba(10,8,30,.55),
-             0 0 clamp(30px,7vh,90px) color-mix(in srgb, var(--accent) 60%, transparent);
+             0 0 clamp(30px,7vh,90px) color-mix(in srgb, var(--accent) 55%, transparent);
+  transition:border-color .3s, box-shadow .3s, transform .5s;
 }
-.shelf .btn.tile .lbl{ font-size:clamp(20px,4.4vh,52px); }
-/* Going in: the picked tile grows to fill the screen. */
-.shelf .btn.tile.launch{ animation:launch .5s cubic-bezier(.5,0,.8,.4) forwards; z-index:30 !important; }
-@keyframes launch{ to{ transform:translate(-50%,-50%) scale(2.6); opacity:1; } }
-/* Not yet: a little shake. */
-.shelf .btn.tile.nope{ animation:nope .45s ease; }
-@keyframes nope{
-  0%,100%{ transform:translate(-50%,-50%) } 20%{ transform:translate(calc(-50% - 1.4vw),-50%) rotate(-1.5deg) }
-  40%{ transform:translate(calc(-50% + 1.2vw),-50%) rotate(1.2deg) } 60%{ transform:translate(calc(-50% - .8vw),-50%) } 80%{ transform:translate(calc(-50% + .5vw),-50%) }
-}
-.btn.tile .soon{
-  position:absolute; top:4%; right:4%; z-index:3;
-  background:rgba(20,16,44,.75); color:#fff6e2; border-radius:999px;
-  padding:.3em .8em; font-size:clamp(12px,2.2vh,26px); font-weight:600;
-}
-.shelfinfo{
-  position:absolute; left:50%; transform:translateX(-50%);
-  top:calc(50% + var(--tw,min(44vw,80vh)) * .3125 + 6.5vh);
-  display:flex; align-items:center; gap:clamp(12px,2vw,36px);
-  font-size:clamp(14px,2.4vh,28px); font-weight:600; color:#fff6e2; white-space:nowrap;
-  text-shadow:0 1px 4px rgba(0,0,0,.5);
-}
-.shelfinfo{ --tw:min(44vw,80vh); }
-.moves{ display:flex; gap:clamp(6px,.8vw,14px); }
-.move{
-  display:flex; align-items:center; gap:.35em;
-  background:rgba(20,16,44,.55); border-radius:999px; padding:.25em .75em .25em .45em;
-}
+.preview.launch .bigpic{ transform:scale(1.06); }
+.about{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2.2vh; text-align:left; color:#fff6e2; }
+.pname{ font-size:clamp(28px,7.5vh,96px); font-weight:600; line-height:1; text-shadow:0 0 .3em rgba(0,0,0,.4); }
+.moves{ display:flex; flex-wrap:wrap; gap:clamp(6px,.9vh,14px); font-size:clamp(13px,2.3vh,28px); font-weight:600; }
+.move{ display:flex; align-items:center; gap:.35em; background:rgba(20,16,44,.55); border-radius:999px; padding:.25em .75em .25em .45em; }
 .move .mi{ font-size:1.35em; line-height:1; }
+.meta{ display:flex; gap:1.2em; align-items:center; font-size:clamp(13px,2.4vh,28px); font-weight:600; }
 .who{ letter-spacing:.1em; opacity:.85; }
 .best{ background:rgba(255,210,74,.18); border-radius:999px; padding:.25em .8em; }
+
+.grid{
+  position:absolute; top:57vh; bottom:4vh; left:5vw; right:5vw;
+  display:grid; grid-template-columns:repeat(var(--cols,5),1fr); grid-template-rows:1fr .62fr;
+  gap:2vh 1.4vw;
+}
+.grid .btn.tile{
+  display:flex; flex-direction:column; min-height:0; padding:0; overflow:hidden;
+  border:clamp(3px,.5vh,6px) solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius:clamp(14px,2.4vh,28px);
+  background:#151130; box-shadow:0 1vh 2.4vh rgba(10,8,30,.4);
+  transition:transform .25s ease, border-color .25s, box-shadow .25s;
+}
+.grid .btn.tile .pic{ flex:1; min-height:0; width:100%; aspect-ratio:auto; display:block; }
+.grid .btn.tile .lbl{ flex:none; font-size:clamp(13px,2.5vh,30px); padding:.35em .4em .45em; }
+.grid .btn.tile.place .lbl{ font-size:clamp(12px,2.2vh,26px); }
+.grid .btn.tile.focus{
+  transform:translateY(-.8vh) scale(1.04); border-color:var(--accent);
+  box-shadow:0 1.4vh 3vh rgba(10,8,30,.5), 0 0 3vh color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.grid .btn.tile.launch{ animation:pulse .5s ease both; }
+@keyframes pulse{ 50%{ transform:translateY(-.8vh) scale(1.12) } }
+.grid .btn.tile.nope{ animation:nope .45s ease; }
+@keyframes nope{ 20%{ transform:translateX(-.8vw) rotate(-2deg) } 40%{ transform:translateX(.7vw) rotate(1.5deg) } 60%{ transform:translateX(-.4vw) } 80%{ transform:translateX(.2vw) } }
+.btn.tile .soon{
+  position:absolute; top:6%; right:6%; z-index:3;
+  background:rgba(20,16,44,.75); color:#fff6e2; border-radius:999px;
+  padding:.2em .45em; font-size:clamp(11px,1.8vh,22px);
+}
 .screen.dim.family{ background:rgba(9,7,20,.35); }
 .familyspace{ width:80vw; height:30vh; }
 

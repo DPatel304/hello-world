@@ -11,17 +11,16 @@ import { logo } from './title.js';
 import { poster } from './posters.js';
 
 /* Home: the console's front room. Across the top, who's here - a bubble
-   for each player with their face. In the middle, a shelf: the picked game
-   big and alive in the centre, its neighbours smaller either side, and at
-   the end of the row the console's own places - the store, making a game,
-   the family, settings and help. Under the picked game, pictures of the
-   moves it uses, places for how many can play, and the family's best.
+   for each player with their face. Then the picked game, big and alive: a
+   live preview, its name, pictures of the moves it uses, places for how
+   many can play, and the family's best. Across the bottom half, a grid of
+   everything: the games, and under them the console's own places - the
+   store, making a game, the family, settings and help.
 
-   A hand on a side tile slides the shelf to it; a hand held on the big one
-   goes in - the tile grows to fill the screen. Left and right arrows and
-   Enter work too, for the grown-up at the laptop. The park behind follows
-   the time of day and the season, and takes on the picked game's colour;
-   a soft ambience plays under it all. */
+   A hand resting on a tile a moment shows it in the preview; held there,
+   it goes in. Arrows and Enter work too, for the grown-up at the laptop.
+   The park behind follows the time of day and the season, and takes on
+   the picked game's colour; a soft ambience plays under it all. */
 export const MOVES = {
   run: ['\u{1F3C3}', 'Run about'], point: ['\u{1F449}', 'Point'], march: ['\u{1F9B5}', 'March on the spot'],
   jump: ['\u{1F438}', 'Jump'], arms: ['\u{1F64C}', 'Arms up'], squat: ['\u{1F9CE}', 'Squat'],
@@ -36,10 +35,10 @@ const PLACES = [
   { id: 'settings', name: 'Settings', icon: '\u{2699}\u{FE0F}', accent: '#8a83b8' },
   { id: 'help', name: 'Help', icon: '\u{2753}', accent: '#c46bff' }
 ];
-/* Where the picked game sits on the shelf after the last visit. */
+/* What was picked last visit. */
 let lastFocus = 0;
-const HOVER_FOCUS = 0.45;      /* seconds of a hand on a side tile to slide to it */
-const LAUNCH = 0.5;            /* seconds for the picked tile to grow to fill the screen */
+const HOVER_FOCUS = 0.25;      /* seconds of a hand on a tile to show it in the preview */
+const LAUNCH = 0.5;            /* seconds of going in */
 
 export function menu({ onPlay, onRecalibrate }){
   clearUI();
@@ -56,10 +55,21 @@ export function menu({ onPlay, onRecalibrate }){
     s.appendChild(h('div', 'warnstrip', '⚠ No camera — the mouse is playing'));
   }
 
-  const items = [...GAMES.map(g => ({ kind: 'game', g, accent: g.accent, name: g.name })),
-                 ...PLACES.map(p => ({ kind: 'place', p, accent: p.accent, name: p.name }))];
-  const shelf = h('div', 'shelf');
   const bar = new PlayerBar();
+  const items = [...GAMES.map(g => ({ kind: 'game', g, accent: g.accent, name: g.name, paint: poster(g) })),
+                 ...PLACES.map(p => ({ kind: 'place', p, accent: p.accent, name: p.name, paint: placePoster(p, bar) }))];
+
+  /* The preview: the picked one, big and alive, and what it's about. */
+  const view = h('div', 'preview');
+  const big = document.createElement('canvas'); big.className = 'bigpic';
+  const about = h('div', 'about');
+  view.append(big, about);
+  s.appendChild(view);
+
+  /* The grid: games along the top row, the console's places under them. */
+  const grid = h('div', 'grid');
+  const cols = Math.max(GAMES.length, PLACES.length);
+  grid.style.setProperty('--cols', cols);
   const cards = items.map((it, n) => {
     const card = button('', 'tile' + (it.kind === 'place' ? ' place' : ''));
     card.style.setProperty('--accent', it.accent);
@@ -67,60 +77,49 @@ export function menu({ onPlay, onRecalibrate }){
     pic.className = 'pic';
     card.insertBefore(pic, card.firstChild);
     card.querySelector('.lbl').textContent = it.name;
-    if (it.p?.soon) card.appendChild(h('span', 'soon', '\u{1F512} Coming soon'));
+    if (it.p?.soon) card.appendChild(h('span', 'soon', '\u{1F512}'));
+    card.style.gridRow = it.kind === 'game' ? 1 : 2;
     onPick(card, () => choose(n));
-    shelf.appendChild(card);
-    return { card, pic, paint: it.kind === 'game' ? poster(it.g) : placePoster(it.p, bar), hot: 0, it };
+    grid.appendChild(card);
+    return { card, pic, paint: it.paint, hot: 0, it, still: false };
   });
-  s.appendChild(shelf);
-
-  /* Under the picked tile: the moves, how many can play, and the best. */
-  const info = h('div', 'shelfinfo');
-  s.appendChild(info);
+  s.appendChild(grid);
 
   let focus = Math.min(lastFocus, items.length - 1), t = 0, mix = 0, going = null, family = false, tick = 0;
 
-  function layout(){
-    cards.forEach(({ card }, n) => {
-      const off = n - focus, a = Math.abs(off), side = Math.sign(off);
-      const x = side * (a <= 1 ? a * 33 : 33 + (a - 1) * 19);
-      const sc = a === 0 ? 1 : a === 1 ? 0.58 : 0.44;
-      card.style.transform = `translate(calc(-50% + ${x}vw), -50%) scale(${sc})`;
-      card.style.opacity = a > 2 ? 0 : a === 2 ? 0.45 : a === 1 ? 0.8 : 1;
-      card.style.zIndex = 10 - a;
-      card.style.pointerEvents = a > 2 ? 'none' : '';
-      card.classList.toggle('focus', a === 0);
-    });
+  function show(){
+    cards.forEach(({ card }, n) => card.classList.toggle('focus', n === focus));
     const it = items[focus];
-    info.innerHTML = '';
+    view.style.setProperty('--accent', it.accent);
+    about.innerHTML = '';
+    about.appendChild(h('div', 'pname', it.name));
     if (it.kind === 'game'){
       const moves = h('div', 'moves');
       for (const m of it.g.moves || []){ const mv = MOVES[m]; if (mv) moves.appendChild(h('span', 'move', `<span class="mi">${mv[0]}</span><span class="ml">${mv[1]}</span>`)); }
-      const who = h('div', 'who', '\u{1F464}'.repeat(4));
-      who.title = 'Up to four play';
+      const meta = h('div', 'meta');
+      meta.appendChild(h('span', 'who', '\u{1F464}'.repeat(4)));
       const best = Math.max(...[1, 2, 3, 4].map(n => scores.best(it.g.id, n)));
-      info.append(moves, who);
-      if (best) info.appendChild(h('div', 'best', `\u{1F3C6} ${best}`));
-    } else info.appendChild(h('div', 'placeinfo', it.p.soon ? 'Coming soon' : ''));
+      if (best) meta.appendChild(h('span', 'best', `\u{1F3C6} ${best}`));
+      about.append(moves, meta);
+    } else if (it.p.soon) about.appendChild(h('div', 'meta', '<span class="best">\u{1F512} Coming soon</span>'));
   }
   function move(to){
     to = Math.max(0, Math.min(items.length - 1, to));
     if (to === focus) return;
-    focus = to; lastFocus = to; sfx.nav(); ambience.lift(); layout();
+    focus = to; lastFocus = to; sfx.nav(); ambience.lift(); show();
   }
-  /* A pick on a side tile slides to it; on the picked one, goes in. */
+  /* A pick goes straight in. */
   function choose(n){
-    if (going) return;
-    if (family){ return; }
-    if (n !== focus){ move(n); return; }
+    if (going || family) return;
+    move(n);
     const it = items[n];
     if (it.kind === 'game'){
       sfx.select();
-      going = { t: 0, card: cards[n].card, g: it.g };
-      cards[n].card.classList.add('launch');
+      going = { t: 0, g: it.g };
+      cards[n].card.classList.add('launch'); view.classList.add('launch');
       return;
     }
-    if (it.p.soon){ sfx.boing(0.7); cards[n].card.classList.remove('nope'); void cards[n].card.offsetWidth; cards[n].card.classList.add('nope'); return; }
+    if (it.p.soon){ sfx.boing(0.7); const cd = cards[n].card; cd.classList.remove('nope'); void cd.offsetWidth; cd.classList.add('nope'); return; }
     sfx.select();
     if (it.p.id === 'settings') settings(onRecalibrate);
     if (it.p.id === 'help') help();
@@ -128,21 +127,24 @@ export function menu({ onPlay, onRecalibrate }){
   }
   function openFamily(){
     family = true;
-    shelf.style.visibility = info.style.visibility = 'hidden';
+    grid.style.visibility = view.style.visibility = 'hidden';
     const o = overlay(); o.classList.add('family');
     o.append(h('h2', '', 'Family'));
     o.appendChild(h('div', 'familyspace'));
-    o.appendChild(onPick(button('Close'), () => { sfx.back(); family = false; o.remove(); shelf.style.visibility = info.style.visibility = ''; }));
+    o.appendChild(onPick(button('Close'), () => { sfx.back(); family = false; o.remove(); grid.style.visibility = view.style.visibility = ''; }));
   }
   const key = (e) => {
     if (!s.isConnected){ removeEventListener('keydown', key); return; }
     if (family || document.querySelector('.screen.dim')) return;
+    const games = GAMES.length, row = focus < games ? 0 : 1, col = row ? focus - games : focus;
     if (e.key === 'ArrowRight') move(focus + 1);
     else if (e.key === 'ArrowLeft') move(focus - 1);
+    else if (e.key === 'ArrowDown' && !row) move(games + Math.min(col, PLACES.length - 1));
+    else if (e.key === 'ArrowUp' && row) move(Math.min(col, games - 1));
     else if (e.key === 'Enter') choose(focus);
   };
   addEventListener('keydown', key);
-  layout();
+  show();
   ambience.start();
 
   return {
@@ -152,7 +154,7 @@ export function menu({ onPlay, onRecalibrate }){
       t += dt; tick += dt;
       bar.step(dt);
       mix += ((items[focus].kind === 'game' ? 1 : 0.6) - mix) * Math.min(1, dt * 2);
-      /* A hand resting on a side tile a moment slides the shelf to it. */
+      /* A hand resting on a tile a moment shows it in the preview. */
       for (let n = 0; n < cards.length; n++){
         const cd = cards[n];
         cd.hot = cd.card.classList.contains('hot') && n !== focus ? cd.hot + dt : 0;
@@ -173,28 +175,21 @@ export function menu({ onPlay, onRecalibrate }){
     draw(c, W, H){
       drawPark(c, W, H, t, 0.22);
       drawLiving(c, W, H, t, { accent: items[focus].accent, mix });
-      /* Everyone in view, faintly, in their colours behind it all. */
       drawBodies(c, W, H);
-      for (let n = 0; n < cards.length; n++){
-        const cd = cards[n], a = Math.abs(n - focus);
-        if (a > 2) continue;
-        /* The picked one is alive; the others are still pictures, painted
-           once. */
-        if (a === 0){ paintPoster(cd, t); cd.still = false; }
-        else if (!cd.still) cd.still = paintPoster(cd, t);
-      }
+      /* The preview is alive; the grid's pictures are painted once. */
+      paintPoster({ pic: big, paint: items[focus].paint }, t);
+      for (const cd of cards) if (!cd.still) cd.still = paintPoster(cd, 1.5);
       if (family){
         const sp = document.querySelector('.familyspace');
         const r = sp ? sp.getBoundingClientRect() : null;
         bar.draw(c, W / 2, r && r.height ? r.top + r.height / 2 : H * 0.5, H * 0.09);
-      } else bar.draw(c, W / 2, H * 0.085, H * 0.042);
-      /* Going in: the screen fades to dark as the tile grows. */
+      } else bar.draw(c, W / 2, H * 0.065, H * 0.036);
       if (going){ c.fillStyle = `rgba(13,11,26,${Math.min(1, going.t / LAUNCH)})`; c.fillRect(0, 0, W, H); }
     }
   };
 }
 
-/* The players' silhouettes, very faint, behind the shelf. */
+/* The players' silhouettes, very faint, behind it all. */
 function drawBodies(c, W, H){
   pose.players.forEach((p, i) => { if (p.present && p.lm) silhouette(c, p.lm, W, H, PLAYER_COLORS[i], 0.12); });
 }
