@@ -125,12 +125,12 @@ function nearPath(x, y, d){
 }
 
 /* The quiet left side of the meadow: the medical tent, where a hurt
-   knight goes to get better - a red tent with a big red cross on a white
-   sign, so there's no mistaking it. */
+   knight goes to get better - a small off-white tent flying a white flag
+   with a red cross, so there's no mistaking it. */
 export const TENT = { x: 0.08, y: 0.66 };
 /* glow: 0..1, the ground round it lit up, calling a hurt knight over. */
 export function drawTent(c, W, H, t, glow = 0){
-  const x = TENT.x * W, y = TENT.y * H, s = H * 0.17;
+  const x = TENT.x * W, y = TENT.y * H, s = H * 0.12;
   if (glow > 0){
     const g = c.createRadialGradient(x, y, s * 0.2, x, y, s * 0.9);
     g.addColorStop(0, `rgba(255,220,220,${0.6 * glow})`); g.addColorStop(1, 'rgba(255,220,220,0)');
@@ -142,24 +142,20 @@ export function drawTent(c, W, H, t, glow = 0){
   c.fillStyle = '#f6f2ea'; c.beginPath(); c.moveTo(x - s * 0.48, y); c.lineTo(x, y - s * 0.74); c.lineTo(x + s * 0.48, y); c.closePath(); c.fill();
   /* The door, flaps tied back. */
   c.fillStyle = '#5a4f66'; c.beginPath(); c.moveTo(x - s * 0.16, y); c.lineTo(x, y - s * 0.36); c.lineTo(x + s * 0.16, y); c.closePath(); c.fill();
-  /* The sign over the door: a round red badge - a red rim, a thin white
-     ring, a red middle - with a bold white cross. */
-  const by = y - s * 0.47, b = s * 0.19;
-  /* Its own fine dark red lines, not the bold ink - the white ring is thin. */
+  /* A flagpole from the top, flying a white flag with a red cross,
+     waving in the breeze. */
+  const top = y - s * 0.74, py = top - s * 0.72;
+  c.strokeStyle = '#8a6a4c'; c.lineWidth = Math.max(1.5, s * 0.035); c.beginPath(); c.moveTo(x, top); c.lineTo(x, py - s * 0.04); c.stroke();
+  const fw = s * 0.62, fh = s * 0.4, wave = (u) => Math.sin(t * 4 - u * 3) * s * 0.035 * u;
   const was = c.__noInk; c.__noInk = true;
-  c.strokeStyle = '#9e0000'; c.lineWidth = Math.max(1, b * 0.025);
-  c.fillStyle = '#d80000'; c.beginPath(); c.arc(x, by, b, 0, 6.2832); c.fill(); c.stroke();
-  c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, by, b * 0.88, 0, 6.2832); c.fill(); c.stroke();
-  c.fillStyle = '#d80000'; c.beginPath(); c.arc(x, by, b * 0.81, 0, 6.2832); c.fill(); c.stroke();
-  const arm = b * 0.5, half = b * 0.155;
-  c.fillStyle = '#ffffff'; c.beginPath();
-  c.moveTo(x - half, by - arm); c.lineTo(x + half, by - arm); c.lineTo(x + half, by - half); c.lineTo(x + arm, by - half); c.lineTo(x + arm, by + half);
-  c.lineTo(x + half, by + half); c.lineTo(x + half, by + arm); c.lineTo(x - half, by + arm); c.lineTo(x - half, by + half); c.lineTo(x - arm, by + half);
-  c.lineTo(x - arm, by - half); c.lineTo(x - half, by - half); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#ffffff'; c.strokeStyle = '#a9a4ae'; c.lineWidth = Math.max(1, s * 0.012);
+  c.beginPath(); c.moveTo(x, py);
+  for (let k = 1; k <= 8; k++){ const u = k / 8; c.lineTo(x + fw * u, py + wave(u)); }
+  for (let k = 8; k >= 0; k--){ const u = k / 8; c.lineTo(x + fw * u, py + fh + wave(u)); }
+  c.closePath(); c.fill(); c.stroke();
+  const cx = x + fw * 0.5, cy = py + fh * 0.5 + wave(0.5), arm = fh * 0.36, half = fh * 0.12;
+  c.fillStyle = '#c8302c'; c.fillRect(cx - arm, cy - half, arm * 2, half * 2); c.fillRect(cx - half, cy - arm, half * 2, arm * 2);
   c.__noInk = was;
-  /* A little pennant on the pole. */
-  c.strokeStyle = '#8a6a4c'; c.lineWidth = Math.max(1.5, s * 0.025); c.beginPath(); c.moveTo(x, y - s * 0.74); c.lineTo(x, y - s * 0.98); c.stroke();
-  c.fillStyle = '#d80000'; c.beginPath(); c.moveTo(x, y - s * 0.98); c.lineTo(x + s * 0.2, y - s * 0.92 + Math.sin(t * 4) * s * 0.02); c.lineTo(x, y - s * 0.86); c.closePath(); c.fill();
 }
 /* The trees and bushes: a thick jungle round the edges and in the
    corners, kept off the trail, the pads, the castle and the chest. Where
