@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
                WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
-               DODGE, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
+               DODGE, FEET_FAR, FEET_NEAR, ROOM_MOVE, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -19,7 +19,7 @@ const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i
    dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
    there, all standing still with their hands by their sides but the first. */
 const TORSO = 0.15, CHEST = { x: 0.5, y: 0.475 + 0.15 * TORSO };
-function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, n = 1 } = {}){
+function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, feet = 0, n = 1 } = {}){
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < n; });
   for (let i = 0; i < n; i++){
@@ -28,18 +28,22 @@ function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy
       lm[L.L_KNEE].y -= knee; lm[L.R_KNEE].y += knee; lm[L.L_ANKLE].y -= knee; lm[L.R_ANKLE].y += knee;
       if (!knees){ lm[L.L_KNEE].v = lm[L.R_KNEE].v = 0.1; }
       if (dx) lm.forEach(q => { q.x += dx; });
+      if (feet) lm.forEach(q => { q.y += feet; });
       if (drop) lm.forEach((q, j) => { if (![L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE].includes(j)) q.y += drop; });
       if (hug){ lm[L.L_WRIST] = { ...lm[L.R_SHOULDER], y: lm[L.R_SHOULDER].y + 0.01 }; lm[L.R_WRIST] = { ...lm[L.L_SHOULDER], y: lm[L.L_SHOULDER].y + 0.01 }; }
     }
     p.lm = lm; p.scale = 0.3;
-    p.centre = { x: 0.5, y: i === 0 ? cy + drop : 0.6 };
+    p.centre = { x: i === 0 ? 0.5 + dx : 0.5, y: i === 0 ? cy + drop + feet : 0.6 };
     const v = i === 0 ? hvy : 0;
-    p.hands.left = { x: 0.45, y: 0.65, vx: 0, vy: v, speed: Math.abs(v) };
-    p.hands.right = { x: 0.55, y: 0.65, vx: 0, vy: -v, speed: Math.abs(v) };
+    const hx = i === 0 ? dx : 0, hy = i === 0 ? feet : 0;
+    p.hands.left = { x: 0.45 + hx, y: 0.65 + hy, vx: 0, vy: v, speed: Math.abs(v) };
+    p.hands.right = { x: 0.55 + hx, y: 0.65 + hy, vx: 0, vy: -v, speed: Math.abs(v) };
     if (i === 0 && reach) p.hands.right = { x: CHEST.x + reach[0] * TORSO / ASPECT, y: CHEST.y + reach[1] * TORSO, vx: 0, vy: 0, speed: 0 };
     if (i === 0 && reach2) p.hands.left = { x: CHEST.x + reach2[0] * TORSO / ASPECT, y: CHEST.y + reach2[1] * TORSO, vx: 0, vy: 0, speed: 0 };
   }
 }
+/* The first child standing where, in the room, is (x, y) on the map. */
+const standAt = (x, y, o = {}) => body({ ...o, dx: 0.15 + (x - 0.04) / 0.92 * 0.7 - 0.5, feet: FEET_FAR + (y - 0.1) / 0.86 * (FEET_NEAR - FEET_FAR) - (0.55 + 0.85 * 0.3) });
 /* Standing still and upright: `n` children there. */
 const still = (n = 1) => body({ n });
 /* Nobody there at all. */
@@ -136,11 +140,11 @@ test('marching on the spot with a hand reaching out walks the knight: out to the
   }
 });
 
-test('no marching, no walking: pointing alone only shows the way, with ghostly feet to march', () => {
+test('no marching, no walking: pointing alone only picks the place, with ghostly feet to march', () => {
   const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
   run(inst, 2, () => body({ reach: [1.3, 0] }));
   assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002, 'stands there');
-  assert.ok(k.lean && k.lean.still && k.lean.x > 0.9, 'pointing the way');
+  assert.ok(k.goal && k.lean && k.lean.still && k.lean.x > 0.5, 'pointing the way');
   inst.draw(fakeCtx(), W, H);
 });
 
@@ -195,6 +199,59 @@ test('both hands reaching the same way steer together, a little faster; opposite
   assert.ok(TWO_HANDS > 1);
   const apart = go({ reach: [1.3, 0], reach2: [-0.8, 0] });
   assert.ok(apart.x > 0.05, 'the hand reaching further wins');
+});
+
+test('pointing picks the nearest place that way; march, and the knight goes there and stops on it, hand down or not', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  /* Pointing roughly right: the pad is a little up and to the right. */
+  run(inst, 0.6, () => body({ reach: [1.3, 0] }));
+  assert.ok(k.goal && Math.hypot(k.goal.x - pad.x, k.goal.y - pad.y) < 1e-9, 'the pad is picked');
+  run(inst, 4, marching({}));
+  assert.ok(Math.hypot((k.x - pad.x) * ASPECT, k.y - pad.y) < 0.006, 'on the pad');
+  assert.equal(k.at?.id, 'p2');
+  const x = k.x; run(inst, 1, marching({}));
+  assert.equal(k.x, x, 'and stays there');
+});
+
+test('pointing at a monster chases it', () => {
+  const inst = quiet(), k = knight(inst), m = monster(inst, 'slime', 1.0), p = along(1.0);
+  put(k, p.x - 0.25 / ASPECT, p.y);
+  run(inst, 0.6, () => body({ reach: [1.3, 0] }));
+  assert.equal(k.goal?.m, m);
+  run(inst, 3, marching({}));
+  assert.ok(Math.hypot((k.x - p.x) * ASPECT, k.y - p.y) < 0.05, 'right up to it');
+});
+
+test('running about the room: across the room is across the map, nearer the camera further down it', () => {
+  for (const [x, y] of [[0.9, 0.2], [0.35, 0.5], [0.15, 0.8], [0.62, 0.42]]){
+    const inst = quiet(), k = knight(inst); put(k, 0.5, 0.5);
+    run(inst, 0.5, () => still());
+    run(inst, 3, () => standAt(x, y));
+    assert.ok(Math.hypot((k.x - x) * ASPECT, k.y - y) < 0.02, `${x}, ${y}: at ${k.x.toFixed(2)}, ${k.y.toFixed(2)}`);
+  }
+});
+
+test('standing about, or shuffling a little, leaves the knight where it is', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 2, (t) => body({ dx: Math.sin(t * 3) * 0.03, feet: Math.sin(t * 2) * 0.01 }));
+  assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002);
+});
+
+test('running about, stand near a pad and the knight steps onto it', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[4];
+  run(inst, 2, () => standAt(0.9, 0.2));
+  run(inst, 3, () => standAt(pad.x + 0.03, pad.y + 0.03));
+  assert.equal(k.at?.id, 'p4');
+});
+
+test('after pointing, walking off across the room is running about again', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 0.6, () => body({ reach: [1.3, 0] }));
+  assert.equal(k.mode, 'point');
+  run(inst, 3, () => standAt(0.15, 0.8));
+  assert.equal(k.mode, 'room');
+  assert.ok(Math.hypot((k.x - 0.15) * ASPECT, k.y - 0.8) < 0.03);
 });
 
 test('rolling your arms or hugging never steers the knight', () => {

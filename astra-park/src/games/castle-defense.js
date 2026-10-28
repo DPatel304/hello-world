@@ -66,29 +66,41 @@ export const SQUAT_DROP = 0.15, SQUAT_HOLD = 0.8;
 export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3, HUG_MEND = 1, TENT_R = 0.11;
 export const upgradeTime = (lvl) => 5 + 2 * lvl, castleTime = (lvl) => 7 + 2 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
-/* Knights walk when you march on the spot, the way a hand points. The
-   legs are the go: no marching, no walking, however you point - marching a
-   little (knees at MARCH_MIN of MARCH_FULL torso-lengths a second) is a
-   WALK, marching hard is a RUN. The hands are the steering: reach a hand
-   out from your chest (HAND_CENTRE torso-lengths below the shoulders) and
-   that's the way - out to the side is sideways, up above your shoulders is
-   up the map, down to your tummy is down. Whichever hand is reaching
-   further steers - and if both reach the same way, both do: steadier, and
-   TWO_HANDS times as fast. It takes HAND_START torso-lengths of reach,
-   held for HAND_HOLD seconds (so a wave or a scratch is nothing), to pick a
-   way, but only HAND_KEEP to keep it. Hands resting at your sides or on
-   your hips (lower than HAND_REST torso-lengths above the hips) are no
-   reach; nor is a hug, or rolling your arms.
+/* Two ways to get a knight about, at once, each child whichever way they
+   like - and they needn't know there are two:
 
-   Aim assist: let go near a pad, the tent or the castle (within SNAP_R)
-   and the knight walks the last bit onto it; reach roughly toward one
-   nearby (within MAGNET_R) and the knight's path bends onto it.
+   Run about the room: your spot in the room is your knight's spot on the
+   map. Across the room is across the map; nearer the camera (your feet
+   lower in the picture, FEET_FAR to FEET_NEAR down it) is further down.
+   It starts once you've moved ROOM_MOVE across the map from where you
+   were, so standing about leaves the knight where it is, and the knight
+   runs to keep up (up to ROOM_RUN). Stand near a pad, the tent or the
+   castle (within SNAP_R) and it steps onto it.
+
+   Point and march: reach a hand out from your chest (HAND_CENTRE
+   torso-lengths below the shoulders) the way you want to go, from the
+   knight - out to the side is sideways, up above your shoulders is up the
+   map, down to your tummy is down - and the nearest place that way (a pad,
+   the tent, the castle, a monster; within AIM of it) lights up. Nothing
+   that way, and it's a spot of grass a little way off. It takes HAND_START
+   torso-lengths of reach, held for HAND_HOLD seconds (so a wave or a
+   scratch is nothing), to point, then only HAND_KEEP to keep pointing; let
+   your hand drop and the place stays picked. Then march on the spot to go
+   there: no marching, no walking - marching a little (knees at MARCH_MIN
+   of MARCH_FULL torso-lengths a second) is a WALK, marching hard a RUN, and
+   pointing with both hands the same way, TWO_HANDS times that. Walk off
+   across the room and you're running about again.
+
+   Hands resting at your sides or on your hips (lower than HAND_REST
+   torso-lengths above the hips) are no reach; nor is a hug, or rolling
+   your arms.
 
    With the mouse, the knight walks to where the pointer rests. */
-export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.15;
-export const SNAP_R = 0.1, MAGNET_R = 0.3;
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.15, AIM = 0.75;
+export const FEET_FAR = 0.72, FEET_NEAR = 0.97, ROOM_MOVE = 0.15, ROOM_RUN = 0.4;
+export const SNAP_R = 0.1;
 export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
-export const KNIGHT_SPEED = RUN * TWO_HANDS;
+export const KNIGHT_SPEED = Math.max(RUN * TWO_HANDS, ROOM_RUN);
 /* The sword: swung by itself at a monster within reach - ROLL_FAST times as
    often while the child rolls their arms round each other, the wheels on
    the bus going round. That's the hands circling each other: the line from
@@ -358,7 +370,7 @@ class CastleDefense {
       k.glow = Math.max(0, k.glow - dt);
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
-      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; continue; }
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; k.mode = k.goal = k.room = k.anchor = null; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
@@ -404,8 +416,14 @@ class CastleDefense {
     }
     k.legs = a != null ? { a, ya: lm[a].y, yb: lm[b].y } : null;
     k.march = (k.march || 0) + (clamp(legs / MARCH_FULL, 0, 1) - (k.march || 0)) * Math.min(1, dt * 4);
-    /* The hand joystick: from the chest to whichever hand is reaching
-       further, in torso-lengths. */
+    /* Where you are in the room, as a spot on the map. Not mid-jump. */
+    const room = this._roomSpot(k, p);
+    if (room && !(k.air > 0)){
+      k.room = k.room ? { x: k.room.x + (room.x - k.room.x) * Math.min(1, dt * 5), y: k.room.y + (room.y - k.room.y) * Math.min(1, dt * 5) } : room;
+      k.anchor ??= { ...k.room };
+    }
+    /* Pointing: from the chest to whichever hand is reaching further, in
+       torso-lengths. */
     const sy = (lm[L.L_SHOULDER].y + lm[L.R_SHOULDER].y) / 2, hy = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2;
     const T = Math.max(0.02, hy - sy), cx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, cy = sy + HAND_CENTRE * T;
     const reach = [];
@@ -417,28 +435,89 @@ class CastleDefense {
       }
     }
     let best = reach.sort((a, b) => b.d - a.d)[0] || null, both = false;
-    /* Both hands reaching the same way: steer with both. */
+    /* Both hands pointing the same way: both together. */
     if (reach.length === 2 && (reach[0].vx * reach[1].vx + reach[0].vy * reach[1].vy) / (reach[0].d * reach[1].d) > 0.7){
       const vx = (reach[0].vx + reach[1].vx) / 2, vy = (reach[0].vy + reach[1].vy) / 2;
       best = { vx, vy, d: Math.hypot(vx, vy) }; both = true;
     }
-    /* Setting off takes a clear reach, held a moment; keeping going, less. */
+    /* Starting to point takes a clear reach, held a moment; keeping it, less. */
     k.reachT = best && best.d >= HAND_START ? (k.reachT || 0) + dt : 0;
-    if (!best || (!k.steering && k.reachT < HAND_HOLD)){ k.steering = false; k.lean = null; k.vx = k.vy = 0; return; }
-    k.steering = true;
-    let ux = best.vx / best.d, uy = best.vy / best.d;
-    /* Aim assist: heading roughly for a place to stand nearby? Bend onto it. */
-    const aim = this._spotsNear(k, MAGNET_R).find(q => q.d > 0.02 && (q.dx * ux + q.dy * uy) / q.d > 0.8);
-    if (aim){ ux += aim.dx / aim.d * 0.6; uy += aim.dy / aim.d * 0.6; const m = Math.hypot(ux, uy); ux /= m; uy /= m; }
-    /* No marching, no walking; marching harder, faster; both hands, faster still. */
+    k.steering = !!best && (k.steering || k.reachT >= HAND_HOLD);
+    if (k.steering){
+      k.mode = 'point'; k.anchor = k.room ? { ...k.room } : null;
+      k.goal = this._aimAt(k, best.vx / best.d, best.vy / best.d);
+    } else if (k.room && k.anchor && Math.hypot((k.room.x - k.anchor.x) * ASPECT, k.room.y - k.anchor.y) > ROOM_MOVE){
+      /* Off across the room: running about. */
+      k.mode = 'room'; k.goal = null;
+    }
+    k.lean = null; k.vx = k.vy = 0;
+    if (k.mode === 'room'){
+      /* Running about: the knight runs to keep up with you, and steps onto
+         a place you're standing near. */
+      let to = k.room;
+      const q = this._spotsNear(to, SNAP_R)[0];
+      if (q) to = q;
+      const dx = (to.x - k.x) * ASPECT, dy = to.y - k.y, d = Math.hypot(dx, dy);
+      if (d < 0.006) return;
+      const sp = Math.min(ROOM_RUN, d * 6, d / Math.max(dt, 1e-3));
+      k.vx = dx / d * sp; k.vy = dy / d * sp;
+      return;
+    }
+    if (k.mode !== 'point' || !k.goal) return;
+    /* Pointed somewhere: march to go there. */
+    const g = this._goalAt(k.goal);
+    if (!g){ k.goal = null; return; }
+    const dx = (g.x - k.x) * ASPECT, dy = g.y - k.y, d = Math.hypot(dx, dy), stop = k.goal.m ? 0.03 : 0;
+    if (d <= stop + 0.004){ if (!k.goal.m && !k.steering) k.goal = null; return; }
     const go = k.march >= MARCH_MIN * (k.marching ? 0.6 : 1);
     k.marching = go;
-    k.lean = { x: ux, y: uy, k: go ? clamp((k.march - MARCH_MIN) / (1 - MARCH_MIN), 0, 1) : 0, still: !go };
-    const sp = go ? (WALK + (RUN - WALK) * k.lean.k) * (both ? TWO_HANDS : 1) : 0;
-    k.vx = ux * sp; k.vy = uy * sp;
+    const pace = go ? clamp((k.march - MARCH_MIN) / (1 - MARCH_MIN), 0, 1) : 0;
+    k.lean = { x: dx / d, y: dy / d, k: pace, still: !go };
+    if (!go) return;
+    const sp = Math.min((WALK + (RUN - WALK) * pace) * (both ? TWO_HANDS : 1), (d - stop) / Math.max(dt, 1e-3));
+    k.vx = dx / d * sp; k.vy = dy / d * sp;
   }
 
-  /* Places to stand near knight k, within r, nearest first: { x, y, dx, dy, d }
+  /* Where child p is standing in the room, as a spot on the map: across
+     the picture is across the map, and the feet (the one on the ground,
+     when marching) lower in the picture is further down it. */
+  _roomSpot(k, p){
+    const lm = p.lm;
+    if (!lm || !p.centre) return null;
+    const seen = (j) => (lm[j].v ?? 1) > 0.5;
+    let u;
+    if (seen(L.L_ANKLE) && seen(L.R_ANKLE)) u = (Math.max(lm[L.L_ANKLE].y, lm[L.R_ANKLE].y) - FEET_FAR) / (FEET_NEAR - FEET_FAR);
+    else u = 1;                              /* feet out of the picture: right up close */
+    const x = 0.04 + 0.92 * clamp((p.centre.x - 0.15) / 0.7, 0, 1), y = 0.1 + 0.86 * clamp(u, 0, 1);
+    return { x, y };
+  }
+
+  /* The place the knight's child is pointing at: the nearest place to go
+     within AIM of the way they're pointing (a pad, the tent, the castle or
+     a monster), else a patch of grass a little way off that way. */
+  _aimAt(k, ux, uy){
+    const places = PADS.map(q => ({ x: q.x, y: q.y }));
+    places.push({ x: TENT.x, y: TENT.y + 0.02 }, { x: castleBox(this.castleLvl).x, y: CASTLE_BASE - 0.12 });
+    for (const m of this.monsters){ const q = this.pos(m); places.push({ x: q.x, y: q.y, m }); }
+    let best = null, bs = -9;
+    for (const q of places){
+      const dx = (q.x - k.x) * ASPECT, dy = q.y - k.y, d = Math.hypot(dx, dy);
+      if (d < 0.03) continue;
+      const c = (dx * ux + dy * uy) / d;
+      if (c < AIM) continue;
+      const sc = c * 1.5 - d;
+      if (sc > bs){ bs = sc; best = q; }
+    }
+    if (best) return best.m ? { m: best.m } : { x: best.x, y: best.y };
+    return { x: clamp(k.x + ux * 0.3 / ASPECT, 0.03, 0.97), y: clamp(k.y + uy * 0.3, 0.08, 0.95) };
+  }
+  /* Where a goal is now: a monster moves; gone, it's nowhere. */
+  _goalAt(goal){
+    if (!goal.m) return goal;
+    return this.monsters.includes(goal.m) ? this.pos(goal.m) : null;
+  }
+
+  /* Places to stand near k (a knight, or any spot), within r, nearest first: { x, y, dx, dy, d }
      (dx, dy, d in screen heights). */
   _spotsNear(k, r){
     const spots = PADS.map(p => ({ x: p.x, y: p.y }));
@@ -451,7 +530,7 @@ class CastleDefense {
   /* Aim assist: a knight let go near a place to stand walks the last bit
      onto it. */
   _assist(k, dt){
-    if (k.steering) return;
+    if (k.steering || k.goal || k.mode === 'room') return;
     const q = this._spotsNear(k, SNAP_R)[0];
     if (!q || q.d < 0.006) return;
     const sp = Math.min(WALK, q.d / Math.max(dt, 1e-3));
@@ -587,7 +666,7 @@ class CastleDefense {
   /* Bonked out: down where it stands, seeing stars. */
   _knockOut(i, k){
     this.knockouts = (this.knockouts || 0) + 1;
-    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1;
+    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1; k.goal = null;
     k.vx = k.vy = 0; k.at = null;
     sfx.boing(0.5);
     for (let q = 0; q < 20; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, '#ffffff');
@@ -695,7 +774,7 @@ class CastleDefense {
   _respawn(i, k){
     const h = this.home(i);
     k.x = k.tx = h.x; k.y = k.ty = h.y;
-    k.lvl = 0; k.xp = 0;
+    k.lvl = 0; k.xp = 0; k.goal = null;
     k.hp = KNIGHT_HP; k.safe = SAFE; k.down = 0; k.downT = 0; k.calm = 0; k.fell = null; k.helper = -1;
     sfx.pop(1);
     for (let q = 0; q < 14; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, PLAYER_COLORS[i]);
@@ -1069,8 +1148,19 @@ class CastleDefense {
         continue;
       }
       if (!this.out && pose.mouse.active && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+      /* Pointed somewhere: a marker there, and while still pointing, a
+         trail of dots to it. */
+      const goal = !this.out && k.mode === 'point' && k.goal && this._goalAt(k.goal);
+      if (goal){
+        drawMarker(c, goal.x * W, goal.y * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+        if (k.steering){
+          c.save(); c.fillStyle = PLAYER_COLORS[i];
+          for (let q = 1; q < 8; q++){ const u = q / 8; c.globalAlpha = 0.3 + 0.6 * Math.max(0, Math.sin(this.t * 5 - q * 0.6)); c.beginPath(); c.arc((k.x + (goal.x - k.x) * u) * W, (k.y + (goal.y - k.y) * u) * H, H * 0.006, 0, 6.2832); c.fill(); }
+          c.restore();
+        }
+      }
       if (!this.out){
-        /* The arrow under it, the way the hand is steering. */
+        /* The arrow under it, the way it's going. */
         if (k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
       }
       const hop = Math.sin(k.hop * Math.PI) * KNIGHT_SIZE * 0.6;
