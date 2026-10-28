@@ -368,19 +368,22 @@ export function drawChest(c, W, H, coins, t){
 /* A monster at (x, y): kind slime / goblin / bat / ogre; dir which way it's
    walking; hurt: 0..1, a flash when hit; frozen: chilled blue; hp: share of
    health left, for the little bar. */
-/* Each kind's colours, and its red, meaner level-two sort's. */
+/* Each kind's colours: every ordinary one green, in its own shade, and its
+   meaner level-two sort red. */
 const HUES = {
   slime:  [{ body: '#6fdc6a' }, { body: '#e5484d' }],
-  goblin: [{ body: '#7a5ad6', skin: '#8fd06a' }, { body: '#7d1f2c', skin: '#e0605a' }],
-  bat:    [{ body: '#8a6cc0', wing: '#6a4f9a' }, { body: '#c53b46', wing: '#8e1f2e' }],
-  ogre:   [{ body: '#d27a5a', skin: '#e8a07e', club: '#8a5a34' }, { body: '#b02e2a', skin: '#d9534a', club: '#4a2a1c' }]
+  goblin: [{ body: '#2f7d4a', skin: '#a6e27a' }, { body: '#7d1f2c', skin: '#e0605a' }],
+  bat:    [{ body: '#4fae5c', wing: '#2f7d4a' }, { body: '#c53b46', wing: '#8e1f2e' }],
+  ogre:   [{ body: '#5c9e4a', skin: '#8fcf6a', club: '#8a5a34' }, { body: '#b02e2a', skin: '#d9534a', club: '#4a2a1c' }]
 };
+/* How much bigger the red ones are. */
+export const RED_SIZE = 1.35;
 
 /* club: an ogre's club lifted, 0..1, winding up to bring it down. red: the
-   meaner sort - red, a touch bigger, scowling. */
+   meaner sort - red, bigger, scowling. */
 export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0, red = false){
   const C = HUES[kind][red ? 1 : 0];
-  if (red) s *= 1.12;
+  if (red) s *= RED_SIZE;
   c.save();
   const shadow = kind === 'bat' ? 0.5 : 1;
   c.fillStyle = `rgba(40,50,40,${0.25 * shadow})`; c.beginPath(); c.ellipse(x, y + s * 0.05, s * 0.45, s * 0.12, 0, 0, 6.2832); c.fill();
