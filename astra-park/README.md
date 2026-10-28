@@ -100,8 +100,6 @@ screen around the round, so adding a game is one file and one line in
   - **Pop Party** - pop balloons with your hands.
   - **Firefly Night** - cup your hands to catch fireflies and fill the jars.
   - **Fire Truck** - your faces in the cab; point the water, reach the ladder.
-  - **Moon Bounce** - astronauts in moon gravity; jump to catch star pictures.
-  - **Animal Copycat** - copy each animal's pose and it joins the parade.
   - **Snow Sled** - lean to steer, jump for the presents on balloons.
 
 ## What has and has not been verified

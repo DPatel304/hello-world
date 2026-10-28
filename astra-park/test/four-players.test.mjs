@@ -4,7 +4,6 @@ import { pose, L, MAX_PLAYERS, PLAYER_COLORS } from '../src/tracking/pose.js';
 import { GAMES } from '../src/games/index.js';
 import forestRun from '../src/games/forest-run.js';
 import boat from '../src/games/uncle-bs-boat.js';
-import moonBounce from '../src/games/moon-bounce.js';
 import danceParty from '../src/games/dance-party.js';
 import popParty from '../src/games/pop-party.js';
 import { RUN } from '../src/games/forest-art.js';
@@ -76,16 +75,6 @@ test("Uncle B's Boat: four seats, and every child can scoop a fish", () => {
   }
   run(inst, 0.3);
   assert.deepEqual(inst.cups.map(c => !!c.fish), [true, true, true, true]);
-});
-
-test('Moon Bounce: all four astronauts float', () => {
-  row(4);
-  const inst = moonBounce.create(4);
-  inst.stars = []; inst.spawn = 1e9; inst.nextGold = 1e9;
-  run(inst, 1);
-  for (let k = 0; k < 6; k++){ for (const p of pose.players) p.centre.y -= 0.02; inst.step(DT, W, H); }
-  run(inst, 0.2);
-  assert.ok(inst.bodies.every(b => b.lift > 0), inst.bodies.map(b => b.lift.toFixed(2)).join(' '));
 });
 
 test('Dance Party: the fourth child dancing counts too', () => {

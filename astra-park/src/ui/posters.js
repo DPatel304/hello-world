@@ -7,8 +7,6 @@
 import { Scene } from '../games/pop-party-scene.js';
 import { glow } from './backdrop.js';
 import { drawKid, KID_SKINS } from './kids.js';
-import { drawMoon, drawStar, drawConstellation, drawAstronaut, standIn, SHAPES } from '../games/moon-art.js';
-import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
 import { P as forestP, RUN as FOREST_RUN, drawForest, drawLeaves, drawTree, drawLog, drawCrystal, drawFox, drawRunner } from '../games/forest-art.js';
@@ -43,29 +41,6 @@ function popParty(){
       c.fillStyle = 'rgba(255,255,255,.45)';
       c.beginPath(); c.ellipse(x - r * 0.35, y - r * 0.4, r * 0.16, r * 0.26, -0.4, 0, 6.2832); c.fill();
     }
-  };
-}
-
-function moonBounce(){
-  return (c, W, H, t) => {
-    drawMoon(c, W, H, t);
-    drawConstellation(c, SHAPES[0], W * 0.72, H * 0.3, H * 0.17, SHAPES[0].pts.length, 1, t);
-    const lift = Math.abs(Math.sin(t * 1.2)) * 0.18;
-    for (const [x, y, k] of [[0.22, 0.3, 0], [0.5, 0.18, 1], [0.86, 0.62, 2]]) drawStar(c, W * x, H * (y + Math.sin(t + k) * 0.02), H * 0.04, t + k);
-    drawAstronaut(c, standIn(0.36, 0.48, 0.2 + lift, 0.42), W, H, lift, '#3da9ff',
-      (x, y, r) => drawKid(c, x, y + r * 0.1, r, t, '#e9b892'));
-  };
-}
-
-function animalCopycat(){
-  const scene = new Scene();
-  return (c, W, H, t) => {
-    scene.step(1 / 60, { t, p: 0.3, storm: false, wind: 0, joy: 0.5, look: 0.5, rainbow: false });
-    scene.drawBack(c, W, H);
-    ['bird', 'frog', 'elephant', 'bunny'].forEach((n, i) => DRAW[n](c, W * (0.12 + i * 0.09), H * 0.74, H * 0.13, t + i, true));
-    DRAW.giraffe(c, W * 0.7, H * 0.95, H * 0.62, t, false);
-    DRAW.flamingo(c, W * 0.35, H * 0.95, H * 0.5, t, false);
-    scene.drawFront(c, W, H);
   };
 }
 
@@ -139,7 +114,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'moon-bounce': moonBounce, 'animal-copycat': animalCopycat, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'forest-run': forestRun, 'castle-defense': castleDefense };
+const POSTERS = { 'pop-party': popParty, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'forest-run': forestRun, 'castle-defense': castleDefense };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
