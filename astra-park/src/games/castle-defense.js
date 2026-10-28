@@ -244,7 +244,6 @@ class CastleDefense {
     /* A big hit lands with the tiniest pause. */
     if (this.stop > 0){ this.stop -= dt; dt *= 0.2; }
     this.shake = Math.max(0, (this.shake || 0) - dt * 3);
-    this.chestBump = Math.max(0, (this.chestBump || 0) - dt * 4);
     if (this.stomp) this.stomp.age += dt;
     this.t += dt;
     this.castleHit = Math.max(0, this.castleHit - dt * 2);
@@ -883,14 +882,15 @@ class CastleDefense {
     if (this.bits.length > 400) this.bits.splice(0, this.bits.length - 400);
   }
   _stepBits(dt){
-    const chest = { x: CHEST.x, y: CHEST.y - 0.02 };
+    /* Coins fly into the castle, to its keep. */
+    const b0 = castleBox(this.castleLvl), chest = { x: b0.x, y: CASTLE_BASE - 0.2 * b0.scale };
     for (const b of this.bits){
       b.age += dt;
       if (b.kind === 'spark'){ b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 0.15 * dt; }
       else if (b.kind === 'heart'){ b.y += b.vy * dt; b.x += Math.sin(b.age * 8) * 0.01 * dt; }
       else if (b.kind === 'coin' && b.age > 0){
         const k = Math.min(1, b.age / b.life), e = k * k;
-        if (b.age + dt >= b.life) this.chestBump = 1;
+        if (b.age + dt >= b.life && Math.random() < 0.5) this.bits.push({ kind: 'spark', x: chest.x, y: chest.y, vx: (Math.random() - 0.5) * 0.08, vy: -0.08, age: 0, life: 0.5, col: '#ffd24a' });
         b.x = b.from.x + (chest.x - b.from.x) * e; b.y = b.from.y + (chest.y - b.from.y) * e - Math.sin(k * Math.PI) * 0.12;
       }
     }
@@ -1049,11 +1049,6 @@ class CastleDefense {
        or there's too much to draw. */
     const crowd = this.monsters.length > INK_MOST;
     for (const th of things){ if (crowd && th.monster) th.draw(); else inked(c, H * 0.0024, th.draw); }
-    /* The chest bounces as coins land in it. */
-    const cb = this.chestBump || 0;
-    c.save(); c.translate(CHEST.x * W, CHEST.y * H); c.scale(1 + cb * 0.12, 1 - cb * 0.1); c.translate(-CHEST.x * W, -CHEST.y * H);
-    inked(c, H * 0.0024, () => drawChest(c, W, H, this.coins, this.t));
-    c.restore();
     /* The war horn, between waves: its ring is the time left. */
     if (this.state === 'build' && !this.out){
       const w = this.work.get('horn');

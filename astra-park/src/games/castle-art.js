@@ -19,7 +19,7 @@ const ASPECT = 16 / 9;
    follow any of them.) */
 const TRAIL = [[0.1, -0.06], [0.1, 0.08], [0.22, 0.15], [0.45, 0.12], [0.68, 0.13], [0.86, 0.2], [0.9, 0.33],
                [0.78, 0.42], [0.58, 0.38], [0.4, 0.42], [0.34, 0.54], [0.46, 0.63], [0.66, 0.6], [0.84, 0.64],
-               [0.88, 0.78], [0.76, 0.9], [0.56, 0.9], [0.3, 0.9]];
+               [0.88, 0.78], [0.76, 0.91], [0.56, 0.925], [0.3, 0.935]];
 const KEYS = [TRAIL];
 /* The castle: its middle, the line its front stands on, and its width. */
 export const CASTLE = { x: 0.17, y: 0.86, w: 0.32 };
@@ -73,7 +73,7 @@ export function along(s, p = 0){
    of the trail, where a tower reaches it on both sides, and out on the
    bends. */
 export const PADS = [[0.31, 0.05], [0.19, 0.24], [0.54, 0.26], [0.77, 0.29], [0.34, 0.32], [0.27, 0.48], [0.47, 0.51],
-                     [0.71, 0.5], [0.87, 0.53], [0.5, 0.78], [0.69, 0.77], [0.9, 0.87]].map(([x, y], i) => ({ i, x, y }));
+                     [0.71, 0.5], [0.87, 0.53], [0.5, 0.79], [0.69, 0.785], [0.9, 0.87]].map(([x, y], i) => ({ i, x, y }));
 export const PAD_R = 0.055;
 
 /* ---------- the meadow, painted once ---------- */
@@ -272,6 +272,9 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0, lv
   };
   /* Towers at both ends and along the wall, the keep tallest in the middle. */
   const ends = [x - hw + s * 0.12, x + hw - s * 0.12];
+  /* The gatehouse at the right end, where the trail runs in: always big
+     enough to hide the end of the trail, however small the castle is. */
+  const R = (CASTLE.x + CASTLE.w / 2) * W, gw = Math.max(H * 0.12, s * 0.5), gh = Math.max(H * 0.16, s * 0.7), gx = R - gw * 0.85;
   for (const tx of [x - hw * 0.5, x + hw * 0.5]) tower(tx, s * 0.22, s * 0.62, true);
   c.fillStyle = wall; c.fillRect(ends[0], base - s * 0.42, ends[1] - ends[0], s * 0.42);
   c.fillStyle = dark; c.fillRect(ends[0], base - s * 0.08, ends[1] - ends[0], s * 0.08);
@@ -280,6 +283,16 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0, lv
   for (let k = 0; k < n; k++) c.fillRect(ends[0] + k * s * 0.12, base - s * 0.48, s * 0.07, s * 0.07);
   for (const tx of ends) tower(tx, s * 0.26, s * 0.78, true);
   tower(x, s * 0.32, s * 0.98, true);
+  /* The gatehouse: a squat stone block with battlements, a dark archway in
+     it where the trail goes in, and a portcullis half up. */
+  c.fillStyle = wall; c.fillRect(gx, base - gh, gw, gh);
+  c.fillStyle = dark; c.fillRect(gx, base - gh, gw * 0.14, gh);
+  for (let k = 0; k < 4; k++){ c.fillStyle = wall; c.fillRect(gx + k * gw * 0.28, base - gh - gw * 0.12, gw * 0.16, gw * 0.12); }
+  const aw = gw * 0.56, ax = gx + gw * 0.62, abot = base - H * 0.012, atop = base - gh * 0.72;
+  c.fillStyle = '#3a3048'; c.beginPath(); c.moveTo(ax - aw / 2, abot); c.lineTo(ax - aw / 2, atop + aw / 2); c.arc(ax, atop + aw / 2, aw / 2, Math.PI, 0); c.lineTo(ax + aw / 2, abot); c.closePath(); c.fill();
+  c.strokeStyle = '#6b5a44'; c.lineWidth = Math.max(1.5, aw * 0.05);
+  for (let k = 1; k < 4; k++){ const px = ax - aw / 2 + aw * k / 4; c.beginPath(); c.moveTo(px, atop + aw * 0.2); c.lineTo(px, atop + aw * 0.75); c.stroke(); }
+  c.beginPath(); c.moveTo(ax - aw / 2, atop + aw * 0.75); c.lineTo(ax + aw / 2, atop + aw * 0.75); c.stroke();
   /* The gate. */
   c.fillStyle = '#6b4a34'; c.beginPath(); c.moveTo(x - s * 0.1, base); c.lineTo(x - s * 0.1, base - s * 0.18); c.arc(x, base - s * 0.18, s * 0.1, Math.PI, 0); c.lineTo(x + s * 0.1, base); c.closePath(); c.fill();
   c.strokeStyle = '#4a3324'; c.lineWidth = s * 0.012;
