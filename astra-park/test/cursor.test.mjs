@@ -169,7 +169,7 @@ test('hold ignores a hand waving on a button until it runs out', () => {
   cursor.hold(2);
   for (let k = 0; k < 2; k++) wave(ui, c.x, c.y, 4);
   assert.equal(picks, 0, 'nothing picked during the hold');
-  point(ui, c.x, c.y, 0.5); wave(ui, c.x, c.y);
+  point(ui, c.x, c.y, 1); wave(ui, c.x, c.y);
   assert.equal(picks, 1, 'an ordinary wave after it');
   pose.mouse.active = true;
 });
