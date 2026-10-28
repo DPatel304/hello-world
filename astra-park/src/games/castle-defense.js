@@ -15,10 +15,11 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, tow
    the meadow, in their colour with their face in the helmet, and the
    knights do everything just by where they stand.
 
-   Lean to walk your knight - left or right, toward the screen to go up the
-   map, back to come down - and run on the spot to hurry. Near a monster,
-   the knight swings its sword by itself - and rolling your arms round each
-   other, like the wheels on the bus, makes it swing twice as fast. Stand on an empty stone pad and a see-through tower appears:
+   Reach a hand out to walk your knight - out to the side, up high to go up
+   the map, down low to come down - and run on the spot to hurry. Near a
+   monster, the knight swings its sword by itself - and rolling your arms
+   round each other, like the wheels on the bus, makes it swing twice as
+   fast. Stand on an empty stone pad and a see-through tower appears:
    jump to change which kind (archer, cannon, frost), and stay put to build
    it. Stand at a tower and the knight mends it if an ogre has been smashing
    it, or else, slowly, makes it bigger and stronger, up to ten times. The
@@ -65,18 +66,24 @@ export const SQUAT_DROP = 0.15, SQUAT_HOLD = 0.8;
 export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3, HUG_MEND = 1, TENT_R = 0.11;
 export const upgradeTime = (lvl) => 5 + 2 * lvl, castleTime = (lvl) => 7 + 2 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
-/* Knights. Leaning walks them - shoulders over to one side of the hips,
-   LEAN_X shoulder-widths for full lean, or toward or away from the screen,
-   LEAN_Z; a little lean is no lean (LEAN_DEAD) - at WALK, and running on
-   the spot (knees at MARCH_FULL torso-lengths a second) hurries them up to
-   RUN. With the mouse, the knight walks to where the pointer rests.
+/* Knights walk by a hand joystick. Reach a hand out from your chest
+   (HAND_CENTRE torso-lengths below the shoulders) and the knight walks
+   that way: out to the side is sideways, up above your shoulders is up the
+   map, down to your tummy is down. Whichever hand is reaching further
+   steers. It takes HAND_START torso-lengths of reach to set off, but only
+   HAND_KEEP to keep going, and reaching further (to HAND_FULL) is faster -
+   running on the spot (knees at MARCH_FULL torso-lengths a second)
+   hurries it up to RUN. Hands resting at your sides or on your hips (lower
+   than HAND_REST torso-lengths above the hips) are no reach; nor is a hug,
+   or rolling your arms.
 
-   Leaning is measured from how each child stands when they're just
-   standing: people stand a little crooked, and the camera often sees
-   shoulders a little nearer than hips. For the first CALIB seconds a child
-   is in, their knight waits while it learns how they stand; after that the
-   standing pose keeps following them, very slowly (NEUTRAL_FOLLOW). */
-export const MARCH_FULL = 1.2, LEAN_X = 0.3, LEAN_Z = 0.45, LEAN_DEAD = 0.25, CALIB = 1.2, NEUTRAL_FOLLOW = 25;
+   Aim assist: let go near a pad, the tent or the castle (within SNAP_R)
+   and the knight walks the last bit onto it; reach roughly toward one
+   nearby (within MAGNET_R) and the knight's path bends onto it.
+
+   With the mouse, the knight walks to where the pointer rests. */
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_FULL = 1.1, MARCH_FULL = 1.2;
+export const SNAP_R = 0.1, MAGNET_R = 0.3;
 export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
 export const KNIGHT_SPEED = RUN;
 /* The sword: swung by itself at a monster within reach - ROLL_FAST times as
@@ -343,7 +350,7 @@ class CastleDefense {
       k.glow = Math.max(0, k.glow - dt);
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
-      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.stand = null; continue; }
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = false; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
@@ -358,6 +365,7 @@ class CastleDefense {
         if (d < RUN * dt){ k.vx = dx / dt; k.vy = dy / dt; }
       } else {
         this._drive(k, p, dt);
+        this._assist(k, dt);
         this._rollWatch(k, p, dt);
         this._squatWatch(k, p, dt);
       }
@@ -388,29 +396,49 @@ class CastleDefense {
     }
     k.legs = a != null ? { a, ya: lm[a].y, yb: lm[b].y } : null;
     k.march = (k.march || 0) + (clamp(legs / MARCH_FULL, 0, 1) - (k.march || 0)) * Math.min(1, dt * 4);
-    /* Leaning: shoulders over the hips, sideways, and nearer or further. */
-    const sx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, hx = (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2;
-    const sz = ((lm[L.L_SHOULDER].z ?? 0) + (lm[L.R_SHOULDER].z ?? 0)) / 2, hz = ((lm[L.L_HIP].z ?? 0) + (lm[L.R_HIP].z ?? 0)) / 2;
-    const sw = Math.abs(lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x) || 0.05;
-    const rx = (sx - hx) / sw, rz = (sz - hz) / sw;
-    /* How this child stands: learnt over their first moments, then slowly
-       kept up with. */
-    if (!k.stand) k.stand = { x: rx, z: rz, t: 0 };
-    const st = k.stand;
-    st.t += dt;
-    if (st.t < CALIB){
-      st.x += (rx - st.x) * Math.min(1, dt * 4); st.z += (rz - st.z) * Math.min(1, dt * 4);
-      k.lean = null; k.vx = k.vy = 0; return;
+    /* The hand joystick: from the chest to whichever hand is reaching
+       further, in torso-lengths. */
+    const sy = (lm[L.L_SHOULDER].y + lm[L.R_SHOULDER].y) / 2, hy = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2;
+    const T = Math.max(0.02, hy - sy), cx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, cy = sy + HAND_CENTRE * T;
+    let best = null;
+    if (Math.abs(k.spin || 0) < ROLL_SPIN * 0.5 && !(k.hugT > 0.1)){
+      for (const h of [p.hands.left, p.hands.right]){
+        if (!h || h.y > hy - HAND_REST * T) continue;
+        const vx = (h.x - cx) * ASPECT / T, vy = (h.y - cy) / T, d = Math.hypot(vx, vy);
+        if (!best || d > best.d) best = { vx, vy, d };
+      }
     }
-    st.x += (rx - st.x) * Math.min(1, dt / NEUTRAL_FOLLOW); st.z += (rz - st.z) * Math.min(1, dt / NEUTRAL_FOLLOW);
-    const lx = clamp((rx - st.x) / LEAN_X, -1, 1), ly = clamp((rz - st.z) / LEAN_Z, -1, 1);
-    const mag = Math.hypot(lx, ly);
-    if (mag < LEAN_DEAD){ k.lean = null; k.vx = k.vy = 0; return; }
-    const pull = Math.min(1, (mag - LEAN_DEAD) / (1 - LEAN_DEAD)), ux = lx / mag, uy = ly / mag;
+    if (!best || best.d < (k.steering ? HAND_KEEP : HAND_START)){ k.steering = false; k.lean = null; k.vx = k.vy = 0; return; }
+    k.steering = true;
+    const pull = clamp((best.d - HAND_KEEP) / (HAND_FULL - HAND_KEEP), 0, 1);
+    let ux = best.vx / best.d, uy = best.vy / best.d;
+    /* Aim assist: heading roughly for a place to stand nearby? Bend onto it. */
+    const aim = this._spotsNear(k, MAGNET_R).find(q => q.d > 0.02 && (q.dx * ux + q.dy * uy) / q.d > 0.8);
+    if (aim){ ux += aim.dx / aim.d * 0.6; uy += aim.dy / aim.d * 0.6; const m = Math.hypot(ux, uy); ux /= m; uy /= m; }
     k.lean = { x: ux, y: uy, k: pull };
-    /* Leaning alone walks; running on the spot hurries it along. */
-    const sp = (WALK + (RUN - WALK) * k.march) * pull;
+    /* Reaching further goes faster; running on the spot faster still. */
+    const sp = (WALK + (RUN - WALK) * k.march) * (0.45 + 0.55 * pull);
     k.vx = ux * sp; k.vy = uy * sp;
+  }
+
+  /* Places to stand near knight k, within r, nearest first: { x, y, dx, dy, d }
+     (dx, dy, d in screen heights). */
+  _spotsNear(k, r){
+    const spots = PADS.map(p => ({ x: p.x, y: p.y }));
+    spots.push({ x: TENT.x, y: TENT.y + 0.02 });
+    spots.push({ x: castleBox(this.castleLvl).x, y: CASTLE_BASE - 0.12 });
+    return spots.map(q => { const dx = (q.x - k.x) * ASPECT, dy = q.y - k.y; return { ...q, dx, dy, d: Math.hypot(dx, dy) }; })
+      .filter(q => q.d < r).sort((a, b) => a.d - b.d);
+  }
+
+  /* Aim assist: a knight let go near a place to stand walks the last bit
+     onto it. */
+  _assist(k, dt){
+    if (k.steering) return;
+    const q = this._spotsNear(k, SNAP_R)[0];
+    if (!q || q.d < 0.006) return;
+    const sp = Math.min(WALK, q.d / Math.max(dt, 1e-3));
+    k.vx = q.dx / q.d * sp; k.vy = q.dy / q.d * sp;
   }
 
   /* Squatting: the hips well below where they stand. Standing height follows
@@ -1012,7 +1040,7 @@ class CastleDefense {
       }
       if (!this.out && pose.mouse.active && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
       if (!this.out){
-        /* The lean arrow under it. */
+        /* The arrow under it, the way the hand is steering. */
         if (k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
       }
       const hop = Math.sin(k.hop * Math.PI) * KNIGHT_SIZE * 0.6;
@@ -1124,18 +1152,14 @@ class CastleDefense {
       const k = this.knights[i];
       if (!pose.players[i].present || k.down > 0 || k.ice > 0) continue;
       const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H;
-      /* Leaning and running: footprints stepping, arrows all round, under a
-         knight that hasn't gone anywhere yet. */
+      /* Walking: a knight that hasn't gone anywhere yet has a ghostly hand
+         reaching out from it, round and round - right, up, left, down -
+         with the way it would walk. */
       if (!k.driven){
-        const step = Math.floor(this.t * 3) % 2;
-        c.save(); c.globalAlpha = 0.7;
-        for (const side of [-1, 1]){
-          const up = (side < 0) === !!step;
-          c.fillStyle = '#fff6e2'; c.beginPath(); c.ellipse(x + side * s * 0.16, y + s * 0.12 - (up ? s * 0.08 : 0), s * 0.07, s * 0.11, 0, 0, 6.2832); c.fill();
-        }
-        const pulse = 0.5 + 0.5 * Math.sin(this.t * 4);
-        for (const [ax, ay, oy] of [[1, 0, -0.35], [-1, 0, -0.35], [0, 1, 0.3], [0, -1, -1.25]]) arrow(c, x + ax * s * 0.55, y + oy * s, ax, ay, s * (0.18 + pulse * 0.05), '#fff6e2');
-        c.restore();
+        const ph = (this.t * 0.7) % 4, dirs = [[1, 0], [0, -1], [-1, 0], [0, 1]], [ax, ay] = dirs[Math.floor(ph)], u = ph % 1, reach = Math.sin(Math.min(1, u * 1.6) * Math.PI / 2);
+        const hx = x + ax * s * (0.2 + 0.7 * reach), hy0 = y - s * 0.55 + ay * s * (0.2 + 0.6 * reach);
+        ghost(hx, hy0, 0.85 * (1 - Math.max(0, u - 0.8) * 5));
+        c.save(); c.globalAlpha = 0.6 * reach; arrow(c, x + ax * s * 0.5, y + (ay > 0 ? 0.3 : ay < 0 ? -1.25 : -0.35) * s, ax, ay, s * 0.22, '#fff6e2'); c.restore();
         continue;
       }
       /* Jumping: standing on an empty pad, until someone has jumped to change

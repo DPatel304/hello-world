@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, CALIB, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, SNAP_R, upgradeTime, castleTime,
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
                TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
@@ -10,20 +10,19 @@ import { standIn } from '../src/games/moon-art.js';
 const W = 1920, H = 1080, DT = 1 / 60, ASPECT = 16 / 9;
 const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i++){ if (each) each(i * DT); inst.step(DT, W, H); } };
 
-/* Children standing in the room, as the camera sees them: leaning sideways
-   (lean, -1..1 of a full lean, + is right) and toward the screen (lz, - is
-   toward), knees up and down by `knee` (screen heights), hands moving up or
+/* Children standing in the room, as the camera sees them: a hand reaching
+   out from the chest by `reach` ([x, y] torso-lengths: + x is right, - y is
+   up), knees up and down by `knee` (screen heights), hands moving up or
    down at `hvy`, the middle of the body at `cy`, the body above the knees
    dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
-   there, all standing still but the first. */
-function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, n = 1 } = {}){
+   there, all standing still with their hands by their sides but the first. */
+const TORSO = 0.15, CHEST = { x: 0.5, y: 0.475 + 0.15 * TORSO };
+function body({ reach = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, n = 1 } = {}){
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < n; });
   for (let i = 0; i < n; i++){
     const lm = standIn(0.5).map(q => ({ ...q, z: 0, v: 0.9 })), p = pose.players[i];
     if (i === 0){
-      const sw = Math.abs(lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x);
-      for (const j of [L.L_SHOULDER, L.R_SHOULDER]){ lm[j].x += lean * sw * LEAN_X * 1.2; lm[j].z = lz * sw * LEAN_Z * 1.2; }
       lm[L.L_KNEE].y -= knee; lm[L.R_KNEE].y += knee; lm[L.L_ANKLE].y -= knee; lm[L.R_ANKLE].y += knee;
       if (!knees){ lm[L.L_KNEE].v = lm[L.R_KNEE].v = 0.1; }
       if (dx) lm.forEach(q => { q.x += dx; });
@@ -35,13 +34,14 @@ function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, dro
     const v = i === 0 ? hvy : 0;
     p.hands.left = { x: 0.45, y: 0.65, vx: 0, vy: v, speed: Math.abs(v) };
     p.hands.right = { x: 0.55, y: 0.65, vx: 0, vy: -v, speed: Math.abs(v) };
+    if (i === 0 && reach) p.hands.right = { x: CHEST.x + reach[0] * TORSO / ASPECT, y: CHEST.y + reach[1] * TORSO, vx: 0, vy: 0, speed: 0 };
   }
 }
 /* Standing still and upright: `n` children there. */
 const still = (n = 1) => body({ n });
 /* Nobody there at all. */
 function none(){ pose.mouse.active = false; pose.players.forEach(p => { p.present = false; }); }
-/* Running on the spot - knees up and down twice a second - with a lean. */
+/* Running on the spot - knees up and down twice a second - with a reach. */
 const marching = (o = {}, height = 0.03) => (t) => body({ ...o, knee: Math.sin(t * Math.PI * 4) * height });
 /* Squats, up and down once a second, `depth` screen heights down. */
 const squats = (o = {}, depth = 0.06) => (t) => body({ ...o, drop: Math.sin(t * Math.PI * 2) > 0 ? depth : 0 });
@@ -80,8 +80,6 @@ function mouse(x, y, speed = 0){
 function quiet(n = 1){
   if (n) still(n); else none();
   const inst = game.create(Math.max(1, n)); inst.breakT = 1e9; inst.quiet = true;
-  /* The knights learn how the children stand before anything else. */
-  if (n) for (let f = 0; f < Math.round((CALIB + 0.05) / DT); f++) inst.step(DT, W, H);
   return inst;
 }
 const knight = (inst, i = 0) => inst.knights[i];
@@ -119,62 +117,81 @@ const PATH = PATHS[0];
 
 /* ---------- walking ---------- */
 
-test('leaning walks the knight: right, left, toward the screen is up, back is down', () => {
-  for (const [o, check] of [[{ lean: 1 }, (k, x, y) => k.x > x + 0.04], [{ lean: -1 }, (k, x, y) => k.x < x - 0.04],
-                            [{ lz: -1 }, (k, x, y) => k.y < y - 0.08], [{ lz: 1 }, (k, x, y) => k.y > y + 0.08]]){
+/* Where the knight starts in the walking tests: open grass, nothing near
+   to aim for. */
+const FREE = { x: 0.62, y: 0.42 };
+const moved = (k) => ({ x: (k.x - FREE.x) * ASPECT, y: k.y - FREE.y });
+
+test('a hand reaching out walks the knight: out to the side, up high is up, down low is down', () => {
+  for (const [reach, check] of [[[1.3, 0], (d) => d.x > 0.1], [[-1.3, 0], (d) => d.x < -0.1],
+                                [[0, -1.2], (d) => d.y < -0.1], [[0, 0.7], (d) => d.y > 0.06]]){
     const inst = quiet(), k = knight(inst);
-    put(k, 0.5, 0.5);
-    body(o); run(inst, 1.5);
-    assert.ok(check(k, 0.5, 0.5), `${JSON.stringify(o)} -> ${k.x.toFixed(2)}, ${k.y.toFixed(2)}`);
+    put(k, FREE.x, FREE.y);
+    body({ reach }); run(inst, 1.2);
+    const d = moved(k);
+    assert.ok(check(d), `${reach} -> ${d.x.toFixed(2)}, ${d.y.toFixed(2)}`);
   }
 });
 
-test('the knight learns how each child stands: a crooked stance, or shoulders the camera sees nearer, is no lean', () => {
-  for (const o of [{ lz: -0.9 }, { lean: 0.6 }, { lz: 0.7, lean: -0.5 }]){
-    body(o);
-    const inst = game.create(1); inst.breakT = 1e9;
-    const k = knight(inst); put(k, 0.5, 0.5);
-    run(inst, CALIB + 4, () => body(o));
-    assert.ok(Math.hypot(k.x - 0.5, k.y - 0.5) < 0.01, `${JSON.stringify(o)}: stays put (${k.x.toFixed(2)}, ${k.y.toFixed(2)})`);
-    run(inst, 1.5, () => body({ lean: o.lean ? o.lean + 1 : 1, lz: o.lz || 0 }));
-    assert.ok(k.x > 0.53, 'and a real lean, from there, still walks');
+test('hands by your sides, on your hips or near your chest go nowhere; so does running on the spot', () => {
+  const cases = [() => still(), () => body({ reach: [0.2, -0.1] }), () => body({ reach: [0.6, 0.92] }), marching({})];
+  for (const each of cases){
+    const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+    run(inst, 2, each);
+    assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002, String(each));
   }
 });
 
-test('while a child is new in, the knight waits a moment', () => {
-  body({ lean: 1 });
-  const inst = game.create(1); inst.breakT = 1e9;
-  const k = knight(inst); put(k, 0.5, 0.5);
-  run(inst, CALIB * 0.8, () => body({ lean: 1 }));
-  assert.ok(Math.abs(k.x - 0.5) < 1e-9);
+test('reaching further goes faster; running on the spot faster still, up to a run', () => {
+  const go = (each) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 1, each); return moved(k).x; };
+  const near = go(() => body({ reach: [0.6, 0] })), far = go(() => body({ reach: [1.3, 0] })), running = go(marching({ reach: [1.3, 0] }, 0.04));
+  assert.ok(far > near * 1.4, `${near.toFixed(3)} reaching a little, ${far.toFixed(3)} reaching out`);
+  assert.ok(running > far * 1.4, `${running.toFixed(3)} running`);
+  assert.ok(running <= RUN + 0.01, 'never faster than a run');
 });
 
-test('standing upright, or running on the spot upright, goes nowhere', () => {
-  const a = quiet(), ka = knight(a); put(ka, 0.5, 0.5);
-  run(a, 2);
-  assert.ok(Math.abs(ka.x - 0.5) < 0.001 && Math.abs(ka.y - 0.5) < 0.001, 'standing');
-  const b = quiet(), kb = knight(b); put(kb, 0.5, 0.5);
-  run(b, 2, marching({}));
-  assert.ok(Math.abs(kb.x - 0.5) < 0.001 && Math.abs(kb.y - 0.5) < 0.001, 'running on the spot');
+test('it takes a clear reach to set off, but a lighter one keeps it going', () => {
+  const mid = (HAND_START + HAND_KEEP) / 2;
+  const a = quiet(), ka = knight(a); put(ka, FREE.x, FREE.y);
+  run(a, 1, () => body({ reach: [mid, 0] }));
+  assert.ok(Math.abs(moved(ka).x) < 0.002, 'a light reach does not set off');
+  const b = quiet(), kb = knight(b); put(kb, FREE.x, FREE.y);
+  run(b, 0.5, () => body({ reach: [1, 0] }));
+  const x0 = moved(kb).x;
+  run(b, 1, () => body({ reach: [mid, 0] }));
+  assert.ok(moved(kb).x > x0 + 0.02, 'but keeps it walking');
 });
 
-test('running on the spot while leaning goes faster, up to a run', () => {
-  const walk = quiet(), kw = knight(walk); put(kw, 0.3, 0.5);
-  body({ lean: 1 }); run(walk, 1.5);
-  const runs = quiet(), kr = knight(runs); put(kr, 0.3, 0.5);
-  run(runs, 1.5, marching({ lean: 1 }, 0.04));
-  const dw = (kw.x - 0.3) * ASPECT, dr = (kr.x - 0.3) * ASPECT;
-  assert.ok(dw > WALK * 1.5 * 0.7, `walks: ${dw.toFixed(3)}`);
-  assert.ok(dr > dw * 1.6, `${dw.toFixed(3)} walking vs ${dr.toFixed(3)} running`);
-  assert.ok(dr <= RUN * 1.5 + 0.01, 'never faster than a run');
+test('rolling your arms or hugging never steers the knight', () => {
+  const r = quiet(), kr = knight(r); put(kr, FREE.x, FREE.y);
+  run(r, 2, rolling({}, 1.5, 0.12));
+  assert.ok(Math.hypot(moved(kr).x, moved(kr).y) < 0.01, 'rolling');
+  const h = quiet(), kh = knight(h); put(kh, FREE.x, FREE.y);
+  run(h, 2, () => body({ hug: true }));
+  assert.ok(Math.hypot(moved(kh).x, moved(kh).y) < 0.01, 'hugging');
+});
+
+test('aim assist: let go near a pad and the knight walks onto it', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x + SNAP_R * 0.7 / ASPECT, pad.y);
+  run(inst, 1.5);
+  assert.ok(Math.hypot((k.x - pad.x) * ASPECT, k.y - pad.y) < 0.01, 'on the pad');
+  assert.equal(k.at?.id, 'p2');
+});
+
+test('aim assist: reaching roughly toward a pad nearby bends the knight onto it', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.2 / ASPECT, pad.y + 0.05);
+  /* Reaching straight out to the right, the pad a little up and to the right. */
+  let closest = 9;
+  run(inst, 2, () => { body({ reach: [1.3, 0] }); closest = Math.min(closest, Math.hypot((k.x - pad.x) * ASPECT, k.y - pad.y)); });
+  assert.ok(closest < 0.04, `came within ${closest.toFixed(3)}`);
 });
 
 test('with the knees out of view, the ankles do the running', () => {
-  const walk = quiet(), kw = knight(walk); put(kw, 0.3, 0.5);
-  run(walk, 1.5, () => body({ lean: 1, knees: false }));
-  const runs = quiet(), kr = knight(runs); put(kr, 0.3, 0.5);
-  run(runs, 1.5, (t) => body({ lean: 1, knees: false, knee: Math.sin(t * Math.PI * 4) * 0.03 }));
-  assert.ok(kr.x - 0.3 > (kw.x - 0.3) * 1.6);
+  const go = (each) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 1, each); return moved(k).x; };
+  const walk = go(() => body({ reach: [1.3, 0], knees: false })), runs = go((t) => body({ reach: [1.3, 0], knees: false, knee: Math.sin(t * Math.PI * 4) * 0.03 }));
+  assert.ok(runs > walk * 1.4);
 });
 
 test('every child has a knight of their own, waiting side by side', () => {
@@ -415,8 +432,8 @@ test('squatting makes the work go twice as fast - bobbing squats, no need to hol
   assert.ok(!slow.towers.has(2), 'just standing there takes longer');
 });
 
-test('a little dip, running on the spot or leaning is not a squat', () => {
-  for (const each of [squats({}, 0.01), marching(), () => body({ lean: 1 }), () => body({ lz: -1 })]){
+test('a little dip, running on the spot or reaching out is not a squat', () => {
+  for (const each of [squats({}, 0.01), marching(), () => body({ reach: [1.3, 0] }), () => body({ reach: [0, -1.2] })]){
     const inst = quiet();
     run(inst, 2, each);
     assert.equal(inst.squatting(knight(inst)), false);
@@ -620,7 +637,7 @@ test('stepping out of the ring while the club is up gets away', () => {
   assert.equal(k.hp, KNIGHT_HP, 'missed');
   assert.ok(m.club > 0, 'and it has to wait to try again');
   assert.ok(WINDUP >= 1, 'time enough to walk out');
-  assert.ok(WALK * WINDUP > SLAM_R, 'even just leaning');
+  assert.ok(WALK * WINDUP > SLAM_R, 'even at a walk');
 });
 
 /* Knock knight i out, there and then. */
@@ -676,7 +693,7 @@ test('a frozen knight cannot walk, fight or build', () => {
   assert.ok(k.ice > 0);
   const slime = monster(inst, 'slime', nearestS(pad)); slime.hp = slime.max = 1e9;
   put(k, along(nearestS(pad)).x, along(nearestS(pad)).y);
-  body({ lean: 1 }); run(inst, 2);
+  body({ reach: [1.3, 0] }); run(inst, 2);
   assert.equal(slime.hp, slime.max, 'no sword');
   assert.ok(Math.abs(k.x - along(nearestS(pad)).x) < 1e-9, 'no walking');
   put(k, pad.x, pad.y); still(); run(inst, BUILD * 2);
@@ -718,7 +735,7 @@ test('an ogre that bonks a knight out leaves it lying there, levels and all', ()
   run(inst, (OGRE_CLUB + WINDUP) * (KNIGHT_HP - 1) + WINDUP + 0.3, () => still(2));
   assert.ok(k.down > 0, 'down');
   assert.equal(k.lvl, 7, 'its levels wait for it');
-  run(inst, 1, () => { still(2); body({ lean: 1, n: 2 }); });
+  run(inst, 1, () => { still(2); body({ reach: [1.3, 0], n: 2 }); });
   assert.ok(Math.abs(k.fell.x - k.x) < 1e-9, 'it goes nowhere while it lies there');
 });
 
@@ -742,7 +759,7 @@ test('a friend beside it and a real high five gets a knight up, right there, lev
   highFive(inst);
   assert.equal(k.down, 0, 'up');
   assert.equal(k.lvl, 6, 'levels kept');
-  assert.ok(Math.abs(k.x - 0.5) < 1e-9 && Math.abs(k.y - 0.5) < 1e-9, 'right where it fell');
+  assert.ok(Math.hypot((k.x - 0.5) * ASPECT, k.y - 0.5) < 0.02, 'right where it fell');
   assert.equal(k.hp, KNIGHT_HP);
   assert.ok(k.safe > 0 && inst.seen.revived);
 });
