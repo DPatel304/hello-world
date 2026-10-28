@@ -14,7 +14,24 @@ export const BONES = [
   [11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]
 ];
 
-const SMOOTH = 0.45;        /* lerp per detection; higher follows faster, jitters more */
+/* Steadying the landmarks: a One Euro filter on each - smoothing hard
+   while a point is nearly still, where the camera's jitter shows, and less
+   and less the faster it moves, so a quick reach isn't left behind. At rest
+   it filters at MIN_CUTOFF Hz; each screen-width a second of speed lifts
+   that by BETA Hz. */
+export const MIN_CUTOFF = 0.7, BETA = 6, D_CUTOFF = 0.4;
+const alpha = (cutoff, dt) => { const tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / Math.max(dt, 1e-3)); };
+/* One coordinate through the filter: f holds { x, dx } between frames. */
+export function oneEuro(f, x, dt){
+  if (f.x == null){ f.x = x; f.dx = 0; return x; }
+  const dx = (x - f.x) / Math.max(dt, 1e-3);
+  f.dx += (dx - f.dx) * alpha(D_CUTOFF, dt);
+  f.x += (x - f.x) * alpha(MIN_CUTOFF + BETA * Math.abs(f.dx), dt);
+  return f.x;
+}
+/* The hand that drives the cursor only changes when the other one is
+   clearly better seen - not back and forth every frame. */
+const HAND_SWAP = 0.2;
 const LOST_AFTER = 0.6;     /* seconds without a detection before a player counts as gone */
 
 /* Players and watchers. Everyone the camera can see is looked at, but only
@@ -364,14 +381,15 @@ export const pose = {
   },
 
   _apply(p, lm, dt){
-    if (!p.lm){ p.lm = lm.map(k => ({...k})); }
+    if (!p.lm){ p.lm = lm.map(k => ({...k})); p.filt = null; }
     else {
       for (let i = 0; i < lm.length; i++){
-        p.lm[i].x += (lm[i].x - p.lm[i].x) * SMOOTH;
-        p.lm[i].y += (lm[i].y - p.lm[i].y) * SMOOTH;
+        const f = (p.filt ||= [])[i] ||= { x: {}, y: {}, z: {} };
+        p.lm[i].x = oneEuro(f.x, lm[i].x, dt);
+        p.lm[i].y = oneEuro(f.y, lm[i].y, dt);
         /* Depth too - nearer the camera is smaller - for leaning toward or
            away from the screen. */
-        p.lm[i].z = (p.lm[i].z ?? 0) + ((lm[i].z ?? 0) - (p.lm[i].z ?? 0)) * SMOOTH;
+        p.lm[i].z = oneEuro(f.z, lm[i].z ?? 0, dt);
         p.lm[i].v  = lm[i].v;
       }
     }
@@ -422,7 +440,11 @@ export const pose = {
   cursorHand(p){
     const r = p.lm ? p.lm[L.R_WRIST] : null, l = p.lm ? p.lm[L.L_WRIST] : null;
     if (this.mouse.active) return p.hands.right;
-    if (r && l) return (r.v ?? 1) >= (l.v ?? 1) ? p.hands.right : p.hands.left;
+    if (r && l){
+      const rv = r.v ?? 1, lv = l.v ?? 1;
+      if (p.cursorSide === 'left' ? rv > lv + HAND_SWAP : p.cursorSide === 'right' ? lv > rv + HAND_SWAP : true) p.cursorSide = rv >= lv ? 'right' : 'left';
+      return p.cursorSide === 'left' ? p.hands.left : p.hands.right;
+    }
     return p.hands.right;
   },
 

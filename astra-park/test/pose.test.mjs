@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pose, L, seated, onePerPerson, faceSeen, WATCH_AFTER, JOIN_AFTER } from '../src/tracking/pose.js';
+import { pose, L, seated, onePerPerson, faceSeen, oneEuro, WATCH_AFTER, JOIN_AFTER } from '../src/tracking/pose.js';
 
 /* A full set of landmarks, all plainly visible, with named overrides. */
 function body(over = {}){
@@ -378,4 +378,39 @@ test('depth is followed too, so leaning toward the screen can be seen', () => {
   near[L.L_SHOULDER] = { ...near[L.L_SHOULDER], z: -0.2 }; near[L.R_SHOULDER] = { ...near[L.R_SHOULDER], z: -0.2 };
   for (let t = 0; t < 0.5; t += 0.05) see([near]);
   assert.ok(pose.players[0].lm[L.L_SHOULDER].z < -0.15, `z ${pose.players[0].lm[L.L_SHOULDER].z}`);
+});
+
+/* ---------- steadiness ---------- */
+
+test('a hand held still is steadied: the camera\'s jitter mostly filtered out', () => {
+  const f = {}, dt = 1 / 30, out = [];
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+  for (let i = 0; i < 120; i++) out.push(oneEuro(f, 0.5 + rnd() * 0.02, dt));
+  const tail = out.slice(60), spread = Math.max(...tail) - Math.min(...tail);
+  assert.ok(spread < 0.02 * 0.35, `jitter of 0.02 steadied to ${spread.toFixed(4)}`);
+});
+
+test('a quick reach is followed closely, not left behind', () => {
+  const f = {}, dt = 1 / 30;
+  let x = 0.2, y;
+  for (let i = 0; i < 10; i++) oneEuro(f, x, dt);
+  /* Across a third of the screen in a third of a second. */
+  for (let i = 0; i < 10; i++){ x += 0.033; y = oneEuro(f, x, dt); }
+  assert.ok(Math.abs(y - x) < 0.06, `lagging ${Math.abs(y - x).toFixed(3)} behind`);
+  for (let i = 0; i < 8; i++) y = oneEuro(f, x, dt);
+  assert.ok(Math.abs(y - x) < 0.01, 'and settles on it');
+});
+
+test('the cursor stays on one hand when both are about as clearly seen', () => {
+  const p = freshPlayer();
+  p.hands.left = { x: 0.3, y: 0.5 }; p.hands.right = { x: 0.7, y: 0.5 };
+  const picks = new Set();
+  for (let i = 0; i < 20; i++){
+    p.lm[L.R_WRIST].v = 0.8 + (i % 2) * 0.05; p.lm[L.L_WRIST].v = 0.82 - (i % 2) * 0.05;
+    picks.add(pose.cursorHand(p));
+  }
+  assert.equal(picks.size, 1);
+  p.lm[L.L_WRIST].v = 0.95; p.lm[L.R_WRIST].v = 0.3;
+  pose.mouse.active = false;
+  assert.equal(pose.cursorHand(p), p.hands.left, 'one clearly better seen: that one');
 });
