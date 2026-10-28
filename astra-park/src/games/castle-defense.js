@@ -159,6 +159,10 @@ export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
    jump builds it, if there are the coins. Just standing there only shows
    the tower it would be. (With the mouse, standing there builds it.) */
 export const ARMS_APART = 1.2, ARMS_HOLD = 0.3;
+/* The party at the end: it starts PARTY_AT seconds after the castle falls;
+   pennants fly up FLAG_GAP apart (quicker for a long run, all in within
+   FLAGS_IN), stars STAR_GAP apart, then a CHEER_FOR seconds' cheer. */
+export const PARTY_AT = 1.6, FLAG_GAP = 0.25, FLAGS_IN = 5, STAR_GAP = 0.15, CHEER_FOR = 3.5;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first),
    and for the last DRUMS seconds of it a war drum beats. */
 export const BUILD_TIME = 15, FIRST_BUILD = 20, DRUMS = 3;
@@ -438,6 +442,7 @@ class CastleDefense {
       k.glow = Math.max(0, k.glow - dt);
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
+      if (on) k.played = true;
       if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; k.mode = k.goal = k.room = k.anchor = null; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
@@ -712,7 +717,7 @@ class CastleDefense {
     if (!k || k.lvl >= KNIGHT_MAX) return;
     k.xp += MONSTERS[m.kind].coins * (m.red ? RED.coins : 1);
     while (k.lvl < KNIGHT_MAX && k.xp >= killsFor(k.lvl)){
-      k.xp -= killsFor(k.lvl); k.lvl++; k.glow = 1;
+      k.xp -= killsFor(k.lvl); k.lvl++; k.glow = 1; k.best = Math.max(k.best || 0, k.lvl);
       sfx.twinkle();
       for (let q = 0; q < 16; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.6, q % 2 ? '#ffd24a' : PLAYER_COLORS[i]);
     }
@@ -1005,6 +1010,7 @@ class CastleDefense {
     this.coins -= COST[kind];
     this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0, hp: TOWER_HP[0], max: TOWER_HP[0], hit: 0, born: 0 });
     this.seen.built = true;
+    if (this.knights[who]) this.knights[who].builds = (this.knights[who].builds || 0) + 1;
     sfx.land();
     const pad = PADS[i];
     for (let k = 0; k < 14; k++) this._spark(pad.x, pad.y - 0.04, '#ffd24a');
@@ -1172,12 +1178,22 @@ class CastleDefense {
     return this.knights.slice(0, this.players).find((k, i) => pose.players[i].present && !(k.down > 0) && k.sword > 0) || null;
   }
 
-  /* ---------- the ending ---------- */
+  /* ---------- the ending ----------
+     The castle falls - and then it's a party for what the team did. The
+     picture dims, and every knight that played marches up to the front,
+     big, with the best sword it ever had. Over them, a string of bunting,
+     a pennant flying up for every wave held off; under each, a star for
+     every tower it built. A cheer, and on to the scores. */
 
+  get team(){ return this.knights.map((k, i) => ({ k, i })).filter(({ k, i }) => i < this.players && k.played); }
   outro(dt, W, H){
     if (!this.out){
-      this.out = { t: 0 };
-      if (this.lost) sfx.lose(); else sfx.fanfare();
+      const team = this.team;
+      this.out = { t: 0, flags: 0, stars: 0, cheered: false,
+                   /* A pennant every FLAG_GAP - quicker for a long run, so it never drags. */
+                   gap: Math.min(FLAG_GAP, FLAGS_IN / Math.max(1, this.held)),
+                   starsOf: team.map(({ k }) => k.builds || 0) };
+      if (this.lost){ sfx.lose(); this.jolt(0.8); } else sfx.fanfare();
       this.shots = [];
     }
     const o = this.out;
@@ -1186,8 +1202,63 @@ class CastleDefense {
        scurry home. */
     for (const m of this.monsters){ m.hurt = 0; if (!this.lost) m.s = Math.max(0, m.s - dt * 0.3); }
     if (!this.lost && Math.random() < dt * 25) this._spark(Math.random(), Math.random() * 0.6, `hsl(${(Math.random() * 360) | 0},90%,65%)`);
+    /* The bunting, a pennant at a time, each a note higher. */
+    const flagsFrom = PARTY_AT + 0.8;
+    while (o.flags < this.held && o.t >= flagsFrom + o.flags * o.gap){ sfx.pennant(o.flags); o.flags++; }
+    /* Then the stars, a knight at a time. */
+    const starsFrom = flagsFrom + this.held * o.gap + 0.4, all = o.starsOf.reduce((a, b) => a + b, 0);
+    while (o.stars < all && o.t >= starsFrom + o.stars * STAR_GAP){ sfx.bloom(o.stars); o.stars++; }
+    const doneAt = starsFrom + all * STAR_GAP;
+    if (!o.cheered && o.t >= doneAt){ o.cheered = true; sfx.hooray(); for (let q = 0; q < 40; q++) this._spark(0.2 + Math.random() * 0.6, 0.3 + Math.random() * 0.4, q % 2 ? '#ffd24a' : '#fff6e2'); }
     this._stepBits(dt);
-    return o.t > 4.5;
+    return o.t > doneAt + CHEER_FOR;
+  }
+
+  /* The party: the team up front, the bunting over them, their stars. */
+  _drawParty(c, W, H){
+    const o = this.out, u = clamp((o.t - PARTY_AT) / 0.8, 0, 1);
+    if (u <= 0) return;
+    c.save();
+    c.fillStyle = `rgba(30,24,48,${0.55 * u})`; c.fillRect(0, 0, W, H);
+    /* Bunting: rows of pennants on a string, swinging a little. */
+    const per = 16, rows = Math.ceil(this.held / per);
+    for (let r = 0; r < rows; r++){
+      const n = Math.min(per, this.held - r * per), y0 = H * (0.16 + r * 0.09), x0 = W * 0.1, x1 = W * 0.9;
+      const sag = (x) => y0 + Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * H * 0.03;
+      c.globalAlpha = u; c.strokeStyle = '#fff6e2'; c.lineWidth = H * 0.003;
+      c.beginPath(); for (let x = x0; x <= x1; x += W * 0.02) c.lineTo(x, sag(x)); c.stroke();
+      for (let q = 0; q < n; q++){
+        const f = r * per + q;
+        if (f >= o.flags) break;
+        const age = o.t - (PARTY_AT + 0.8 + f * o.gap), pop = clamp(age / 0.25, 0, 1), sw = Math.sin(this.t * 3 + f) * 0.08;
+        const x = x0 + (q + 0.5) / per * (x1 - x0), y = sag(x), w = (x1 - x0) / per * 0.42 * pop, h = H * 0.05 * pop;
+        c.save(); c.translate(x, y); c.rotate(sw);
+        c.fillStyle = PLAYER_COLORS[f % PLAYER_COLORS.length];
+        c.beginPath(); c.moveTo(-w, 0); c.lineTo(w, 0); c.lineTo(0, h); c.closePath(); c.fill();
+        c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.moveTo(-w, 0); c.lineTo(-w * 0.2, 0); c.lineTo(-w * 0.1, h * 0.6); c.closePath(); c.fill();
+        c.restore();
+      }
+    }
+    /* The team, marching up to the front, then cheering. */
+    const team = this.team, size = KNIGHT_SIZE * H * 2.3, gap = Math.min(W * 0.2, W * 0.8 / Math.max(1, team.length));
+    let star0 = 0;
+    team.forEach(({ k, i }, n) => {
+      const x = W / 2 + (n - (team.length - 1) / 2) * gap, y = H * (0.82 + 0.4 * (1 - u) * (1 - u));
+      const cheer = u >= 1 ? Math.abs(Math.sin(this.t * 5 + n)) * size * 0.12 : 0, best = Math.max(k.best || 0, k.lvl);
+      c.globalAlpha = 1;
+      inked(c, H * 0.004, () => drawKnight(c, x, y - cheer, size, this.t + i, PLAYER_COLORS[i], n % 2 ? -1 : 1, u < 1 ? 1 : 0, 0, (fx, fy, r) => {
+        if (this.faces.has(i)) this.faces.draw(c, i, fx, fy, r);
+        else drawKid(c, fx, fy + r * 0.1, r, this.t + i, KID_SKINS[i]);
+      }, u >= 1 ? Math.max(0, Math.sin(this.t * 5 + n)) * 0.6 : 0, swordAt(best).size, best >= KNIGHT_MAX ? '#ffd24a' : '#dfe3ee'));
+      /* A star for every tower it built. */
+      const mine = o.starsOf[n], shown = clamp(o.stars - star0, 0, mine);
+      for (let q = 0; q < shown; q++){
+        const per2 = 8, row = Math.floor(q / per2), col = q % per2, m = Math.min(per2, mine - row * per2);
+        star(c, x + (col - (m - 1) / 2) * H * 0.03, y + H * (0.05 + row * 0.03), H * 0.012, '#ffd24a');
+      }
+      star0 += mine;
+    });
+    c.restore();
   }
 
   /* ---------- drawing ---------- */
@@ -1339,6 +1410,7 @@ class CastleDefense {
     this._drawBits(c, W, H);
     drawLight(c, W, H);
     c.restore();
+    if (this.out) this._drawParty(c, W, H);
     if (!this.out){
       this._drawTowerBars(c, W, H);
       this._drawWork(c, W, H);
