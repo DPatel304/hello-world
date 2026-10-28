@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawTent, drawVeggies, TENT, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawTent, TENT, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -71,8 +71,14 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    LEAN_X shoulder-widths for full lean, or toward or away from the screen,
    LEAN_Z; a little lean is no lean (LEAN_DEAD) - at WALK, and running on
    the spot (knees at MARCH_FULL torso-lengths a second) hurries them up to
-   RUN. With the mouse, the knight walks to where the pointer rests. */
-export const MARCH_FULL = 1.2, LEAN_X = 0.3, LEAN_Z = 0.35, LEAN_DEAD = 0.25;
+   RUN. With the mouse, the knight walks to where the pointer rests.
+
+   Leaning is measured from how each child stands when they're just
+   standing: people stand a little crooked, and the camera often sees
+   shoulders a little nearer than hips. For the first CALIB seconds a child
+   is in, their knight waits while it learns how they stand; after that the
+   standing pose keeps following them, very slowly (NEUTRAL_FOLLOW). */
+export const MARCH_FULL = 1.2, LEAN_X = 0.3, LEAN_Z = 0.45, LEAN_DEAD = 0.25, CALIB = 1.2, NEUTRAL_FOLLOW = 25;
 export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
 export const KNIGHT_SPEED = RUN;
 /* The sword: swung by itself at a monster within reach - ROLL_FAST times as
@@ -341,7 +347,7 @@ class CastleDefense {
       k.glow = Math.max(0, k.glow - dt);
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
-      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; continue; }
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.stand = null; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
@@ -390,7 +396,18 @@ class CastleDefense {
     const sx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, hx = (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2;
     const sz = ((lm[L.L_SHOULDER].z ?? 0) + (lm[L.R_SHOULDER].z ?? 0)) / 2, hz = ((lm[L.L_HIP].z ?? 0) + (lm[L.R_HIP].z ?? 0)) / 2;
     const sw = Math.abs(lm[L.L_SHOULDER].x - lm[L.R_SHOULDER].x) || 0.05;
-    const lx = clamp((sx - hx) / sw / LEAN_X, -1, 1), ly = clamp((sz - hz) / sw / LEAN_Z, -1, 1);
+    const rx = (sx - hx) / sw, rz = (sz - hz) / sw;
+    /* How this child stands: learnt over their first moments, then slowly
+       kept up with. */
+    if (!k.stand) k.stand = { x: rx, z: rz, t: 0 };
+    const st = k.stand;
+    st.t += dt;
+    if (st.t < CALIB){
+      st.x += (rx - st.x) * Math.min(1, dt * 4); st.z += (rz - st.z) * Math.min(1, dt * 4);
+      k.lean = null; k.vx = k.vy = 0; return;
+    }
+    st.x += (rx - st.x) * Math.min(1, dt / NEUTRAL_FOLLOW); st.z += (rz - st.z) * Math.min(1, dt / NEUTRAL_FOLLOW);
+    const lx = clamp((rx - st.x) / LEAN_X, -1, 1), ly = clamp((rz - st.z) / LEAN_Z, -1, 1);
     const mag = Math.hypot(lx, ly);
     if (mag < LEAN_DEAD){ k.lean = null; k.vx = k.vy = 0; return; }
     const pull = Math.min(1, (mag - LEAN_DEAD) / (1 - LEAN_DEAD)), ux = lx / mag, uy = ly / mag;
@@ -933,7 +950,6 @@ class CastleDefense {
     if (this.shake > 0){ const a = this.shake * this.shake * H * 0.012; c.translate((Math.random() - 0.5) * a * 2, (Math.random() - 0.5) * a * 2); }
     drawMeadow(c, W, H);
     /* The jungle, soft and in the background, swaying. */
-    drawVeggies(c, W, H, this.t);
     for (const tr of TREES) drawTree(c, W, H, tr, this.leanOf(tr));
     /* The medical tent, glowing while a knight is hurt. */
     const hurt = !this.out && this.knights.slice(0, this.players).some((k, i) => pose.players[i].present && !(k.down > 0) && k.hp < KNIGHT_HP);
@@ -1149,7 +1165,7 @@ class CastleDefense {
          crossing over its chest - a hug. */
       if (k.hp < KNIGHT_HP && !(k.down > 0)){
         if (!this.atTent(k)){
-          c.save(); c.fillStyle = '#e6ffe9';
+          c.save(); c.fillStyle = '#ffe6e6';
           const tx = TENT.x, ty = TENT.y + 0.02;
           for (let q = 1; q < 9; q++){ const u = q / 9; c.globalAlpha = 0.2 + 0.55 * Math.max(0, Math.sin(this.t * 4 - q * 0.6)); c.beginPath(); c.arc((k.x + (tx - k.x) * u) * W, (k.y + (ty - k.y) * u) * H, H * 0.006, 0, 6.2832); c.fill(); }
           c.restore();

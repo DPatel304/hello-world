@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+               WALK, RUN, CALIB, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
                TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
@@ -77,7 +77,13 @@ function mouse(x, y, speed = 0){
 
 /* A quiet castle: no waves coming unless a test starts one, and `n`
    children standing still. */
-function quiet(n = 1){ if (n) still(n); else none(); const inst = game.create(Math.max(1, n)); inst.breakT = 1e9; inst.quiet = true; return inst; }
+function quiet(n = 1){
+  if (n) still(n); else none();
+  const inst = game.create(Math.max(1, n)); inst.breakT = 1e9; inst.quiet = true;
+  /* The knights learn how the children stand before anything else. */
+  if (n) for (let f = 0; f < Math.round((CALIB + 0.05) / DT); f++) inst.step(DT, W, H);
+  return inst;
+}
 const knight = (inst, i = 0) => inst.knights[i];
 const put = (k, x, y) => { k.x = k.tx = x; k.y = k.ty = y; };
 /* Build without the first tower calling the first wave. */
@@ -121,6 +127,26 @@ test('leaning walks the knight: right, left, toward the screen is up, back is do
     body(o); run(inst, 1.5);
     assert.ok(check(k, 0.5, 0.5), `${JSON.stringify(o)} -> ${k.x.toFixed(2)}, ${k.y.toFixed(2)}`);
   }
+});
+
+test('the knight learns how each child stands: a crooked stance, or shoulders the camera sees nearer, is no lean', () => {
+  for (const o of [{ lz: -0.9 }, { lean: 0.6 }, { lz: 0.7, lean: -0.5 }]){
+    body(o);
+    const inst = game.create(1); inst.breakT = 1e9;
+    const k = knight(inst); put(k, 0.5, 0.5);
+    run(inst, CALIB + 4, () => body(o));
+    assert.ok(Math.hypot(k.x - 0.5, k.y - 0.5) < 0.01, `${JSON.stringify(o)}: stays put (${k.x.toFixed(2)}, ${k.y.toFixed(2)})`);
+    run(inst, 1.5, () => body({ lean: o.lean ? o.lean + 1 : 1, lz: o.lz || 0 }));
+    assert.ok(k.x > 0.53, 'and a real lean, from there, still walks');
+  }
+});
+
+test('while a child is new in, the knight waits a moment', () => {
+  body({ lean: 1 });
+  const inst = game.create(1); inst.breakT = 1e9;
+  const k = knight(inst); put(k, 0.5, 0.5);
+  run(inst, CALIB * 0.8, () => body({ lean: 1 }));
+  assert.ok(Math.abs(k.x - 0.5) < 1e-9);
 });
 
 test('standing upright, or running on the spot upright, goes nowhere', () => {

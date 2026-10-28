@@ -12,7 +12,7 @@ import { DRAW } from '../games/copycat-art.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
 import { P as forestP, RUN as FOREST_RUN, drawForest, drawLeaves, drawTree, drawLog, drawCrystal, drawFox, drawRunner } from '../games/forest-art.js';
-import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster, drawTree as drawCastleTree, TREES, drawTent, drawVeggies, inked } from '../games/castle-art.js';
+import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster, drawTree as drawCastleTree, TREES, drawTent, inked } from '../games/castle-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
 const hash = (i, k = 1) => (((i + 1) * 2654435761 * k) % 4294967296) / 4294967296;
@@ -116,7 +116,6 @@ function forestRun(){
 function castleDefense(){
   return (c, W, H, t) => {
     drawMeadow(c, W, H);
-    drawVeggies(c, W, H, t);
     for (const tr of TREES) drawCastleTree(c, W, H, tr, Math.sin(t * 1.2 + tr.seed) * 0.025);
     inked(c, H * 0.0024, () => drawTent(c, W, H, t));
     const things = [];
