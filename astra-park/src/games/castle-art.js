@@ -124,32 +124,30 @@ function nearPath(x, y, d){
   return PATHS.some(P => P.pts.some(([px, py]) => Math.hypot((px - x) * ASPECT, py - y) < d));
 }
 
-/* Scenery on the quiet left side of the meadow: a windmill, its sails
-   turning slowly, and a vegetable patch beside it. Soft like the trees. */
-export const WINDMILL = { x: 0.075, y: 0.66 }, VEGGIES = { x: 0.235, y: 0.61 };
-export function drawWindmill(c, W, H, t, lean = 0){
-  const x = WINDMILL.x * W, y = WINDMILL.y * H, s = H * 0.2;
-  c.save(); c.translate(x, y); c.rotate(lean * 0.3); c.translate(-x, -y);
-  c.fillStyle = 'rgba(40,80,40,.14)'; c.beginPath(); c.ellipse(x + s * 0.1, y + s * 0.04, s * 0.42, s * 0.1, 0, 0, 6.2832); c.fill();
-  /* The tower, tapering, with a door and a window. */
-  c.fillStyle = '#efe2c8'; c.beginPath(); c.moveTo(x - s * 0.26, y); c.lineTo(x - s * 0.17, y - s * 0.8); c.lineTo(x + s * 0.17, y - s * 0.8); c.lineTo(x + s * 0.26, y); c.closePath(); c.fill();
-  c.fillStyle = '#ddcdaf'; c.beginPath(); c.moveTo(x - s * 0.26, y); c.lineTo(x - s * 0.17, y - s * 0.8); c.lineTo(x - s * 0.1, y - s * 0.8); c.lineTo(x - s * 0.15, y); c.closePath(); c.fill();
-  c.fillStyle = '#a77d5c'; c.beginPath(); c.moveTo(x - s * 0.07, y); c.lineTo(x - s * 0.07, y - s * 0.14); c.arc(x, y - s * 0.14, s * 0.07, Math.PI, 0); c.lineTo(x + s * 0.07, y); c.closePath(); c.fill();
-  c.fillStyle = '#8e7a96'; c.beginPath(); c.arc(x, y - s * 0.46, s * 0.05, 0, 6.2832); c.fill();
-  /* The cap. */
-  c.fillStyle = '#c9776a'; c.beginPath(); c.moveTo(x - s * 0.22, y - s * 0.78); c.quadraticCurveTo(x, y - s * 1.08, x + s * 0.22, y - s * 0.78); c.closePath(); c.fill();
-  /* Four sails, turning. */
-  const hx = x, hy = y - s * 0.78, a0 = t * 0.6;
-  for (let k = 0; k < 4; k++){
-    const a = a0 + k * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
-    c.strokeStyle = '#9a7a5c'; c.lineWidth = s * 0.025; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + ca * s * 0.5, hy + sa * s * 0.5); c.stroke();
-    c.fillStyle = 'rgba(250,244,230,.92)'; c.beginPath();
-    const px = -sa, py = ca;
-    c.moveTo(hx + ca * s * 0.14, hy + sa * s * 0.14); c.lineTo(hx + ca * s * 0.48, hy + sa * s * 0.48);
-    c.lineTo(hx + ca * s * 0.48 + px * s * 0.12, hy + sa * s * 0.48 + py * s * 0.12); c.lineTo(hx + ca * s * 0.14 + px * s * 0.1, hy + sa * s * 0.14 + py * s * 0.1); c.closePath(); c.fill();
+/* The quiet left side of the meadow: the medical tent, where a hurt
+   knight goes to get better, and a vegetable patch beside it. */
+export const TENT = { x: 0.08, y: 0.66 }, VEGGIES = { x: 0.235, y: 0.61 };
+/* glow: 0..1, the ground round it lit up, calling a hurt knight over. */
+export function drawTent(c, W, H, t, glow = 0){
+  const x = TENT.x * W, y = TENT.y * H, s = H * 0.17;
+  if (glow > 0){
+    const g = c.createRadialGradient(x, y, s * 0.2, x, y, s * 0.9);
+    g.addColorStop(0, `rgba(190,255,200,${0.55 * glow})`); g.addColorStop(1, 'rgba(190,255,200,0)');
+    c.fillStyle = g; c.beginPath(); c.ellipse(x, y, s * 0.9, s * 0.45, 0, 0, 6.2832); c.fill();
   }
-  c.fillStyle = '#7a5a40'; c.beginPath(); c.arc(hx, hy, s * 0.04, 0, 6.2832); c.fill();
-  c.restore();
+  c.fillStyle = 'rgba(40,80,40,.2)'; c.beginPath(); c.ellipse(x + s * 0.06, y + s * 0.02, s * 0.62, s * 0.14, 0, 0, 6.2832); c.fill();
+  /* The canvas: a ridge tent seen from the front, a shaded side. */
+  c.fillStyle = '#e9e4da'; c.beginPath(); c.moveTo(x - s * 0.58, y); c.lineTo(x - s * 0.1, y - s * 0.72); c.lineTo(x + s * 0.12, y - s * 0.72); c.lineTo(x + s * 0.62, y); c.closePath(); c.fill();
+  c.fillStyle = '#ffffff'; c.beginPath(); c.moveTo(x - s * 0.48, y); c.lineTo(x, y - s * 0.74); c.lineTo(x + s * 0.48, y); c.closePath(); c.fill();
+  /* The door, flaps tied back. */
+  c.fillStyle = '#5a4f66'; c.beginPath(); c.moveTo(x - s * 0.16, y); c.lineTo(x, y - s * 0.36); c.lineTo(x + s * 0.16, y); c.closePath(); c.fill();
+  /* The sign over the door: a white plus on green. */
+  const by = y - s * 0.5, b = s * 0.14;
+  c.fillStyle = '#3cb85c'; c.beginPath(); c.roundRect(x - b, by - b, b * 2, b * 2, b * 0.3); c.fill();
+  c.fillStyle = '#ffffff'; c.fillRect(x - b * 0.62, by - b * 0.2, b * 1.24, b * 0.4); c.fillRect(x - b * 0.2, by - b * 0.62, b * 0.4, b * 1.24);
+  /* A little pennant on the pole. */
+  c.strokeStyle = '#8a6a4c'; c.lineWidth = Math.max(1.5, s * 0.025); c.beginPath(); c.moveTo(x, y - s * 0.74); c.lineTo(x, y - s * 0.98); c.stroke();
+  c.fillStyle = '#3cb85c'; c.beginPath(); c.moveTo(x, y - s * 0.98); c.lineTo(x + s * 0.2, y - s * 0.92 + Math.sin(t * 4) * s * 0.02); c.lineTo(x, y - s * 0.86); c.closePath(); c.fill();
 }
 export function drawVeggies(c, W, H, t){
   const x = VEGGIES.x * W, y = VEGGIES.y * H, w = H * 0.15, h = H * 0.08;
@@ -178,7 +176,7 @@ export const TREES = (() => {
     /* Clear of the trail, the pads (towers grow tall), the castle as big as
        it gets, the chest and the war horn. */
     if (nearPath(x, y, bush ? 0.075 : 0.095) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.11 || (Math.abs(p.x - x) * ASPECT < 0.09 && y < p.y && y > p.y - 0.24))) continue;
-    if (Math.hypot((x - WINDMILL.x) * ASPECT, y - WINDMILL.y + 0.08) < 0.17 + r || Math.hypot((x - VEGGIES.x) * ASPECT, y - VEGGIES.y) < 0.12 + r) continue;
+    if (Math.hypot((x - TENT.x) * ASPECT, y - TENT.y + 0.06) < 0.17 + r || Math.hypot((x - VEGGIES.x) * ASPECT, y - VEGGIES.y) < 0.12 + r) continue;
     if ((Math.abs(x - CASTLE.x) < CASTLE.w / 2 + 0.03 && y > CASTLE_BASE - 0.42) || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.12 || Math.hypot((x - 0.06) * ASPECT, y - r * 0.7 - 0.34) < 0.1 + r) continue;
     if (out.some(t => Math.hypot((t.x - x) * ASPECT, t.y - y) < (t.r + r) * 0.75)) continue;
     out.push({ x, y, r, bush, seed: i });

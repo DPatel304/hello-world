@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawWindmill, drawVeggies, WINDMILL, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawTent, drawVeggies, TENT, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -25,7 +25,8 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, tow
    castle starts out small, with only a few hearts: stand at it and the
    knight mends them, or once it's whole, slowly builds it a little bigger,
    with two more. Squatting makes any of that go twice as fast, and the
-   knight bangs away with its hammer. Give yourself a hug to heal it.
+   knight bangs away with its hammer. Hurt? Walk to the medical tent and
+   give yourself a hug.
    Monsters drop coins into the treasure chest; new towers cost coins,
    building them up and mending is free - it only takes time.
 
@@ -58,10 +59,12 @@ export const BUILD = 2.5, REPAIR = 4, TOWER_FIX = 3, SQUAT_FAST = 2;
    Bobbing up and down keeps it going - it counts for SQUAT_HOLD seconds
    after each time down - so nobody has to hold one. */
 export const SQUAT_DROP = 0.15, SQUAT_HOLD = 0.8;
-/* A hug: arms crossed over the chest, each hand within HUG_NEAR shoulder
-   widths of the other shoulder, for HUG_SETTLE seconds; while it lasts a
-   hurt knight gets a bonk's worth back every HUG_MEND seconds. */
-export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3, HUG_MEND = 1;
+/* Getting better: a hurt knight walks to the medical tent (within TENT_R of
+   it) and the child gives themselves a hug - arms crossed over the chest,
+   each hand within HUG_NEAR shoulder widths of the other shoulder, for
+   HUG_SETTLE seconds; while it lasts the knight gets a bonk's worth back
+   every HUG_MEND seconds. Nowhere else, and not on its own. */
+export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3, HUG_MEND = 1, TENT_R = 0.11;
 export const upgradeTime = (lvl) => 5 + 2 * lvl, castleTime = (lvl) => 7 + 2 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
 /* Knights. Leaning walks them - shoulders over to one side of the hips,
@@ -92,9 +95,8 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
    club high over its head and a warning ring spreads on the ground round
    it, and only after WINDUP seconds does the club come down - on whoever is
    still inside the ring. Then OGRE_CLUB seconds before it can try again.
-   A knight takes KNIGHT_HP bonks, getting its breath back after a while (a
-   bonk's worth every KNIGHT_MEND seconds, once clear). Nothing else harms a
-   knight.
+   A knight takes KNIGHT_HP bonks, and only gets better at the medical tent.
+   Nothing else harms a knight.
 
    Bonked out, a knight lies there seeing stars - for as long as it takes a
    friend to come and get it up: their knight walks over to it (within
@@ -105,7 +107,7 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
    knight is down does nobody need to: after ALL_DOWN seconds they're all
    back at the castle - but back to the very start, every level lost. Just
    up, a knight is safe for SAFE seconds. */
-export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, KNIGHT_MEND = 3, SAFE = 3;
+export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SAFE = 3;
 export const REVIVE_R = 0.18, HIGH_FIVE = 0.2, ALL_DOWN = 10;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first), or
@@ -344,9 +346,6 @@ class CastleDefense {
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
       if (k.ice > 0){ k.vx = k.vy = 0; k.at = null; k.walk = 0; this._wiggle(i, k, p, dt); continue; }
-      /* Getting its breath back, away from ogres. */
-      k.calm += dt;
-      if (k.hp < KNIGHT_HP && k.calm > KNIGHT_MEND){ k.hp++; k.calm = 0; }
       if (pose.mouse.active){
         /* The mouse: walk to where the pointer rests. */
         const h = p.hands.right;
@@ -359,8 +358,8 @@ class CastleDefense {
         this._drive(k, p, dt);
         this._rollWatch(k, p, dt);
         this._squatWatch(k, p, dt);
-        this._hugWatch(i, k, p, dt);
       }
+      this._hugWatch(i, k, p, dt);
       /* Walk: vx and vy are screen heights a second. */
       k.x = clamp(k.x + k.vx / ASPECT * dt, 0.02, 0.98); k.y = clamp(k.y + k.vy * dt, 0.06, 0.97);
       const sp = Math.hypot(k.vx, k.vy);
@@ -424,13 +423,16 @@ class CastleDefense {
       return near(L.L_WRIST, L.R_SHOULDER) < HUG_NEAR * sw && near(L.R_WRIST, L.L_SHOULDER) < HUG_NEAR * sw;
     })();
     k.hugT = hug ? k.hugT + dt : 0;
-    if (!this.hugging(k) || k.hp >= KNIGHT_HP){ k.hugHeal = 0; return; }
+    /* Only at the medical tent. (With the mouse, standing there is enough.) */
+    const healing = this.atTent(k) && (this.hugging(k) || pose.mouse.active);
+    if (!healing || k.hp >= KNIGHT_HP){ k.hugHeal = 0; return; }
     this.seen.hugged = true;
     k.hugHeal += dt;
     if (Math.random() < dt * 6) this.bits.push({ kind: 'heart', x: k.x + (Math.random() - 0.5) * 0.02, y: k.y - KNIGHT_SIZE * 0.9, vx: 0, vy: -0.06, age: 0, life: 0.9 });
     if (k.hugHeal >= HUG_MEND){ k.hugHeal = 0; k.hp++; k.calm = 0; sfx.jar(k.hp); }
   }
   hugging(k){ return k.hugT >= HUG_SETTLE; }
+  atTent(k){ return Math.hypot((TENT.x - k.x) * ASPECT, TENT.y + 0.02 - k.y) < TENT_R; }
 
   /* Rolling the arms: how far the line from one hand to the other has turned
      round lately, one way. */
@@ -932,8 +934,10 @@ class CastleDefense {
     drawMeadow(c, W, H);
     /* The jungle, soft and in the background, swaying. */
     drawVeggies(c, W, H, this.t);
-    drawWindmill(c, W, H, this.t, this.leanOf({ x: WINDMILL.x, y: WINDMILL.y, seed: 3, bush: true }));
     for (const tr of TREES) drawTree(c, W, H, tr, this.leanOf(tr));
+    /* The medical tent, glowing while a knight is hurt. */
+    const hurt = !this.out && this.knights.slice(0, this.players).some((k, i) => pose.players[i].present && !(k.down > 0) && k.hp < KNIGHT_HP);
+    inked(c, H * 0.0024, () => drawTent(c, W, H, this.t, hurt ? 0.6 + 0.4 * Math.sin(this.t * 4) : 0));
     /* Butterflies flitting over the meadow. */
     for (let q = 0; q < 5; q++){
       const u = this.t * 0.03 + q * 0.21, bx = (0.15 + 0.7 * ((Math.sin(u * 2.1 + q) + 1) / 2)), by = 0.12 + 0.7 * ((Math.sin(u * 1.3 + q * 2.4) + 1) / 2);
@@ -1141,11 +1145,18 @@ class CastleDefense {
         const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
         c.save(); c.globalAlpha = 0.8; arrow(c, x + s * 0.8, y - s * 1.1 + b, 0, 1, s * 0.3, '#fff6e2'); c.restore();
       }
-      /* Hugging: a hurt knight, until someone has hugged - two ghostly hands
-         crossing over its chest. */
-      if (!this.seen.hugged && !pose.mouse.active && k.hp < KNIGHT_HP && !(k.down > 0)){
-        const u = Math.abs(Math.sin(this.t * 2.5)), cx = x, cy = y - s * 0.55;
-        ghost(cx - s * (0.55 - 0.85 * u), cy - s * 0.1 * u, 0.8); ghost(cx + s * (0.55 - 0.85 * u), cy - s * 0.1 * u, 0.8);
+      /* Hurt: a trail of dots to the medical tent; there, two ghostly hands
+         crossing over its chest - a hug. */
+      if (k.hp < KNIGHT_HP && !(k.down > 0)){
+        if (!this.atTent(k)){
+          c.save(); c.fillStyle = '#e6ffe9';
+          const tx = TENT.x, ty = TENT.y + 0.02;
+          for (let q = 1; q < 9; q++){ const u = q / 9; c.globalAlpha = 0.2 + 0.55 * Math.max(0, Math.sin(this.t * 4 - q * 0.6)); c.beginPath(); c.arc((k.x + (tx - k.x) * u) * W, (k.y + (ty - k.y) * u) * H, H * 0.006, 0, 6.2832); c.fill(); }
+          c.restore();
+        } else if (!pose.mouse.active && !this.hugging(k)){
+          const u = Math.abs(Math.sin(this.t * 2.5)), cx = x, cy = y - s * 0.55;
+          ghost(cx - s * (0.55 - 0.85 * u), cy - s * 0.1 * u, 0.8); ghost(cx + s * (0.55 - 0.85 * u), cy - s * 0.1 * u, 0.8);
+        }
       }
     }
     /* Building: until the first tower, the nearest empty pad to the first

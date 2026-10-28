@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
                TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
-import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
+import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
 
@@ -407,11 +407,14 @@ test('standing up out of a squat on an empty pad is not a jump', () => {
   assert.equal(inst.picks.get(2), pick);
 });
 
-test('a hug heals a hurt knight, a bonk at a time; arms down does not', () => {
+/* Stand knight i at the medical tent. */
+const atTent = (inst, i = 0) => put(knight(inst, i), TENT.x, TENT.y + 0.02);
+
+test('at the medical tent, a hug heals a hurt knight, a bonk at a time; arms down does not', () => {
   const inst = quiet(), k = knight(inst);
-  k.hp = 1; k.calm = 0;
-  run(inst, 1);
-  assert.equal(k.hp, 1, 'standing about: not yet');
+  k.hp = 1; atTent(inst);
+  run(inst, 3);
+  assert.equal(k.hp, 1, 'just standing there: no');
   body({ hug: true }); run(inst, HUG_SETTLE + HUG_MEND + 0.1);
   assert.equal(k.hp, 2);
   assert.ok(inst.seen.hugged);
@@ -419,12 +422,31 @@ test('a hug heals a hurt knight, a bonk at a time; arms down does not', () => {
   assert.equal(k.hp, KNIGHT_HP);
   run(inst, HUG_MEND * 2);
   assert.equal(k.hp, KNIGHT_HP, 'and no more');
-  assert.ok(HUG_MEND < KNIGHT_MEND, 'quicker than waiting');
+});
+
+test('a hug anywhere but the medical tent heals nothing, and nothing heals on its own', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1; put(k, OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, 20);
+  assert.equal(k.hp, 1, 'not on its own');
+  body({ hug: true }); run(inst, 5);
+  assert.equal(k.hp, 1, 'not away from the tent');
+  put(k, TENT.x + TENT_R * 1.5 / (16 / 9), TENT.y + 0.02); run(inst, 5);
+  assert.equal(k.hp, 1, 'not just beside it');
+  atTent(inst); run(inst, HUG_SETTLE + HUG_MEND + 0.1);
+  assert.equal(k.hp, 2, 'there');
+});
+
+test('with the mouse, standing at the tent is enough', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1;
+  mouse(TENT.x, TENT.y + 0.02); run(inst, 8);
+  assert.equal(k.hp, KNIGHT_HP);
 });
 
 test('one hand on a shoulder is not a hug', () => {
   const inst = quiet(), k = knight(inst);
-  k.hp = 1;
+  k.hp = 1; atTent(inst);
   run(inst, 3, () => { body(); const lm = pose.players[0].lm; lm[L.L_WRIST] = { ...lm[L.R_SHOULDER] }; });
   assert.equal(inst.hugging(k), false);
   assert.equal(k.hp, 1);
@@ -556,8 +578,8 @@ test('an ogre winds up, then bonks a knight still close by with its club, a mome
   run(inst, OGRE_CLUB * 0.3 + WINDUP);
   assert.equal(k.hp, KNIGHT_HP - 2);
   put(k, OPEN_FIELD.x, OPEN_FIELD.y);
-  run(inst, KNIGHT_MEND * 2 + 0.5);
-  assert.equal(k.hp, KNIGHT_HP, 'away from it, it gets its breath back');
+  run(inst, 10);
+  assert.equal(k.hp, KNIGHT_HP - 2, 'and stays hurt till it gets to the tent');
 });
 
 test('stepping out of the ring while the club is up gets away', () => {
