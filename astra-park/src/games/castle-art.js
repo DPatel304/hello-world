@@ -459,7 +459,8 @@ export function drawShot(c, W, H, s){
    and a little sword. walk: 0..1, how hard it's walking (legs and bob);
    clap: 0..1 just after a clap, arms flung out. face(x, y, r) paints the
    face into the clipped helmet window. */
-export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face, swing = 0){
+/* blade: the sword's size (1 is ordinary); bladeCol, its colour. */
+export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face, swing = 0, blade = 1, bladeCol = '#dfe3ee'){
   const bob = Math.abs(Math.sin(t * 10)) * s * 0.05 * walk;
   c.fillStyle = 'rgba(40,50,40,.28)'; c.beginPath(); c.ellipse(x, y + s * 0.03, s * 0.32, s * 0.09, 0, 0, 6.2832); c.fill();
   c.save(); c.translate(x, y - bob);
@@ -480,9 +481,9 @@ export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face, swing = 0)
     c.beginPath(); c.moveTo(k * s * 0.17, -s * 0.52); c.lineTo(hx, hy); c.stroke();
     if (k === dir){
       /* The sword. */
-      c.strokeStyle = '#dfe3ee'; c.lineWidth = s * 0.05;
-      const ta = -1.3 + swing * 2.2;
-      c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + k * Math.cos(ta) * s * 0.32, hy + Math.sin(ta) * s * 0.32); c.stroke();
+      c.strokeStyle = bladeCol; c.lineWidth = s * 0.05 * (0.6 + 0.4 * blade);
+      const ta = -1.3 + swing * 2.2, len = s * 0.32 * blade;
+      c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + k * Math.cos(ta) * len, hy + Math.sin(ta) * len); c.stroke();
       c.strokeStyle = '#8a5a34'; c.lineWidth = s * 0.05; c.beginPath(); c.moveTo(hx - s * 0.06, hy - s * 0.02); c.lineTo(hx + s * 0.06, hy - s * 0.02); c.stroke();
       c.strokeStyle = '#9aa0b4'; c.lineWidth = s * 0.09;
     } else {

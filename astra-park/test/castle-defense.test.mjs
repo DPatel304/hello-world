@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SUPER_R, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
+               WALK, RUN, SWORD_COOL, SWORD_DMG, SUPER_R, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -164,9 +164,9 @@ test('near a monster the knight swings its sword by itself; one far off is left 
 
 test('the sword swings a moment apart, not every frame', () => {
   const inst = quiet();
-  const m = byKnight(inst, 'ogre');
+  const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
   run(inst, 2);
-  const swings = Math.round(m.max - m.hp);
+  const swings = Math.round((m.max - m.hp) / SWORD_DMG);
   assert.ok(swings >= Math.floor(2 / SWORD_COOL) && swings <= Math.ceil(2 / SWORD_COOL) + 1, `${swings} swings in two seconds`);
 });
 
@@ -216,7 +216,7 @@ test('a slow bringing-together of the hands is not a clap', () => {
 
 test('sword hits fill the charge until it is full; then ghostly hands clap over the knight', () => {
   const inst = quiet();
-  const m = byKnight(inst, 'ogre'); m.hp = m.max = 1e9;
+  const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
   run(inst, 3);
   assert.ok(knight(inst).charge < 1, 'not straight away');
   run(inst, 12 * SWORD_COOL);
@@ -466,14 +466,83 @@ test('a hurt castle is mended before it is built up', () => {
   assert.equal(inst.castleLvl, 1);
 });
 
-test('knights are safe: monsters walk on by them', () => {
+test('little monsters never hurt a knight', () => {
   const inst = quiet();
-  const m = monster(inst, 'ogre', 1.5); m.speed = MONSTERS.ogre.speed; m.hp = m.max = 1e9;
+  for (const kind of ['slime', 'goblin', 'bat']){ const m = monster(inst, kind, 1.5); m.hp = m.max = 1e9; }
   put(knight(inst), along(1.5).x, along(1.5).y);
-  const hearts = inst.hearts;
-  run(inst, 3);
-  assert.equal(inst.hearts, hearts);
-  assert.ok(pose.players[0].present && !inst.over);
+  run(inst, 10);
+  assert.equal(knight(inst).hp, KNIGHT_HP);
+  assert.equal(knight(inst).down, 0);
+});
+
+test('an ogre bonks a knight close by with its club, a moment apart', () => {
+  const inst = quiet();
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  const k = knight(inst);
+  put(k, along(1.5).x, along(1.5).y);
+  run(inst, 0.2);
+  assert.equal(k.hp, KNIGHT_HP - 1);
+  run(inst, OGRE_CLUB * 0.8);
+  assert.equal(k.hp, KNIGHT_HP - 1, 'not every frame');
+  run(inst, OGRE_CLUB * 0.3);
+  assert.equal(k.hp, KNIGHT_HP - 2);
+  put(k, OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, KNIGHT_MEND * 2 + 0.5);
+  assert.equal(k.hp, KNIGHT_HP, 'away from it, it gets its breath back');
+});
+
+test('a knight bonked out loses every level and comes back at the castle, safe for a moment', () => {
+  const inst = quiet();
+  const k = knight(inst);
+  k.lvl = 12; k.xp = 4; k.charge = 0.7;
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  put(k, along(1.5).x, along(1.5).y);
+  run(inst, OGRE_CLUB * (KNIGHT_HP - 1) + 0.3);
+  assert.ok(k.down > 0, 'down');
+  assert.equal(k.lvl, 0); assert.equal(k.xp, 0); assert.equal(k.charge, 0);
+  body({ lean: 1 }); run(inst, 1);
+  assert.ok(Math.abs(k.fell.x - k.x) < 1e-9, 'it goes nowhere while it sees stars');
+  still(); run(inst, DOWN - 1 + 0.05);
+  assert.equal(k.down, 0);
+  assert.ok(Math.hypot(k.x - inst.home(0).x, k.y - inst.home(0).y) < 0.05, 'back by the castle');
+  assert.equal(k.hp, KNIGHT_HP);
+  assert.ok(k.safe > 0);
+  still();
+  put(k, along(1.5).x, along(1.5).y);
+  run(inst, 1);
+  assert.equal(k.hp, KNIGHT_HP, 'safe while it blinks');
+});
+
+test('knights level up from what they beat, a little more each level, up to twenty', () => {
+  const inst = quiet(), k = knight(inst);
+  assert.equal(k.lvl, 0);
+  assert.equal(KNIGHT_MAX, 20);
+  for (let q = 0; q < killsFor(0) - 1; q++){ const m = monster(inst, 'slime', 1); inst._damage(m, 99, 0); }
+  assert.equal(k.lvl, 0, 'not quite');
+  inst._damage(monster(inst, 'slime', 1), 99, 0);
+  assert.equal(k.lvl, 1);
+  inst._damage(monster(inst, 'ogre', 1), 99, 0);
+  assert.equal(killsFor(1), MONSTERS.ogre.coins);
+  assert.equal(k.lvl, 2, 'an ogre counts for five');
+  inst._damage(monster(inst, 'slime', 1), 99);
+  assert.equal(k.xp, 0, 'a tower kill is nobody\'s');
+  assert.ok(killsFor(10) > killsFor(1));
+  for (let q = 0; q < 2000; q++) inst._damage(monster(inst, 'slime', 1), 99, 0);
+  assert.equal(k.lvl, KNIGHT_MAX, 'twenty is the top');
+});
+
+test('a higher knight has a bigger, harder, quicker sword - and kills faster', () => {
+  const a = swordAt(0), b = swordAt(KNIGHT_MAX);
+  assert.ok(b.size > a.size * 2 && b.reach > a.reach && b.dmg > a.dmg * 3 && b.cool < a.cool);
+  for (let l = 1; l <= KNIGHT_MAX; l++) assert.ok(swordAt(l).size > swordAt(l - 1).size, 'a little bigger every level');
+  const time = (lvl) => {
+    const inst = quiet();
+    knight(inst).lvl = lvl;
+    const m = byKnight(inst, 'slime'); m.hp = m.max = 20;
+    let t = 0; while (m.hp > 0 && t < 30){ inst.step(DT, W, H); t += DT; }
+    return t;
+  };
+  assert.ok(time(KNIGHT_MAX) < time(0) / 4);
 });
 
 /* ---------- the waves, and the horn ---------- */
@@ -623,6 +692,15 @@ test('waves grow in number; an ogre every fifth', () => {
   assert.ok(kinds(3).includes('bat'));
   assert.ok(kinds(5).includes('ogre') && !kinds(4).includes('ogre'));
   for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1) || countOf(w) === 1500, 'more every wave, till far past where anyone gets');
+});
+
+test('later waves bring more and more ogres, spread through the wave', () => {
+  const ogres = (w) => waveOf(w).filter(m => m.kind === 'ogre').length;
+  assert.equal(ogres(4), 0);
+  assert.equal(ogres(5), 1);
+  assert.ok(ogres(30) > ogres(20) && ogres(20) > ogres(15) && ogres(29) > 0);
+  const where = waveOf(30).map((m, k) => m.kind === 'ogre' ? k : -1).filter(k => k >= 0), n = waveOf(30).length;
+  assert.ok(where[0] < n / 4 && where[where.length - 1] > n * 3 / 4, 'from the start of the wave to its end');
 });
 
 test('waves creep up slowly, then pour out ever faster', () => {
