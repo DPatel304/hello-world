@@ -158,6 +158,15 @@ test('hands by your sides, on your hips or near your chest go nowhere, marching 
   }
 });
 
+test('just walking on the spot, feet barely lifting, is enough to go', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 2, marching({ reach: [1.3, 0] }, 0.003));
+  assert.ok(moved(k).x > 0.06, `${moved(k).x.toFixed(3)}`);
+  const ankles = quiet(), ka = knight(ankles); put(ka, FREE.x, FREE.y);
+  run(ankles, 2, (t) => body({ reach: [1.3, 0], knees: false, knee: Math.sin(t * Math.PI * 4) * 0.004 }));
+  assert.ok(moved(ka).x > 0.06, 'ankles only');
+});
+
 test('marching harder goes faster, up to a run; both hands faster still', () => {
   const go = (each) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 0.5, each); const x0 = moved(k).x; run(inst, 1, each); return moved(k).x - x0; };
   const gently = go(marching({ reach: [1.3, 0] }, 0.006)), hard = go(marching({ reach: [1.3, 0] }, 0.05));

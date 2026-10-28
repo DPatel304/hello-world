@@ -87,8 +87,10 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    torso-lengths of reach, held for HAND_HOLD seconds (so a wave or a
    scratch is nothing), to point, then only HAND_KEEP to keep pointing; let
    your hand drop and the place stays picked. Then march on the spot to go
-   there: no marching, no walking - marching a little (knees at MARCH_MIN
-   of MARCH_FULL torso-lengths a second) is a WALK, marching hard a RUN, and
+   there: no marching, no walking - but any marching, walking or running on
+   the spot will do, however little the feet come up (MARCH_MIN of
+   MARCH_FULL torso-lengths a second, knees or ankles), for a WALK; hard is
+   a RUN, and
    pointing with both hands the same way, TWO_HANDS times that. Walk off
    across the room and you're running about again.
 
@@ -97,7 +99,7 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    your arms.
 
    With the mouse, the knight walks to where the pointer rests. */
-export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.3, AIM = 0.75;
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.06, AIM = 0.75;
 export const FEET_FAR = 0.72, FEET_NEAR = 0.97, ROOM_MOVE = 0.15, ROOM_RUN = 0.2, ROOM_EDGE = 0.05;
 export const SNAP_R = 0.1;
 export const WALK = 0.08, RUN = 0.16, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
@@ -428,14 +430,19 @@ class CastleDefense {
     const lm = p.lm;
     if (!lm){ k.vx = k.vy = 0; return; }
     const vis = (j) => (lm[j].v ?? 1) > 0.5;
-    /* The knees if they're in view, else the ankles. */
-    const [a, b] = vis(L.L_KNEE) && vis(L.R_KNEE) ? [L.L_KNEE, L.R_KNEE] : vis(L.L_ANKLE) && vis(L.R_ANKLE) ? [L.L_ANKLE, L.R_ANKLE] : [null, null];
+    /* Any of marching, walking or running on the spot: the knees or the
+       ankles, whichever are in view and going up and down more. */
+    const pairs = [[L.L_KNEE, L.R_KNEE], [L.L_ANKLE, L.R_ANKLE]].filter(([a, b]) => vis(a) && vis(b));
     let legs = 0;
-    if (a != null && k.legs && k.legs.a === a){
-      legs = (Math.abs(lm[a].y - k.legs.ya) + Math.abs(lm[b].y - k.legs.yb)) / 2 / Math.max(dt, 1e-3) / (p.scale || 0.3) * 2.4;
+    for (const [a, b] of pairs){
+      const was = k.legs && k.legs[a];
+      if (was) legs = Math.max(legs, (Math.abs(lm[a].y - was[0]) + Math.abs(lm[b].y - was[1])) / 2 / Math.max(dt, 1e-3) / (p.scale || 0.3) * 2.4);
     }
-    k.legs = a != null ? { a, ya: lm[a].y, yb: lm[b].y } : null;
-    k.march = (k.march || 0) + (clamp(legs / MARCH_FULL, 0, 1) - (k.march || 0)) * Math.min(1, dt * 4);
+    k.legs = {};
+    for (const [a, b] of pairs) k.legs[a] = [lm[a].y, lm[b].y];
+    /* Quick to get going, slow to stop - so a step's pause is no stop. */
+    const want = clamp(legs / MARCH_FULL, 0, 1), was = k.march || 0;
+    k.march = was + (want - was) * Math.min(1, dt * (want > was ? 4 : 1.5));
     /* Where you are in the room, as a spot on the map. Not mid-jump. */
     const room = this._roomSpot(k, p);
     if (room && !(k.air > 0)){
