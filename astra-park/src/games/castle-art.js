@@ -25,9 +25,20 @@ const KEYS = [TRAIL];
 export const CASTLE = { x: 0.17, y: 0.86, w: 0.32 };
 export const CASTLE_BASE = CASTLE.y + 0.12;
 export const CHEST = { x: 0.05, y: 0.93 };
-/* Is (x, y) on the castle: the place to put both hands to mend it. */
-export function onCastle(x, y){
-  return Math.abs(x - CASTLE.x) < CASTLE.w / 2 + 0.01 && y > CASTLE_BASE - 0.33 && y < 1.02;
+/* How far towers and the castle can be built up. */
+export const MAX_LVL = 10;
+/* The castle starts out small and grows a little with every level, out to
+   the left from where the trail meets it, until at the top level it is
+   CASTLE's full size. */
+export function castleBox(lvl = MAX_LVL){
+  const scale = 0.55 + 0.45 * (lvl - 1) / (MAX_LVL - 1), w = CASTLE.w * scale;
+  return { x: CASTLE.x + CASTLE.w / 2 - w / 2, w, scale };
+}
+/* Is (x, y) on the castle, as big as it is at level lvl: the place to
+   stand to mend it or build it up. */
+export function onCastle(x, y, lvl = MAX_LVL){
+  const b = castleBox(lvl);
+  return Math.abs(x - b.x) < b.w / 2 + 0.01 && y > CASTLE_BASE - Math.max(0.25, 0.33 * b.scale) && y < 1.02;
 }
 
 function catmull(p0, p1, p2, p3, t){
@@ -137,8 +148,9 @@ export function drawMeadow(c, W, H){
    of a repair under way. */
 const PENNANT = '#ff5d5d';
 export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0, lvl = 1){
-  /* Each upgrade builds it a little taller, with golden trim. */
-  const x = CASTLE.x * W + Math.sin(t * 60) * hit * H * 0.006, base = CASTLE_BASE * H, s = H * 0.24 * (1 + 0.12 * (lvl - 1)), hw = CASTLE.w * W / 2;
+  /* Each upgrade builds it a little bigger, and a little grander. */
+  const b = castleBox(lvl);
+  const x = b.x * W + Math.sin(t * 60) * hit * H * 0.006, base = CASTLE_BASE * H, s = H * 0.24 * b.scale, hw = b.w * W / 2;
   c.fillStyle = 'rgba(40,60,40,.3)'; c.beginPath(); c.ellipse(x, base, hw * 1.05, s * 0.12, 0, 0, 6.2832); c.fill();
   const wall = '#d9d2c3', dark = '#b8ae9c', roof = '#5a7bd8';
   const tower = (tx, w, h, cone) => {
@@ -171,18 +183,23 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0, lv
     const cx = ends[0] + (ends[1] - ends[0]) * hash(k, 41), cy = base - s * (0.12 + hash(k, 43) * 0.22), r = s * 0.06;
     c.beginPath(); c.moveTo(cx - r, cy - r * 0.6); c.lineTo(cx - r * 0.2, cy); c.lineTo(cx - r * 0.5, cy + r * 0.5); c.moveTo(cx - r * 0.2, cy); c.lineTo(cx + r * 0.6, cy - r * 0.2); c.stroke();
   }
-  /* Golden trim and banners for a castle that's been built up. */
-  if (lvl >= 2){
-    c.fillStyle = '#e8b730'; c.fillRect(ends[0], base - s * 0.42, ends[1] - ends[0], s * 0.03);
+  /* Golden trim, banners and knobs as it's built up. */
+  if (lvl >= 3){ c.fillStyle = '#e8b730'; c.fillRect(ends[0], base - s * 0.42, ends[1] - ends[0], s * 0.03); }
+  if (lvl >= 5){
     for (const tx of ends){ c.fillStyle = PENNANT; c.beginPath(); c.moveTo(tx, base - s * 0.7); c.lineTo(tx + s * 0.06, base - s * 0.62); c.lineTo(tx, base - s * 0.54); c.closePath(); c.fill(); }
   }
-  if (lvl >= 3){
+  if (lvl >= 7){
     for (const tx of [x - hw * 0.5, x + hw * 0.5]){ c.fillStyle = '#e8b730'; c.beginPath(); c.arc(tx, base - s * 0.85, s * 0.05, 0, 6.2832); c.fill(); }
+  }
+  if (lvl >= MAX_LVL){
+    for (const [tx, w, h] of [[x, s * 0.32, s * 0.98], ...ends.map(e => [e, s * 0.26, s * 0.78])]){
+      c.fillStyle = '#ffd24a'; c.beginPath(); c.arc(tx, base - h - w * 1.1, s * 0.035, 0, 6.2832); c.fill();
+    }
   }
   /* The flag on the keep. */
   const flagTop = base - s * 0.98 - s * 0.35;
   c.strokeStyle = '#5b4636'; c.lineWidth = s * 0.012; c.beginPath(); c.moveTo(x, flagTop + s * 0.02); c.lineTo(x, flagTop - s * 0.18); c.stroke();
-  c.fillStyle = '#ff5d5d'; c.beginPath(); c.moveTo(x, flagTop - s * 0.18); c.quadraticCurveTo(x + s * 0.1, flagTop - s * 0.16 + Math.sin(t * 4) * s * 0.02, x + s * 0.18, flagTop - s * 0.13); c.lineTo(x, flagTop - s * 0.09); c.closePath(); c.fill();
+  c.fillStyle = lvl >= MAX_LVL ? '#ffd24a' : '#ff5d5d'; c.beginPath(); c.moveTo(x, flagTop - s * 0.18); c.quadraticCurveTo(x + s * 0.1, flagTop - s * 0.16 + Math.sin(t * 4) * s * 0.02, x + s * 0.18, flagTop - s * 0.13); c.lineTo(x, flagTop - s * 0.09); c.closePath(); c.fill();
   /* Pennants along the wall, one for each wave held off (up to a dozen
      shown, then they turn gold). */
   const shown = Math.min(waves, 12);
@@ -200,12 +217,13 @@ export function drawCastle(c, W, H, t, hearts, max, waves, hit = 0, mend = 0, lv
     for (let k = 0; k < 6; k++){ const a = t * 3 + k; star(c, x + Math.cos(a) * hw * 0.7, base - s * 0.3 + Math.sin(a * 1.3) * s * 0.15, s * 0.04, '#ffe27a'); }
     c.restore();
   }
-  /* Hearts in a row along the wall, above the gate - two rows, once the
-     castle has been built up and has more than ten. */
-  const perRow = max <= 10 ? max : Math.ceil(max / 2), gap = Math.min(s * 0.14, (ends[1] - ends[0] - s * 0.36) / perRow);
+  /* Hearts along the wall, above the gate, the same size however big the
+     castle: in rows, as many as fit across, stacked up the wall. */
+  const r = H * 0.012, gap = r * 2.7, fit = Math.max(1, Math.floor((ends[1] - ends[0]) / gap));
+  const rows = Math.ceil(max / fit), perRow = Math.ceil(max / rows);
   for (let k = 0; k < max; k++){
-    const row = Math.floor(k / perRow), inRow = Math.min(perRow, max - row * perRow), r = s * 0.055, full = k < hearts;
-    const hx = x + (k % perRow - (inRow - 1) / 2) * gap, hy = base - s * 0.31 - row * r * 2.6;
+    const row = Math.floor(k / perRow), inRow = Math.min(perRow, max - row * perRow), full = k < hearts;
+    const hx = x + (k % perRow - (inRow - 1) / 2) * gap, hy = base - s * 0.28 - row * r * 2.6;
     c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(hx, hy, r * 1.25, 0, 6.2832); c.fill();
     heart(c, hx, hy, r, full ? '#ff4f6a' : 'rgba(80,60,80,.35)');
   }
@@ -237,19 +255,26 @@ export function drawPad(c, W, H, pad, glow = 0){
 
 export const TOWER_COLS = { archer: '#c98a4b', cannon: '#6d6f82', frost: '#7fd6ff' };
 
-/* A tower on its pad. kind: archer / cannon / frost; lvl 1..3; aim: the
-   angle it's facing; col: the builder's colour, on its little banner;
+/* How big a tower is at each level, and how tall, in screen heights: a
+   little bigger every time. */
+export const towerSize = (lvl) => 0.084 + (lvl - 1) * 0.004;
+export const towerTall = (lvl) => towerSize(lvl) * (1.22 + (lvl - 1) * 0.04);
+/* Colours for its roof as it goes up: green, blue, red, then gold at the top. */
+const TIER = (lvl) => lvl >= MAX_LVL ? '#e8b730' : lvl >= 7 ? '#e2483d' : lvl >= 4 ? '#3f7ad9' : '#4f8f52';
+
+/* A tower on its pad. kind: archer / cannon / frost; lvl 1..MAX_LVL; aim:
+   the angle it's facing; col: the builder's colour, on its little banner;
    kick: 0..1, the recoil of a shot just fired. */
 export function drawTower(c, W, H, pad, kind, lvl, aim, col, t, kick = 0){
-  const x = pad.x * W, base = pad.y * H, s = H * (0.075 + lvl * 0.012);
-  const top = base - s * (1.1 + lvl * 0.12);
+  const x = pad.x * W, base = pad.y * H, s = H * towerSize(lvl), u = (lvl - 1) / (MAX_LVL - 1);
+  const top = base - H * towerTall(lvl);
   if (kind === 'archer'){
     c.fillStyle = '#8a5a34';
     c.beginPath(); c.moveTo(x - s * 0.45, base); c.lineTo(x - s * 0.32, top); c.lineTo(x + s * 0.32, top); c.lineTo(x + s * 0.45, base); c.closePath(); c.fill();
     c.strokeStyle = '#6b4426'; c.lineWidth = s * 0.06;
     for (let k = 1; k < 4; k++){ const y = base - (base - top) * k / 4; c.beginPath(); c.moveTo(x - s * 0.42 + k * s * 0.03, y); c.lineTo(x + s * 0.42 - k * s * 0.03, y); c.stroke(); }
     c.fillStyle = '#b5764a'; c.fillRect(x - s * 0.42, top - s * 0.12, s * 0.84, s * 0.14);
-    c.fillStyle = lvl >= 3 ? '#e2483d' : lvl === 2 ? '#3f7ad9' : '#4f8f52';
+    c.fillStyle = TIER(lvl);
     c.beginPath(); c.moveTo(x - s * 0.5, top - s * 0.1); c.lineTo(x, top - s * 0.6); c.lineTo(x + s * 0.5, top - s * 0.1); c.closePath(); c.fill();
     /* The crossbow, turning to aim. */
     c.save(); c.translate(x, top - s * 0.02); c.rotate(aim);
@@ -259,11 +284,11 @@ export function drawTower(c, W, H, pad, kind, lvl, aim, col, t, kick = 0){
   } else if (kind === 'cannon'){
     c.fillStyle = '#8d8fa3';
     c.beginPath(); c.moveTo(x - s * 0.5, base); c.lineTo(x - s * 0.44, top); c.lineTo(x + s * 0.44, top); c.lineTo(x + s * 0.5, base); c.closePath(); c.fill();
-    c.fillStyle = '#a7a9bc'; for (let k = 0; k < 4; k++) c.fillRect(x - s * 0.44 + k * s * 0.26, top - s * 0.12, s * 0.14, s * 0.14);
+    c.fillStyle = lvl >= 4 ? TIER(lvl) : '#a7a9bc'; for (let k = 0; k < 4; k++) c.fillRect(x - s * 0.44 + k * s * 0.26, top - s * 0.12, s * 0.14, s * 0.14);
     c.strokeStyle = 'rgba(80,80,100,.4)'; c.lineWidth = s * 0.03;
     for (let k = 1; k < 3; k++){ const y = base - (base - top) * k / 3; c.beginPath(); c.moveTo(x - s * 0.47, y); c.lineTo(x + s * 0.47, y); c.stroke(); }
     c.save(); c.translate(x, top - s * 0.02); c.rotate(aim);
-    c.fillStyle = '#3b3d4a'; c.beginPath(); c.roundRect(-s * 0.1 - kick * s * 0.12, -s * (0.1 + lvl * 0.02), s * (0.5 + lvl * 0.05), s * (0.2 + lvl * 0.04), s * 0.08); c.fill();
+    c.fillStyle = '#3b3d4a'; c.beginPath(); c.roundRect(-s * 0.1 - kick * s * 0.12, -s * (0.12 + u * 0.06), s * (0.55 + u * 0.2), s * (0.24 + u * 0.12), s * 0.08); c.fill();
     c.restore();
     c.fillStyle = '#3b3d4a'; c.beginPath(); c.arc(x, top - s * 0.02, s * 0.15, 0, 6.2832); c.fill();
   } else {
@@ -271,11 +296,11 @@ export function drawTower(c, W, H, pad, kind, lvl, aim, col, t, kick = 0){
     c.beginPath(); c.moveTo(x - s * 0.42, base); c.lineTo(x - s * 0.3, top); c.lineTo(x + s * 0.3, top); c.lineTo(x + s * 0.42, base); c.closePath(); c.fill();
     c.fillStyle = 'rgba(255,255,255,.4)'; c.fillRect(x - s * 0.3, top, s * 0.12, base - top);
     /* The crystal on top, glowing brighter with each level. */
-    const cy = top - s * 0.35, cs = s * (0.3 + lvl * 0.06);
+    const cy = top - s * 0.35, cs = s * (0.36 + u * 0.24);
     const g = c.createRadialGradient(x, cy, 0, x, cy, cs * 2);
-    g.addColorStop(0, `rgba(170,235,255,${0.3 + lvl * 0.15 + kick * 0.3})`); g.addColorStop(1, 'rgba(170,235,255,0)');
+    g.addColorStop(0, `rgba(170,235,255,${Math.min(1, 0.45 + u * 0.45 + kick * 0.3)})`); g.addColorStop(1, 'rgba(170,235,255,0)');
     c.fillStyle = g; c.beginPath(); c.arc(x, cy, cs * 2, 0, 6.2832); c.fill();
-    c.fillStyle = '#7fd6ff';
+    c.fillStyle = lvl >= MAX_LVL ? '#ffe27a' : '#7fd6ff';
     c.beginPath(); c.moveTo(x, cy - cs); c.lineTo(x + cs * 0.5, cy); c.lineTo(x, cy + cs * 0.8); c.lineTo(x - cs * 0.5, cy); c.closePath(); c.fill();
     c.fillStyle = '#e6f8ff'; c.beginPath(); c.moveTo(x, cy - cs); c.lineTo(x + cs * 0.2, cy); c.lineTo(x, cy + cs * 0.3); c.closePath(); c.fill();
   }
@@ -283,7 +308,11 @@ export function drawTower(c, W, H, pad, kind, lvl, aim, col, t, kick = 0){
   c.strokeStyle = '#5b4636'; c.lineWidth = Math.max(1, s * 0.03);
   c.beginPath(); c.moveTo(x + s * 0.38, base - s * 0.15); c.lineTo(x + s * 0.38, base - s * 0.62); c.stroke();
   c.fillStyle = col; c.beginPath(); c.moveTo(x + s * 0.38, base - s * 0.62); c.lineTo(x + s * 0.62, base - s * 0.55 + Math.sin(t * 4 + pad.i) * s * 0.03); c.lineTo(x + s * 0.38, base - s * 0.46); c.closePath(); c.fill();
-  for (let k = 1; k < lvl; k++) star(c, x - s * 0.3 + (k - 1) * s * 0.2, base - s * 0.18, s * 0.08, '#ffd24a');
+  /* Stars for its upgrades, in two little rows up its front. */
+  for (let k = 1; k < lvl; k++){
+    const row = Math.floor((k - 1) / 5), col5 = (k - 1) % 5;
+    star(c, x - s * 0.28 + col5 * s * 0.14, base - s * (0.16 + row * 0.16), s * 0.065, '#ffd24a');
+  }
 }
 
 export function star(c, x, y, r, col){

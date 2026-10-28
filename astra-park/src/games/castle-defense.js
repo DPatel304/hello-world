@@ -5,13 +5,13 @@ import { Avatars } from '../ui/avatars.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
+import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
          drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker, drawHorn, drawCharge, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
    long way round the meadow, back and forth along one winding trail, to
-   the wide castle in the bottom left. Each child has a little knight out on
+   the castle in the bottom left. Each child has a little knight out on
    the meadow, in their colour with their face in the helmet, and the
    knights do everything just by where they stand.
 
@@ -22,11 +22,12 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, onCastle, along, drawMe
    shockwave. Stand on an empty stone pad and a see-through tower appears:
    jump to change which kind (archer, cannon, frost), and stay put to build
    it. Stand at a tower and the knight mends it if an ogre has been smashing
-   it, or else makes it bigger and stronger, up to three times. Stand at the
-   castle and the knight mends its hearts, or once it's whole, builds it
-   bigger, with more hearts. Hammering with a fist makes any of that go
-   twice as fast. Monsters drop coins into the treasure chest; building and
-   upgrading cost coins, mending is free.
+   it, or else, slowly, makes it bigger and stronger, up to ten times. The
+   castle starts out small, with only a few hearts: stand at it and the
+   knight mends them, or once it's whole, slowly builds it a little bigger,
+   with two more. Hammering with a fist makes any of that go twice as fast.
+   Monsters drop coins into the treasure chest; new towers cost coins,
+   building them up and mending is free - it only takes time.
 
    Between waves there's a breather, with the war horn standing where the
    monsters come in - stand your knight by it to call the next wave early.
@@ -38,15 +39,22 @@ export const ROUND = 900;
 export const START_COINS = 7;
 export const COST = { archer: 3, cannon: 5, frost: 4 };
 export const KINDS = ['archer', 'cannon', 'frost'];
-/* The castle: hearts at each level, and the coins to build it up a level. */
-export const CASTLE_HEARTS = [10, 13, 16], CASTLE_COST = [12, 24];
+export { MAX_LVL };
+const levels = (f) => Array.from({ length: MAX_LVL }, (_, l) => f(l));
+/* The castle starts small, with only a few hearts; each level builds it a
+   little bigger, with two more. */
+export const CASTLE_HEARTS = levels(l => 5 + 2 * l);
 export const HEARTS = CASTLE_HEARTS[0];
 /* Towers' health, by level; ogres passing close smash at it. */
-export const TOWER_HP = [8, 12, 16], OGRE_SMASH = 1.5, SMASH_R = 0.15;
-/* Seconds of standing there: to build, to upgrade a tower, to mend a heart,
-   to build the castle up; towers mend TOWER_FIX health a second. Hammering
-   makes it all go HAMMER times as fast. */
-export const BUILD = 2.5, UPGRADE = 3, REPAIR = 2.5, CASTLE_UP = 4, TOWER_FIX = 3, HAMMER = 2;
+export const TOWER_HP = levels(l => 8 + 2 * l), OGRE_SMASH = 1.5, SMASH_R = 0.15;
+/* Seconds of standing there: to build, to mend a heart; towers mend
+   TOWER_FIX health a second. Hammering makes it all go HAMMER times as
+   fast. Building costs coins; building up is free, but slow, and slower
+   with every level: upgradeTime(lvl) to take a tower from lvl to the next,
+   castleTime(lvl) the castle - several minutes' standing, all told, to take
+   one all the way to the top. */
+export const BUILD = 2.5, REPAIR = 2.5, TOWER_FIX = 3, HAMMER = 2;
+export const upgradeTime = (lvl) => 10 + 5 * lvl, castleTime = (lvl) => 12 + 5 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
 /* Knights. Leaning walks them - shoulders over to one side of the hips,
    LEAN_X shoulder-widths for full lean, or toward or away from the screen,
@@ -58,7 +66,7 @@ export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
 export const KNIGHT_SPEED = RUN;
 /* The sword: swung by itself at a monster within reach. Each hit charges
    the knight a little; fully charged, a clap is the super shockwave. */
-export const SWORD_R = 0.075, SWORD_COOL = 0.75, SWORD_DMG = 1, CHARGE_HIT = 0.1;
+export const SWORD_R = 0.075, SWORD_COOL = 0.75, SWORD_DMG = 0.6, CHARGE_HIT = 0.1;
 /* The super flattens the few nearest the knight - not a whole horde. */
 export const SUPER_R = 0.26, SUPER_DMG = 5, SUPER_MOST = 6;
 export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_R = SUPER_R;
@@ -67,10 +75,15 @@ export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_R = SUP
 export const BUILD_TIME = 15, FIRST_BUILD = 20, HORN_HOLD = 1.5;
 export const HORN = { x: 0.06, y: 0.34 };
 const BREAK = BUILD_TIME;
+/* What towers do at each level: each step a little further, faster and
+   harder, and every few levels archers and frost towers shoot at one more
+   monster at a time (`many`), and the cannon's blast catches more (`most`) -
+   so a tower at the top is many times what it was, against a crowd too. */
+const grow = (v0, k) => levels(l => v0 * (1 + k * l));
 export const STATS = {
-  archer: { range: [0.24, 0.27, 0.3], rate: [1.1, 1.5, 2.0], dmg: [1, 1.4, 2] },
-  cannon: { range: [0.21, 0.23, 0.26], rate: [0.45, 0.55, 0.65], dmg: [2.5, 3.5, 5], splash: [0.08, 0.095, 0.11], most: [3, 4, 5] },
-  frost:  { range: [0.2, 0.22, 0.24], rate: [0.8, 1.0, 1.2], dmg: [0.4, 0.6, 0.8], slow: [0.55, 0.45, 0.35] }
+  archer: { range: grow(0.24, 0.03), rate: grow(1.1, 0.12), dmg: grow(1, 0.3), many: levels(l => 1 + Math.floor(l / 3)) },
+  cannon: { range: grow(0.21, 0.03), rate: grow(0.45, 0.08), dmg: grow(2.5, 0.3), splash: grow(0.08, 0.04), most: levels(l => 3 + l) },
+  frost:  { range: grow(0.2, 0.03), rate: grow(0.8, 0.08), dmg: grow(0.4, 0.3), slow: levels(l => 0.55 - 0.025 * l), many: levels(l => 1 + Math.floor(l / 3)) }
 };
 export const MONSTERS = {
   slime:  { hp: 3, speed: 0.06, size: 0.08, coins: 1, harm: 1 },
@@ -88,7 +101,7 @@ const ASPECT = 16 / 9;
    second wave, bats from the third, an ogre (or more) every fifth. All
    along the one trail. */
 export const POUR = 8;   /* seconds a wave takes to come out, once it's big */
-export const countOf = (w) => Math.min(1500, Math.round(5 + w + Math.pow(1.65, w - 1)));
+export const countOf = (w) => Math.min(1500, Math.round(5 + w + Math.pow(1.28, w - 1)));
 /* Seconds between monsters coming out in wave w. */
 export const gapOf = (w) => Math.min(1.3, POUR / countOf(w));
 export function waveOf(w){
@@ -101,7 +114,6 @@ export function waveOf(w){
   if (w % 5 === 0) for (let k = 0; k < w / 5; k++) out.push({ kind: 'ogre', path: 0 });
   return out;
 }
-export const upgradeCost = (kind, lvl) => lvl === 1 ? Math.ceil(COST[kind] * 1.2) : COST[kind] * 2;
 
 export default {
   /* Endless: it lasts as long as the castle holds. secs is only how long
@@ -333,7 +345,7 @@ class CastleDefense {
     k.sword = SWORD_COOL; k.swing = 1;
     const p = this.pos(best);
     k.dir = p.x >= k.x ? 1 : -1;
-    best.s = Math.max(0, best.s - (best.kind === 'ogre' ? 0.004 : 0.012));
+    best.s = Math.max(0, best.s - (best.kind === 'ogre' ? 0.002 : 0.006));
     k.charge = Math.min(1, k.charge + CHARGE_HIT);
     sfx.tick();
     for (let q = 0; q < 3; q++) this._spark(p.x, p.y - 0.04, '#ffffff');
@@ -379,7 +391,7 @@ class CastleDefense {
     let best = null, bd = AT_PAD;
     for (const pad of PADS){ const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = { kind: 'pad', i: pad.i, id: `p${pad.i}` }; } }
     if (best) return best;
-    if (onCastle(k.x, k.y + 0.03)) return { kind: 'castle', id: 'castle' };
+    if (onCastle(k.x, k.y + 0.03, this.castleLvl)) return { kind: 'castle', id: 'castle' };
     if (this.state === 'build' && Math.hypot((HORN.x - k.x) * ASPECT, HORN.y - k.y) < 0.09) return { kind: 'horn', id: 'horn' };
     return null;
   }
@@ -391,13 +403,13 @@ class CastleDefense {
     if (at.kind === 'horn') return { need: HORN_HOLD, can: this.state === 'build', act: () => { this.breakT = 0; this.seen.called = true; } };
     if (at.kind === 'castle'){
       if (this.hearts < this.maxHearts) return { what: 'mend', need: REPAIR, can: true, act: () => this._repair(), again: true };
-      if (this.castleLvl < 3) return { what: 'up', need: CASTLE_UP, can: this.coins >= CASTLE_COST[this.castleLvl - 1], act: () => this._castleUp() };
+      if (this.castleLvl < MAX_LVL) return { what: 'up', need: castleTime(this.castleLvl), can: true, act: () => this._castleUp() };
       return null;
     }
     const tw = this.towers.get(at.i);
     if (!tw){ const kind = KINDS[this.picks.get(at.i)]; return { what: 'build', need: BUILD, can: this.coins >= COST[kind], act: (who) => this._build(at.i, kind, who) }; }
     if (tw.hp < tw.max) return { what: 'fix', fix: true, can: true };
-    if (tw.lvl < 3) return { what: 'up', need: UPGRADE, can: this.coins >= upgradeCost(tw.kind, tw.lvl), act: (who) => this._upgrade(at.i, who) };
+    if (tw.lvl < MAX_LVL) return { what: 'up', need: upgradeTime(tw.lvl), can: true, act: (who) => this._upgrade(at.i, who) };
     return null;
   }
 
@@ -441,16 +453,17 @@ class CastleDefense {
     this.hearts = Math.min(this.maxHearts, this.hearts + 1);
     this.seen.repaired = true;
     sfx.jar(this.hearts);
-    for (let k = 0; k < 16; k++) this._spark(CASTLE.x + (Math.random() - 0.5) * CASTLE.w * 0.8, CASTLE_BASE - 0.1 - Math.random() * 0.15, '#ffe27a');
+    const b = castleBox(this.castleLvl);
+    for (let k = 0; k < 16; k++) this._spark(b.x + (Math.random() - 0.5) * b.w * 0.8, CASTLE_BASE - (0.1 + Math.random() * 0.15) * b.scale, '#ffe27a');
   }
 
-  /* The castle built up a level: taller, and more hearts, all full. */
+  /* The castle built up a level: a little bigger, and more hearts, all full. */
   _castleUp(){
-    this.coins -= CASTLE_COST[this.castleLvl - 1];
     this.castleLvl++;
     this.hearts = this.maxHearts;
     sfx.fanfare();
-    for (let k = 0; k < 30; k++) this._spark(CASTLE.x + (Math.random() - 0.5) * CASTLE.w, CASTLE_BASE - Math.random() * 0.3, '#ffd24a');
+    const b = castleBox(this.castleLvl);
+    for (let k = 0; k < 30; k++) this._spark(b.x + (Math.random() - 0.5) * b.w, CASTLE_BASE - Math.random() * 0.3 * b.scale, '#ffd24a');
   }
 
   _build(i, kind, who){
@@ -464,7 +477,6 @@ class CastleDefense {
 
   _upgrade(i, who){
     const tw = this.towers.get(i);
-    this.coins -= upgradeCost(tw.kind, tw.lvl);
     tw.lvl++;
     tw.max = TOWER_HP[tw.lvl - 1]; tw.hp = tw.max;
     sfx.gold();
@@ -499,27 +511,29 @@ class CastleDefense {
     for (const [i, tw] of this.towers){
       tw.cool -= dt; tw.kick = Math.max(0, tw.kick - dt * 4);
       const pad = PADS[i], S = STATS[tw.kind], L = tw.lvl - 1, range = S.range[L];
-      const top = { x: pad.x, y: pad.y - 0.12 };
-      let best = null;
-      for (const m of this.monsters){
-        if (tw.kind === 'cannon' && MONSTERS[m.kind].flies) continue;
+      const top = { x: pad.x, y: pad.y - towerTall(tw.lvl) * 0.9 };
+      /* The ones in reach nearest the castle first. */
+      const inReach = this.monsters.filter(m => {
+        if (tw.kind === 'cannon' && MONSTERS[m.kind].flies) return false;
         const p = this.pos(m);
-        if (Math.hypot((p.x - pad.x) * ASPECT, p.y - pad.y) > range) continue;
-        /* The one nearest the castle, whichever path it's on. */
-        if (!best || PATHS[m.path].total - m.s < PATHS[best.path].total - best.s) best = m;
-      }
-      if (!best) continue;
+        return Math.hypot((p.x - pad.x) * ASPECT, p.y - pad.y) <= range;
+      });
+      if (!inReach.length) continue;
+      const left = (m) => PATHS[m.path].total - m.s;
+      const many = S.many ? S.many[L] : 1;
+      const targets = many > 1 ? inReach.sort((a, b) => left(a) - left(b)).slice(0, many) : [inReach.reduce((a, b) => left(b) < left(a) ? b : a)];
+      const best = targets[0];
       const bp = this.pos(best);
       tw.aim = Math.atan2(bp.y - top.y, (bp.x - top.x) * ASPECT);
       if (tw.cool > 0) continue;
       tw.cool = 1 / S.rate[L]; tw.kick = 1;
-      if (tw.kind === 'archer'){ this.shots.push({ kind: 'arrow', x: top.x, y: top.y, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L] }); sfx.whoosh(); }
+      if (tw.kind === 'archer'){ for (const m of targets) this.shots.push({ kind: 'arrow', x: top.x, y: top.y, vx: 0, vy: 0, target: m.id, dmg: S.dmg[L] }); sfx.whoosh(); }
       else if (tw.kind === 'cannon'){
         /* Lobbed where the monster will be when it lands. */
         const lead = this.pos({ s: best.s + best.speed * best.slowK * 0.55, path: best.path });
         this.shots.push({ kind: 'ball', x: top.x, y: top.y, from: { ...top }, to: lead, k: 0, dmg: S.dmg[L], splash: S.splash[L], most: S.most[L] });
         sfx.thud();
-      } else { this.shots.push({ kind: 'frost', x: top.x, y: top.y - 0.03, vx: 0, vy: 0, target: best.id, dmg: S.dmg[L], slow: S.slow[L] }); sfx.twinkle(); }
+      } else { for (const m of targets) this.shots.push({ kind: 'frost', x: top.x, y: top.y - 0.03, vx: 0, vy: 0, target: m.id, dmg: S.dmg[L], slow: S.slow[L] }); sfx.twinkle(); }
     }
   }
 
@@ -685,7 +699,7 @@ class CastleDefense {
   _drawTowerBars(c, W, H){
     for (const [i, tw] of this.towers){
       if (tw.hp >= tw.max) continue;
-      const pad = PADS[i], bw = H * 0.07, x = pad.x * W - bw / 2, y = (pad.y - 0.2 - tw.lvl * 0.012) * H;
+      const pad = PADS[i], bw = H * 0.07, x = pad.x * W - bw / 2, y = (pad.y - towerTall(tw.lvl) - 0.05) * H;
       c.fillStyle = 'rgba(40,30,50,.55)'; c.fillRect(x, y, bw, H * 0.01);
       c.fillStyle = tw.hp / tw.max > 0.5 ? '#6fdc6a' : tw.hp / tw.max > 0.25 ? '#ffd24a' : '#ff5d5d'; c.fillRect(x, y, bw * Math.max(0, tw.hp / tw.max), H * 0.01);
     }
@@ -700,19 +714,12 @@ class CastleDefense {
       const w = this.work.get(k.at.id), job = w && w.job;
       if (!job) continue;
       let x, y;
-      if (k.at.kind === 'castle'){ x = CASTLE.x * W; y = (CASTLE_BASE - 0.22) * H; }
+      if (k.at.kind === 'castle'){ const b = castleBox(this.castleLvl); x = b.x * W; y = (CASTLE_BASE - 0.24 * b.scale - 0.06) * H; }
       else { const pad = PADS[k.at.i]; x = pad.x * W; y = (pad.y - 0.07) * H; }
       const r = H * 0.06, frac = job.need ? clamp(w.t / job.need, 0, 1) : 1;
       if (!job.fix) drawWorkRing(c, x, y, r, job.can ? frac : 0, job.what === 'mend' ? '#ff4f6a' : '#ffd24a');
       if (job.what === 'mend') heart(c, x, y, r * 0.45, '#ff4f6a');
-      if (job.what === 'up'){
-        const n = k.at.kind === 'castle' ? CASTLE_COST[this.castleLvl - 1] : upgradeCost(this.towers.get(k.at.i).kind, this.towers.get(k.at.i).lvl);
-        const rows = Math.ceil(n / 12);
-        c.save(); c.globalAlpha = job.can ? 1 : 0.45;
-        for (let q = 0; q < n; q++){ const row = Math.floor(q / 12), col = q % 12, inRow = Math.min(12, n - row * 12); coin(c, x + (col - (inRow - 1) / 2) * H * 0.02, y + r + H * (0.02 + row * 0.022), H * 0.008); }
-        c.restore();
-        star(c, x, y, r * 0.4, '#ffd24a');
-      }
+      if (job.what === 'up') star(c, x, y, r * 0.4, '#ffd24a');
       if (this.hammering(k)) drawHammer(c, x + r * 1.1, y - r * 0.6, r * 0.6, -0.6 + Math.sin(this.t * 18) * 0.6);
     }
   }

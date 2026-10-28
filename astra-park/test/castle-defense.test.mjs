@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, KINDS, BUILD, UPGRADE, REPAIR, CASTLE_UP, CASTLE_HEARTS, CASTLE_COST, TOWER_HP, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z,
-               WALK, RUN, SWORD_COOL, SUPER_R, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, upgradeCost } from '../src/games/castle-defense.js';
-import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle } from '../src/games/castle-art.js';
+import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
+               WALK, RUN, SWORD_COOL, SUPER_R, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
+import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
 
@@ -182,7 +182,7 @@ test('a knight out in the open field swings at nothing', () => {
 test('a sword kills a slime, and its coins go in the chest', () => {
   const inst = quiet(), before = inst.coins;
   byKnight(inst, 'slime');
-  run(inst, 3);
+  run(inst, 6);
   assert.equal(inst.monsters.length, 0);
   assert.equal(inst.coins, before + MONSTERS.slime.coins);
 });
@@ -275,9 +275,9 @@ test('a jump at a built tower changes nothing, and does not hold up the work', (
   build(inst, 2, 'archer');
   const pick = inst.picks.get(2);
   put(knight(inst), PADS[2].x, PADS[2].y);
-  run(inst, UPGRADE * 0.8); jump(inst);
+  run(inst, upgradeTime(1) - 0.3); jump(inst);
   assert.equal(inst.picks.get(2), pick);
-  run(inst, UPGRADE * 0.2 + 0.1);
+  run(inst, 0.3);
   assert.equal(inst.towers.get(2).lvl, 2);
 });
 
@@ -312,23 +312,45 @@ test('a tower can be built in the middle of a wave', () => {
   assert.ok(inst.towers.has(2));
 });
 
-test('standing at a tower builds it up, to three, for coins - not straight after building it', () => {
+test('standing at a tower builds it up, slowly and for free, all the way to ten - not straight after building it', () => {
   const inst = quiet(); inst.coins = 100;
   const pad = PADS[2];
   inst.picks.set(2, 0);
   put(knight(inst), pad.x, pad.y);
   run(inst, BUILD + 0.05);
   assert.equal(inst.towers.get(2).lvl, 1);
-  run(inst, UPGRADE + 0.2);
+  run(inst, upgradeTime(1) + 0.2);
   assert.equal(inst.towers.get(2).lvl, 1, 'it takes a while, after a moment to admire it');
   run(inst, 0.5);
   assert.equal(inst.towers.get(2).lvl, 2);
-  run(inst, UPGRADE + 0.7);
+  assert.equal(inst.coins, 100 - COST.archer, 'free');
+  run(inst, upgradeTime(2) + 0.7);
   assert.equal(inst.towers.get(2).lvl, 3);
-  run(inst, UPGRADE * 3);
-  assert.equal(inst.towers.get(2).lvl, 3, 'three is the top');
-  assert.equal(inst.coins, 100 - COST.archer - upgradeCost('archer', 1) - upgradeCost('archer', 2));
-  assert.equal(inst.towers.get(2).max, TOWER_HP[2], 'and sturdier');
+  assert.ok(upgradeTime(9) > upgradeTime(2) * 2, 'and slower every level');
+  let all = 0; for (let l = 3; l < MAX_LVL; l++) all += upgradeTime(l) + 0.7;
+  run(inst, all + 5);
+  assert.equal(inst.towers.get(2).lvl, MAX_LVL);
+  assert.equal(MAX_LVL, 10);
+  run(inst, upgradeTime(9) * 2);
+  assert.equal(inst.towers.get(2).lvl, MAX_LVL, 'ten is the top');
+  assert.equal(inst.coins, 100 - COST.archer);
+  assert.equal(inst.towers.get(2).max, TOWER_HP[MAX_LVL - 1], 'and sturdier');
+});
+
+test('a tower at the top is many times a new one, against a crowd too', () => {
+  const kills = (kind, lvl) => { const S = STATS[kind], L = lvl - 1; return S.rate[L] * (S.many ? S.many[L] : S.most[L]); };
+  for (const kind of KINDS) assert.ok(kills(kind, MAX_LVL) > kills(kind, 1) * 5, kind);
+  for (const kind of KINDS) for (let l = 1; l < MAX_LVL; l++) assert.ok(STATS[kind].range[l] > STATS[kind].range[l - 1] && STATS[kind].dmg[l] > STATS[kind].dmg[l - 1]);
+});
+
+test('a high archer tower shoots several monsters at once', () => {
+  const inst = quiet(0); build(inst, 6, 'archer');
+  inst.towers.get(6).lvl = MAX_LVL;
+  const near = [];
+  for (let s = 0; s < PATH.total; s += 0.05){ const p = along(s); if (Math.hypot((p.x - PADS[6].x) * ASPECT, p.y - PADS[6].y) < 0.2) near.push(s); }
+  const ms = near.slice(0, 4).map(s => { const m = monster(inst, 'ogre', s); m.hp = m.max = 1e9; return m; });
+  run(inst, 1);
+  assert.equal(ms.filter(m => m.hp < m.max).length, 4);
 });
 
 test('two knights on one spot work twice as fast', () => {
@@ -388,41 +410,58 @@ test('standing at a hurt tower mends it, for free, before building it up', () =>
   assert.equal(tw.hp, tw.max);
 });
 
+/* Somewhere to stand on the castle, as big as it is now. */
+const atCastle = (inst) => ({ x: castleBox(inst.castleLvl).x, y: CASTLE_BASE - 0.12 });
+
+test('the castle starts small, with only a few hearts', () => {
+  const inst = quiet();
+  assert.equal(inst.castleLvl, 1);
+  assert.ok(HEARTS <= 5 && inst.hearts === HEARTS);
+  assert.ok(castleBox(1).w < CASTLE.w * 0.6);
+  const { x, y } = atCastle(inst);
+  assert.ok(onCastle(x, y + 0.03, 1));
+  assert.ok(!onCastle(CASTLE.x - CASTLE.w * 0.4, y + 0.03, 1), 'the far end is grass, for now');
+  assert.ok(onCastle(CASTLE.x - CASTLE.w * 0.4, y + 0.03, MAX_LVL));
+});
+
 test('standing at the castle mends its hearts, one at a time', () => {
-  const inst = quiet(); inst.hearts = HEARTS - 2; inst.coins = 0;
-  const x = CASTLE.x, y = CASTLE_BASE - 0.15;
-  assert.ok(onCastle(x, y + 0.03));
+  const inst = quiet(); inst.hearts = HEARTS - 2;
+  const { x, y } = atCastle(inst);
   put(knight(inst), x, y);
   run(inst, REPAIR + 0.1);
   assert.equal(inst.hearts, HEARTS - 1);
   run(inst, REPAIR);
   assert.equal(inst.hearts, HEARTS);
   assert.ok(inst.seen.repaired);
-  run(inst, REPAIR * 3);
-  assert.equal(inst.hearts, HEARTS, 'and no further, with no coins to build it up');
+  run(inst, REPAIR * 2);
+  assert.equal(inst.hearts, HEARTS, 'and no further');
 });
 
-test('a whole castle is built up bigger, with more hearts, up to three times', () => {
-  const inst = quiet(); inst.coins = 100;
-  put(knight(inst), CASTLE.x, CASTLE_BASE - 0.15);
-  run(inst, CASTLE_UP * 0.8);
+test('a whole castle is slowly built up, for free, a little bigger with more hearts, ten times', () => {
+  const inst = quiet(); inst.coins = 0;
+  const k = knight(inst);
+  const stand = () => { const p = atCastle(inst); put(k, p.x, p.y); };
+  stand();
+  run(inst, castleTime(1) * 0.8);
   assert.equal(inst.castleLvl, 1, 'it takes a while');
-  run(inst, CASTLE_UP * 0.2 + 0.1);
+  run(inst, castleTime(1) * 0.2 + 0.1);
   assert.equal(inst.castleLvl, 2);
   assert.equal(inst.maxHearts, CASTLE_HEARTS[1]);
   assert.equal(inst.hearts, CASTLE_HEARTS[1], 'all full');
-  run(inst, CASTLE_UP + 0.7);
-  assert.equal(inst.castleLvl, 3);
-  run(inst, CASTLE_UP * 3);
-  assert.equal(inst.castleLvl, 3, 'three is the top');
-  assert.equal(inst.coins, 100 - CASTLE_COST[0] - CASTLE_COST[1]);
-  assert.ok(CASTLE_HEARTS[2] > CASTLE_HEARTS[1] && CASTLE_HEARTS[1] > HEARTS);
+  assert.ok(castleBox(2).w > castleBox(1).w, 'a little bigger');
+  for (let l = 2; l < MAX_LVL; l++){ stand(); run(inst, castleTime(l) + 0.7); }
+  assert.equal(inst.castleLvl, MAX_LVL);
+  stand(); run(inst, castleTime(9) * 2);
+  assert.equal(inst.castleLvl, MAX_LVL, 'ten is the top');
+  assert.ok(castleBox(MAX_LVL).w > castleBox(1).w * 1.6 && Math.abs(castleBox(MAX_LVL).w - CASTLE.w) < 1e-9, 'the full castle at the top');
+  for (let l = 1; l < MAX_LVL; l++) assert.equal(CASTLE_HEARTS[l], CASTLE_HEARTS[l - 1] + 2, 'two more hearts each time');
 });
 
 test('a hurt castle is mended before it is built up', () => {
-  const inst = quiet(); inst.coins = 100; inst.hearts = HEARTS - 1;
-  put(knight(inst), CASTLE.x, CASTLE_BASE - 0.15);
-  run(inst, CASTLE_UP + 0.1);
+  const inst = quiet(); inst.hearts = HEARTS - 1;
+  const { x, y } = atCastle(inst);
+  put(knight(inst), x, y);
+  run(inst, castleTime(1) + 0.1);
   assert.equal(inst.hearts, HEARTS);
   assert.equal(inst.castleLvl, 1);
 });
@@ -542,6 +581,7 @@ test('a frost tower slows monsters down', () => {
 test('a tower fires at whichever monster in reach is nearest the castle', () => {
   const inst = quiet(0); inst.coins = 99;
   build(inst, 6, 'archer'); inst._upgrade(6, 0); inst._upgrade(6, 0);
+  assert.equal(STATS.archer.many[2], 1, 'one at a time, still');
   const near = [];
   for (let s = 0; s < PATH.total; s += 0.02){ const p = along(s); if (Math.hypot((p.x - PADS[6].x) * ASPECT, p.y - PADS[6].y) < 0.2) near.push(s); }
   const behind = monster(inst, 'slime', near[0]), ahead = monster(inst, 'slime', near[near.length - 1]);
@@ -586,7 +626,8 @@ test('waves grow in number; an ogre every fifth', () => {
 });
 
 test('waves creep up slowly, then pour out ever faster', () => {
-  assert.deepEqual([1, 2, 3, 4, 5].map(countOf), [7, 9, 11, 13, 17]);
+  assert.equal(countOf(1), 7);
+  for (let w = 2; w <= 5; w++) assert.ok(countOf(w) - countOf(w - 1) <= 3, `a few more each time at first: ${countOf(w)}`);
   assert.ok(countOf(30) > countOf(10) * 10);
   assert.ok(gapOf(30) < gapOf(10) / 10, 'a big wave comes out several at a time');
   const inst = quiet(0);
@@ -632,7 +673,7 @@ test('drawing works at every stage, with hints, ghosts and work rings', () => {
   const ctx = new Proxy({}, { get: (t, k) => k in t ? t[k] : (t[k] = () => ({ addColorStop(){} })), set: (t, k, v) => { t[k] = v; return true; } });
   const inst = quiet(2);
   inst.hearts = 5;
-  put(knight(inst, 0), PADS[2].x, PADS[2].y); put(knight(inst, 1), CASTLE.x, CASTLE_BASE - 0.15);
+  put(knight(inst, 0), PADS[2].x, PADS[2].y); put(knight(inst, 1), atCastle(inst).x, atCastle(inst).y);
   run(inst, 1, hammering({ n: 2 }));
   inst.draw(ctx, W, H);
   build(inst, 4, 'cannon'); inst.towers.get(4).hp = 2;
