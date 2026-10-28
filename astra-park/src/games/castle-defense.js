@@ -70,8 +70,10 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    (HAND_CENTRE torso-lengths below the shoulders) and the knight walks
    that way: out to the side is sideways, up above your shoulders is up the
    map, down to your tummy is down. Whichever hand is reaching further
-   steers. It takes HAND_START torso-lengths of reach to set off, but only
-   HAND_KEEP to keep going, and reaching further (to HAND_FULL) is faster -
+   steers - and if both reach the same way, both do: steadier, and
+   TWO_HANDS times as fast. It takes HAND_START torso-lengths of reach,
+   held for HAND_HOLD seconds (so a wave or a scratch is nothing), to set
+   off, but only HAND_KEEP to keep going, and reaching further (to HAND_FULL) is faster -
    running on the spot (knees at MARCH_FULL torso-lengths a second)
    hurries it up to RUN. Hands resting at your sides or on your hips (lower
    than HAND_REST torso-lengths above the hips) are no reach; nor is a hug,
@@ -82,7 +84,7 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    nearby (within MAGNET_R) and the knight's path bends onto it.
 
    With the mouse, the knight walks to where the pointer rests. */
-export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_FULL = 1.1, MARCH_FULL = 1.2;
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_FULL = 1.1, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2;
 export const SNAP_R = 0.1, MAGNET_R = 0.3;
 export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
 export const KNIGHT_SPEED = RUN;
@@ -400,15 +402,23 @@ class CastleDefense {
        further, in torso-lengths. */
     const sy = (lm[L.L_SHOULDER].y + lm[L.R_SHOULDER].y) / 2, hy = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2;
     const T = Math.max(0.02, hy - sy), cx = (lm[L.L_SHOULDER].x + lm[L.R_SHOULDER].x) / 2, cy = sy + HAND_CENTRE * T;
-    let best = null;
+    const reach = [];
     if (Math.abs(k.spin || 0) < ROLL_SPIN * 0.5 && !(k.hugT > 0.1)){
       for (const h of [p.hands.left, p.hands.right]){
         if (!h || h.y > hy - HAND_REST * T) continue;
         const vx = (h.x - cx) * ASPECT / T, vy = (h.y - cy) / T, d = Math.hypot(vx, vy);
-        if (!best || d > best.d) best = { vx, vy, d };
+        if (d >= HAND_KEEP) reach.push({ vx, vy, d });
       }
     }
-    if (!best || best.d < (k.steering ? HAND_KEEP : HAND_START)){ k.steering = false; k.lean = null; k.vx = k.vy = 0; return; }
+    let best = reach.sort((a, b) => b.d - a.d)[0] || null, both = false;
+    /* Both hands reaching the same way: steer with both. */
+    if (reach.length === 2 && (reach[0].vx * reach[1].vx + reach[0].vy * reach[1].vy) / (reach[0].d * reach[1].d) > 0.7){
+      const vx = (reach[0].vx + reach[1].vx) / 2, vy = (reach[0].vy + reach[1].vy) / 2;
+      best = { vx, vy, d: Math.hypot(vx, vy) }; both = true;
+    }
+    /* Setting off takes a clear reach, held a moment; keeping going, less. */
+    k.reachT = best && best.d >= HAND_START ? (k.reachT || 0) + dt : 0;
+    if (!best || (!k.steering && k.reachT < HAND_HOLD)){ k.steering = false; k.lean = null; k.vx = k.vy = 0; return; }
     k.steering = true;
     const pull = clamp((best.d - HAND_KEEP) / (HAND_FULL - HAND_KEEP), 0, 1);
     let ux = best.vx / best.d, uy = best.vy / best.d;
@@ -417,7 +427,7 @@ class CastleDefense {
     if (aim){ ux += aim.dx / aim.d * 0.6; uy += aim.dy / aim.d * 0.6; const m = Math.hypot(ux, uy); ux /= m; uy /= m; }
     k.lean = { x: ux, y: uy, k: pull };
     /* Reaching further goes faster; running on the spot faster still. */
-    const sp = (WALK + (RUN - WALK) * k.march) * (0.45 + 0.55 * pull);
+    const sp = Math.min(RUN, (WALK + (RUN - WALK) * k.march) * (0.45 + 0.55 * pull) * (both ? TWO_HANDS : 1));
     k.vx = ux * sp; k.vy = uy * sp;
   }
 

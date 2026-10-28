@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, SNAP_R, upgradeTime, castleTime,
+import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
                WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
                TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
@@ -17,7 +17,7 @@ const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i
    dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
    there, all standing still with their hands by their sides but the first. */
 const TORSO = 0.15, CHEST = { x: 0.5, y: 0.475 + 0.15 * TORSO };
-function body({ reach = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, n = 1 } = {}){
+function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, n = 1 } = {}){
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < n; });
   for (let i = 0; i < n; i++){
@@ -35,6 +35,7 @@ function body({ reach = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 
     p.hands.left = { x: 0.45, y: 0.65, vx: 0, vy: v, speed: Math.abs(v) };
     p.hands.right = { x: 0.55, y: 0.65, vx: 0, vy: -v, speed: Math.abs(v) };
     if (i === 0 && reach) p.hands.right = { x: CHEST.x + reach[0] * TORSO / ASPECT, y: CHEST.y + reach[1] * TORSO, vx: 0, vy: 0, speed: 0 };
+    if (i === 0 && reach2) p.hands.left = { x: CHEST.x + reach2[0] * TORSO / ASPECT, y: CHEST.y + reach2[1] * TORSO, vx: 0, vy: 0, speed: 0 };
   }
 }
 /* Standing still and upright: `n` children there. */
@@ -160,6 +161,24 @@ test('it takes a clear reach to set off, but a lighter one keeps it going', () =
   const x0 = moved(kb).x;
   run(b, 1, () => body({ reach: [mid, 0] }));
   assert.ok(moved(kb).x > x0 + 0.02, 'but keeps it walking');
+});
+
+test('a quick flick of a hand - a wave, a scratch - does not set the knight off', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  for (let q = 0; q < 4; q++){ run(inst, HAND_HOLD * 0.7, () => body({ reach: [1.3, -0.3] })); run(inst, 0.3, () => body({})); }
+  assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002);
+  run(inst, HAND_HOLD + 0.3, () => body({ reach: [1.3, 0] }));
+  assert.ok(moved(k).x > 0.005, 'held out, it goes');
+});
+
+test('both hands reaching the same way steer together, a little faster; opposite ways, the further one steers', () => {
+  const go = (o) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 1.2, () => body(o)); return moved(k); };
+  const one = go({ reach: [1.0, 0] }), two = go({ reach: [1.0, -0.1], reach2: [1.0, 0.1] });
+  assert.ok(two.x > one.x * 1.1, `${one.x.toFixed(3)} one hand, ${two.x.toFixed(3)} both`);
+  assert.ok(Math.abs(two.y - one.y) < 0.01, `straight between them: ${one.y.toFixed(3)} one hand, ${two.y.toFixed(3)} both`);
+  assert.ok(TWO_HANDS > 1);
+  const apart = go({ reach: [1.3, 0], reach2: [-0.8, 0] });
+  assert.ok(apart.x > 0.05, 'the hand reaching further wins');
 });
 
 test('rolling your arms or hugging never steers the knight', () => {
