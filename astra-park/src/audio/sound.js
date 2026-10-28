@@ -316,7 +316,25 @@ export const sfx = {
   lose(){ [0,-2,-5].forEach((s,i) =>
             blip({ freq: 330 * Math.pow(2, s/12), dur: 0.42, type:'sawtooth',
                    gain:0.2, delay:i*0.13 })); },
-  whoosh(){ hiss({ dur: 0.3, gain: 0.18, hp: 300, sweep: 2600 }); }
+  whoosh(){ hiss({ dur: 0.3, gain: 0.18, hp: 300, sweep: 2600 }); },
+  /* A war drum: the monsters are coming. The last beat is the big one. */
+  drum(big = false){
+    blip({ freq: big ? 110 : 95, to: 50, dur: big ? 0.5 : 0.32, type: 'sine', gain: big ? 0.6 : 0.45 });
+    hiss({ dur: 0.12, gain: big ? 0.22 : 0.14, hp: 260, type: 'lowpass', q: 0.7 });
+  },
+  /* Hopped clean over something: a swish up and a bright ping. */
+  dodge(){
+    hiss({ dur: 0.22, gain: 0.16, hp: 500, sweep: 4000 });
+    blip({ freq: 700, to: 1600, dur: 0.18, type: 'triangle', gain: 0.18, delay: 0.05 });
+  },
+  /* Somewhere picked to go to: a soft wooden tock. */
+  pick(){ blip({ freq: 1100, to: 850, dur: 0.06, type: 'triangle', gain: 0.09 }); },
+  /* The next kind of tower: click-clack. */
+  flip(){ blip({ freq: 700, dur: 0.06, type: 'triangle', gain: 0.18 }); blip({ freq: 1050, dur: 0.08, type: 'triangle', gain: 0.18, delay: 0.08 }); },
+  /* Got the hang of something: a little rising chime. */
+  learnt(){ [0, 4, 7, 12, 16].forEach((st, i) => blip({ freq: 523 * Math.pow(2, st / 12), dur: 0.3, type: 'sine', gain: 0.16, delay: i * 0.07 })); },
+  /* A pennant flying up at the end, each a step higher. */
+  pennant(k = 0){ const st = PENT[k % 5] + 12 * Math.floor(k / 5 % 3); blip({ freq: 392 * Math.pow(2, st / 12), dur: 0.22, type: 'triangle', gain: 0.16 }); }
 };
 
 /* ---------- music ----------

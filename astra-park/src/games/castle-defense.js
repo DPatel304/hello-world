@@ -159,8 +159,18 @@ export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
    jump builds it, if there are the coins. Just standing there only shows
    the tower it would be. (With the mouse, standing there builds it.) */
 export const ARMS_APART = 1.2, ARMS_HOLD = 0.3;
-/* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first). */
-export const BUILD_TIME = 15, FIRST_BUILD = 20;
+/* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first),
+   and for the last DRUMS seconds of it a war drum beats. */
+export const BUILD_TIME = 15, FIRST_BUILD = 20, DRUMS = 3;
+/* The first game of the day starts with a gentle lesson in place of the
+   first break: one thing at a time, shown by ghosts, and nothing comes
+   until it's been done (or LESSON_WAIT seconds go by, so nobody's stuck).
+   Get a knight onto a pad; switch its tower with arms up; jump to build
+   it; see off one slow little slime; squat at the tower to build it up.
+   Then READY seconds - and the drums - and the first wave. Played once,
+   later games skip it. (Not with the mouse.) */
+export const LESSONS = ['pad', 'switch', 'build', 'fight', 'squat'], LESSON_WAIT = 45, READY = 8;
+export const lessons = { done: false };
 const BREAK = BUILD_TIME;
 /* What towers do at each level: each step a little further, faster and
    harder, and every few levels archers and frost towers shoot at one more
@@ -255,7 +265,9 @@ class CastleDefense {
     this.hearts = HEARTS;
     this.wave = 0;              /* waves started */
     this.held = 0;              /* waves held off */
-    this.state = 'build';       /* 'build' between waves, 'wave' while one is on */
+    /* 'learn' for the lesson, 'build' between waves, 'wave' while one is on */
+    this.state = lessons.done || pose.mouse.active ? 'build' : 'learn';
+    this.lesson = { i: 0, t: 0, slime: null };
     this.breakT = FIRST_BUILD;  /* time left before the next wave */
     this.queue = []; this.spawnT = 0;
     this.towers = new Map();    /* pad index -> tower */
@@ -312,9 +324,13 @@ class CastleDefense {
   }
 
   _waves(dt){
+    if (this.state === 'learn'){ this._learn(dt); return; }
     if (this.state === 'build'){
+      const was = this.breakT;
       this.breakT -= dt;
-      if (this.breakT <= 0) this._startWave();
+      /* The last few seconds: a war drum, a beat a second, the last one big. */
+      for (let b = DRUMS; b >= 1; b--) if (was > b && this.breakT <= b) sfx.drum(false);
+      if (this.breakT <= 0){ sfx.drum(true); this._startWave(); }
       return;
     }
     /* Each wave comes out over about the same time, so a bigger wave pours
@@ -333,6 +349,39 @@ class CastleDefense {
       this.state = 'build'; this.breakT = BREAK;
       sfx.fanfare();
     }
+  }
+
+  /* The lesson: on to the next thing once this one's been done. */
+  get lessonNow(){ return this.state === 'learn' ? LESSONS[this.lesson.i] : null; }
+  _learn(dt){
+    const L = this.lesson, what = LESSONS[L.i];
+    L.t += dt;
+    const up = this.knights.slice(0, this.players).filter((k, i) => pose.players[i].present && !(k.down > 0));
+    let done = false;
+    if (what === 'pad') done = up.some(k => k.at && k.at.kind === 'pad' && !this.towers.has(k.at.i));
+    else if (what === 'switch') done = this.seen.switched;
+    else if (what === 'build') done = this.towers.size > 0;
+    else if (what === 'fight'){
+      /* One slow little slime, along the trail. */
+      if (!L.slime){ this._spawn('slime', 0); L.slime = this.monsters[this.monsters.length - 1]; L.slime.speed *= 0.6; }
+      done = !this.monsters.includes(L.slime);
+    }
+    else if (what === 'squat') done = this.seen.squatted;
+    /* Not getting it? Never mind - on to the next. */
+    const skip = !done && what !== 'fight' && L.t >= LESSON_WAIT;
+    if (!done && !skip) return;
+    if (done){
+      sfx.learnt();
+      for (const k of up) for (let q = 0; q < 8; q++) this._spark(k.x, k.y - KNIGHT_SIZE, '#ffd24a');
+    }
+    L.i++; L.t = 0;
+    if (L.i >= LESSONS.length){ lessons.done = true; this.state = 'build'; this.breakT = READY; }
+  }
+
+  /* Holding both arms up pauses the game - but not while switching a
+     tower with them. */
+  pausable(){
+    return !this.knights.slice(0, this.players).some((k, i) => pose.players[i].present && k.at && k.at.kind === 'pad' && !this.towers.has(k.at.i) && this.armsUp(pose.players[i]));
   }
 
   _startWave(){
@@ -472,7 +521,10 @@ class CastleDefense {
     k.steering = !!best && (k.steering || k.reachT >= HAND_HOLD);
     if (k.steering){
       k.mode = 'point'; k.anchor = k.room ? { ...k.room } : null;
-      k.goal = this._aimAt(k, best.vx / best.d, best.vy / best.d);
+      const goal = this._aimAt(k, best.vx / best.d, best.vy / best.d), was = k.goal;
+      /* A new place picked: tock. */
+      if (!was || (goal.m || null) !== (was.m || null) || (!goal.m && Math.hypot(goal.x - was.x, goal.y - was.y) > 0.05)) sfx.pick();
+      k.goal = goal;
     } else if (k.room && k.anchor && Math.hypot((k.room.x - k.anchor.x) * ASPECT, k.room.y - k.anchor.y) > ROOM_MOVE){
       /* Off across the room: running about. */
       k.mode = 'room'; k.goal = null;
@@ -688,7 +740,7 @@ class CastleDefense {
         for (const { k, i } of inRing(p)){
           /* Jumped just in time: over it! */
           if (k.air > 0){
-            this.seen.dodged = true; sfx.twinkle();
+            this.seen.dodged = true; sfx.dodge();
             for (let q = 0; q < 10; q++) this._spark(k.x + (Math.random() - 0.5) * 0.03, k.y - KNIGHT_SIZE * 0.3, PLAYER_COLORS[i]);
             continue;
           }
@@ -856,7 +908,7 @@ class CastleDefense {
     k.switched = true;
     this.picks.set(at.i, (this.picks.get(at.i) + 1) % KINDS.length);
     this.seen.switched = true;
-    sfx.boing(2);
+    sfx.flip();
     const pad = PADS[at.i];
     for (let q = 0; q < 10; q++) this._spark(pad.x, pad.y - 0.06, PLAYER_COLORS[i]);
   }
@@ -1366,11 +1418,12 @@ class CastleDefense {
          jumping, a little bouncing arrow over the knight; until someone has
          switched a tower, now and then two ghostly arms going up. */
       if (!pose.mouse.active && k.at && k.at.kind === 'pad' && !this.towers.has(k.at.i)){
-        const showArms = !this.seen.switched && (this.seen.jumped || (this.t % 4) > 2);
+        const now = this.lessonNow;
+        const showArms = now === 'switch' || now === 'pad' || (!now && !this.seen.switched && (this.seen.jumped || (this.t % 4) > 2));
         if (showArms){
           const u = Math.min(1, ((this.t * 1.2) % 1) * 2), hy = y - s * (0.7 + 0.8 * u), off = s * (0.3 + 0.2 * u);
           ghost(x - off, hy, 0.85); ghost(x + off, hy, 0.85);
-        } else if (!this.seen.jumped){
+        } else if (now === 'build' || (!now && !this.seen.jumped)){
           const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
           c.save(); c.globalAlpha = 0.8; arrow(c, x, y - s * 1.2 - b, 0, -1, s * 0.3, '#fff6e2'); c.restore();
         }
@@ -1395,15 +1448,32 @@ class CastleDefense {
         }
       }
     }
-    /* Building: until the first tower, the nearest empty pad to the first
-       knight pulses, with a trail of dots leading to it. */
-    if (!this.seen.built && this.knights[0] && pose.players[0].present && !(this.knights[0].down > 0) && !(this.knights[0].ice > 0)){
+    /* Building: until the first tower, a trail of dots from the first
+       knight to the nearest empty pad - and in the lesson, to the tower to
+       squat at, or the slime to see off. */
+    const toTower = this.lessonNow === 'squat' && !this.knights.some(k => k.at && k.at.kind === 'pad' && this.towers.has(k.at.i));
+    if ((!this.seen.built || toTower) && this.knights[0] && pose.players[0].present && !(this.knights[0].down > 0) && !(this.knights[0].ice > 0)){
       const k = this.knights[0];
       let best = null, bd = 9;
-      for (const pad of PADS){ if (this.towers.has(pad.i)) continue; const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = pad; } }
+      for (const pad of PADS){ if (this.towers.has(pad.i) !== toTower) continue; const d = Math.hypot((pad.x - k.x) * ASPECT, pad.y - k.y); if (d < bd){ bd = d; best = pad; } }
+      const slime = this.lessonNow === 'fight' && this.lesson.slime && this.monsters.includes(this.lesson.slime) && this.pos(this.lesson.slime);
+      if (slime){ best = slime; bd = Math.hypot((slime.x - k.x) * ASPECT, slime.y - k.y); }
       if (best && bd > AT_PAD){
         c.save(); c.fillStyle = '#fff6e2';
         for (let q = 1; q < 8; q++){ const u = q / 8, a = 0.25 + 0.6 * Math.max(0, Math.sin(this.t * 4 - q * 0.6)); c.globalAlpha = a; c.beginPath(); c.arc((k.x + (best.x - k.x) * u) * W, (k.y + (best.y - k.y) * u) * H, H * 0.007, 0, 6.2832); c.fill(); }
+        c.restore();
+      }
+    }
+    /* The lesson: a little row of stones along the top, one for each thing
+       to learn - gold once learnt, the one to learn now bobbing. */
+    if (this.state === 'learn'){
+      const n = LESSONS.length, r = H * 0.014;
+      for (let q = 0; q < n; q++){
+        const x = W / 2 + (q - (n - 1) / 2) * r * 3.2, now = q === this.lesson.i, y = H * 0.05 - (now ? Math.abs(Math.sin(this.t * 4)) * r * 0.6 : 0);
+        c.save(); c.globalAlpha = q < this.lesson.i || now ? 0.95 : 0.4;
+        c.fillStyle = q < this.lesson.i ? '#ffd24a' : now ? '#fff6e2' : 'rgba(255,246,226,.6)';
+        c.beginPath(); c.arc(x, y, r * (now ? 1.15 : 1), 0, 6.2832); c.fill();
+        if (q < this.lesson.i) star(c, x, y, r * 0.6, '#fff6e2');
         c.restore();
       }
     }

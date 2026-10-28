@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
                WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, REVIVE_CLAPS, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
-               DODGE, FEET_FAR, FEET_NEAR, ROOM_MOVE, ROOM_EDGE, ROOM_RUN, HURT_SLOW, ARMS_HOLD, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
+               DODGE, LESSONS, LESSON_WAIT, READY, DRUMS, lessons, FEET_FAR, FEET_NEAR, ROOM_MOVE, ROOM_EDGE, ROOM_RUN, HURT_SLOW, ARMS_HOLD, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
+import { sfx } from '../src/audio/sound.js';
 
 const W = 1920, H = 1080, DT = 1 / 60, ASPECT = 16 / 9;
+/* The lesson's been had: the tests start straight on the game, but for the lesson's own. */
+lessons.done = true;
 /* A canvas that takes anything. */
 const fakeCtx = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (t[k] = () => ({ addColorStop(){} })), set: (t, k, v) => { t[k] = v; return true; } });
 const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i++){ if (each) each(i * DT); inst.step(DT, W, H); } };
@@ -1306,4 +1309,94 @@ test('no clock and no score on screen; the round ends with an ending', () => {
   let done = false, s = 0;
   for (; s < 8 && !done; s += DT) done = inst.outro(DT, W, H);
   assert.ok(done && s > 3);
+});
+
+/* ---------- the lesson ---------- */
+
+test('the first game starts with a lesson: one thing at a time, and nothing comes till it is done', () => {
+  lessons.done = false;
+  try {
+    still();
+    const inst = game.create(1), k = knight(inst), pad = PADS[2];
+    assert.equal(inst.state, 'learn');
+    assert.equal(inst.lessonNow, 'pad');
+    run(inst, 30, () => still());
+    assert.equal(inst.lessonNow, 'pad', 'it waits');
+    assert.equal(inst.monsters.length, 0, 'and nothing comes');
+    inst.draw(fakeCtx(), W, H);
+    put(k, pad.x, pad.y); run(inst, 0.2, () => still());
+    assert.equal(inst.lessonNow, 'switch');
+    run(inst, ARMS_HOLD + 0.2, () => body({ arms: true })); run(inst, 0.3, () => still());
+    assert.equal(inst.lessonNow, 'build');
+    jump(inst);
+    assert.ok(inst.towers.has(2));
+    run(inst, 0.1, () => still());
+    assert.equal(inst.lessonNow, 'fight');
+    const slime = inst.lesson.slime;
+    assert.equal(inst.monsters.length, 1, 'one little slime');
+    assert.ok(slime.speed < MONSTERS.slime.speed, 'a slow one');
+    inst.draw(fakeCtx(), W, H);
+    inst._damage(slime, 99, 0); run(inst, 0.1, () => still());
+    assert.equal(inst.lessonNow, 'squat');
+    run(inst, 1.5, squats());
+    assert.equal(inst.state, 'build');
+    assert.ok(inst.breakT > READY - 1.6 && inst.breakT <= READY, 'then a moment to get ready');
+    assert.equal(inst.wave, 0);
+    assert.ok(lessons.done);
+    assert.equal(game.create(1).state, 'build', 'and the next game goes straight in');
+  } finally { lessons.done = true; }
+});
+
+test('not getting something in the lesson, it moves on after a while', () => {
+  lessons.done = false;
+  try {
+    still();
+    const inst = game.create(1);
+    run(inst, LESSON_WAIT + 1, () => still());
+    assert.equal(inst.lessonNow, 'switch');
+  } finally { lessons.done = true; }
+});
+
+test('with the mouse there is no lesson', () => {
+  lessons.done = false;
+  try {
+    mouse(0.5, 0.5);
+    assert.equal(game.create(1).state, 'build');
+  } finally { lessons.done = true; }
+});
+
+/* ---------- sounds ---------- */
+
+test('a war drum beats the last few seconds before a wave, the last beat a big one', () => {
+  const beats = [], drum = sfx.drum;
+  sfx.drum = (big) => beats.push(!!big);
+  try {
+    const inst = quiet(); inst.breakT = DRUMS + 2;
+    run(inst, DRUMS + 2.1);
+    assert.equal(inst.state, 'wave');
+    assert.deepEqual(beats, [...Array(DRUMS).fill(false), true]);
+  } finally { sfx.drum = drum; }
+});
+
+test('jumping over a club, switching a tower and picking a place each have a sound of their own', () => {
+  const heard = [], keep = {};
+  for (const n of ['dodge', 'flip', 'pick']){ keep[n] = sfx[n]; sfx[n] = () => heard.push(n); }
+  try {
+    const a = quiet(); put(knight(a), PADS[2].x, PADS[2].y); run(a, 0.2);
+    run(a, ARMS_HOLD + 0.2, () => body({ arms: true }));
+    const b = quiet(); put(knight(b), FREE.x, FREE.y);
+    run(b, 0.6, () => body({ reach: [1.3, 0] }));
+    const c = quiet(), m = monster(c, 'ogre', 1.5); m.hp = m.max = 1e9;
+    put(knight(c), along(1.5).x, along(1.5).y); run(c, 0.2); run(c, m.wind - 0.3); jump(c); run(c, WINDUP);
+    assert.deepEqual([...new Set(heard)].sort(), ['dodge', 'flip', 'pick']);
+    assert.equal(heard.filter(h => h === 'pick').length, 1, 'once, not every frame');
+  } finally { Object.assign(sfx, keep); }
+});
+
+test('arms up on an empty pad switches the tower, and does not pause the game', () => {
+  const inst = quiet(); put(knight(inst), PADS[2].x, PADS[2].y); run(inst, 0.2);
+  body({ arms: true });
+  assert.equal(inst.pausable(), false);
+  put(knight(inst), FREE.x, FREE.y); run(inst, 0.2, () => body({ arms: true }));
+  assert.equal(inst.pausable(), true, 'off the pad, arms up still pauses');
 });

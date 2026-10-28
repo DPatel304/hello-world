@@ -7,8 +7,9 @@
    rather than on a graph of gain nodes. */
 
 const noop = () => {};
+/* A test can put a spy in place of a sound, to hear whether it played. */
 const recorder = () => new Proxy({}, {
-  get(_, k){ return k === 'then' ? undefined : noop; }
+  get(t, k){ return k === 'then' ? undefined : Object.hasOwn(t, k) ? t[k] : noop; }
 });
 
 export const sfx = recorder();
