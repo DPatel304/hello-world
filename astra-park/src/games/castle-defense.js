@@ -104,6 +104,11 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
 
    With the mouse, the knight walks to where the pointer rests. */
 export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.06, AIM = 0.75, AIM_STICK = 0.15, AIM_EASE = 10;
+/* The pointer - beam, rings and flag - only shows for an obvious point: a
+   clear reach (HAND_START) held AIM_SHOW seconds. It stays while you point
+   or march to what you picked, and AIM_LINGER seconds after you do
+   neither, it fades away over AIM_FADE seconds. */
+export const AIM_SHOW = 0.12, AIM_LINGER = 2.5, AIM_FADE = 1;
 export const FEET_FAR = 0.72, FEET_NEAR = 0.97, ROOM_MOVE = 0.15, ROOM_RUN = 0.2, ROOM_EDGE = 0.05;
 export const SNAP_R = 0.1;
 export const WALK = 0.08, RUN = 0.16, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
@@ -447,7 +452,7 @@ class CastleDefense {
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
       if (on) k.played = true;
-      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; k.mode = k.goal = k.room = k.anchor = k.aim = null; continue; }
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; k.mode = k.goal = k.room = k.anchor = k.aim = null; k.aimVis = 0; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
@@ -537,6 +542,14 @@ class CastleDefense {
       const m = Math.hypot(ux, uy) || 1; ux /= m; uy /= m;
       k.aim = { ux, uy, cand: this._aimAt(k, ux, uy, was && was.cand), hold: k.steering ? 1 : clamp(k.reachT / HAND_HOLD, 0, 1) };
     } else k.aim = null;
+    /* Showing the pointer: only for an obvious point, and fading once
+       you've stopped pointing and marching a while. */
+    const pointing = k.reachT >= AIM_SHOW || (k.steering && !!k.aim);
+    const busy = pointing || (k.mode === 'point' && !!k.goal && k.march >= MARCH_MIN);
+    k.idle = busy ? 0 : (k.idle || 0) + dt;
+    const shown = k.aimVis || 0;
+    if (pointing) k.aimVis = Math.min(1, shown + dt * 6);
+    else if (k.idle > AIM_LINGER || k.mode === 'room') k.aimVis = Math.max(0, shown - dt / AIM_FADE);
     if (k.steering){
       k.mode = 'point'; k.anchor = k.room ? { ...k.room } : null;
       const goal = k.aim.cand, was = k.goal;
@@ -1353,7 +1366,7 @@ class CastleDefense {
       if (!this.out && pose.mouse.active && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
       /* Pointed somewhere: a marker there. */
       const goal = !this.out && k.mode === 'point' && k.goal && this._goalAt(k.goal);
-      if (goal) drawMarker(c, goal.x * W, goal.y * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
+      if (goal && k.aimVis > 0.01){ c.save(); c.globalAlpha = k.aimVis; drawMarker(c, goal.x * W, goal.y * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t); c.restore(); }
       if (!this.out){
         /* The arrow under it, the way it's going. */
         if (k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
@@ -1588,28 +1601,31 @@ class CastleDefense {
      place, and over it a ring filling up as the hand's held there. */
   _drawAim(c, W, H){
     for (let i = 0; i < this.players; i++){
-      const k = this.knights[i], aim = k.aim;
-      if (!aim || !pose.players[i].present || k.down > 0 || k.ice > 0) continue;
-      const at = this._goalAt(aim.cand);
+      const k = this.knights[i], vis = k.aimVis || 0;
+      if (vis < 0.01 || !pose.players[i].present || k.down > 0 || k.ice > 0) continue;
+      /* Pointing: to what it would pick. Not now: to what was picked. */
+      const aim = k.aim, to = aim ? aim.cand : k.mode === 'point' && k.goal ? k.goal : null;
+      const at = to && this._goalAt(to);
       if (!at) continue;
+      const hold = aim ? aim.hold : 1;
       const col = PLAYER_COLORS[i], d = Math.hypot((at.x - k.x) * ASPECT, at.y - k.y), n = Math.max(3, Math.round(d / 0.03));
       const x0 = k.x, y0 = k.y - KNIGHT_SIZE * 0.5;
       c.save();
       for (let q = 1; q < n; q++){
-        const u = q / n, r = H * (0.008 + 0.004 * aim.hold) * (0.85 + 0.3 * Math.max(0, Math.sin(this.t * 7 - q * 0.8)));
+        const u = q / n, r = H * (0.008 + 0.004 * hold) * (0.85 + 0.3 * Math.max(0, Math.sin(this.t * 7 - q * 0.8)));
         const x = (x0 + (at.x - x0) * u) * W, y = (y0 + (at.y - y0) * u) * H;
-        c.globalAlpha = 0.55 + 0.45 * aim.hold;
+        c.globalAlpha = (0.55 + 0.45 * hold) * vis;
         c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, y, r * 1.35, 0, 6.2832); c.fill();
         c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
       }
-      const rr = H * (aim.cand.m ? 0.055 : 0.06) * (1 + 0.06 * Math.sin(this.t * 8));
-      c.globalAlpha = 0.7 + 0.3 * aim.hold;
+      const rr = H * (to.m ? 0.055 : 0.06) * (1 + 0.06 * Math.sin(this.t * 8));
+      c.globalAlpha = (0.7 + 0.3 * hold) * vis;
       c.lineWidth = H * 0.011; c.strokeStyle = '#ffffff';
       c.beginPath(); c.ellipse(at.x * W, at.y * H, rr, rr * 0.55, 0, 0, 6.2832); c.stroke();
       c.lineWidth = H * 0.006; c.strokeStyle = col;
       c.beginPath(); c.ellipse(at.x * W, at.y * H, rr, rr * 0.55, 0, 0, 6.2832); c.stroke();
       c.restore();
-      if (aim.hold < 1) drawWorkRing(c, at.x * W, (at.y - 0.075) * H, H * 0.03, aim.hold, col);
+      if (aim && hold < 1){ c.save(); c.globalAlpha = vis; drawWorkRing(c, at.x * W, (at.y - 0.075) * H, H * 0.03, hold, col); c.restore(); }
     }
   }
 

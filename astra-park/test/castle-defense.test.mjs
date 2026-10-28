@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
                WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, REVIVE_CLAPS, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
-               DODGE, LESSONS, LESSON_WAIT, READY, DRUMS, lessons, FEET_FAR, FEET_NEAR, ROOM_MOVE, ROOM_EDGE, ROOM_RUN, HURT_SLOW, ARMS_HOLD, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
+               DODGE, AIM_LINGER, AIM_FADE, LESSONS, LESSON_WAIT, READY, DRUMS, lessons, FEET_FAR, FEET_NEAR, ROOM_MOVE, ROOM_EDGE, ROOM_RUN, HURT_SLOW, ARMS_HOLD, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -240,6 +240,26 @@ test('the moment a hand is out, the map shows where it points - before anything 
   assert.ok(k.goal && Math.hypot(k.goal.x - pad.x, k.goal.y - pad.y) < 1e-9, 'held: picked');
   run(inst, 0.2, () => still());
   assert.equal(k.aim, null, 'hand down: no beam');
+});
+
+test('the pointer only shows for an obvious point, and fades a while after you stop pointing and marching', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  const half = (HAND_START + HAND_KEEP) / 2;
+  run(inst, 2, () => body({ reach: [half, 0] }));
+  assert.ok(!(k.aimVis > 0), 'a half-hearted reach shows nothing');
+  run(inst, 0.5, () => body({ reach: [1.3, 0] }));
+  assert.ok(k.aimVis > 0.9, 'a clear point shows it');
+  /* Marching to it: it stays. */
+  run(inst, 1, marching({}));
+  assert.ok(k.aimVis > 0.9, 'marching: it stays');
+  /* Doing neither: it lingers, then fades. */
+  put(k, pad.x, pad.y);
+  run(inst, AIM_LINGER * 0.8, () => still());
+  assert.ok(k.aimVis > 0.9, 'lingers a moment');
+  run(inst, AIM_LINGER * 0.2 + AIM_FADE + 0.3, () => still());
+  assert.equal(k.aimVis, 0, 'then gone');
+  inst.draw(fakeCtx(), W, H);
 });
 
 test('what is lit stays lit, unless you clearly point away', () => {
