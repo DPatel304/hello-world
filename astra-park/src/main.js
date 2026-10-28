@@ -2,9 +2,10 @@ import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
 import { title, logo } from './ui/title.js';
+import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
-import { audio, music, sfx } from './audio/sound.js';
+import { audio, music, sfx, ambience } from './audio/sound.js';
 import { scores } from './games/common.js';
 import { PLAYER_COLORS, MAX_PLAYERS } from './tracking/pose.js';
 
@@ -41,6 +42,7 @@ function go(next, build){
    picked and fades away on the way back out. */
 function toMenu(){
   music.stop();
+  if (mode === 'results' || mode === 'play' || mode === 'outro') sfx.back();
   pose.keepSitters = false;
   go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration }));
 }
@@ -72,6 +74,7 @@ function toTitle(){
    anything stopping. */
 function toGame(g){
   game = g;
+  ambience.stop();
   players = MAX_PLAYERS;
   music.start();
   startRound();
@@ -290,18 +293,23 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------- boot ---------- */
+/* The boot show plays while the camera starts; the front door opens when
+   both are done. */
 (async function boot(){
   const debug = new URLSearchParams(location.search).has('debug');
-  const s = screen('dim');
-  s.append(logo());
-  s.append(h('p', 'lede', debug ? 'Debug mode — the mouse plays.' : 'Starting the camera…'));
-
-  await pose.start(video, { forceMouse: debug });
+  audio.resume();
+  const show = bootShow();
+  go('boot', () => show);
+  requestAnimationFrame(tick);
+  const started = pose.start(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
   window.__round = () => inst;
-  audio.resume();
   holdScreen();
-
-  requestAnimationFrame(tick);
+  let ready = false;
+  started.then(() => { ready = true; }, () => { ready = true; });
+  await new Promise(res => {
+    const wait = () => { if (show.done && ready) res(); else { show.waiting = show.done; setTimeout(wait, 50); } };
+    wait();
+  });
   toTitle();
 })();

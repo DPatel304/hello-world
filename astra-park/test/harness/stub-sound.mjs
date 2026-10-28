@@ -18,3 +18,4 @@ export const audio = Object.assign(recorder(), {
   get volume(){ return 0.7; },
   get muted(){ return false; }
 });
+export const ambience = recorder();

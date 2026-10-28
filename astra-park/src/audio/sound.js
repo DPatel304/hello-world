@@ -333,6 +333,18 @@ export const sfx = {
   flip(){ blip({ freq: 700, dur: 0.06, type: 'triangle', gain: 0.18 }); blip({ freq: 1050, dur: 0.08, type: 'triangle', gain: 0.18, delay: 0.08 }); },
   /* Got the hang of something: a little rising chime. */
   learnt(){ [0, 4, 7, 12, 16].forEach((st, i) => blip({ freq: 523 * Math.pow(2, st / 12), dur: 0.3, type: 'sine', gain: 0.16, delay: i * 0.07 })); },
+  /* The console turning on: a soft swell up into a bright bell chord -
+     the same every time, so it becomes the sound of Astra Park. */
+  boot(){
+    hiss({ dur: 1.1, gain: 0.05, hp: 300, sweep: 3200, type: 'bandpass', q: 0.6 });
+    [0, 7, 12, 16, 19, 24].forEach((st, i) => blip({ freq: 262 * Math.pow(2, st / 12), dur: 1.4 - i * 0.12, type: i < 2 ? 'triangle' : 'sine', gain: 0.12, delay: 0.35 + i * 0.09 }));
+  },
+  /* Moving along the shelf. */
+  nav(){ blip({ freq: 520, to: 640, dur: 0.07, type: 'sine', gain: 0.1 }); hiss({ dur: 0.08, gain: 0.03, hp: 2400 }); },
+  /* Into a game, or a choice made. */
+  select(){ blip({ freq: 660, dur: 0.1, type: 'triangle', gain: 0.16 }); blip({ freq: 990, dur: 0.16, type: 'triangle', gain: 0.14, delay: 0.07 }); hiss({ dur: 0.4, gain: 0.08, hp: 400, sweep: 3000 }); },
+  /* Back out again. */
+  back(){ blip({ freq: 700, to: 420, dur: 0.14, type: 'triangle', gain: 0.12 }); },
   /* A pennant flying up at the end, each a step higher. */
   pennant(k = 0){ const st = PENT[k % 5] + 12 * Math.floor(k / 5 % 3); blip({ freq: 392 * Math.pow(2, st / 12), dur: 0.22, type: 'triangle', gain: 0.16 }); }
 };
@@ -669,6 +681,28 @@ const band = {
 /* What the rest of the game talks to. With songs in the music folder it
    plays those - straight through, building in volume across a round, slowed
    like a tape for slow motion - and otherwise the generated band above. */
+/* Home-screen ambience: slow, soft chords drifting under the menus, with a
+   bell now and then - there, but never asking for attention. Quiet until
+   lift() is asked for a moment. */
+let ambT = null, ambStep = 0, ambLift = 0;
+const AMB = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]];
+export const ambience = {
+  start(){
+    if (ambT) return;
+    ctx();
+    const play = () => {
+      if (!AC || state.muted) return;
+      const t = AC.currentTime + 0.05, ch = AMB[ambStep++ % AMB.length], g = 0.018 + 0.02 * ambLift;
+      ch.forEach((m, i) => tone(m - 12 + (i ? 12 : 0), t + i * 0.12, 4.2, { type: 'sine', gain: g, attack: 0.9, verb: 0.5, dest: master }));
+      if (ambStep % 2) bell(ch[ambStep % 3] + 24, t + 1.2, 0.02 + 0.02 * ambLift, 0.6, master);
+      ambLift = Math.max(0, ambLift - 0.5);
+    };
+    play(); ambT = setInterval(play, 3200);
+  },
+  stop(){ clearInterval(ambT); ambT = null; },
+  lift(){ ambLift = 1; }
+};
+
 export const music = {
   start(){
     /* Quiet from the first note, rather than starting loud and sinking. */

@@ -277,3 +277,53 @@ function drawPetals(c, W, H, t){
     c.restore();
   }
 }
+
+/* ---------- the park, living ----------
+   The home screen's park follows the real day: the dusk it's painted as,
+   washed bluer and starrier at night, gold in the morning, brighter in the
+   day; snow drifts down in winter and leaves in autumn. Over that, a soft
+   wash of the colour of whatever game is picked, so the room seems to
+   change with it. */
+const SNOW = Array.from({ length: 70 }, (_, i) => ({ x: hash(i, 59), y: hash(i, 61), r: 1 + hash(i, 67) * 2.2, sp: 0.02 + hash(i, 71) * 0.03, ph: hash(i, 73) * 6.28 }));
+
+export function partOfDay(d = new Date()){
+  const h = d.getHours() + d.getMinutes() / 60;
+  return h < 6 || h >= 21 ? 'night' : h < 10 ? 'morning' : h < 17 ? 'day' : 'evening';
+}
+export function seasonOf(d = new Date()){
+  const m = d.getMonth();
+  return m === 11 || m <= 1 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn';
+}
+
+export function drawLiving(c, W, H, t, { accent = null, mix = 0, when = new Date() } = {}){
+  const part = partOfDay(when);
+  c.save();
+  if (part === 'night'){ c.fillStyle = 'rgba(8,12,40,.42)'; c.fillRect(0, 0, W, H); drawStars(c, W, H, t * 1.3); }
+  else if (part === 'morning'){ c.globalCompositeOperation = 'soft-light'; c.fillStyle = 'rgba(255,200,140,.35)'; c.fillRect(0, 0, W, H); }
+  else if (part === 'day'){ c.globalCompositeOperation = 'screen'; c.fillStyle = 'rgba(90,120,170,.22)'; c.fillRect(0, 0, W, H); }
+  c.restore();
+  const season = seasonOf(when);
+  if (season === 'winter' || season === 'autumn'){
+    c.save();
+    for (const f of SNOW.slice(0, season === 'winter' ? 70 : 18)){
+      const y = ((f.y + t * f.sp) % 1.05) - 0.03, x = f.x + Math.sin(t * 0.8 + f.ph) * 0.012;
+      if (season === 'winter'){ c.fillStyle = 'rgba(255,255,255,.75)'; c.beginPath(); c.arc(x * W, y * H, f.r * H / 900, 0, 6.2832); c.fill(); }
+      else {
+        c.fillStyle = ['#d9822b', '#c8552d', '#e0a83a'][Math.floor(f.ph) % 3];
+        c.save(); c.translate(x * W, y * H); c.rotate(t * 1.5 + f.ph);
+        c.beginPath(); c.ellipse(0, 0, f.r * 2.2 * H / 900, f.r * H / 900, 0, 0, 6.2832); c.fill(); c.restore();
+      }
+    }
+    c.restore();
+  }
+  /* The picked game's colour, rising from the bottom of the screen. */
+  if (accent && mix > 0.01){
+    const g = c.createLinearGradient(0, H, 0, H * 0.25);
+    g.addColorStop(0, hexAlpha(accent, 0.38 * mix)); g.addColorStop(1, hexAlpha(accent, 0));
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+}
+function hexAlpha(hex, a){
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}

@@ -231,3 +231,64 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
   background:color-mix(in srgb, var(--accent) 30%, #1a1534);
 }
 .btn.tile.hot{ transform:scale(1.04); border-color:var(--accent); }
+
+/* ---------- home: the console's front room ----------
+   Who's here along the top (drawn on the canvas), the shelf across the
+   middle - the picked tile big, its neighbours smaller either side - and
+   the picked game's moves under it. */
+.screen.home{ padding:0; animation:homein .45s ease-out both; }
+@keyframes homein{ from{ opacity:0; transform:scale(1.03) } to{ opacity:1; transform:none } }
+.screen.home .logo.small{ z-index:20; }
+.sysbar{
+  position:absolute; top:var(--safe); right:var(--safe); z-index:20;
+  display:flex; align-items:center; gap:.7em;
+  font-size:clamp(14px,2.6vh,30px); font-weight:600; color:#fff6e2;
+  text-shadow:0 1px 4px rgba(0,0,0,.5); font-variant-numeric:tabular-nums;
+}
+.camdot{ width:.6em; height:.6em; border-radius:50%; background:var(--gold); box-shadow:0 0 0 .18em rgba(255,255,255,.12); }
+.camdot.ok{ background:var(--good); } .camdot.off{ background:var(--bad); }
+.screen.home .warnstrip{ position:absolute; top:calc(var(--safe) + 7vh); left:50%; transform:translateX(-50%); z-index:20; }
+
+.shelf{ position:absolute; left:0; right:0; top:50%; height:0; --tw:min(44vw,80vh); }
+.shelf .btn.tile{
+  position:absolute; left:50%; top:0; width:var(--tw);
+  transition:transform .5s cubic-bezier(.2,.8,.2,1), opacity .4s ease, box-shadow .4s ease;
+  will-change:transform;
+}
+.shelf .btn.tile.focus{
+  box-shadow:0 clamp(10px,2vh,26px) clamp(24px,6vh,70px) rgba(10,8,30,.55),
+             0 0 clamp(30px,7vh,90px) color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.shelf .btn.tile .lbl{ font-size:clamp(20px,4.4vh,52px); }
+/* Going in: the picked tile grows to fill the screen. */
+.shelf .btn.tile.launch{ animation:launch .5s cubic-bezier(.5,0,.8,.4) forwards; z-index:30 !important; }
+@keyframes launch{ to{ transform:translate(-50%,-50%) scale(2.6); opacity:1; } }
+/* Not yet: a little shake. */
+.shelf .btn.tile.nope{ animation:nope .45s ease; }
+@keyframes nope{
+  0%,100%{ transform:translate(-50%,-50%) } 20%{ transform:translate(calc(-50% - 1.4vw),-50%) rotate(-1.5deg) }
+  40%{ transform:translate(calc(-50% + 1.2vw),-50%) rotate(1.2deg) } 60%{ transform:translate(calc(-50% - .8vw),-50%) } 80%{ transform:translate(calc(-50% + .5vw),-50%) }
+}
+.btn.tile .soon{
+  position:absolute; top:4%; right:4%; z-index:3;
+  background:rgba(20,16,44,.75); color:#fff6e2; border-radius:999px;
+  padding:.3em .8em; font-size:clamp(12px,2.2vh,26px); font-weight:600;
+}
+.shelfinfo{
+  position:absolute; left:50%; transform:translateX(-50%);
+  top:calc(50% + var(--tw,min(44vw,80vh)) * .3125 + 6.5vh);
+  display:flex; align-items:center; gap:clamp(12px,2vw,36px);
+  font-size:clamp(14px,2.4vh,28px); font-weight:600; color:#fff6e2; white-space:nowrap;
+  text-shadow:0 1px 4px rgba(0,0,0,.5);
+}
+.shelfinfo{ --tw:min(44vw,80vh); }
+.moves{ display:flex; gap:clamp(6px,.8vw,14px); }
+.move{
+  display:flex; align-items:center; gap:.35em;
+  background:rgba(20,16,44,.55); border-radius:999px; padding:.25em .75em .25em .45em;
+}
+.move .mi{ font-size:1.35em; line-height:1; }
+.who{ letter-spacing:.1em; opacity:.85; }
+.best{ background:rgba(255,210,74,.18); border-radius:999px; padding:.25em .8em; }
+.screen.dim.family{ background:rgba(9,7,20,.35); }
+.familyspace{ width:80vw; height:30vh; }

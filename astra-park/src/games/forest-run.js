@@ -43,6 +43,8 @@ const FOX_REL = 0.3, BODY = 0.12, CRYSTAL_REACH = 0.2;
 
 export default {
   id: 'forest-run', name: 'Forest Run', stars: 2, accent: '#f08a3a', secs: ROUND,
+  /* The moves it uses, shown as pictures on the home screen. */
+  moves: ['run', 'lean', 'jump', 'duck'],
   /* Arms go up in every jump; holding them up a while is still a pause. */
   pauseHold: 2.5,
   create(n){ return new ForestRun(n); }

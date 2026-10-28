@@ -36,6 +36,8 @@ const CROWD = [['bunny', 0.06], ['frog', 0.15], ['bird', 0.24], ['elephant', 0.7
 
 export default {
   id: 'dance-party', name: 'Dance Party', stars: 1, accent: '#ff4fa3', secs: ROUND,
+  /* The moves it uses, shown as pictures on the home screen. */
+  moves: ['dance'],
   /* A party wants its music up from the start, and arms go up a lot. */
   loud: true, pauseHold: 4,
   create(n){ return new Party(n); }

@@ -17,6 +17,8 @@ export const OPENING = 30;
    in it punishes: no lives, nothing to avoid, only things to chase. */
 export default {
   id:'pop-party', name:'Pop Party', stars:1, accent:'#ff5d9e', secs:ROUND,
+  /* The moves it uses, shown as pictures on the home screen. */
+  moves: ['reach'],
   create(n){ return new PopParty(n); }
 };
 

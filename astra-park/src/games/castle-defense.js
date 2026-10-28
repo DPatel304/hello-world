@@ -262,6 +262,8 @@ export default {
   /* Endless: it lasts as long as the castle holds. secs is only how long
      the music takes to build. */
   id: 'castle-defense', name: 'Tower Defense', stars: 2, accent: '#e5534b', secs: ROUND, endless: true,
+  /* The moves it uses, shown as pictures on the home screen. */
+  moves: ['run', 'point', 'march', 'jump', 'arms', 'squat', 'clap', 'hug'],
   /* Arms go up now and then; a pause is a longer hold. */
   pauseHold: 3,
   /* Squatting is a move here: a player who crouches stays in. */
