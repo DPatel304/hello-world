@@ -140,6 +140,51 @@ export function drawMeadow(c, W, H){
   if (cv) c.drawImage(cv, 0, 0, W, H); else paintMeadow(c, W, H);
 }
 
+/* Sunlight over everything: warm from the top left, the edges of the
+   picture a little shaded - painted once per screen size. */
+let lightCache = null;
+function paintLight(c, W, H){
+  let g = c.createRadialGradient(W * 0.18, -H * 0.1, 0, W * 0.18, -H * 0.1, H * 1.4);
+  g.addColorStop(0, 'rgba(255,236,190,.22)'); g.addColorStop(0.6, 'rgba(255,236,190,.06)'); g.addColorStop(1, 'rgba(255,236,190,0)');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  g = c.createRadialGradient(W / 2, H / 2, H * 0.55, W / 2, H / 2, H * 1.15);
+  g.addColorStop(0, 'rgba(20,40,30,0)'); g.addColorStop(1, 'rgba(20,40,30,.28)');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+}
+export function drawLight(c, W, H){
+  if (!lightCache || lightCache.W !== W || lightCache.H !== H){
+    let cv = null;
+    try { cv = document.createElement('canvas'); cv.width = Math.round(W); cv.height = Math.round(H); if (!cv.getContext || !cv.getContext('2d')) cv = null; } catch { cv = null; }
+    lightCache = { W, H, cv };
+    if (cv) paintLight(cv.getContext('2d'), W, H);
+  }
+  if (lightCache.cv) c.drawImage(lightCache.cv, 0, 0, W, H); else paintLight(c, W, H);
+}
+
+/* A puff of smoke where a monster was: k 0..1 through its life. */
+export function drawPoof(c, x, y, r, k){
+  c.save();
+  c.globalAlpha = (1 - k) * 0.85;
+  c.fillStyle = '#ffffff';
+  for (let q = 0; q < 6; q++){
+    const a = q * 1.047 + 0.3, d = r * (0.3 + 0.7 * k);
+    c.beginPath(); c.arc(x + Math.cos(a) * d, y + Math.sin(a) * d * 0.7, r * (0.45 - 0.25 * k), 0, 6.2832); c.fill();
+  }
+  c.restore();
+}
+
+/* A butterfly flitting about: wings beating at t. */
+export function drawButterfly(c, x, y, s, t, col){
+  const f = Math.abs(Math.sin(t * 14));
+  c.save(); c.translate(x, y);
+  c.fillStyle = col;
+  for (const k of [-1, 1]){
+    c.beginPath(); c.ellipse(k * s * 0.5 * f, -s * 0.1, s * 0.5 * f + s * 0.05, s * 0.4, k * 0.4, 0, 6.2832); c.fill();
+  }
+  c.fillStyle = '#4a3f5c'; c.fillRect(-s * 0.06, -s * 0.4, s * 0.12, s * 0.7);
+  c.restore();
+}
+
 /* ---------- the castle ---------- */
 
 /* The castle, wide along the bottom left. hearts: how many it has left,
@@ -482,6 +527,8 @@ export function drawShot(c, W, H, s){
   if (s.kind === 'arrow'){
     const a = Math.atan2(s.vy, s.vx * W / H);
     c.save(); c.translate(x, y); c.rotate(a);
+    /* A faint streak behind it. */
+    c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = Math.max(1, H * 0.002); c.beginPath(); c.moveTo(-H * 0.06, 0); c.lineTo(-H * 0.02, 0); c.stroke();
     c.strokeStyle = '#6b4426'; c.lineWidth = Math.max(1.5, H * 0.003); c.beginPath(); c.moveTo(-H * 0.02, 0); c.lineTo(H * 0.015, 0); c.stroke();
     c.fillStyle = '#c4bfd0'; c.beginPath(); c.moveTo(H * 0.022, 0); c.lineTo(H * 0.012, -H * 0.005); c.lineTo(H * 0.012, H * 0.005); c.closePath(); c.fill();
     c.restore();

@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -239,6 +239,10 @@ class CastleDefense {
   /* ---------- the loop ---------- */
 
   step(dt, W, H){
+    /* A big hit lands with the tiniest pause. */
+    if (this.stop > 0){ this.stop -= dt; dt *= 0.2; }
+    this.shake = Math.max(0, (this.shake || 0) - dt * 3);
+    this.chestBump = Math.max(0, (this.chestBump || 0) - dt * 4);
     this.t += dt;
     this.castleHit = Math.max(0, this.castleHit - dt * 2);
     this._waves(dt);
@@ -306,6 +310,7 @@ class CastleDefense {
         m.gone = true;
         this.hearts = Math.max(0, this.hearts - MONSTERS[m.kind].harm * (m.red ? RED.harm : 1));
         this.castleHit = 1;
+        this.jolt(0.25 + 0.1 * MONSTERS[m.kind].harm);
         sfx.thud();
         if (this.hearts <= 0 && !this.lost){ this.lost = true; this.over = true; }
       }
@@ -494,6 +499,7 @@ class CastleDefense {
         m.wind -= dt;
         if (m.wind > 0) continue;
         m.wind = 0; m.club = OGRE_CLUB; m.bonk = 1;
+        this.jolt(0.35);
         sfx.thud();
         for (let q = 0; q < 10; q++) this._spark(p.x + (Math.random() - 0.5) * SLAM_R / ASPECT * 2, p.y + (Math.random() - 0.5) * 0.02, '#c9a66b');
         for (const { k, i } of inRing(p)){
@@ -558,6 +564,7 @@ class CastleDefense {
       if (m.cast > 0) continue;
       m.cast = FROST_EVERY;
       this.frostFlash = 1;
+      this.jolt(0.6);
       sfx.twinkle(); sfx.whoosh();
       for (let i = 0; i < this.players; i++){
         const k = this.knights[i];
@@ -726,7 +733,7 @@ class CastleDefense {
 
   _build(i, kind, who){
     this.coins -= COST[kind];
-    this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0, hp: TOWER_HP[0], max: TOWER_HP[0], hit: 0 });
+    this.towers.set(i, { kind, lvl: 1, cool: 0.3, aim: -Math.PI / 2, who, kick: 0, hp: TOWER_HP[0], max: TOWER_HP[0], hit: 0, born: 0 });
     this.seen.built = true;
     sfx.land();
     const pad = PADS[i];
@@ -736,6 +743,7 @@ class CastleDefense {
   _upgrade(i, who){
     const tw = this.towers.get(i);
     tw.lvl++;
+    tw.born = 0.5;
     tw.max = TOWER_HP[tw.lvl - 1]; tw.hp = tw.max;
     sfx.gold();
     const pad = PADS[i];
@@ -768,6 +776,7 @@ class CastleDefense {
   _towers(dt, W, H){
     for (const [i, tw] of this.towers){
       tw.cool -= dt; tw.kick = Math.max(0, tw.kick - dt * 4);
+      tw.born = Math.min(1, (tw.born ?? 1) + dt * 2.5);
       const pad = PADS[i], S = STATS[tw.kind], L = tw.lvl - 1, range = S.range[L];
       const top = { x: pad.x, y: pad.y - towerTall(tw.lvl) * 0.9 };
       /* The ones in reach nearest the castle first. */
@@ -840,8 +849,14 @@ class CastleDefense {
     /* Its coins fly to the chest; a puff where it was. */
     for (let k = 0; k < coins; k++) this.bits.push({ kind: 'coin', x: p.x, y: p.y - 0.04, from: { x: p.x, y: p.y - 0.04 }, age: -k * 0.08, life: 0.7 });
     for (let k = 0; k < 8; k++) this._spark(p.x, p.y - 0.03, '#ffffff');
+    this.bits.push({ kind: 'poof', x: p.x, y: p.y - M.size * 0.4, r: M.size * (m.red ? 0.6 : 0.45), age: 0, life: 0.45 });
+    /* A big one going down: the screen jolts, the moment holds. */
+    if (m.kind === 'ogre' || m.kind === 'troll'){ this.jolt(m.kind === 'troll' ? 0.8 : 0.3); this.stop = m.kind === 'troll' ? 0.12 : 0.05; }
     this.monsters = this.monsters.filter(q => q !== m);
   }
+
+  /* Shake the screen a little, `k` 0..1. */
+  jolt(k){ this.shake = Math.min(1, Math.max(this.shake || 0, k)); }
 
   /* ---------- little things ---------- */
 
@@ -858,6 +873,7 @@ class CastleDefense {
       else if (b.kind === 'heart'){ b.y += b.vy * dt; b.x += Math.sin(b.age * 8) * 0.01 * dt; }
       else if (b.kind === 'coin' && b.age > 0){
         const k = Math.min(1, b.age / b.life), e = k * k;
+        if (b.age + dt >= b.life) this.chestBump = 1;
         b.x = b.from.x + (chest.x - b.from.x) * e; b.y = b.from.y + (chest.y - b.from.y) * e - Math.sin(k * Math.PI) * 0.12;
       }
     }
@@ -893,13 +909,23 @@ class CastleDefense {
   /* ---------- drawing ---------- */
 
   draw(c, W, H){
+    /* A jolt shakes the whole picture. */
+    c.save();
+    if (this.shake > 0){ const a = this.shake * this.shake * H * 0.012; c.translate((Math.random() - 0.5) * a * 2, (Math.random() - 0.5) * a * 2); }
     drawMeadow(c, W, H);
+    /* Butterflies flitting over the meadow. */
+    for (let q = 0; q < 5; q++){
+      const u = this.t * 0.03 + q * 0.21, bx = (0.15 + 0.7 * ((Math.sin(u * 2.1 + q) + 1) / 2)), by = 0.12 + 0.7 * ((Math.sin(u * 1.3 + q * 2.4) + 1) / 2);
+      drawButterfly(c, bx * W, (by + Math.sin(this.t * 3 + q) * 0.01) * H, H * 0.02, this.t + q, ['#ffd24a', '#ff9ad5', '#ffffff', '#9ad8ff', '#ffb36b'][q]);
+    }
     const things = [];
     for (const pad of PADS){
       const tw = this.towers.get(pad.i), here = this.knights.some((k, i) => i < this.players && k.at && k.at.id === `p${pad.i}`);
       drawPad(c, W, H, pad, tw || this.out ? 0 : here ? 1 : 0.2 + 0.1 * Math.sin(this.t * 3 + pad.i));
       if (tw) things.push({ y: pad.y, draw: () => {
         c.save(); if (tw.hit > 0) c.translate(Math.sin(this.t * 60) * tw.hit * H * 0.004, 0);
+        /* Just built or built up: it springs up out of the pad. */
+        if (tw.born < 1){ const u = tw.born, e = 1 + 2.7 * Math.pow(u - 1, 3) + 1.7 * Math.pow(u - 1, 2); c.translate(pad.x * W, pad.y * H); c.scale(0.9 + 0.1 * e, e); c.translate(-pad.x * W, -pad.y * H); }
         drawTower(c, W, H, pad, tw.kind, tw.lvl, tw.aim, PLAYER_COLORS[tw.who] || '#ffffff', this.t, tw.kick);
         c.restore();
       } });
@@ -922,7 +948,13 @@ class CastleDefense {
       const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02;
       const lift = m.kind === 'troll' ? (m.cast != null && m.cast < FROST_WARN ? 1 - Math.max(0, m.cast) / FROST_WARN : 0) : m.wind > 0 ? 1 - m.wind / WINDUP : 0;
       if (lift > 0 && !this.out && m.kind === 'ogre') drawSlamRing(c, p.x * W, p.y * H, SLAM_R * H, lift, this.t);
-      things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance - lunge) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max, lift, m.red) });
+      things.push({ y: p.y, draw: () => {
+        /* Hit: squashed flat a moment. */
+        const sq = m.hurt * 0.14, fx = p.x * W, fy = (p.y - dance - lunge) * H;
+        if (sq > 0){ c.save(); c.translate(fx, fy); c.scale(1 + sq, 1 - sq); c.translate(-fx, -fy); }
+        drawMonster(c, fx, fy, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max, lift, m.red);
+        if (sq > 0) c.restore();
+      } });
     }
     /* The knights, among everything else. */
     for (let i = 0; i < this.players; i++){
@@ -950,8 +982,11 @@ class CastleDefense {
       }
       const hop = Math.sin(k.hop * Math.PI) * KNIGHT_SIZE * 0.6;
       things.push({ y: k.y, draw: () => {
-        /* A level just gained: a golden glow. */
+        /* A level just gained: a golden glow, and a ring bursting out. */
         if (k.glow > 0){
+          c.save(); c.globalAlpha = k.glow; c.strokeStyle = '#ffd24a'; c.lineWidth = H * 0.005;
+          c.beginPath(); c.ellipse(k.x * W, k.y * H, KNIGHT_SIZE * H * (0.4 + 1.2 * (1 - k.glow)), KNIGHT_SIZE * H * (0.15 + 0.45 * (1 - k.glow)), 0, 0, 6.2832); c.stroke();
+          c.restore();
           const g = c.createRadialGradient(k.x * W, (k.y - KNIGHT_SIZE * 0.5) * H, 0, k.x * W, (k.y - KNIGHT_SIZE * 0.5) * H, KNIGHT_SIZE * H);
           g.addColorStop(0, `rgba(255,220,110,${0.6 * k.glow})`); g.addColorStop(1, 'rgba(255,220,110,0)');
           c.fillStyle = g; c.beginPath(); c.arc(k.x * W, (k.y - KNIGHT_SIZE * 0.5) * H, KNIGHT_SIZE * H, 0, 6.2832); c.fill();
@@ -992,7 +1027,11 @@ class CastleDefense {
     things.push({ y: CASTLE.y + 0.12, draw: () => drawCastle(c, W, H, this.t, this.hearts, this.maxHearts, this.held, this.castleHit, this.mend, this.castleLvl) });
     things.sort((a, b) => a.y - b.y);
     for (const th of things) th.draw();
+    /* The chest bounces as coins land in it. */
+    const cb = this.chestBump || 0;
+    c.save(); c.translate(CHEST.x * W, CHEST.y * H); c.scale(1 + cb * 0.12, 1 - cb * 0.1); c.translate(-CHEST.x * W, -CHEST.y * H);
     drawChest(c, W, H, this.coins, this.t);
+    c.restore();
     /* The war horn, between waves: its ring is the time left. */
     if (this.state === 'build' && !this.out){
       const w = this.work.get('horn');
@@ -1004,12 +1043,14 @@ class CastleDefense {
       drawBlizzard(c, W, H, this.blizzard || 0, this.t);
       if (this.frostFlash > 0){ c.fillStyle = `rgba(235,248,255,${0.7 * this.frostFlash})`; c.fillRect(0, 0, W, H); }
     }
+    this._drawBits(c, W, H);
+    drawLight(c, W, H);
+    c.restore();
     if (!this.out){
       this._drawTowerBars(c, W, H);
       this._drawWork(c, W, H);
       this._drawHints(c, W, H);
     }
-    this._drawBits(c, W, H);
   }
 
   /* Health bars over towers an ogre has hurt. */
@@ -1147,6 +1188,7 @@ class CastleDefense {
       const k = b.age / b.life;
       if (b.kind === 'spark'){ c.globalAlpha = 1 - k; c.fillStyle = b.col; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.006, 0, 6.2832); c.fill(); c.globalAlpha = 1; }
       else if (b.kind === 'heart'){ c.globalAlpha = 1 - k; heart(c, b.x * W, b.y * H, H * 0.01, '#ff4f6a'); c.globalAlpha = 1; }
+      else if (b.kind === 'poof') drawPoof(c, b.x * W, b.y * H, b.r * H, k);
       else coin(c, b.x * W, b.y * H, H * 0.013);
     }
   }
