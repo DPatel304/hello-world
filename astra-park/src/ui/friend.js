@@ -4,6 +4,9 @@ import { wind } from './backdrop.js';
 
 /* The park's little friend: round and warm, rosy-cheeked, with a sprout on
    top that leans in the wind. One arm waves; when it's happy, both go up. */
+/* Where the friend stands on the front door, across the screen. */
+export const FRIEND_X = 0.44;
+
 export function friend(c, x, ground, H, t, happy){
   const u = H / 900, bw = 50 * u, bh = 56 * u, y = ground - bh - 14 * u;
 

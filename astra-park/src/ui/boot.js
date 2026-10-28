@@ -1,79 +1,71 @@
-/* The console turning on. Two or three seconds, the same every time, so it
-   becomes the feeling of Astra Park starting: a dark sky, four little
-   figures in the players' colours running in from both sides, a jump, and
-   as they land in a row with their arms up, the name blooms in over them
-   with its star - to the boot chime. Then on to the front door.
+/* The console turning on - and turning, without a seam, into the front
+   door. It's the same park, the same name in the same place, on the same
+   clock: the park comes up out of the night, four little figures in the
+   players' colours run in across the meadow from both sides, jump and land
+   with their arms up as the name blooms in over them, to the boot chime;
+   then they scamper off as the little friend pops up to wave - and that's
+   the wave-to-start screen, already there. A couple of seconds, the same
+   every time.
 
    The camera starts underneath it all; if it's slower than the show, the
    last frame waits with a quiet "starting the camera" under it. A click or
    a key skips it. */
 import { PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
-import { glow } from './backdrop.js';
+import { drawPark, hillTop, MEADOW } from './backdrop.js';
+import { friend, FRIEND_X } from './friend.js';
+import { screen, h, clearUI } from './screens.js';
+import { logo } from './title.js';
 
-export const BOOT = 2.8;           /* seconds, start to finish */
-const CHIME = 0.35, LAND = 1.25, NAME = 1.15;
+export const BOOT = 3;             /* seconds, start to finish */
+const CHIME = 0.35, LAND = 1.25, OFF = 2.1, POP = 2.3;
 
 export function boot(){
+  clearUI();
+  /* The name: the title screen's own, where it will be, blooming in. */
+  const s = screen('title boot');
+  s.appendChild(logo('bloom'));
+  const wait = h('p', 'lede bootwait', 'Starting the camera…');
+  s.appendChild(wait);
+
   let t = 0, chimed = false, skip = false;
-  const stars = Array.from({ length: 60 }, (_, i) => ({ x: ((i * 0.6180339) % 1), y: ((i * 0.3819660 + 0.13) % 1) * 0.7, ph: i * 1.7 }));
   const end = () => { skip = true; };
   addEventListener('keydown', end, { once: true });
   addEventListener('pointerdown', end, { once: true });
   return {
     waiting: false,
+    get t(){ return t; },
     get done(){ return skip || t >= BOOT; },
     tick(dt){
       t += dt;
       if (!chimed && t >= CHIME){ chimed = true; sfx.boot(); }
+      wait.classList.toggle('show', this.waiting);
     },
     draw(c, W, H){
-      const u = H / 900;
-      /* Night sky, a soft glow rising where the name will be. */
-      const sky = c.createLinearGradient(0, 0, 0, H);
-      sky.addColorStop(0, '#0b0a1f'); sky.addColorStop(1, '#2a1f4a');
-      c.fillStyle = sky; c.fillRect(0, 0, W, H);
-      const rise = clamp((t - 0.2) / 1.2);
-      const g = c.createRadialGradient(W / 2, H * 0.5, 0, W / 2, H * 0.5, H * 0.7);
-      g.addColorStop(0, `rgba(255,170,120,${0.35 * rise})`); g.addColorStop(1, 'rgba(255,170,120,0)');
-      c.fillStyle = g; c.fillRect(0, 0, W, H);
-      for (const s of stars){
-        const a = clamp(t * 1.5 - s.y) * (0.5 + 0.5 * Math.sin(t * 3 + s.ph));
-        c.fillStyle = `rgba(255,246,226,${a * 0.8})`; c.beginPath(); c.arc(s.x * W, s.y * H, 1.3 * u, 0, 6.2832); c.fill();
-      }
-      /* The four, running in from both sides, jumping, landing in a row. */
-      const ground = H * 0.7;
+      drawPark(c, W, H, t);
+      /* Out of the night: a dark veil lifting off the park. */
+      const veil = 1 - clamp((t - 0.1) / 1.7);
+      if (veil > 0){ c.fillStyle = `rgba(9,8,24,${0.92 * veil})`; c.fillRect(0, 0, W, H); }
+      /* The four, across the meadow: in from both sides, a jump, a row
+         with their arms up - then off again either way. */
       PLAYER_COLORS.forEach((col, i) => {
-        const from = i < 2 ? -0.15 : 1.15, to = 0.5 + (i - 1.5) * 0.09;
-        const k = clamp(t / LAND), e = 1 - Math.pow(1 - k, 2);
-        const x = (from + (to - from) * e) * W;
-        const hop = k < 1 ? Math.sin(clamp((t - 0.6) / (LAND - 0.6)) * Math.PI) * H * 0.18 : Math.abs(Math.sin((t - LAND) * 6)) * H * 0.012 * Math.max(0, 1 - (t - LAND));
-        figure(c, x, ground - hop, H * 0.085, col, k >= 1 ? 1 : 0, t * 14 + i, i < 2 ? 1 : -1);
+        const side = i < 2 ? -1 : 1, from = side < 0 ? -0.08 : 1.08, to = 0.44 + (i - 1.5) * 0.075;
+        const k = clamp(t / LAND), e = 1 - Math.pow(1 - k, 2), away = clamp((t - OFF) / 0.6);
+        const x = (from + (to - from) * e + side * away * away * 0.75) * W;
+        const ground = H * (hillTop(x / W, MEADOW.y, MEADOW.h, MEADOW.n) + 0.035);
+        const hop = k < 1 ? Math.sin(clamp((t - 0.6) / (LAND - 0.6)) * Math.PI) * H * 0.16
+                  : away > 0 ? Math.abs(Math.sin(t * 12)) * H * 0.015 : Math.abs(Math.sin((t - LAND) * 6)) * H * 0.012;
+        figure(c, x, ground - hop, H * 0.075, col, k >= 1 && away <= 0 ? 1 : 0, t * 14 + i, away > 0 ? side : -side);
       });
-      /* The name blooms in. */
-      const n = clamp((t - NAME) / 0.6), pop = n < 1 ? 0.7 + 0.3 * Math.sin(n * Math.PI / 2) + Math.sin(n * Math.PI) * 0.08 : 1;
-      if (n > 0){
+      /* The friend pops up where it waits on the front door. */
+      const p = clamp((t - POP) / 0.35);
+      if (p > 0){
+        const ground = H * (hillTop(FRIEND_X, MEADOW.y, MEADOW.h, MEADOW.n) + 0.035);
         c.save();
-        c.globalAlpha = n;
-        c.translate(W / 2, H * 0.4); c.scale(pop, pop);
-        c.font = `600 ${Math.round(H * 0.15)}px Fredoka, ui-rounded, "Segoe UI", sans-serif`;
-        c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.shadowColor = 'rgba(255,196,140,.7)'; c.shadowBlur = H * 0.04;
-        c.fillStyle = '#fff6e2';
-        c.fillText('Astra Park', 0, 0);
-        c.restore();
-        /* The evening star, over the middle. */
-        glow(c, W / 2, H * 0.4 - H * 0.1, H * 0.03 * n, n * (0.8 + 0.2 * Math.sin(t * 6)), '255,233,168');
-      }
-      if (this.waiting && t > BOOT){
-        c.save(); c.globalAlpha = 0.6 + 0.3 * Math.sin(t * 3);
-        c.font = `500 ${Math.round(H * 0.028)}px Fredoka, ui-rounded, sans-serif`; c.textAlign = 'center';
-        c.fillStyle = '#fff6e2'; c.fillText('Starting the camera…', W / 2, H * 0.86);
+        c.translate(W * FRIEND_X, ground); c.scale(pop(p), pop(p)); c.translate(-W * FRIEND_X, -ground);
+        friend(c, W * FRIEND_X, ground, H, t, false);
         c.restore();
       }
-      /* The last moment: a fade, into the front door. */
-      const out = clamp((t - (BOOT - 0.35)) / 0.35);
-      if (out > 0 && !this.waiting){ c.fillStyle = `rgba(13,11,26,${out})`; c.fillRect(0, 0, W, H); }
     }
   };
 }
@@ -94,3 +86,5 @@ function figure(c, x, y, s, col, cheer, ph, dir){
 }
 
 const clamp = (v) => Math.max(0, Math.min(1, v));
+/* Up from nothing with a little overshoot. */
+const pop = (p) => p >= 1 ? 1 : 0.2 + 0.8 * p + Math.sin(p * Math.PI) * 0.18;

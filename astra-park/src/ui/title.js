@@ -16,7 +16,7 @@ import { button, onPick } from './cursor.js';
 import { screen, h, clearUI } from './screens.js';
 import { drawPark, glow, hillTop, MEADOW } from './backdrop.js';
 import { Avatars } from './avatars.js';
-import { friend } from './friend.js';
+import { friend, FRIEND_X } from './friend.js';
 import { sfx } from '../audio/sound.js';
 
 const RING = 8;          /* fireflies around the friend when the wave is done */
@@ -29,7 +29,7 @@ export function logo(cls = ''){
   return h('div', 'logo ' + cls, `<span>Astra</span><span class="star">${STAR}</span><span>Park</span>`);
 }
 
-export function title({ onPlay, onSettings }){
+export function title({ onPlay, onSettings, t0 = 0 }){
   clearUI();
   const s = screen('title');
   s.appendChild(logo());
@@ -54,7 +54,8 @@ export function title({ onPlay, onSettings }){
   const wave = new WaveWatch();
   const avatars = new Avatars();
   const glints = [];
-  let t = 0, joy = 0;
+  /* The clock carries on from the boot show, so the park doesn't jump. */
+  let t = t0, joy = 0;
 
   const finish = () => {
     if (joy) return;
@@ -106,7 +107,7 @@ export function title({ onPlay, onSettings }){
          see them before they've done anything. */
       avatars.drawBodies(c, W, H, MAX_PLAYERS, [], 0.16);
 
-      const mx = W * 0.44, ground = H * (hillTop(0.44, MEADOW.y, MEADOW.h, MEADOW.n) + 0.035);
+      const mx = W * FRIEND_X, ground = H * (hillTop(FRIEND_X, MEADOW.y, MEADOW.h, MEADOW.n) + 0.035);
       const hop = joy ? Math.abs(Math.sin(joy * 7.5)) * H * 0.05 * (1 - joy / JOY) : 0;
       friend(c, mx, ground - hop, H, t, joy > 0);
 

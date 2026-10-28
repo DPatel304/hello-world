@@ -54,9 +54,10 @@ function toCalibration(){
 /* The front door. Shown once on boot rather than dropping straight into
    calibration, so the first thing on the television is the name and one
    obvious way in - not an instruction to stand further back. */
-function toTitle(){
+function toTitle(t0 = 0){
   music.stop();
   go('title', () => title({
+    t0,
     /* Straight to the games. Calibration used to sit in the way, which meant
        the second thing on the television was an instruction to stand further
        back - and the title screen already answers the only question that
@@ -298,8 +299,8 @@ document.addEventListener('visibilitychange', () => {
 (async function boot(){
   const debug = new URLSearchParams(location.search).has('debug');
   audio.resume();
-  const show = bootShow();
-  go('boot', () => show);
+  let show = null;
+  go('boot', () => (show = bootShow()));
   requestAnimationFrame(tick);
   const started = pose.start(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
@@ -311,5 +312,5 @@ document.addEventListener('visibilitychange', () => {
     const wait = () => { if (show.done && ready) res(); else { show.waiting = show.done; setTimeout(wait, 50); } };
     wait();
   });
-  toTitle();
+  toTitle(show.t);
 })();

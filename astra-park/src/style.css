@@ -292,3 +292,14 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 .best{ background:rgba(255,210,74,.18); border-radius:999px; padding:.25em .8em; }
 .screen.dim.family{ background:rgba(9,7,20,.35); }
 .familyspace{ width:80vw; height:30vh; }
+
+/* ---------- boot ----------
+   The front door's own name, in its own place, blooming in over the park
+   as it comes up out of the night - so the boot show becomes the title
+   screen without a seam. The title's corner furniture fades in after. */
+.logo.bloom{ animation:bloom .7s 1.15s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes bloom{ from{ opacity:0; transform:scale(.7); filter:blur(8px) } to{ opacity:1; transform:none; filter:none } }
+.bootwait{ position:absolute; bottom:8vh; left:0; right:0; opacity:0; transition:opacity .6s; color:#fff6e2; }
+.bootwait.show{ opacity:.8; }
+.screen.title:not(.boot) .camstatus, .screen.title:not(.boot) .btn.corner, .screen.title:not(.boot) .buildstamp{ animation:fadein .8s ease both; }
+@keyframes fadein{ from{ opacity:0 } }
