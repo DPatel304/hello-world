@@ -124,6 +124,48 @@ function nearPath(x, y, d){
   return PATHS.some(P => P.pts.some(([px, py]) => Math.hypot((px - x) * ASPECT, py - y) < d));
 }
 
+/* Scenery on the quiet left side of the meadow: a windmill, its sails
+   turning slowly, and a vegetable patch beside it. Soft like the trees. */
+export const WINDMILL = { x: 0.075, y: 0.66 }, VEGGIES = { x: 0.235, y: 0.61 };
+export function drawWindmill(c, W, H, t, lean = 0){
+  const x = WINDMILL.x * W, y = WINDMILL.y * H, s = H * 0.2;
+  c.save(); c.translate(x, y); c.rotate(lean * 0.3); c.translate(-x, -y);
+  c.fillStyle = 'rgba(40,80,40,.14)'; c.beginPath(); c.ellipse(x + s * 0.1, y + s * 0.04, s * 0.42, s * 0.1, 0, 0, 6.2832); c.fill();
+  /* The tower, tapering, with a door and a window. */
+  c.fillStyle = '#efe2c8'; c.beginPath(); c.moveTo(x - s * 0.26, y); c.lineTo(x - s * 0.17, y - s * 0.8); c.lineTo(x + s * 0.17, y - s * 0.8); c.lineTo(x + s * 0.26, y); c.closePath(); c.fill();
+  c.fillStyle = '#ddcdaf'; c.beginPath(); c.moveTo(x - s * 0.26, y); c.lineTo(x - s * 0.17, y - s * 0.8); c.lineTo(x - s * 0.1, y - s * 0.8); c.lineTo(x - s * 0.15, y); c.closePath(); c.fill();
+  c.fillStyle = '#a77d5c'; c.beginPath(); c.moveTo(x - s * 0.07, y); c.lineTo(x - s * 0.07, y - s * 0.14); c.arc(x, y - s * 0.14, s * 0.07, Math.PI, 0); c.lineTo(x + s * 0.07, y); c.closePath(); c.fill();
+  c.fillStyle = '#8e7a96'; c.beginPath(); c.arc(x, y - s * 0.46, s * 0.05, 0, 6.2832); c.fill();
+  /* The cap. */
+  c.fillStyle = '#c9776a'; c.beginPath(); c.moveTo(x - s * 0.22, y - s * 0.78); c.quadraticCurveTo(x, y - s * 1.08, x + s * 0.22, y - s * 0.78); c.closePath(); c.fill();
+  /* Four sails, turning. */
+  const hx = x, hy = y - s * 0.78, a0 = t * 0.6;
+  for (let k = 0; k < 4; k++){
+    const a = a0 + k * Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+    c.strokeStyle = '#9a7a5c'; c.lineWidth = s * 0.025; c.beginPath(); c.moveTo(hx, hy); c.lineTo(hx + ca * s * 0.5, hy + sa * s * 0.5); c.stroke();
+    c.fillStyle = 'rgba(250,244,230,.92)'; c.beginPath();
+    const px = -sa, py = ca;
+    c.moveTo(hx + ca * s * 0.14, hy + sa * s * 0.14); c.lineTo(hx + ca * s * 0.48, hy + sa * s * 0.48);
+    c.lineTo(hx + ca * s * 0.48 + px * s * 0.12, hy + sa * s * 0.48 + py * s * 0.12); c.lineTo(hx + ca * s * 0.14 + px * s * 0.1, hy + sa * s * 0.14 + py * s * 0.1); c.closePath(); c.fill();
+  }
+  c.fillStyle = '#7a5a40'; c.beginPath(); c.arc(hx, hy, s * 0.04, 0, 6.2832); c.fill();
+  c.restore();
+}
+export function drawVeggies(c, W, H, t){
+  const x = VEGGIES.x * W, y = VEGGIES.y * H, w = H * 0.15, h = H * 0.08;
+  c.fillStyle = '#b8936c'; c.beginPath(); c.roundRect(x - w / 2, y - h / 2, w, h, h * 0.2); c.fill();
+  for (let r = 0; r < 3; r++){
+    const ry = y - h * 0.3 + r * h * 0.3;
+    c.fillStyle = '#a47f5a'; c.fillRect(x - w * 0.45, ry + h * 0.04, w * 0.9, h * 0.05);
+    for (let k = 0; k < 5; k++){
+      const vx = x - w * 0.38 + k * w * 0.19, sway = Math.sin(t * 1.5 + k + r) * h * 0.02;
+      if (r === 1 && k % 2 === 0){ c.fillStyle = '#e7a35c'; c.beginPath(); c.ellipse(vx, ry, h * 0.12, h * 0.09, 0, 0, 6.2832); c.fill(); c.fillStyle = '#7fae5f'; c.fillRect(vx - h * 0.015, ry - h * 0.13, h * 0.03, h * 0.05); continue; }
+      c.fillStyle = r === 2 ? '#8fc172' : '#79b665';
+      for (const d of [-1, 0, 1]){ c.beginPath(); c.ellipse(vx + d * h * 0.05 + sway, ry - h * 0.06, h * 0.03, h * 0.08, d * 0.5, 0, 6.2832); c.fill(); }
+    }
+  }
+}
+
 /* The trees and bushes: a thick jungle round the edges and in the
    corners, kept off the trail, the pads, the castle and the chest. Where
    they are never changes; they're drawn every frame so they can sway, and
@@ -136,6 +178,7 @@ export const TREES = (() => {
     /* Clear of the trail, the pads (towers grow tall), the castle as big as
        it gets, the chest and the war horn. */
     if (nearPath(x, y, bush ? 0.075 : 0.095) || PADS.some(p => Math.hypot((p.x - x) * ASPECT, p.y - y) < 0.11 || (Math.abs(p.x - x) * ASPECT < 0.09 && y < p.y && y > p.y - 0.24))) continue;
+    if (Math.hypot((x - WINDMILL.x) * ASPECT, y - WINDMILL.y + 0.08) < 0.17 + r || Math.hypot((x - VEGGIES.x) * ASPECT, y - VEGGIES.y) < 0.12 + r) continue;
     if ((Math.abs(x - CASTLE.x) < CASTLE.w / 2 + 0.03 && y > CASTLE_BASE - 0.42) || Math.hypot((x - CHEST.x) * ASPECT, y - CHEST.y) < 0.12 || Math.hypot((x - 0.06) * ASPECT, y - r * 0.7 - 0.34) < 0.1 + r) continue;
     if (out.some(t => Math.hypot((t.x - x) * ASPECT, t.y - y) < (t.r + r) * 0.75)) continue;
     out.push({ x, y, r, bush, seed: i });

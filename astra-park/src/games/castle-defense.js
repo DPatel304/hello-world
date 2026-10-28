@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawIceBlock, drawBlizzard, drawLight, drawPoof, drawButterfly, drawTree, TREES, drawWindmill, drawVeggies, WINDMILL, inked, drawShot, coin, star, drawKnight, drawMarker, drawHorn, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Tower Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -931,6 +931,8 @@ class CastleDefense {
     if (this.shake > 0){ const a = this.shake * this.shake * H * 0.012; c.translate((Math.random() - 0.5) * a * 2, (Math.random() - 0.5) * a * 2); }
     drawMeadow(c, W, H);
     /* The jungle, soft and in the background, swaying. */
+    drawVeggies(c, W, H, this.t);
+    drawWindmill(c, W, H, this.t, this.leanOf({ x: WINDMILL.x, y: WINDMILL.y, seed: 3, bush: true }));
     for (const tr of TREES) drawTree(c, W, H, tr, this.leanOf(tr));
     /* Butterflies flitting over the meadow. */
     for (let q = 0; q < 5; q++){
