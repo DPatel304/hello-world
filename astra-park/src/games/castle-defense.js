@@ -82,8 +82,12 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    torso-lengths below the shoulders) the way you want to go, from the
    knight - out to the side is sideways, up above your shoulders is up the
    map, down to your tummy is down - and the nearest place that way (a pad,
-   the tent, the castle, a monster; within AIM of it) lights up. Nothing
-   that way, and it's a spot of grass a little way off. It takes HAND_START
+   the tent, the castle, a monster; within AIM of it) lights up. A dotted
+   beam from the knight shows the way you're pointing the moment your hand
+   is out, and a ring round the place it would pick fills as you hold it -
+   full, and it's picked. Once something's lit it stays lit till you
+   point clearly away (AIM_STICK more), so it doesn't flicker between two
+   pads. Nothing that way, and it's a spot of grass a little way off. It takes HAND_START
    torso-lengths of reach, held for HAND_HOLD seconds (so a wave or a
    scratch is nothing), to point, then only HAND_KEEP to keep pointing; let
    your hand drop and the place stays picked. Then march on the spot to go
@@ -99,7 +103,7 @@ export const AT_PAD = 0.075;                          /* how near a pad counts a
    your arms.
 
    With the mouse, the knight walks to where the pointer rests. */
-export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.06, AIM = 0.75;
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.06, AIM = 0.75, AIM_STICK = 0.15, AIM_EASE = 10;
 export const FEET_FAR = 0.72, FEET_NEAR = 0.97, ROOM_MOVE = 0.15, ROOM_RUN = 0.2, ROOM_EDGE = 0.05;
 export const SNAP_R = 0.1;
 export const WALK = 0.08, RUN = 0.16, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
@@ -443,7 +447,7 @@ class CastleDefense {
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
       if (on) k.played = true;
-      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; k.mode = k.goal = k.room = k.anchor = null; continue; }
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; k.mode = k.goal = k.room = k.anchor = k.aim = null; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
@@ -524,9 +528,18 @@ class CastleDefense {
     /* Starting to point takes a clear reach, held a moment; keeping it, less. */
     k.reachT = best && best.d >= HAND_START ? (k.reachT || 0) + dt : 0;
     k.steering = !!best && (k.steering || k.reachT >= HAND_HOLD);
+    /* Aiming: as soon as a hand is out, which way it points (steadied a
+       little) and the place that way - shown on the map as it moves, so you
+       can see where you're pointing before it's picked. */
+    if (best){
+      const ax = best.vx / best.d, ay = best.vy / best.d, was = k.aim;
+      let ux = was ? was.ux + (ax - was.ux) * Math.min(1, dt * AIM_EASE) : ax, uy = was ? was.uy + (ay - was.uy) * Math.min(1, dt * AIM_EASE) : ay;
+      const m = Math.hypot(ux, uy) || 1; ux /= m; uy /= m;
+      k.aim = { ux, uy, cand: this._aimAt(k, ux, uy, was && was.cand), hold: k.steering ? 1 : clamp(k.reachT / HAND_HOLD, 0, 1) };
+    } else k.aim = null;
     if (k.steering){
       k.mode = 'point'; k.anchor = k.room ? { ...k.room } : null;
-      const goal = this._aimAt(k, best.vx / best.d, best.vy / best.d), was = k.goal;
+      const goal = k.aim.cand, was = k.goal;
       /* A new place picked: tock. */
       if (!was || (goal.m || null) !== (was.m || null) || (!goal.m && Math.hypot(goal.x - was.x, goal.y - was.y) > 0.05)) sfx.pick();
       k.goal = goal;
@@ -579,7 +592,7 @@ class CastleDefense {
   /* The place the knight's child is pointing at: the nearest place to go
      within AIM of the way they're pointing (a pad, the tent, the castle or
      a monster), else a patch of grass a little way off that way. */
-  _aimAt(k, ux, uy){
+  _aimAt(k, ux, uy, keep = null){
     const places = PADS.map(q => ({ x: q.x, y: q.y }));
     places.push({ x: TENT.x, y: TENT.y + 0.02 }, { x: castleBox(this.castleLvl).x, y: CASTLE_BASE - 0.12 });
     for (const m of this.monsters){ const q = this.pos(m); places.push({ x: q.x, y: q.y, m }); }
@@ -588,8 +601,10 @@ class CastleDefense {
       const dx = (q.x - k.x) * ASPECT, dy = q.y - k.y, d = Math.hypot(dx, dy);
       if (d < 0.03) continue;
       const c = (dx * ux + dy * uy) / d;
-      if (c < AIM) continue;
-      const sc = c * 1.5 - d;
+      /* What's lit up already stays lit till you clearly point away. */
+      const kept = keep && (keep.m ? keep.m === q.m : !q.m && Math.hypot(keep.x - q.x, keep.y - q.y) < 1e-6);
+      if (c < AIM - (kept ? AIM_STICK : 0)) continue;
+      const sc = c * 1.5 - d + (kept ? AIM_STICK * 2 : 0);
       if (sc > bs){ bs = sc; best = q; }
     }
     if (best) return best.m ? { m: best.m } : { x: best.x, y: best.y };
@@ -764,7 +779,7 @@ class CastleDefense {
   /* Bonked out: down where it stands, seeing stars. */
   _knockOut(i, k){
     this.knockouts = (this.knockouts || 0) + 1;
-    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1; k.goal = null; k.claps = 0; k.clapAgo = 0;
+    k.down = 1; k.downT = 0; k.fell = { x: k.x, y: k.y }; k.helper = -1; k.goal = null; k.aim = null; k.claps = 0; k.clapAgo = 0;
     k.vx = k.vy = 0; k.at = null;
     sfx.boing(0.5);
     for (let q = 0; q < 20; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.5, '#ffffff');
@@ -1336,17 +1351,9 @@ class CastleDefense {
         continue;
       }
       if (!this.out && pose.mouse.active && Math.hypot((k.tx - k.x) * ASPECT, k.ty - k.y) > 0.02) drawMarker(c, k.tx * W, k.ty * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
-      /* Pointed somewhere: a marker there, and while still pointing, a
-         trail of dots to it. */
+      /* Pointed somewhere: a marker there. */
       const goal = !this.out && k.mode === 'point' && k.goal && this._goalAt(k.goal);
-      if (goal){
-        drawMarker(c, goal.x * W, goal.y * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
-        if (k.steering){
-          c.save(); c.fillStyle = PLAYER_COLORS[i];
-          for (let q = 1; q < 8; q++){ const u = q / 8; c.globalAlpha = 0.3 + 0.6 * Math.max(0, Math.sin(this.t * 5 - q * 0.6)); c.beginPath(); c.arc((k.x + (goal.x - k.x) * u) * W, (k.y + (goal.y - k.y) * u) * H, H * 0.006, 0, 6.2832); c.fill(); }
-          c.restore();
-        }
-      }
+      if (goal) drawMarker(c, goal.x * W, goal.y * H, KNIGHT_SIZE * H, PLAYER_COLORS[i], this.t);
       if (!this.out){
         /* The arrow under it, the way it's going. */
         if (k.lean) this._drawLean(c, k, W, H, PLAYER_COLORS[i]);
@@ -1414,6 +1421,7 @@ class CastleDefense {
     if (!this.out){
       this._drawTowerBars(c, W, H);
       this._drawWork(c, W, H);
+      this._drawAim(c, W, H);
       this._drawHints(c, W, H);
     }
   }
@@ -1572,6 +1580,36 @@ class CastleDefense {
     if (k){
       const a = this.t * 7, rr = 0.022, x = k.x, y = k.y - KNIGHT_SIZE * 1.6;
       for (const q of [0, Math.PI]) ghost((x + Math.cos(a + q) * rr / ASPECT * 1.3) * W, (y + Math.sin(a + q) * rr * 0.8) * H, 0.85);
+    }
+  }
+
+  /* Aiming, over everything: a beam of big dots from the knight the way the
+     hand points, to the place it would pick; a bright ring round that
+     place, and over it a ring filling up as the hand's held there. */
+  _drawAim(c, W, H){
+    for (let i = 0; i < this.players; i++){
+      const k = this.knights[i], aim = k.aim;
+      if (!aim || !pose.players[i].present || k.down > 0 || k.ice > 0) continue;
+      const at = this._goalAt(aim.cand);
+      if (!at) continue;
+      const col = PLAYER_COLORS[i], d = Math.hypot((at.x - k.x) * ASPECT, at.y - k.y), n = Math.max(3, Math.round(d / 0.03));
+      const x0 = k.x, y0 = k.y - KNIGHT_SIZE * 0.5;
+      c.save();
+      for (let q = 1; q < n; q++){
+        const u = q / n, r = H * (0.008 + 0.004 * aim.hold) * (0.85 + 0.3 * Math.max(0, Math.sin(this.t * 7 - q * 0.8)));
+        const x = (x0 + (at.x - x0) * u) * W, y = (y0 + (at.y - y0) * u) * H;
+        c.globalAlpha = 0.55 + 0.45 * aim.hold;
+        c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, y, r * 1.35, 0, 6.2832); c.fill();
+        c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+      }
+      const rr = H * (aim.cand.m ? 0.055 : 0.06) * (1 + 0.06 * Math.sin(this.t * 8));
+      c.globalAlpha = 0.7 + 0.3 * aim.hold;
+      c.lineWidth = H * 0.011; c.strokeStyle = '#ffffff';
+      c.beginPath(); c.ellipse(at.x * W, at.y * H, rr, rr * 0.55, 0, 0, 6.2832); c.stroke();
+      c.lineWidth = H * 0.006; c.strokeStyle = col;
+      c.beginPath(); c.ellipse(at.x * W, at.y * H, rr, rr * 0.55, 0, 0, 6.2832); c.stroke();
+      c.restore();
+      if (aim.hold < 1) drawWorkRing(c, at.x * W, (at.y - 0.075) * H, H * 0.03, aim.hold, col);
     }
   }
 

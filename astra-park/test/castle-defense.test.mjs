@@ -227,6 +227,33 @@ test('pointing picks the nearest place that way; march, and the knight goes ther
   assert.equal(k.x, x, 'and stays there');
 });
 
+test('the moment a hand is out, the map shows where it points - before anything is picked', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  run(inst, HAND_HOLD * 0.4, () => body({ reach: [1.3, 0] }));
+  assert.ok(k.aim && k.aim.hold > 0 && k.aim.hold < 1, 'aiming, not yet picked');
+  assert.ok(Math.hypot(k.aim.cand.x - pad.x, k.aim.cand.y - pad.y) < 1e-9, 'the pad it would pick is lit');
+  assert.equal(k.goal ?? null, null);
+  inst.draw(fakeCtx(), W, H);
+  run(inst, HAND_HOLD, () => body({ reach: [1.3, 0] }));
+  assert.equal(k.aim.hold, 1);
+  assert.ok(k.goal && Math.hypot(k.goal.x - pad.x, k.goal.y - pad.y) < 1e-9, 'held: picked');
+  run(inst, 0.2, () => still());
+  assert.equal(k.aim, null, 'hand down: no beam');
+});
+
+test('what is lit stays lit, unless you clearly point away', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  run(inst, 0.5, () => body({ reach: [1.3, 0] }));
+  const lit = k.aim.cand;
+  /* Wobbling a little off it: still lit. */
+  run(inst, 1, (t) => body({ reach: [1.3, Math.sin(t * 9) * 0.25] }));
+  assert.ok(Math.hypot(k.aim.cand.x - lit.x, k.aim.cand.y - lit.y) < 1e-9);
+  run(inst, 1, () => body({ reach: [0, -1.3] }));
+  assert.ok(Math.hypot(k.aim.cand.x - lit.x, k.aim.cand.y - lit.y) > 0.01, 'pointing up: something else');
+});
+
 test('pointing at a monster chases it', () => {
   const inst = quiet(), k = knight(inst), m = monster(inst, 'slime', 1.0), p = along(1.0);
   put(k, p.x - 0.25 / ASPECT, p.y);
