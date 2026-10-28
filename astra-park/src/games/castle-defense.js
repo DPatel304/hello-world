@@ -66,28 +66,29 @@ export const SQUAT_DROP = 0.15, SQUAT_HOLD = 0.8;
 export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3, HUG_MEND = 1, TENT_R = 0.11;
 export const upgradeTime = (lvl) => 5 + 2 * lvl, castleTime = (lvl) => 7 + 2 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
-/* Knights walk by a hand joystick. Reach a hand out from your chest
-   (HAND_CENTRE torso-lengths below the shoulders) and the knight walks
-   that way: out to the side is sideways, up above your shoulders is up the
-   map, down to your tummy is down. Whichever hand is reaching further
-   steers - and if both reach the same way, both do: steadier, and
+/* Knights walk when you march on the spot, the way a hand points. The
+   legs are the go: no marching, no walking, however you point - marching a
+   little (knees at MARCH_MIN of MARCH_FULL torso-lengths a second) is a
+   WALK, marching hard is a RUN. The hands are the steering: reach a hand
+   out from your chest (HAND_CENTRE torso-lengths below the shoulders) and
+   that's the way - out to the side is sideways, up above your shoulders is
+   up the map, down to your tummy is down. Whichever hand is reaching
+   further steers - and if both reach the same way, both do: steadier, and
    TWO_HANDS times as fast. It takes HAND_START torso-lengths of reach,
-   held for HAND_HOLD seconds (so a wave or a scratch is nothing), to set
-   off, but only HAND_KEEP to keep going, and reaching further (to HAND_FULL) is faster -
-   running on the spot (knees at MARCH_FULL torso-lengths a second)
-   hurries it up to RUN. Hands resting at your sides or on your hips (lower
-   than HAND_REST torso-lengths above the hips) are no reach; nor is a hug,
-   or rolling your arms.
+   held for HAND_HOLD seconds (so a wave or a scratch is nothing), to pick a
+   way, but only HAND_KEEP to keep it. Hands resting at your sides or on
+   your hips (lower than HAND_REST torso-lengths above the hips) are no
+   reach; nor is a hug, or rolling your arms.
 
    Aim assist: let go near a pad, the tent or the castle (within SNAP_R)
    and the knight walks the last bit onto it; reach roughly toward one
    nearby (within MAGNET_R) and the knight's path bends onto it.
 
    With the mouse, the knight walks to where the pointer rests. */
-export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_FULL = 1.1, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2;
+export const HAND_CENTRE = 0.15, HAND_REST = 0.1, HAND_START = 0.5, HAND_KEEP = 0.35, HAND_HOLD = 0.25, TWO_HANDS = 1.2, MARCH_FULL = 1.2, MARCH_MIN = 0.15;
 export const SNAP_R = 0.1, MAGNET_R = 0.3;
 export const WALK = 0.12, RUN = 0.24, KNIGHT_SIZE = 0.085, POINT_HOLD = 0.35;
-export const KNIGHT_SPEED = RUN;
+export const KNIGHT_SPEED = RUN * TWO_HANDS;
 /* The sword: swung by itself at a monster within reach - ROLL_FAST times as
    often while the child rolls their arms round each other, the wheels on
    the bus going round. That's the hands circling each other: the line from
@@ -97,17 +98,21 @@ export const KNIGHT_SPEED = RUN;
    fro, so they never add up to a roll. */
 export const ROLL_FAST = 2, ROLL_SPIN = 3, ROLL_FOR = 0.6, ROLL_GAP = 0.4;
 /* Knights grow with what they beat: every monster they finish off counts
-   (an ogre for five), and each level takes a few more than the last, up to
-   KNIGHT_MAX. A knight starts with a tiny sword - a little longer, harder
-   and quicker every level - and at the top it's a great golden one. */
-export const KNIGHT_MAX = 10;
-export const killsFor = (lvl) => 3 + 3 * lvl;
-export const swordAt = (lvl) => ({ reach: 0.06 + 0.004 * lvl, dmg: 0.5 + 0.2 * lvl, cool: 0.8 - 0.03 * lvl, size: 0.4 + 0.13 * lvl });
+   (an ogre for five), and every ten levels take one more each, up to
+   KNIGHT_MAX - a child who fights on a team that falls by wave 18 or so
+   gets to about 10-20, one who fights all the way to wave 35, about 80. A
+   knight starts with a tiny sword - a little longer, harder and quicker
+   every level - and at the top it's a great golden one. */
+export const KNIGHT_MAX = 99;
+export const killsFor = (lvl) => 4 + Math.floor(lvl / 10);
+export const swordAt = (lvl) => { const f = lvl / KNIGHT_MAX; return { reach: 0.06 + 0.04 * f, dmg: 0.5 + 2 * f, cool: 0.8 - 0.3 * f, size: 0.4 + 1.3 * f }; };
 export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG = swordAt(0).dmg;
 /* Ogres go for knights close by, but slowly: an ogre that sees one lifts its
    club high over its head and a warning ring spreads on the ground round
    it, and only after WINDUP seconds does the club come down - on whoever is
-   still inside the ring. Then OGRE_CLUB seconds before it can try again.
+   still inside the ring - and not in the air: a child who jumps, for real,
+   up to DODGE seconds before it lands, hops clean over it. Then OGRE_CLUB
+   seconds before it can try again.
    A knight takes KNIGHT_HP bonks, and only gets better at the medical tent.
    Nothing else harms a knight.
 
@@ -120,7 +125,7 @@ export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG
    knight is down does nobody need to: after ALL_DOWN seconds they're all
    back at the castle - but back to the very start, every level lost. Just
    up, a knight is safe for SAFE seconds. */
-export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SAFE = 3;
+export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, SAFE = 3, DODGE = 0.6;
 export const REVIVE_R = 0.18, HIGH_FIVE = 0.2, ALL_DOWN = 10;
 export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first). */
@@ -235,7 +240,7 @@ class CastleDefense {
     this.faces = new FaceCam();
     this.jumps = new JumpWatch();
     /* What's been done yet, for the hints. */
-    this.seen = { built: false, jumped: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false };
+    this.seen = { built: false, jumped: false, dodged: false, squatted: false, hugged: false, rolled: false, wiggled: false, repaired: false };
     /* The knights wait by the castle, side by side. */
     this.knights = pose.players.map((_, i) => {
       const { x, y } = this.home(i);
@@ -348,11 +353,12 @@ class CastleDefense {
       k.sword = Math.max(0, k.sword - dt);
       k.swing = Math.max(0, k.swing - dt * 3);
       k.hop = Math.max(0, k.hop - dt * 3);
+      k.air = Math.max(0, (k.air || 0) - dt);
       k.bonk = Math.max(0, k.bonk - dt * 3);
       k.glow = Math.max(0, k.glow - dt);
       k.safe = Math.max(0, k.safe - dt);
       const on = i < this.players && p && p.present && !this.out;
-      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = false; continue; }
+      if (!on){ k.vx = k.vy = 0; k.march = 0; k.lean = null; k.at = null; k.steering = k.marching = false; continue; }
       /* Bonked out: lying there till a friend comes. */
       if (k.down > 0){ k.downT += dt; k.vx = k.vy = 0; k.at = null; continue; }
       /* Frozen: nothing to do but wiggle free. */
@@ -384,8 +390,8 @@ class CastleDefense {
     }
   }
 
-  /* Marching and leaning: how hard the knees are going up and down sets the
-     pace; which way the body leans sets the way. */
+  /* Marching and pointing: how hard the knees are going up and down sets
+     the pace; which way the hands reach sets the way. */
   _drive(k, p, dt){
     const lm = p.lm;
     if (!lm){ k.vx = k.vy = 0; return; }
@@ -420,14 +426,15 @@ class CastleDefense {
     k.reachT = best && best.d >= HAND_START ? (k.reachT || 0) + dt : 0;
     if (!best || (!k.steering && k.reachT < HAND_HOLD)){ k.steering = false; k.lean = null; k.vx = k.vy = 0; return; }
     k.steering = true;
-    const pull = clamp((best.d - HAND_KEEP) / (HAND_FULL - HAND_KEEP), 0, 1);
     let ux = best.vx / best.d, uy = best.vy / best.d;
     /* Aim assist: heading roughly for a place to stand nearby? Bend onto it. */
     const aim = this._spotsNear(k, MAGNET_R).find(q => q.d > 0.02 && (q.dx * ux + q.dy * uy) / q.d > 0.8);
     if (aim){ ux += aim.dx / aim.d * 0.6; uy += aim.dy / aim.d * 0.6; const m = Math.hypot(ux, uy); ux /= m; uy /= m; }
-    k.lean = { x: ux, y: uy, k: pull };
-    /* Reaching further goes faster; running on the spot faster still. */
-    const sp = Math.min(RUN, (WALK + (RUN - WALK) * k.march) * (0.45 + 0.55 * pull) * (both ? TWO_HANDS : 1));
+    /* No marching, no walking; marching harder, faster; both hands, faster still. */
+    const go = k.march >= MARCH_MIN * (k.marching ? 0.6 : 1);
+    k.marching = go;
+    k.lean = { x: ux, y: uy, k: go ? clamp((k.march - MARCH_MIN) / (1 - MARCH_MIN), 0, 1) : 0, still: !go };
+    const sp = go ? (WALK + (RUN - WALK) * k.lean.k) * (both ? TWO_HANDS : 1) : 0;
     k.vx = ux * sp; k.vy = uy * sp;
   }
 
@@ -559,6 +566,12 @@ class CastleDefense {
         sfx.thud();
         for (let q = 0; q < 10; q++) this._spark(p.x + (Math.random() - 0.5) * SLAM_R / ASPECT * 2, p.y + (Math.random() - 0.5) * 0.02, '#c9a66b');
         for (const { k, i } of inRing(p)){
+          /* Jumped just in time: over it! */
+          if (k.air > 0){
+            this.seen.dodged = true; sfx.twinkle();
+            for (let q = 0; q < 10; q++) this._spark(k.x + (Math.random() - 0.5) * 0.03, k.y - KNIGHT_SIZE * 0.3, PLAYER_COLORS[i]);
+            continue;
+          }
           k.hp -= m.red ? RED.bonk : 1; k.calm = 0; k.bonk = 1;
           for (let q = 0; q < 6; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.8, '#ffe27a');
           if (k.hp <= 0) this._knockOut(i, k);
@@ -691,9 +704,11 @@ class CastleDefense {
   /* Where knight i waits at the start, and comes back to: by the castle. */
   home(i){ return { x: CASTLE.x + CASTLE.w / 2 + 0.04 + i * 0.035, y: CASTLE_BASE - 0.3 - i * 0.02 }; }
 
-  /* A jump on an empty pad changes which tower it will be. */
+  /* A jump: over an ogre's club, if one's coming down on you; else, on an
+     empty pad, it changes which tower that will be. */
   _jump(i, k){
-    k.hop = 1;
+    k.hop = 1; k.air = DODGE;
+    if (this.underClub(k)) return;
     const at = k.at;
     if (!at || at.kind !== 'pad' || this.towers.has(at.i)) return;
     this.picks.set(at.i, (this.picks.get(at.i) + 1) % KINDS.length);
@@ -702,6 +717,11 @@ class CastleDefense {
     sfx.boing(2);
     const pad = PADS[at.i];
     for (let q = 0; q < 10; q++) this._spark(pad.x, pad.y - 0.06, PLAYER_COLORS[i]);
+  }
+
+  /* Is an ogre winding up to bring its club down on knight k? */
+  underClub(k){
+    return this.monsters.some(m => m.wind > 0 && (() => { const p = this.pos(m); return Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) <= SLAM_R; })());
   }
 
   /* Where a knight is standing: on a pad, at the castle, or out in the
@@ -1164,12 +1184,27 @@ class CastleDefense {
       const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H;
       /* Walking: a knight that hasn't gone anywhere yet has a ghostly hand
          reaching out from it, round and round - right, up, left, down -
-         with the way it would walk. */
+         with the way it would walk, and ghostly feet marching under it. */
       if (!k.driven){
         const ph = (this.t * 0.7) % 4, dirs = [[1, 0], [0, -1], [-1, 0], [0, 1]], [ax, ay] = dirs[Math.floor(ph)], u = ph % 1, reach = Math.sin(Math.min(1, u * 1.6) * Math.PI / 2);
         const hx = x + ax * s * (0.2 + 0.7 * reach), hy0 = y - s * 0.55 + ay * s * (0.2 + 0.6 * reach);
         ghost(hx, hy0, 0.85 * (1 - Math.max(0, u - 0.8) * 5));
+        const f = Math.sin(this.t * 9);
+        ghost(x - s * 0.25, y + s * 0.15 - Math.max(0, f) * s * 0.3, 0.6); ghost(x + s * 0.25, y + s * 0.15 - Math.max(0, -f) * s * 0.3, 0.6);
         c.save(); c.globalAlpha = 0.6 * reach; arrow(c, x + ax * s * 0.5, y + (ay > 0 ? 0.3 : ay < 0 ? -1.25 : -0.35) * s, ax, ay, s * 0.22, '#fff6e2'); c.restore();
+        continue;
+      }
+      /* Marching: pointing the way but not marching - two ghostly feet
+         going up and down under the knight. */
+      if (k.lean && k.lean.still && !pose.mouse.active){
+        const u = Math.sin(this.t * 9);
+        ghost(x - s * 0.25, y + s * 0.15 - Math.max(0, u) * s * 0.3, 0.8); ghost(x + s * 0.25, y + s * 0.15 - Math.max(0, -u) * s * 0.3, 0.8);
+      }
+      /* Dodging: under an ogre's club, until someone has jumped over one -
+         a big arrow bouncing up over the knight. */
+      if (!this.seen.dodged && !pose.mouse.active && this.underClub(k)){
+        const b = Math.abs(Math.sin(this.t * 8)) * s * 0.4;
+        c.save(); c.globalAlpha = 0.9; arrow(c, x, y - s * 1.4 - b, 0, -1, s * 0.4, '#fff6e2'); c.restore();
         continue;
       }
       /* Jumping: standing on an empty pad, until someone has jumped to change
@@ -1238,7 +1273,7 @@ class CastleDefense {
 
   _drawLean(c, k, W, H, col){
     const x = k.x * W, y = k.y * H, s = KNIGHT_SIZE * H, len = s * (0.35 + 0.5 * k.lean.k);
-    c.save(); c.globalAlpha = 0.55 + 0.4 * k.march;
+    c.save(); c.globalAlpha = k.lean.still ? 0.4 : 0.6 + 0.35 * k.lean.k;
     arrow(c, x + k.lean.x * s * 0.3, y + k.lean.y * s * 0.18 + s * 0.05, k.lean.x, k.lean.y * 0.6, len, col);
     c.restore();
   }
