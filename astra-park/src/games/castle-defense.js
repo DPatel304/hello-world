@@ -109,9 +109,9 @@ const BREAK = BUILD_TIME;
    so a tower at the top is many times what it was, against a crowd too. */
 const grow = (v0, k) => levels(l => v0 * (1 + k * l));
 export const STATS = {
-  archer: { range: grow(0.24, 0.03), rate: grow(1.1, 0.12), dmg: grow(1, 0.3), many: levels(l => 1 + Math.floor(l / 3)) },
-  cannon: { range: grow(0.21, 0.03), rate: grow(0.45, 0.08), dmg: grow(2.5, 0.3), splash: grow(0.08, 0.04), most: levels(l => 3 + l) },
-  frost:  { range: grow(0.2, 0.03), rate: grow(0.8, 0.08), dmg: grow(0.4, 0.3), slow: levels(l => 0.55 - 0.025 * l), many: levels(l => 1 + Math.floor(l / 3)) }
+  archer: { range: grow(0.24, 0.03), rate: grow(1.1, 0.16), dmg: grow(1, 0.3), many: levels(l => 1 + Math.floor(l / 3)) },
+  cannon: { range: grow(0.21, 0.03), rate: grow(0.45, 0.11), dmg: grow(2.5, 0.3), splash: grow(0.08, 0.04), most: levels(l => 3 + l) },
+  frost:  { range: grow(0.2, 0.03), rate: grow(0.8, 0.11), dmg: grow(0.4, 0.3), slow: levels(l => 0.55 - 0.025 * l), many: levels(l => 1 + Math.floor(l / 3)) }
 };
 export const MONSTERS = {
   slime:  { hp: 3, speed: 0.06, size: 0.08, coins: 1, harm: 1 },
@@ -131,12 +131,12 @@ const ASPECT = 16 / 9;
 export const POUR = 8;   /* seconds a wave takes to come out, once it's big */
 /* The more children playing, the bigger every wave: CROWD[n - 1] times as
    many for n of them - one child alone has it easiest, four hardest. */
-export const CROWD = [1, 1.3, 1.65, 2];
+export const CROWD = [1, 1.35, 1.75, 2.4];
 const crowd = (n) => CROWD[clamp(Math.round(n), 1, CROWD.length) - 1];
 /* At most CAP in a wave - past that, the ogres keep coming (a crowd much
    bigger is too much to draw smoothly). */
 export const CAP = 800;
-export const countOf = (w, n = 1) => Math.min(CAP, Math.round((5 + w + Math.pow(1.36, w - 1)) * crowd(n)));
+export const countOf = (w, n = 1) => Math.min(CAP, Math.round((5 + w + Math.pow(1.40, w - 1)) * crowd(n)));
 /* Seconds between monsters coming out in wave w. */
 export const gapOf = (w, n = 1) => Math.min(1.3, POUR / countOf(w, n));
 /* Red ones: every kind has a meaner, red, level-two sort, with more life,
