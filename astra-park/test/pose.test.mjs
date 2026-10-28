@@ -246,6 +246,17 @@ test('a player who squats stays in; one who sits down a while becomes a watcher'
   assert.equal(pose.personCount, 0);
 });
 
+test('in a game where squatting is a move, a player who sits or crouches stays in', () => {
+  resetPose();
+  pose.keepSitters = true;
+  arrive([person(0.5)]);
+  for (let t = 0; t < WATCH_AFTER * 2; t += 0.05) see([person(0.5, { sit: true })]);
+  assert.equal(pose.players[0].present, true);
+  pose.keepSitters = false;
+  for (let t = 0; t < WATCH_AFTER + 0.5; t += 0.05) see([person(0.5, { sit: true })]);
+  assert.equal(pose.players[0].present, false, 'and back to usual after');
+});
+
 test('players keep their place when they cross over', () => {
   resetPose();
   arrive([person(0.7), person(0.3)]);

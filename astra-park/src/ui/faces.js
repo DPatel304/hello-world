@@ -1,17 +1,27 @@
-/* The children's real faces, cut from the camera picture, for games that
-   put them on screen - Fire Truck seats them in the cab windows.
+/* The children's real faces, for games that put them on screen - in the
+   knights' helmets, the runners' hoods, the boat's seats.
+
+   Not the live camera: each child's face is snapped once, like a photo, the
+   first time it's seen clearly - looking at the TV, head straight, held
+   steady for a moment - with a little white flash, and that picture is used
+   from then on, in every game. Someone who joins later is snapped when they
+   come in. A child gone from the game for more than FORGET seconds is
+   forgotten, so whoever takes their place next gets their own picture.
 
    The pose model already finds each person's nose, eyes and ears, so a face
    is a square around them in the video, sized by how far apart the ears are
-   (or the eyes, if the ears are hidden). The square is eased toward where the
-   face is rather than snapped to it, so the picture in the window holds
-   steady instead of jittering with every frame of tracking.
+   (or the eyes, if the ears are hidden).
 
-   Nothing is recorded or kept: each frame is drawn straight from the live
-   video and gone with the next one. */
+   The pictures are kept in memory only, for as long as the page is open:
+   nothing is saved or sent anywhere. */
 import { pose, L, MAX_PLAYERS } from '../tracking/pose.js';
 
 const EAR_L = 7, EAR_R = 8;
+/* A good picture: the face held steady this long, looking this straight on
+   (nose this near the middle of the eyes, in eye-widths) and level (tilt in
+   radians), and this big in the video (pixels). */
+export const STEADY = 0.6, STRAIGHT = 0.18, LEVEL = 0.25, BIG = 24, FORGET = 5;
+const SNAP = 128, FLASH = 0.5;
 /* How much of the head to show around the face: the crop is this many
    ear-widths across. */
 const HEAD = 2.3;
@@ -34,8 +44,17 @@ export function faceBox(lm, vw, vh){
      face sits in the middle of the window. Tilt is measured on screen, where
      the person's left eye is on the right. */
   const roll = Math.atan2(lm[L.L_EYE].y * vh - lm[L.R_EYE].y * vh, (lm[L.L_EYE].x - lm[L.R_EYE].x) * vw);
-  return { x: nose.x, y: nose.y - eyes * 0.35, size, roll };
+  /* Looking straight on: the nose midway between the eyes. */
+  const turn = Math.abs(nose.x - (le.x + re.x) / 2) / Math.max(1, eyes);
+  return { x: nose.x, y: nose.y - eyes * 0.35, size, roll, turn };
 }
+
+/* The pictures, one per player, shared by every game for the session. */
+const snaps = Array(MAX_PLAYERS).fill(null);
+const gone = Array(MAX_PLAYERS).fill(0), steady = Array(MAX_PLAYERS).fill(0);
+export function forgetFaces(){ snaps.fill(null); gone.fill(0); steady.fill(0); }
+const makeCanvas = (n) => typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n)
+  : typeof document !== 'undefined' ? Object.assign(document.createElement('canvas'), { width: n, height: n }) : null;
 
 export class FaceCam {
   constructor(){ this.boxes = Array(MAX_PLAYERS).fill(null); this.seen = Array(MAX_PLAYERS).fill(0); }
@@ -52,30 +71,48 @@ export class FaceCam {
     const v = this.video, k = Math.min(1, dt * 8);
     for (let i = 0; i < MAX_PLAYERS; i++){
       const p = pose.players[i];
+      /* Gone a while: forget them, so the next to play here is snapped anew. */
+      gone[i] = p.present ? 0 : gone[i] + dt;
+      if (gone[i] > FORGET){ snaps[i] = null; this.boxes[i] = null; }
+      if (snaps[i]) snaps[i].age += dt;
       const box = this.live && p.present ? faceBox(p.lm, v.videoWidth, v.videoHeight) : null;
-      if (!box){ this.seen[i] = Math.max(0, this.seen[i] - dt * 2); continue; }
+      if (!box){ this.seen[i] = Math.max(0, this.seen[i] - dt * 2); steady[i] = 0; continue; }
       this.seen[i] = Math.min(1, this.seen[i] + dt * 3);
       const b = this.boxes[i];
       if (!b){ this.boxes[i] = { ...box }; continue; }
+      /* Held still, straight on and level? */
+      const still = Math.hypot(box.x - b.x, box.y - b.y) < box.size * 0.06;
+      const good = box.turn < STRAIGHT && Math.abs(box.roll) < LEVEL && box.size >= BIG;
+      steady[i] = still && good ? steady[i] + dt : 0;
       b.x += (box.x - b.x) * k; b.y += (box.y - b.y) * k;
       b.size += (box.size - b.size) * k * 0.6; b.roll += (box.roll - b.roll) * k;
+      if (!snaps[i] && steady[i] >= STEADY) this._snap(i, v, b);
     }
   }
 
-  /* Is player i's face available to draw? */
-  has(i){ return this.live && !!this.boxes[i] && this.seen[i] > 0.2; }
+  /* Take player i's picture from the video. */
+  _snap(i, v, b){
+    const cv = makeCanvas(SNAP);
+    if (!cv) return;
+    try { cv.getContext('2d').drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, 0, 0, SNAP, SNAP); }
+    catch (e){ return; }
+    snaps[i] = { canvas: cv, age: 0 };
+  }
+
+  /* Is player i's picture there to draw? */
+  has(i){ return !!snaps[i]; }
   roll(i){ return this.boxes[i] ? this.boxes[i].roll : 0; }
 
-  /* Paint player i's face into a circle of radius r at (x, y), mirrored like
-     a mirror. The caller has clipped to the window. */
+  /* Paint player i's picture into a circle of radius r at (x, y), mirrored
+     like a mirror, with a white flash just after it's taken. The caller has
+     clipped to the window. */
   draw(c, i, x, y, r){
-    const b = this.boxes[i], v = this.video;
-    if (!b || !v) return false;
+    const sn = snaps[i];
+    if (!sn) return false;
     c.save();
-    c.globalAlpha = Math.min(1, this.seen[i] * 1.5);
     c.translate(x, y); c.scale(-1, 1);
-    try { c.drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, -r, -r, r * 2, r * 2); }
-    catch (e){ c.restore(); return false; }
+    c.drawImage(sn.canvas, -r, -r, r * 2, r * 2);
+    if (sn.age < FLASH){ c.globalAlpha = 1 - sn.age / FLASH; c.fillStyle = '#ffffff'; c.fillRect(-r, -r, r * 2, r * 2); }
     c.restore();
     return true;
   }

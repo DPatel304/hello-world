@@ -41,6 +41,7 @@ function go(next, build){
    picked and fades away on the way back out. */
 function toMenu(){
   music.stop();
+  pose.keepSitters = false;
   go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration }));
 }
 
@@ -79,6 +80,8 @@ function toGame(g){
 function startRound(){
   joined = new Set();
   inst = game.create(players);
+  /* A game where squatting is a move keeps players who crouch or sit. */
+  pose.keepSitters = !!game.keepSitters;
   /* An endless game has no clock: it runs until it says it's over. */
   roundLeft = game.endless ? Infinity : game.secs;
   played = 0;

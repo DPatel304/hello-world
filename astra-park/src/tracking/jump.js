@@ -15,6 +15,9 @@
 export const RISE = 0.1;    /* body sizes above standing height */
 export const SPEED = 0.6;   /* body sizes per second, upward */
 const FOLLOW = 1.5;         /* how fast standing height follows, per second */
+/* ...but only slowly downward, so after a crouch or a squat, standing up
+   again is back to standing height, not a jump above it. */
+const FOLLOW_DOWN = 0.15;
 const LANDED = 0.04;        /* body sizes from standing height that count as down again */
 
 export class JumpWatch {
@@ -36,7 +39,7 @@ export class JumpWatch {
         continue;
       }
       if (rise > RISE && speed > SPEED){ this.up[i] = true; out.push(i); continue; }
-      this.base[i] += (y - this.base[i]) * Math.min(1, dt * FOLLOW);
+      this.base[i] += (y - this.base[i]) * Math.min(1, dt * (y > this.base[i] ? FOLLOW_DOWN : FOLLOW));
     }
     return out;
   }

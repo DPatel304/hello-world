@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
+import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
                WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
@@ -12,9 +12,10 @@ const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i
 /* Children standing in the room, as the camera sees them: leaning sideways
    (lean, -1..1 of a full lean, + is right) and toward the screen (lz, - is
    toward), knees up and down by `knee` (screen heights), hands moving up or
-   down at `hvy`, the middle of the body at `cy`. The first `n` are there,
-   all standing still but the first. */
-function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, n = 1 } = {}){
+   down at `hvy`, the middle of the body at `cy`, the body above the knees
+   dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
+   there, all standing still but the first. */
+function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, n = 1 } = {}){
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < n; });
   for (let i = 0; i < n; i++){
@@ -24,9 +25,11 @@ function body({ lean = 0, lz = 0, knee = 0, knees = true, hvy = 0, cy = 0.6, n =
       for (const j of [L.L_SHOULDER, L.R_SHOULDER]){ lm[j].x += lean * sw * LEAN_X * 1.2; lm[j].z = lz * sw * LEAN_Z * 1.2; }
       lm[L.L_KNEE].y -= knee; lm[L.R_KNEE].y += knee; lm[L.L_ANKLE].y -= knee; lm[L.R_ANKLE].y += knee;
       if (!knees){ lm[L.L_KNEE].v = lm[L.R_KNEE].v = 0.1; }
+      if (drop) lm.forEach((q, j) => { if (![L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE].includes(j)) q.y += drop; });
+      if (hug){ lm[L.L_WRIST] = { ...lm[L.R_SHOULDER], y: lm[L.R_SHOULDER].y + 0.01 }; lm[L.R_WRIST] = { ...lm[L.L_SHOULDER], y: lm[L.L_SHOULDER].y + 0.01 }; }
     }
     p.lm = lm; p.scale = 0.3;
-    p.centre = { x: 0.5, y: i === 0 ? cy : 0.6 };
+    p.centre = { x: 0.5, y: i === 0 ? cy + drop : 0.6 };
     const v = i === 0 ? hvy : 0;
     p.hands.left = { x: 0.45, y: 0.65, vx: 0, vy: v, speed: Math.abs(v) };
     p.hands.right = { x: 0.55, y: 0.65, vx: 0, vy: -v, speed: Math.abs(v) };
@@ -38,8 +41,8 @@ const still = (n = 1) => body({ n });
 function none(){ pose.mouse.active = false; pose.players.forEach(p => { p.present = false; }); }
 /* Running on the spot - knees up and down twice a second - with a lean. */
 const marching = (o = {}, height = 0.03) => (t) => body({ ...o, knee: Math.sin(t * Math.PI * 4) * height });
-/* Hammering: fists going hard up and down. */
-const hammering = (o = {}) => (t) => body({ ...o, hvy: Math.sin(t * Math.PI * 8) > 0 ? 2.5 : -2.5 });
+/* Squats, up and down once a second, `depth` screen heights down. */
+const squats = (o = {}, depth = 0.06) => (t) => body({ ...o, drop: Math.sin(t * Math.PI * 2) > 0 ? depth : 0 });
 /* A jump: the middle of the body rising quickly over a few frames, then back down. */
 function jump(inst){
   for (let k = 1; k <= 4; k++){ body({ cy: 0.6 - k * 0.03 }); inst.step(DT, W, H); }
@@ -209,12 +212,10 @@ test('rolling either way round counts; slow circles, hands far apart or still ha
   assert.equal(spun(() => still()), false, 'still');
 });
 
-test('hammering is not rolling, and rolling is not hammering', () => {
-  const a = quiet(); run(a, 2, hammering());
-  assert.equal(a.rolling(knight(a)), false);
-  assert.equal(a.hammering(knight(a)), true);
-  const b = quiet(); run(b, 2, rolling());
-  assert.equal(b.hammering(knight(b)), false);
+test('hands bobbing up and down are not a roll', () => {
+  const inst = quiet();
+  run(inst, 2, (t) => { still(); const p = pose.players[0], u = Math.sin(t * Math.PI * 8) * 0.05; p.hands.left.y = 0.6 + u; p.hands.right.y = 0.6 - u; });
+  assert.equal(inst.rolling(knight(inst)), false);
 });
 
 test('there is no clap any more: clapping does nothing', () => {
@@ -373,16 +374,58 @@ test('two knights on one spot work twice as fast', () => {
   assert.ok(inst.towers.has(2));
 });
 
-test('hammering makes the work go twice as fast', () => {
+test('squatting makes the work go twice as fast - bobbing squats, no need to hold one', () => {
   const inst = quiet(), pad = PADS[2];
   put(knight(inst), pad.x, pad.y);
-  run(inst, BUILD / HAMMER + 0.3, hammering());
+  run(inst, 0.5);
+  run(inst, BUILD / SQUAT_FAST + 0.3, squats());
   assert.ok(inst.towers.has(2));
-  assert.ok(inst.seen.hammered);
+  assert.ok(inst.seen.squatted);
   const slow = quiet();
   put(knight(slow), pad.x, pad.y);
-  run(slow, BUILD / HAMMER + 0.3);
+  run(slow, 0.5 + BUILD / SQUAT_FAST + 0.3);
   assert.ok(!slow.towers.has(2), 'just standing there takes longer');
+});
+
+test('a little dip, running on the spot or leaning is not a squat', () => {
+  for (const each of [squats({}, 0.01), marching(), () => body({ lean: 1 }), () => body({ lz: -1 })]){
+    const inst = quiet();
+    run(inst, 2, each);
+    assert.equal(inst.squatting(knight(inst)), false);
+  }
+});
+
+test('standing up out of a squat on an empty pad is not a jump', () => {
+  const inst = quiet(), pad = PADS[2], pick = inst.picks.get(2);
+  put(knight(inst), pad.x, pad.y);
+  run(inst, 0.5);
+  body({ drop: 0.07 }); run(inst, 2);
+  for (let k = 0; k < 4; k++){ body({ drop: 0.07 * (1 - (k + 1) / 4) }); inst.step(DT, W, H); }
+  run(inst, 1);
+  assert.equal(inst.picks.get(2), pick);
+});
+
+test('a hug heals a hurt knight, a bonk at a time; arms down does not', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1; k.calm = 0;
+  run(inst, 1);
+  assert.equal(k.hp, 1, 'standing about: not yet');
+  body({ hug: true }); run(inst, HUG_SETTLE + HUG_MEND + 0.1);
+  assert.equal(k.hp, 2);
+  assert.ok(inst.seen.hugged);
+  run(inst, HUG_MEND);
+  assert.equal(k.hp, KNIGHT_HP);
+  run(inst, HUG_MEND * 2);
+  assert.equal(k.hp, KNIGHT_HP, 'and no more');
+  assert.ok(HUG_MEND < KNIGHT_MEND, 'quicker than waiting');
+});
+
+test('one hand on a shoulder is not a hug', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1;
+  run(inst, 3, () => { body(); const lm = pose.players[0].lm; lm[L.L_WRIST] = { ...lm[L.R_SHOULDER] }; });
+  assert.equal(inst.hugging(k), false);
+  assert.equal(k.hp, 1);
 });
 
 /* ---------- ogres, and mending ---------- */
@@ -838,7 +881,8 @@ test('drawing works at every stage, with hints, ghosts and work rings', () => {
   const inst = quiet(2);
   inst.hearts = 5;
   put(knight(inst, 0), PADS[2].x, PADS[2].y); put(knight(inst, 1), atCastle(inst).x, atCastle(inst).y);
-  run(inst, 1, hammering({ n: 2 }));
+  run(inst, 1, squats({ n: 2 }));
+  knight(inst).hp = 1;
   inst.draw(ctx, W, H);
   build(inst, 4, 'cannon'); inst.towers.get(4).hp = 2;
   monster(inst, 'ogre', 1.5).wind = 0.5; knight(inst).spin = 9; knight(inst).sword = 0.3;

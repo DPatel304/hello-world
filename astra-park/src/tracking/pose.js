@@ -258,6 +258,7 @@ export const pose = {
       lm, taken: false,
       x: (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2, y: (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2,
       playing: !seated(lm) && sizeOf(lm) >= CLOSE * biggest,
+      close: sizeOf(lm) >= CLOSE * biggest,
       face: faceSeen(lm)
     }));
 
@@ -278,7 +279,9 @@ export const pose = {
       this._apply(p, d.lm, dt);
       this._track(p, d, dt + p.lostFor);
       p.lostFor = 0;
-      p.watching = d.playing ? 0 : p.watching + dt;
+      /* In a game that says so (squats are a move in Castle Defense), a
+         player who sits or crouches stays in; stepping back still counts. */
+      p.watching = d.playing || (this.keepSitters && d.close) ? 0 : p.watching + dt;
       if (p.watching > WATCH_AFTER){ p.present = false; p.lm = null; p.watching = 0; }
     }
     /* Everyone in the game who wasn't seen this time ages toward gone. */

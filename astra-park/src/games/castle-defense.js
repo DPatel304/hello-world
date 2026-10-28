@@ -24,7 +24,8 @@ import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, tow
    it, or else, slowly, makes it bigger and stronger, up to ten times. The
    castle starts out small, with only a few hearts: stand at it and the
    knight mends them, or once it's whole, slowly builds it a little bigger,
-   with two more. Hammering with a fist makes any of that go twice as fast.
+   with two more. Squatting makes any of that go twice as fast, and the
+   knight bangs away with its hammer. Give yourself a hug to heal it.
    Monsters drop coins into the treasure chest; new towers cost coins,
    building them up and mending is free - it only takes time.
 
@@ -47,12 +48,20 @@ export const HEARTS = CASTLE_HEARTS[0];
 /* Towers' health, by level; ogres passing close smash at it. */
 export const TOWER_HP = levels(l => 8 + 6 * l), OGRE_SMASH = 1.5, SMASH_R = 0.15;
 /* Seconds of standing there: to build, to mend a heart; towers mend
-   TOWER_FIX health a second. Hammering makes it all go HAMMER times as
+   TOWER_FIX health a second. Squatting makes it all go SQUAT_FAST times as
    fast. Building costs coins; building up is free, but slow, and slower
    with every level: upgradeTime(lvl) to take a tower from lvl to the next,
    castleTime(lvl) the castle - several minutes' standing, all told, to take
    one all the way to the top. */
-export const BUILD = 2.5, REPAIR = 4, TOWER_FIX = 3, HAMMER = 2;
+export const BUILD = 2.5, REPAIR = 4, TOWER_FIX = 3, SQUAT_FAST = 2;
+/* A squat: the hips dropping SQUAT_DROP body sizes below standing height.
+   Bobbing up and down keeps it going - it counts for SQUAT_HOLD seconds
+   after each time down - so nobody has to hold one. */
+export const SQUAT_DROP = 0.15, SQUAT_HOLD = 0.8;
+/* A hug: arms crossed over the chest, each hand within HUG_NEAR shoulder
+   widths of the other shoulder, for HUG_SETTLE seconds; while it lasts a
+   hurt knight gets a bonk's worth back every HUG_MEND seconds. */
+export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3, HUG_MEND = 1;
 export const upgradeTime = (lvl) => 5 + 2 * lvl, castleTime = (lvl) => 7 + 2 * lvl;
 export const AT_PAD = 0.075;                          /* how near a pad counts as standing on it */
 /* Knights. Leaning walks them - shoulders over to one side of the hips,
@@ -68,8 +77,8 @@ export const KNIGHT_SPEED = RUN;
    the bus going round. That's the hands circling each other: the line from
    one to the other turning on round, the same way, at ROLL_SPIN or more
    (radians, built up over about ROLL_FOR seconds), hands no more than
-   ROLL_GAP apart. Hands going up and down - hammering - only swing that
-   line to and fro, so they never add up to a roll. */
+   ROLL_GAP apart. Hands going up and down only swing that line to and
+   fro, so they never add up to a roll. */
 export const ROLL_FAST = 2, ROLL_SPIN = 3, ROLL_FOR = 0.6, ROLL_GAP = 0.4;
 /* Knights grow with what they beat: every monster they finish off counts
    (an ogre for five), and each level takes a few more than the last, up to
@@ -156,8 +165,10 @@ export default {
   /* Endless: it lasts as long as the castle holds. secs is only how long
      the music takes to build. */
   id: 'castle-defense', name: 'Castle Defense', stars: 2, accent: '#e5534b', secs: ROUND, endless: true,
-  /* Arms go up when hammering; a pause is a longer hold. */
+  /* Arms go up now and then; a pause is a longer hold. */
   pauseHold: 3,
+  /* Squatting is a move here: a player who crouches stays in. */
+  keepSitters: true,
   create(n){ return new CastleDefense(n); }
 };
 
@@ -185,12 +196,12 @@ class CastleDefense {
     this.faces = new FaceCam();
     this.jumps = new JumpWatch();
     /* What's been done yet, for the hints. */
-    this.seen = { built: false, jumped: false, hammered: false, rolled: false, repaired: false, called: false };
+    this.seen = { built: false, jumped: false, squatted: false, hugged: false, rolled: false, repaired: false, called: false };
     /* The knights wait by the castle, side by side. */
     this.knights = pose.players.map((_, i) => {
       const { x, y } = this.home(i);
       return { x, y, tx: x, ty: y, vx: 0, vy: 0, dir: 1, walk: 0, march: 0, lean: null, swing: 0, sword: 0,
-               spin: 0, ra: null, ham: 0, hop: 0, at: null,
+               spin: 0, ra: null, hipBase: null, lowAgo: 9, hugT: 0, hugHeal: 0, hop: 0, at: null,
                lvl: 0, xp: 0, hp: KNIGHT_HP, calm: 0, bonk: 0, down: 0, safe: 0, glow: 0 };
     });
     this.avatars = new Avatars();
@@ -315,7 +326,8 @@ class CastleDefense {
       } else {
         this._drive(k, p, dt);
         this._rollWatch(k, p, dt);
-        this._hammerWatch(k, p, dt);
+        this._squatWatch(k, p, dt);
+        this._hugWatch(i, k, p, dt);
       }
       /* Walk: vx and vy are screen heights a second. */
       k.x = clamp(k.x + k.vx / ASPECT * dt, 0.02, 0.98); k.y = clamp(k.y + k.vy * dt, 0.06, 0.97);
@@ -357,12 +369,36 @@ class CastleDefense {
     k.vx = ux * sp; k.vy = uy * sp;
   }
 
-  /* Hammering: a fist going up and down, hard. */
-  _hammerWatch(k, p, dt){
-    const v = Math.max(Math.abs(p.hands.left.vy || 0), Math.abs(p.hands.right.vy || 0));
-    k.ham += (clamp(v / 1.5, 0, 1) - k.ham) * Math.min(1, dt * 5);
+  /* Squatting: the hips well below where they stand. Standing height follows
+     the hips up quickly but down only slowly, so a squat stays a squat. */
+  _squatWatch(k, p, dt){
+    const lm = p.lm;
+    k.lowAgo += dt;
+    if (!lm) return;
+    const hy = (lm[L.L_HIP].y + lm[L.R_HIP].y) / 2, s = p.scale || 0.3;
+    if (k.hipBase == null) k.hipBase = hy;
+    if ((hy - k.hipBase) / s > SQUAT_DROP) k.lowAgo = 0;
+    k.hipBase += (hy - k.hipBase) * Math.min(1, dt * (hy > k.hipBase ? 0.15 : 1));
   }
-  hammering(k){ return pose.mouse.active ? false : k.ham > 0.4 && !this.rolling(k); }
+  squatting(k){ return !pose.mouse.active && k.lowAgo < SQUAT_HOLD; }
+
+  /* A hug: each hand at the other shoulder. Held a moment, it heals. */
+  _hugWatch(i, k, p, dt){
+    const lm = p.lm;
+    const near = (a, b) => Math.hypot((lm[a].x - lm[b].x) * ASPECT, lm[a].y - lm[b].y);
+    const vis = (j) => (lm[j].v ?? 1) > 0.4;
+    const hug = !!lm && vis(L.L_WRIST) && vis(L.R_WRIST) && (() => {
+      const sw = near(L.L_SHOULDER, L.R_SHOULDER) || 0.05;
+      return near(L.L_WRIST, L.R_SHOULDER) < HUG_NEAR * sw && near(L.R_WRIST, L.L_SHOULDER) < HUG_NEAR * sw;
+    })();
+    k.hugT = hug ? k.hugT + dt : 0;
+    if (!this.hugging(k) || k.hp >= KNIGHT_HP){ k.hugHeal = 0; return; }
+    this.seen.hugged = true;
+    k.hugHeal += dt;
+    if (Math.random() < dt * 6) this.bits.push({ kind: 'heart', x: k.x + (Math.random() - 0.5) * 0.02, y: k.y - KNIGHT_SIZE * 0.9, vx: 0, vy: -0.06, age: 0, life: 0.9 });
+    if (k.hugHeal >= HUG_MEND){ k.hugHeal = 0; k.hp++; k.calm = 0; sfx.jar(k.hp); }
+  }
+  hugging(k){ return k.hugT >= HUG_SETTLE; }
 
   /* Rolling the arms: how far the line from one hand to the other has turned
      round lately, one way. */
@@ -512,15 +548,15 @@ class CastleDefense {
   }
 
   _work(dt){
-    /* Who is standing where, and how hard they're hammering. */
+    /* Who is standing where, and whether they're squatting. */
     const at = new Map();
     for (let i = 0; i < this.players; i++){
       const k = this.knights[i];
       if (!k.at || !pose.players[i].present) continue;
       const e = at.get(k.at.id) || { at: k.at, rate: 0, who: i };
-      const ham = this.hammering(k);
-      if (ham) this.seen.hammered = true;
-      e.rate += ham ? HAMMER : 1; e.one = Math.max(e.one || 0, ham ? HAMMER : 1);
+      const sq = this.squatting(k);
+      if (sq) this.seen.squatted = true;
+      e.rate += sq ? SQUAT_FAST : 1; e.one = Math.max(e.one || 0, sq ? SQUAT_FAST : 1);
       at.set(k.at.id, e);
     }
     for (const [id, e] of at){
@@ -697,6 +733,7 @@ class CastleDefense {
     for (const b of this.bits){
       b.age += dt;
       if (b.kind === 'spark'){ b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 0.15 * dt; }
+      else if (b.kind === 'heart'){ b.y += b.vy * dt; b.x += Math.sin(b.age * 8) * 0.01 * dt; }
       else if (b.kind === 'coin' && b.age > 0){
         const k = Math.min(1, b.age / b.life), e = k * k;
         b.x = b.from.x + (chest.x - b.from.x) * e; b.y = b.from.y + (chest.y - b.from.y) * e - Math.sin(k * Math.PI) * 0.12;
@@ -855,7 +892,7 @@ class CastleDefense {
       if (!job.fix) drawWorkRing(c, x, y, r, job.can ? frac : 0, job.what === 'mend' ? '#ff4f6a' : '#ffd24a');
       if (job.what === 'mend') heart(c, x, y, r * 0.45, '#ff4f6a');
       if (job.what === 'up') star(c, x, y, r * 0.4, '#ffd24a');
-      if (this.hammering(k)) drawHammer(c, x + r * 1.1, y - r * 0.6, r * 0.6, -0.6 + Math.sin(this.t * 18) * 0.6);
+      if (this.squatting(k)) drawHammer(c, x + r * 1.1, y - r * 0.6, r * 0.6, -0.6 + Math.sin(this.t * 18) * 0.6);
     }
   }
 
@@ -893,10 +930,17 @@ class CastleDefense {
         const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
         c.save(); c.globalAlpha = 0.8; arrow(c, x, y - s * 1.2 - b, 0, -1, s * 0.3, '#fff6e2'); c.restore();
       }
-      /* Hammering: while working on something, until someone has hammered -
-         a ghostly fist bobbing up and down beside the knight. */
-      if (!this.seen.hammered && !pose.mouse.active && k.at && k.at.kind !== 'horn' && this.work.get(k.at.id)?.job?.can){
-        ghost(x + s * 0.8, y - s * (0.9 + 0.35 * Math.abs(Math.sin(this.t * 6))), 0.8);
+      /* Squatting: while working on something, until someone has squatted -
+         a ghostly arrow bobbing down and up beside the knight. */
+      if (!this.seen.squatted && !pose.mouse.active && k.at && k.at.kind !== 'horn' && this.work.get(k.at.id)?.job?.can){
+        const b = Math.abs(Math.sin(this.t * 4)) * s * 0.3;
+        c.save(); c.globalAlpha = 0.8; arrow(c, x + s * 0.8, y - s * 1.1 + b, 0, 1, s * 0.3, '#fff6e2'); c.restore();
+      }
+      /* Hugging: a hurt knight, until someone has hugged - two ghostly hands
+         crossing over its chest. */
+      if (!this.seen.hugged && !pose.mouse.active && k.hp < KNIGHT_HP && !(k.down > 0)){
+        const u = Math.abs(Math.sin(this.t * 2.5)), cx = x, cy = y - s * 0.55;
+        ghost(cx - s * (0.55 - 0.85 * u), cy - s * 0.1 * u, 0.8); ghost(cx + s * (0.55 - 0.85 * u), cy - s * 0.1 * u, 0.8);
       }
     }
     /* Building: until the first tower, the nearest empty pad to the first
@@ -940,6 +984,7 @@ class CastleDefense {
       if (b.age < 0) continue;
       const k = b.age / b.life;
       if (b.kind === 'spark'){ c.globalAlpha = 1 - k; c.fillStyle = b.col; c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.006, 0, 6.2832); c.fill(); c.globalAlpha = 1; }
+      else if (b.kind === 'heart'){ c.globalAlpha = 1 - k; heart(c, b.x * W, b.y * H, H * 0.01, '#ff4f6a'); c.globalAlpha = 1; }
       else coin(c, b.x * W, b.y * H, H * 0.013);
     }
   }
