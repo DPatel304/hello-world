@@ -6,7 +6,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { PATHS, PADS, PAD_R, CASTLE, CASTLE_BASE, CHEST, MAX_LVL, castleBox, towerTall, onCastle, along, drawMeadow, drawCastle, drawPad, drawTower, drawChest, heart,
-         drawMonster, drawShot, coin, star, drawKnight, drawClapRing, drawMarker, drawHorn, drawCharge, drawWorkRing, drawHammer } from './castle-art.js';
+         drawMonster, drawSlamRing, drawShot, coin, star, drawKnight, drawClapRing, drawMarker, drawHorn, drawCharge, drawWorkRing, drawHammer } from './castle-art.js';
 
 /* Castle Defense. Silly monsters - bouncing slimes, quick little goblins,
    bats, and now and then a big ogre - come in at the top left and march the
@@ -71,20 +71,24 @@ export const CHARGE_HIT = 0.1;
    (an ogre for five), and each level takes a few more than the last, up to
    KNIGHT_MAX. A knight starts with a tiny sword - a little longer, harder
    and quicker every level - and at the top it's a great golden one. */
-export const KNIGHT_MAX = 20;
-export const killsFor = (lvl) => 3 + 2 * lvl;
-export const swordAt = (lvl) => ({ reach: 0.06 + 0.002 * lvl, dmg: 0.5 + 0.1 * lvl, cool: 0.8 - 0.015 * lvl, size: 0.4 + 0.065 * lvl });
+export const KNIGHT_MAX = 10;
+export const killsFor = (lvl) => 3 + 3 * lvl;
+export const swordAt = (lvl) => ({ reach: 0.06 + 0.004 * lvl, dmg: 0.5 + 0.2 * lvl, cool: 0.8 - 0.03 * lvl, size: 0.4 + 0.13 * lvl });
 export const SWORD_R = swordAt(0).reach, SWORD_COOL = swordAt(0).cool, SWORD_DMG = swordAt(0).dmg;
 /* The super flattens the few nearest the knight - not a whole horde - and
    more of them, harder, the higher the knight. */
 export const SUPER_R = 0.26, SUPER_DMG = 5, SUPER_MOST = 6;
-export const superAt = (lvl) => ({ dmg: SUPER_DMG * (1 + 0.1 * lvl), most: SUPER_MOST + Math.floor(lvl / 4) });
-/* Ogres swing their clubs at knights close by, OGRE_CLUB seconds apart; a
-   knight takes KNIGHT_HP bonks, getting its breath back after a while
-   (a bonk's worth every KNIGHT_MEND seconds, once clear). Bonked out, it
-   loses every level, and after DOWN seconds is back at the castle, safe
-   for a moment. Nothing else harms a knight. */
-export const OGRE_REACH = 0.04, OGRE_CLUB = 1.6, KNIGHT_HP = 3, KNIGHT_MEND = 3, DOWN = 2.5, SAFE = 3;
+export const superAt = (lvl) => ({ dmg: SUPER_DMG * (1 + 0.2 * lvl), most: SUPER_MOST + Math.floor(lvl / 2) });
+/* Ogres go for knights close by, but slowly: an ogre that sees one lifts its
+   club high over its head and a warning ring spreads on the ground round
+   it, and only after WINDUP seconds does the club come down - on whoever is
+   still inside the ring. Then OGRE_CLUB seconds before it can try again.
+   A knight takes KNIGHT_HP bonks, getting its breath back after a while (a
+   bonk's worth every KNIGHT_MEND seconds, once clear). Bonked out, it loses
+   every level, and after DOWN seconds is back at the castle, safe for a
+   moment. Nothing else harms a knight. */
+export const OGRE_REACH = 0.04, WINDUP = 1.2, OGRE_CLUB = 1.6, KNIGHT_HP = 3, KNIGHT_MEND = 3, DOWN = 2.5, SAFE = 3;
+export const SLAM_R = OGRE_REACH + 0.13 * 0.3;
 export const CLAP_APART = 0.17, CLAP_SHUT = 0.08, CLAP_SPEED = 0.9, CLAP_R = SUPER_R;
 /* Between waves: BUILD_TIME to get ready (FIRST_BUILD before the first), or
    until a knight has stood by the war horn for HORN_HOLD. */
@@ -406,23 +410,31 @@ class CastleDefense {
 
   /* Ogres swing their clubs at any knight within reach. */
   _clubs(dt){
+    /* The knights an ogre at p could hit. */
+    const inRing = (p) => this.knights.slice(0, this.players).map((k, i) => ({ k, i }))
+      .filter(({ k, i }) => pose.players[i].present && !(k.down > 0) && !(k.safe > 0) && Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) <= SLAM_R);
     for (const m of this.monsters){
       if (m.kind !== 'ogre') continue;
       m.club = Math.max(0, (m.club || 0) - dt);
       m.bonk = Math.max(0, (m.bonk || 0) - dt * 3);
-      if (m.club > 0) continue;
       const p = this.pos(m);
-      for (let i = 0; i < this.players; i++){
-        const k = this.knights[i];
-        if (!pose.players[i].present || k.down > 0 || k.safe > 0) continue;
-        if (Math.hypot((p.x - k.x) * ASPECT, p.y - k.y) > OGRE_REACH + MONSTERS.ogre.size * 0.3) continue;
-        m.club = OGRE_CLUB; m.bonk = 1;
-        k.hp--; k.calm = 0; k.bonk = 1;
+      /* Winding up: when it's done, down comes the club. */
+      if (m.wind > 0){
+        m.wind -= dt;
+        if (m.wind > 0) continue;
+        m.wind = 0; m.club = OGRE_CLUB; m.bonk = 1;
         sfx.thud();
-        for (let q = 0; q < 6; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.8, '#ffe27a');
-        if (k.hp <= 0) this._knockOut(i, k);
-        break;
+        for (let q = 0; q < 10; q++) this._spark(p.x + (Math.random() - 0.5) * SLAM_R / ASPECT * 2, p.y + (Math.random() - 0.5) * 0.02, '#c9a66b');
+        for (const { k, i } of inRing(p)){
+          k.hp--; k.calm = 0; k.bonk = 1;
+          for (let q = 0; q < 6; q++) this._spark(k.x, k.y - KNIGHT_SIZE * 0.8, '#ffe27a');
+          if (k.hp <= 0) this._knockOut(i, k);
+        }
+        continue;
       }
+      if (m.club > 0 || !inRing(p).length) continue;
+      m.wind = WINDUP;
+      sfx.boing(0.3);
     }
   }
 
@@ -754,9 +766,11 @@ class CastleDefense {
     }
     for (const m of this.monsters){
       const p = this.pos(m), M = MONSTERS[m.kind], dance = this.out && this.lost ? Math.abs(Math.sin(this.t * 6 + m.wob)) * 0.03 : 0;
-      /* An ogre swinging its club rears up and lunges. */
-      const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02;
-      things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance - lunge) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max) });
+      /* An ogre winding up lifts its club, and a warning ring spreads on
+         the ground round it; bringing the club down, it lunges. */
+      const lunge = Math.sin((m.bonk || 0) * Math.PI) * 0.02, lift = m.wind > 0 ? 1 - m.wind / WINDUP : 0;
+      if (lift > 0 && !this.out) drawSlamRing(c, p.x * W, p.y * H, SLAM_R * H, lift, this.t);
+      things.push({ y: p.y, draw: () => drawMonster(c, p.x * W, (p.y - dance - lunge) * H, M.size * H, m.kind, this.t + m.wob, p.dir, m.hurt, m.slowT > 0, m.hp / m.max, lift) });
     }
     /* The knights, among everything else. */
     for (let i = 0; i < this.players; i++){

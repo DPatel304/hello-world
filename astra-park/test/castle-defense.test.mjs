@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, SUPER_R, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
+               WALK, RUN, SWORD_COOL, SWORD_DMG, SUPER_R, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -475,29 +475,47 @@ test('little monsters never hurt a knight', () => {
   assert.equal(knight(inst).down, 0);
 });
 
-test('an ogre bonks a knight close by with its club, a moment apart', () => {
+test('an ogre winds up, then bonks a knight still close by with its club, a moment apart', () => {
   const inst = quiet();
   const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
   const k = knight(inst);
   put(k, along(1.5).x, along(1.5).y);
   run(inst, 0.2);
-  assert.equal(k.hp, KNIGHT_HP - 1);
+  assert.ok(m.wind > 0, 'club up');
+  assert.equal(k.hp, KNIGHT_HP, 'not yet');
+  run(inst, WINDUP);
+  assert.equal(k.hp, KNIGHT_HP - 1, 'down it comes');
   run(inst, OGRE_CLUB * 0.8);
   assert.equal(k.hp, KNIGHT_HP - 1, 'not every frame');
-  run(inst, OGRE_CLUB * 0.3);
+  run(inst, OGRE_CLUB * 0.3 + WINDUP);
   assert.equal(k.hp, KNIGHT_HP - 2);
   put(k, OPEN_FIELD.x, OPEN_FIELD.y);
   run(inst, KNIGHT_MEND * 2 + 0.5);
   assert.equal(k.hp, KNIGHT_HP, 'away from it, it gets its breath back');
 });
 
+test('stepping out of the ring while the club is up gets away', () => {
+  const inst = quiet();
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  const k = knight(inst), p = along(1.5);
+  put(k, p.x, p.y);
+  run(inst, 0.2);
+  assert.ok(m.wind > 0);
+  put(k, p.x, p.y - SLAM_R * 1.5);
+  run(inst, WINDUP + 0.2);
+  assert.equal(k.hp, KNIGHT_HP, 'missed');
+  assert.ok(m.club > 0, 'and it has to wait to try again');
+  assert.ok(WINDUP >= 1, 'time enough to walk out');
+  assert.ok(WALK * WINDUP > SLAM_R, 'even just leaning');
+});
+
 test('a knight bonked out loses every level and comes back at the castle, safe for a moment', () => {
   const inst = quiet();
   const k = knight(inst);
-  k.lvl = 12; k.xp = 4; k.charge = 0.7;
+  k.lvl = 7; k.xp = 4; k.charge = 0.7;
   const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
   put(k, along(1.5).x, along(1.5).y);
-  run(inst, OGRE_CLUB * (KNIGHT_HP - 1) + 0.3);
+  run(inst, (OGRE_CLUB + WINDUP) * (KNIGHT_HP - 1) + WINDUP + 0.3);
   assert.ok(k.down > 0, 'down');
   assert.equal(k.lvl, 0); assert.equal(k.xp, 0); assert.equal(k.charge, 0);
   body({ lean: 1 }); run(inst, 1);
@@ -513,22 +531,21 @@ test('a knight bonked out loses every level and comes back at the castle, safe f
   assert.equal(k.hp, KNIGHT_HP, 'safe while it blinks');
 });
 
-test('knights level up from what they beat, a little more each level, up to twenty', () => {
+test('knights level up from what they beat, a little more each level, up to ten', () => {
   const inst = quiet(), k = knight(inst);
   assert.equal(k.lvl, 0);
-  assert.equal(KNIGHT_MAX, 20);
+  assert.equal(KNIGHT_MAX, 10);
   for (let q = 0; q < killsFor(0) - 1; q++){ const m = monster(inst, 'slime', 1); inst._damage(m, 99, 0); }
   assert.equal(k.lvl, 0, 'not quite');
   inst._damage(monster(inst, 'slime', 1), 99, 0);
   assert.equal(k.lvl, 1);
   inst._damage(monster(inst, 'ogre', 1), 99, 0);
-  assert.equal(killsFor(1), MONSTERS.ogre.coins);
-  assert.equal(k.lvl, 2, 'an ogre counts for five');
+  assert.equal(k.xp, MONSTERS.ogre.coins, 'an ogre counts for five');
   inst._damage(monster(inst, 'slime', 1), 99);
-  assert.equal(k.xp, 0, 'a tower kill is nobody\'s');
+  assert.equal(k.xp, MONSTERS.ogre.coins, 'a tower kill is nobody\'s');
   assert.ok(killsFor(10) > killsFor(1));
   for (let q = 0; q < 2000; q++) inst._damage(monster(inst, 'slime', 1), 99, 0);
-  assert.equal(k.lvl, KNIGHT_MAX, 'twenty is the top');
+  assert.equal(k.lvl, KNIGHT_MAX, 'ten is the top');
 });
 
 test('a higher knight has a bigger, harder, quicker sword - and kills faster', () => {

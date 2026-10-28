@@ -368,7 +368,8 @@ export function drawChest(c, W, H, coins, t){
 /* A monster at (x, y): kind slime / goblin / bat / ogre; dir which way it's
    walking; hurt: 0..1, a flash when hit; frozen: chilled blue; hp: share of
    health left, for the little bar. */
-export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp){
+/* club: an ogre's club lifted, 0..1, winding up to bring it down. */
+export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp, club = 0){
   c.save();
   const shadow = kind === 'bat' ? 0.5 : 1;
   c.fillStyle = `rgba(40,50,40,${0.25 * shadow})`; c.beginPath(); c.ellipse(x, y + s * 0.05, s * 0.45, s * 0.12, 0, 0, 6.2832); c.fill();
@@ -405,7 +406,7 @@ export function drawMonster(c, x, y, s, kind, t, dir, hurt, frozen, hp){
     c.fillStyle = frozen ? '#b5e6ff' : '#e8a07e'; c.beginPath(); c.arc(x, y - s * 0.95, s * 0.24, 0, 6.2832); c.fill();
     c.fillStyle = '#ffd24a'; c.beginPath(); c.moveTo(x - s * 0.2, y - s * 1.12); for (let k = 0; k < 5; k++){ c.lineTo(x - s * 0.2 + (k + 0.5) * s * 0.08, y - s * (k % 2 ? 1.22 : 1.32)); } c.lineTo(x + s * 0.2, y - s * 1.12); c.closePath(); c.fill();
     face(c, x + dir * s * 0.04, y - s * 0.93, s * 0.36);
-    c.fillStyle = '#8a5a34'; c.save(); c.translate(x + dir * s * 0.45, y - s * 0.55); c.rotate(dir * 0.5 + Math.sin(t * 6) * 0.15); c.fillRect(-s * 0.05, -s * 0.4, s * 0.1, s * 0.45); c.beginPath(); c.arc(0, -s * 0.42, s * 0.12, 0, 6.2832); c.fill(); c.restore();
+    c.fillStyle = '#8a5a34'; c.save(); c.translate(x + dir * s * 0.45, y - s * 0.55); c.rotate(dir * (0.5 - club * 2.1) + Math.sin(t * 6) * 0.15 * (1 - club) + (club > 0 ? Math.sin(t * 40) * 0.05 : 0)); c.fillRect(-s * 0.05, -s * 0.4, s * 0.1, s * 0.45); c.beginPath(); c.arc(0, -s * 0.42, s * 0.12 * (1 + club * 0.3), 0, 6.2832); c.fill(); c.restore();
   }
   c.restore();
   /* A flash when it's hit: a quick white glow over it. (Not a canvas
@@ -502,6 +503,20 @@ export function drawKnight(c, x, y, s, t, col, dir, walk, clap, face, swing = 0,
   c.restore();
   c.fillStyle = col;
   c.beginPath(); c.ellipse(0, hy - r * 1.3, r * 0.3, r * 0.42, Math.sin(t * 3) * 0.2, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* The warning on the ground round an ogre about to bring its club down:
+   k 0..1 as it winds up, the ring filling in from the middle out. */
+export function drawSlamRing(c, x, y, r, k, t){
+  c.save();
+  /* Round, as the reach is: whoever is inside it when the club comes down is hit. */
+  const rx = r, ry = r;
+  c.globalAlpha = 0.5 + 0.3 * Math.abs(Math.sin(t * 10));
+  c.strokeStyle = '#ff5d3d'; c.lineWidth = Math.max(2, r * 0.07);
+  c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 6.2832); c.stroke();
+  c.globalAlpha = 0.35;
+  c.fillStyle = '#ff5d3d'; c.beginPath(); c.ellipse(x, y, rx * k, ry * k, 0, 0, 6.2832); c.fill();
   c.restore();
 }
 
