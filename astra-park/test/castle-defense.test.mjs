@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, HAMMER, POINT_HOLD, LEAN_X, LEAN_Z, upgradeTime, castleTime,
-               WALK, RUN, SWORD_COOL, SWORD_DMG, SUPER_R, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, KNIGHT_MEND, OGRE_CLUB, WINDUP, SLAM_R, DOWN, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, HORN, HORN_HOLD, MONSTERS, waveOf, countOf, gapOf } from '../src/games/castle-defense.js';
 import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox } from '../src/games/castle-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 import { standIn } from '../src/games/moon-art.js';
@@ -52,12 +52,15 @@ function hands(x, y, gap){
   const p = pose.players[0], d = gap / 2 / ASPECT;
   p.hands.left = { x: x - d, y, vx: 0, vy: 0, speed: 0 }; p.hands.right = { x: x + d, y, vx: 0, vy: 0, speed: 0 };
 }
-/* A clap: hands apart, then snapped together over a few frames. */
-function clapAt(inst, x = 0.5, y = 0.5){
-  hands(x, y, 0.3); run(inst, 0.1);
-  for (const g of [0.2, 0.1, 0.03]){ hands(x, y, g); inst.step(DT, W, H); }
-  hands(x, y, 0.3); run(inst, 0.05);
-}
+/* Rolling the arms, the wheels on the bus: the hands going round each
+   other `rev` times a second, `r` screen heights from the middle. */
+const rolling = (o = {}, rev = 1.5, r = 0.06) => (t) => {
+  body(o);
+  const p = pose.players[0], w = rev * 2 * Math.PI, a = t * w, cx = 0.5, cy = 0.55;
+  const dx = Math.cos(a) * r / ASPECT, dy = Math.sin(a) * r, vx = -Math.sin(a) * r * w / ASPECT, vy = Math.cos(a) * r * w;
+  p.hands.left = { x: cx - dx, y: cy - dy, vx: -vx, vy: -vy, speed: Math.hypot(vx, vy) };
+  p.hands.right = { x: cx + dx, y: cy + dy, vx, vy, speed: Math.hypot(vx, vy) };
+};
 
 /* One child, as the mouse: the pointer at (x, y), moving at `speed`. */
 function mouse(x, y, speed = 0){
@@ -150,7 +153,7 @@ test('every child has a knight of their own, waiting side by side', () => {
   assert.equal(new Set(xs).size, 4);
 });
 
-/* ---------- the sword, and the super ---------- */
+/* ---------- the sword ---------- */
 
 test('near a monster the knight swings its sword by itself; one far off is left alone', () => {
   const inst = quiet();
@@ -158,7 +161,6 @@ test('near a monster the knight swings its sword by itself; one far off is left 
   put(knight(inst), along(1.5).x, along(1.5).y);
   run(inst, 0.2);
   assert.ok(m.hp < m.max, 'swung at');
-  assert.ok(knight(inst).charge > 0, 'and the charge ring starts filling');
   assert.equal(far.hp, far.max);
 });
 
@@ -176,7 +178,6 @@ test('a knight out in the open field swings at nothing', () => {
   put(knight(inst), OPEN_FIELD.x, OPEN_FIELD.y);
   run(inst, 2);
   assert.equal(m.hp, m.max);
-  assert.equal(knight(inst).charge, 0);
 });
 
 test('a sword kills a slime, and its coins go in the chest', () => {
@@ -187,43 +188,55 @@ test('a sword kills a slime, and its coins go in the chest', () => {
   assert.equal(inst.coins, before + MONSTERS.slime.coins);
 });
 
-test('a clap does nothing until the knight is charged; charged, it is a big shockwave', () => {
-  const inst = quiet();
-  const m = monster(inst, 'ogre', 1.5), p = along(1.5), k = knight(inst);
-  /* The knight a little way off: outside sword reach, inside the shockwave. */
-  put(k, p.x + (SUPER_R * 0.8) / ASPECT, p.y);
-  clapAt(inst);
-  assert.equal(m.hp, m.max, 'not charged: nothing');
-  k.charge = 1;
-  const s0 = m.s;
-  clapAt(inst);
-  assert.ok(m.hp < m.max - 3, 'a big hit');
-  assert.ok(m.s < s0, 'knocked back');
-  assert.equal(k.charge, 0, 'and the charge is spent');
-  assert.ok(inst.seen.supered);
+test('rolling the arms makes the sword swing twice as fast', () => {
+  const swings = (each) => {
+    const inst = quiet();
+    const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
+    run(inst, 4, each);
+    return Math.round((m.max - m.hp) / SWORD_DMG);
+  };
+  const plain = swings(() => still()), rolled = swings(rolling());
+  assert.equal(ROLL_FAST, 2);
+  assert.ok(rolled >= plain * 1.7, `${plain} swings standing, ${rolled} rolling`);
 });
 
-test('a slow bringing-together of the hands is not a clap', () => {
+test('rolling either way round counts; slow circles, hands far apart or still hands do not', () => {
+  const spun = (each) => { const inst = quiet(); run(inst, 2, each); return inst.rolling(knight(inst)); };
+  assert.equal(spun(rolling()), true, 'forwards');
+  assert.equal(spun(rolling({}, -1.5)), true, 'backwards');
+  assert.equal(spun(rolling({}, 0.25)), false, 'slowly');
+  assert.equal(spun(rolling({}, 1.5, 0.3)), false, 'arms flung wide');
+  assert.equal(spun(() => still()), false, 'still');
+});
+
+test('hammering is not rolling, and rolling is not hammering', () => {
+  const a = quiet(); run(a, 2, hammering());
+  assert.equal(a.rolling(knight(a)), false);
+  assert.equal(a.hammering(knight(a)), true);
+  const b = quiet(); run(b, 2, rolling());
+  assert.equal(b.hammering(knight(b)), false);
+});
+
+test('there is no clap any more: clapping does nothing', () => {
   const inst = quiet();
-  const m = monster(inst, 'ogre', 1.5), p = along(1.5), k = knight(inst);
-  put(k, p.x + (SUPER_R * 0.8) / ASPECT, p.y);
-  k.charge = 1;
-  hands(0.5, 0.5, 0.3); run(inst, 0.2);
-  for (let g = 0.3; g > 0.02; g -= 0.004){ hands(0.5, 0.5, g); inst.step(DT, W, H); }
+  const m = monster(inst, 'slime', 1.5), p = along(1.5);
+  put(knight(inst), p.x + 0.2 / ASPECT, p.y);
+  hands(0.5, 0.5, 0.3); run(inst, 0.1);
+  for (const g of [0.2, 0.1, 0.03]){ hands(0.5, 0.5, g); inst.step(DT, W, H); }
+  run(inst, 0.3);
   assert.equal(m.hp, m.max);
-  assert.equal(k.charge, 1);
+  assert.equal(inst.clap, undefined);
 });
 
-test('sword hits fill the charge until it is full; then ghostly hands clap over the knight', () => {
+test('ghostly hands roll over a knight in a fight, until someone rolls', () => {
   const inst = quiet();
   const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
-  run(inst, 3);
-  assert.ok(knight(inst).charge < 1, 'not straight away');
-  run(inst, 12 * SWORD_COOL);
-  assert.equal(knight(inst).charge, 1);
-  assert.ok(inst.clapHint);
-  inst.clap(0);
-  assert.equal(inst.clapHint, null, 'until the first super');
+  assert.equal(inst.rollHint, null, 'not before a fight');
+  run(inst, 0.3);
+  assert.equal(inst.rollHint, knight(inst));
+  run(inst, 2, rolling());
+  assert.ok(inst.seen.rolled);
+  assert.equal(inst.rollHint, null);
 });
 
 /* ---------- building ---------- */
@@ -520,12 +533,12 @@ test('stepping out of the ring while the club is up gets away', () => {
 test('a knight bonked out loses every level and comes back at the castle, safe for a moment', () => {
   const inst = quiet();
   const k = knight(inst);
-  k.lvl = 7; k.xp = 4; k.charge = 0.7;
+  k.lvl = 7; k.xp = 4;
   const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
   put(k, along(1.5).x, along(1.5).y);
   run(inst, (OGRE_CLUB + WINDUP) * (KNIGHT_HP - 1) + WINDUP + 0.3);
   assert.ok(k.down > 0, 'down');
-  assert.equal(k.lvl, 0); assert.equal(k.xp, 0); assert.equal(k.charge, 0);
+  assert.equal(k.lvl, 0); assert.equal(k.xp, 0);
   body({ lean: 1 }); run(inst, 1);
   assert.ok(Math.abs(k.fell.x - k.x) < 1e-9, 'it goes nowhere while it sees stars');
   still(); run(inst, DOWN - 1 + 0.05);
@@ -621,12 +634,10 @@ test('with the mouse, a resting pointer sends the knight, and it fights and buil
   assert.notEqual(k.tx, 0.6, 'a moving pointer sends nobody');
   mouse(0.6, 0.45); run(inst, POINT_HOLD + 0.05);
   assert.ok(Math.abs(k.tx - 0.6) < 0.01);
-  const m = monster(inst, 'ogre', 1.5), p = along(1.5);
+  const m = monster(inst, 'slime', 1.5), p = along(1.5);
   m.hp = m.max = 1e9;
   mouse(p.x, p.y); run(inst, 6);
   assert.ok(m.hp < m.max, 'sword');
-  k.charge = 1; run(inst, 0.1);
-  assert.ok(k.charge < 1, 'the super goes by itself');
   inst.monsters = [];
   mouse(PADS[2].x, PADS[2].y); run(inst, 6 + BUILD);
   assert.ok(inst.towers.has(2), 'built');
@@ -780,7 +791,7 @@ test('drawing works at every stage, with hints, ghosts and work rings', () => {
   run(inst, 1, hammering({ n: 2 }));
   inst.draw(ctx, W, H);
   build(inst, 4, 'cannon'); inst.towers.get(4).hp = 2;
-  monster(inst, 'ogre', 1.5); knight(inst).charge = 1;
+  monster(inst, 'ogre', 1.5).wind = 0.5; knight(inst).spin = 9; knight(inst).sword = 0.3;
   inst._startWave(); run(inst, 0.5);
   inst.draw(ctx, W, H);
   inst.over = true; inst.lost = true;

@@ -520,17 +520,6 @@ export function drawSlamRing(c, x, y, r, k, t){
   c.restore();
 }
 
-/* The ring a clap sends out: k 0..1 through its life. */
-export function drawClapRing(c, x, y, r, k, col){
-  c.save();
-  c.globalAlpha = 1 - k;
-  c.strokeStyle = col; c.lineWidth = r * 0.12 * (1 - k * 0.6);
-  c.beginPath(); c.ellipse(x, y, r * (0.3 + 0.7 * k), r * (0.3 + 0.7 * k) * 0.55, 0, 0, 6.2832); c.stroke();
-  c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.05;
-  c.beginPath(); c.ellipse(x, y, r * (0.2 + 0.7 * k), r * (0.2 + 0.7 * k) * 0.55, 0, 0, 6.2832); c.stroke();
-  c.restore();
-}
-
 /* Where a knight is heading: a little flag in the child's colour. */
 export function drawMarker(c, x, y, s, col, t){
   c.fillStyle = 'rgba(40,50,40,.25)'; c.beginPath(); c.ellipse(x, y, s * 0.18, s * 0.06, 0, 0, 6.2832); c.fill();
@@ -556,21 +545,6 @@ export function drawHorn(c, x, y, s, t, left, hold){
   c.lineTo(s * 0.36, -s * 0.28); c.quadraticCurveTo(-s * 0.05, s * 0.08, -s * 0.42, -s * 0.02); c.closePath(); c.fill();
   c.fillStyle = '#e8a91c'; c.beginPath(); c.ellipse(s * 0.33, -s * 0.17, s * 0.06, s * 0.14, 0.3, 0, 6.2832); c.fill();
   c.fillStyle = '#c9a66b'; for (const u of [-0.2, 0.05]){ c.fillRect(s * u - s * 0.02, -s * 0.06 + u * s * 0.3, s * 0.04, s * 0.16); }
-  c.restore();
-}
-
-/* The power meter round a knight's feet: sword hits fill it; full, it
-   glows and pulses, ready for a clap. */
-export function drawCharge(c, x, y, s, k, col, t){
-  const rx = s * 0.42, ry = s * 0.16;
-  c.save();
-  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = s * 0.05;
-  c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 6.2832); c.stroke();
-  if (k > 0){
-    const full = k >= 1, pulse = full ? 0.6 + 0.4 * Math.sin(t * 10) : 1;
-    c.strokeStyle = full ? '#ffe27a' : col; c.globalAlpha = pulse; c.lineWidth = s * (full ? 0.09 : 0.06);
-    c.beginPath(); c.ellipse(x, y, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + Math.min(1, k) * 6.2832); c.stroke();
-  }
   c.restore();
 }
 
