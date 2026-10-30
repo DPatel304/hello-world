@@ -161,27 +161,32 @@ export function drawCrown(c, x, y, s){
 
 /* ---------- the crew ---------- */
 
-/* A crew member: a capsule body in their colour with their face in a
-   circle on top. st: { air (screen px up), duck 0..1, lean -1..1, hit 0..1
-   (a red flash), blink, lost (tracking lost: faded, with a dashed
-   outline) }. face(x, y, r) paints the face into the clipped circle. */
+/* A crew member: a small capsule body in their colour under a big head -
+   their own face. st: { air (screen px up), duck 0..1, lean -1..1, hit
+   0..1 (a red flash), blink, lost (tracking lost: faded, with a dashed
+   outline), photo (the face is their picture, which outlines itself) }.
+   face(x, y, r) paints the face: a picture as it is, anything else into
+   a clipped circle. */
 export function drawCrew(c, x, base, h, t, col, st, face){
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, h * 0.2, h * 0.04, 0, 0, 6.2832); c.fill();
   c.save();
   c.translate(x, base - st.air); c.rotate(st.lean * 0.2);
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
-  const tall = h * (1 - (st.duck || 0) * 0.45), w = h * 0.36, r = h * 0.2;
+  const tall = h * (1 - (st.duck || 0) * 0.45), w = h * 0.32, r = h * 0.3;
   /* Body. */
-  c.fillStyle = col; c.beginPath(); c.roundRect(-w / 2, -tall + r * 1.6, w, tall - r * 1.6, w / 2); c.fill();
+  c.fillStyle = col; c.beginPath(); c.roundRect(-w / 2, -tall + r * 1.7, w, tall - r * 1.7, w / 2); c.fill();
   c.strokeStyle = INK; c.lineWidth = 3; c.stroke();
   /* Head, with their face. */
   const hy = -tall + r;
-  c.save(); c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.clip();
-  c.fillStyle = '#ffffff'; c.fillRect(-r, hy - r, r * 2, r * 2);
-  face(0, hy, r);
-  c.restore();
-  c.strokeStyle = col; c.lineWidth = r * 0.2; c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.stroke();
+  if (st.photo) face(0, hy, r);
+  else {
+    c.save(); c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.clip();
+    c.fillStyle = '#ffffff'; c.fillRect(-r, hy - r, r * 2, r * 2);
+    face(0, hy, r);
+    c.restore();
+    c.strokeStyle = col; c.lineWidth = r * 0.2; c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.stroke();
+  }
   if (st.lost){ c.setLineDash?.([6, 6]); c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.beginPath(); c.arc(0, hy, r * 1.25, 0, 6.2832); c.stroke(); c.setLineDash?.([]); }
   if (st.hit > 0){ c.globalAlpha = st.hit * 0.6; c.fillStyle = '#ff3b3b'; c.beginPath(); c.arc(0, hy, r * 1.2, 0, 6.2832); c.fill(); }
   c.restore();

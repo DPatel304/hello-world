@@ -58,12 +58,14 @@ export class PlayerBar {
       const g = c.createRadialGradient(x, cy, rr * 0.6, x, cy, rr * 1.6);
       g.addColorStop(0, hexA(col, 0.45)); g.addColorStop(1, hexA(col, 0));
       c.fillStyle = g; c.beginPath(); c.arc(x, cy, rr * 1.6, 0, 6.2832); c.fill();
-      c.fillStyle = col; c.beginPath(); c.arc(x, cy, rr * 1.08, 0, 6.2832); c.fill();
-      c.save();
-      c.beginPath(); c.arc(x, cy, rr * 0.9, 0, 6.2832); c.clip();
-      c.fillStyle = '#fff6e2'; c.fillRect(x - rr, cy - rr, rr * 2, rr * 2);
-      if (!this.faces.draw(c, i, x, cy, rr * 0.92)) drawKid(c, x, cy + rr * 0.15, rr * 0.85, this.t + i, KID_SKINS[i]);
-      c.restore();
+      if (!this.faces.draw(c, i, x, cy, rr * 1.12, col)){
+        c.fillStyle = col; c.beginPath(); c.arc(x, cy, rr * 1.08, 0, 6.2832); c.fill();
+        c.save();
+        c.beginPath(); c.arc(x, cy, rr * 0.9, 0, 6.2832); c.clip();
+        c.fillStyle = '#fff6e2'; c.fillRect(x - rr, cy - rr, rr * 2, rr * 2);
+        drawKid(c, x, cy + rr * 0.15, rr * 0.85, this.t + i, KID_SKINS[i]);
+        c.restore();
+      }
       /* Just arrived: a hand waving hello beside them. */
       if (s < 2.2) wave(c, x + rr * 1.05, cy - rr * 0.55, rr * 0.45, this.t, Math.min(1, (2.2 - s) * 2));
       c.restore();

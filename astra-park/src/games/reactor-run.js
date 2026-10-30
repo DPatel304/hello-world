@@ -429,9 +429,9 @@ class ReactorRun {
   _drawCrew(c, i, W, H){
     const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN, W, H), h = H * CREW_SIZE;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here },
+      { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i) },
       (x, y, r) => {
-        if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r);
+        if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
       });
     /* Their health over their head; the guide's crown at a crossroads. */

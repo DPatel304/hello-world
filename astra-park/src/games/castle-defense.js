@@ -1277,7 +1277,7 @@ class CastleDefense {
       const cheer = u >= 1 ? Math.abs(Math.sin(this.t * 5 + n)) * size * 0.12 : 0, best = Math.max(k.best || 0, k.lvl);
       c.globalAlpha = 1;
       inked(c, H * 0.004, () => drawKnight(c, x, y - cheer, size, this.t + i, PLAYER_COLORS[i], n % 2 ? -1 : 1, u < 1 ? 1 : 0, 0, (fx, fy, r) => {
-        if (this.faces.has(i)) this.faces.draw(c, i, fx, fy, r);
+        if (this.faces.has(i)) this.faces.draw(c, i, fx, fy, r, PLAYER_COLORS[i]);
         else drawKid(c, fx, fy + r * 0.1, r, this.t + i, KID_SKINS[i]);
       }, u >= 1 ? Math.max(0, Math.sin(this.t * 5 + n)) * 0.6 : 0, swordAt(best).size, best >= KNIGHT_MAX ? '#ffd24a' : '#dfe3ee'));
       /* A star for every tower it built. */
@@ -1356,7 +1356,7 @@ class CastleDefense {
         things.push({ y: f.y, draw: () => {
           c.save(); c.translate(fx, fy - s * 0.12); c.rotate(-Math.PI / 2 * k.dir); c.translate(-fx, -(fy - s * 0.12));
           drawKnight(c, fx, fy, s, 0, PLAYER_COLORS[i], k.dir, 0, 0, (x, y, r) => {
-            if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
+            if (this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
             else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
           }, 0, swordAt(k.lvl).size, k.lvl >= KNIGHT_MAX ? '#ffd24a' : '#dfe3ee');
           c.restore();
@@ -1390,7 +1390,7 @@ class CastleDefense {
         if (k.bonk > 0) c.translate(Math.sin(this.t * 70) * k.bonk * H * 0.006, 0);
         const sw = swordAt(k.lvl);
         drawKnight(c, k.x * W, (k.y - hop) * H, KNIGHT_SIZE * H, this.t + i, PLAYER_COLORS[i], k.dir, k.walk, 0, (x, y, r) => {
-          if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
+          if (this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
           else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
         }, k.swing, sw.size, k.lvl >= KNIGHT_MAX ? '#ffd24a' : '#dfe3ee');
         c.restore();

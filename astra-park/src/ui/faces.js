@@ -15,13 +15,12 @@
    The pictures are kept in memory only, for as long as the page is open:
    nothing is saved or sent anywhere.
 
-   A child isn't shown as the photo itself but as a cartoon
-   drawn from it - the photo is read for their skin tone, their hair colour
-   and whether their hair is long, and they're drawn as one of the park's
-   own cartoon people with those (lookFrom). (Where a photo can't be read,
-   it's shown as it is.) */
+   The picture is cleaned up once, when it's taken: webcam grain smoothed
+   away without blurring the eyes and mouth, a touch sharper, brighter and
+   more colourful (enhance). It's shown cut to an oval around the face, so
+   the room behind doesn't come too, with a thick outline in the player's
+   colour. */
 import { pose, L, MAX_PLAYERS } from '../tracking/pose.js';
-import { drawToon } from './kids.js';
 
 const EAR_L = 7, EAR_R = 8;
 /* A good picture: the face held steady (moving less than STILL of its size
@@ -33,10 +32,13 @@ const EAR_L = 7, EAR_R = 8;
    roughly facing the TV (within ROUGHLY), and swaps it for a better one
    when one comes. */
 export const STEADY = 0.3, STILL = 0.15, STRAIGHT = 0.3, LEVEL = 0.4, BIG = 24, FORGET = 5, LATE = 3, ROUGHLY = 0.6;
-const SNAP = 128, FLASH = 0.5;
-/* How much of the head to show around the face: the crop is this many
-   ear-widths across. */
-const HEAD = 2.3;
+const SNAP = 160, FLASH = 0.5;
+/* How much of the head to take around the face: the crop is this many
+   ear-widths across - the face and hair, not much more. */
+const HEAD = 1.75;
+/* The oval the face is shown in, as fractions of the circle it's drawn
+   into, and its outline's width. */
+export const OVAL_W = 0.74, OVAL_H = 0.95, RIM = 0.13;
 
 /* Where a face is in the video, as a square in video pixels - { x, y, size }
    centred on the face - plus how far the head is tilted, or null if there's
@@ -61,29 +63,65 @@ export function faceBox(lm, vw, vh){
   return { x: nose.x, y: nose.y - eyes * 0.35, size, roll, turn };
 }
 
-/* Reading a face photo for a cartoon. data is RGBA pixels of a w x h
-   picture of the face, centred, the head about two-fifths of its width
-   (as _snap takes them). Skin from the cheeks; hair from just over the
-   forehead; long hair if the sides below the ears are hair-coloured
-   rather than skin or background. Returns { skin, hair, long }. */
-export function lookFrom(data, w, h){
-  const px = (x, y) => { const i = (Math.round(y) * w + Math.round(x)) * 4; return [data[i], data[i + 1], data[i + 2]]; };
-  /* The middle colour of a patch, by fractions of the picture: steady
-     against a stray highlight or shadow. */
-  const patch = (x0, y0, x1, y1) => {
-    const pts = [];
-    for (let y = y0 * h; y <= y1 * h; y += 2) for (let x = x0 * w; x <= x1 * w; x += 2) pts.push(px(x, y));
-    return [0, 1, 2].map(k => pts.map(p => p[k]).sort((a, b) => a - b)[pts.length >> 1]);
-  };
-  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-  const skin = patch(0.38, 0.52, 0.62, 0.66);
-  const hair = patch(0.38, 0.14, 0.62, 0.24);
-  const sides = [patch(0.1, 0.62, 0.22, 0.8), patch(0.78, 0.62, 0.9, 0.8)];
-  const corner = patch(0.02, 0.02, 0.1, 0.1);
-  const long = sides.every(sd => dist(sd, hair) < 60 && dist(sd, skin) > 50) && dist(hair, corner) > 30;
-  const css = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
-  return { skin: css(skin), hair: css(hair), long };
+/* One pass of the grain smoothing (see enhance). */
+function smooth(src, w, h){
+  const out = new Float32Array(src.length), R = 2, NEAR = 2 * 45 * 45;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const i = (y * w + x) * 4;
+    let r = 0, g = 0, b = 0, n = 0;
+    for (let dy = -R; dy <= R; dy++){
+      const yy = Math.min(h - 1, Math.max(0, y + dy));
+      for (let dx = -R; dx <= R; dx++){
+        const j = (yy * w + Math.min(w - 1, Math.max(0, x + dx))) * 4;
+        const dr = src[j] - src[i], dg = src[j + 1] - src[i + 1], db = src[j + 2] - src[i + 2];
+        const k = Math.exp(-(dr * dr + dg * dg + db * db) / NEAR - (dx * dx + dy * dy) / 8);
+        r += src[j] * k; g += src[j + 1] * k; b += src[j + 2] * k; n += k;
+      }
+    }
+    out[i] = r / n; out[i + 1] = g / n; out[i + 2] = b / n; out[i + 3] = src[i + 3];
+  }
+  return out;
 }
+
+/* Cleaning up a face photo, in place: data is its RGBA pixels, w x h.
+   Webcam grain is smoothed out by averaging each pixel with the
+   neighbours that are close to it in colour - so flat skin goes smooth
+   while the edges of the eyes, mouth and hair stay sharp - then the edges
+   are given back a little crispness, and the whole is stretched to a full
+   range of light and dark, a touch brighter, and a touch more colourful. */
+export function enhance(data, w, h){
+  /* Twice over, for webcam grain. */
+  const out = smooth(smooth(Float32Array.from(data), w, h), w, h);
+  /* Crisper: each pixel pushed a little away from its neighbours' average
+     - only at real edges, so what grain is left isn't sharpened back. */
+  const soft = Float32Array.from(out);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++){
+    const i = (y * w + x) * 4;
+    for (let k = 0; k < 3; k++){
+      const around = (soft[i - 4 + k] + soft[i + 4 + k] + soft[i - w * 4 + k] + soft[i + w * 4 + k]) / 4;
+      const edge = soft[i + k] - around;
+      if (Math.abs(edge) > 8) out[i + k] = soft[i + k] + edge * 0.6;
+    }
+  }
+  /* Full range: the darkest and lightest few percent set nearly black and
+     white - but never stretched so far that skin goes flat white. */
+  const darks = [], lights = [];
+  for (let i = 0; i < out.length; i += 16){
+    darks.push(Math.min(out[i], out[i + 1], out[i + 2])); lights.push(Math.max(out[i], out[i + 1], out[i + 2]));
+  }
+  darks.sort((a, b) => a - b); lights.sort((a, b) => a - b);
+  const lo = darks[Math.floor(darks.length * 0.01)], hi = lights[Math.floor(lights.length * 0.99)];
+  const gain = Math.min(1.3, 250 / Math.max(1, hi - lo)), base = Math.max(0, lo - 6);
+  for (let i = 0; i < out.length; i += 4){
+    let r = (out[i] - base) * gain, g = (out[i + 1] - base) * gain, b = (out[i + 2] - base) * gain;
+    /* A touch brighter, and more colourful. */
+    r = 255 * Math.pow(Math.max(0, r) / 255, 0.9); g = 255 * Math.pow(Math.max(0, g) / 255, 0.9); b = 255 * Math.pow(Math.max(0, b) / 255, 0.9);
+    const m = 0.3 * r + 0.59 * g + 0.11 * b;
+    data[i] = m + (r - m) * 1.18; data[i + 1] = m + (g - m) * 1.18; data[i + 2] = m + (b - m) * 1.18;
+  }
+  return data;
+}
+
 /* The pictures, one per player, shared by every game for the session. */
 const snaps = Array(MAX_PLAYERS).fill(null);
 const gone = Array(MAX_PLAYERS).fill(0), steady = Array(MAX_PLAYERS).fill(0), looked = Array(MAX_PLAYERS).fill(0);
@@ -133,37 +171,42 @@ export class FaceCam {
   _snap(i, v, b, rough = false, quiet = false){
     const cv = makeCanvas(SNAP);
     if (!cv) return;
-    let look = null;
     try {
       const g = cv.getContext('2d');
+      g.imageSmoothingQuality = 'high';
       g.drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, 0, 0, SNAP, SNAP);
-      if (g.getImageData) look = lookFrom(g.getImageData(0, 0, SNAP, SNAP).data, SNAP, SNAP);
+      if (g.getImageData){
+        const img = g.getImageData(0, 0, SNAP, SNAP);
+        enhance(img.data, SNAP, SNAP);
+        g.putImageData(img, 0, 0);
+      }
     } catch (e){ return; }
     /* A better one swapped in quietly, without the flash. */
-    snaps[i] = { canvas: cv, age: quiet ? FLASH : 0, rough, look };
+    snaps[i] = { canvas: cv, age: quiet ? FLASH : 0, rough };
   }
 
   /* Is player i's picture there to draw? */
   has(i){ return !!snaps[i]; }
   roll(i){ return this.boxes[i] ? this.boxes[i].roll : 0; }
 
-  /* Paint player i's picture into a circle of radius r at (x, y), mirrored
-     like a mirror, with a white flash just after it's taken. The caller has
-     clipped to the window. */
-  draw(c, i, x, y, r){
+  /* Paint player i's picture at (x, y): cut to an oval that fits a circle
+     of radius r, mirrored like a mirror, outlined thickly in col, with a
+     white flash just after it's taken. */
+  draw(c, i, x, y, r, col = '#ffffff'){
     const sn = snaps[i];
     if (!sn) return false;
+    const rim = r * RIM, rx = r * OVAL_W - rim / 2, ry = r * OVAL_H - rim / 2;
     c.save();
-    if (sn.look){
-      /* As a cartoon of themselves, on a soft backdrop. */
-      c.fillStyle = '#fff6e2'; c.fillRect(x - r, y - r, r * 2, r * 2);
-      drawToon(c, x, y, r, sn.age + i * 1.3, sn.look);
-      c.translate(x, y);
-    } else {
-      c.translate(x, y); c.scale(-1, 1);
-      c.drawImage(sn.canvas, -r, -r, r * 2, r * 2);
-    }
+    c.translate(x, y);
+    c.save();
+    c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 6.2832); c.clip();
+    c.scale(-1, 1);
+    /* The picture is a little wider than the oval is: fill its height. */
+    c.drawImage(sn.canvas, -ry, -ry, ry * 2, ry * 2);
     if (sn.age < FLASH){ c.globalAlpha = 1 - sn.age / FLASH; c.fillStyle = '#ffffff'; c.fillRect(-r, -r, r * 2, r * 2); }
+    c.restore();
+    c.strokeStyle = col; c.lineWidth = rim;
+    c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 6.2832); c.stroke();
     c.restore();
     return true;
   }

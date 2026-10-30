@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FaceCam, forgetFaces, lookFrom, STEADY, FORGET, LATE } from '../src/ui/faces.js';
+import { FaceCam, forgetFaces, enhance, STEADY, FORGET, LATE } from '../src/ui/faces.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 /* A stand-in for a canvas to take the picture into. */
@@ -98,28 +98,33 @@ test('a child gone a while is forgotten, so the next one gets their own picture'
   assert.equal(cam.has(0), true, 'and snapped afresh');
 });
 
-/* A made-up face photo: a background, hair over the top (and down the
-   sides if long), a face in the middle. */
-function photo({ bg = [90, 110, 140], hair = [70, 45, 30], skin = [230, 185, 150], long = false } = {}, n = 64){
+/* A made-up face photo, grainy: a face in the middle on a background,
+   an eye in the face, and webcam noise over everything. */
+function photo(n = 48){
   const d = new Uint8ClampedArray(n * n * 4);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++){
-    const u = x / n, v = y / n, dx = u - 0.5, dy = v - 0.5;
-    let c = bg;
-    if (long && v > 0.15 && v < 0.9 && Math.abs(dx) < 0.42) c = hair;
-    if (dx * dx / 0.09 + (dy - 0.05) * (dy - 0.05) / 0.14 < 1) c = skin;
-    if (v > 0.1 && v < 0.3 && Math.abs(dx) < 0.3) c = hair;
-    d.set([...c, 255], (y * n + x) * 4);
+    const dx = x / n - 0.5, dy = y / n - 0.5;
+    let c = [90, 110, 140];
+    if (dx * dx + dy * dy < 0.12) c = [210, 165, 135];
+    if (Math.abs(dx - 0.1) < 0.05 && Math.abs(dy + 0.05) < 0.04) c = [40, 30, 30];
+    const g = (rnd() - 0.5) * 40;
+    d.set([c[0] + g, c[1] + g, c[2] + g, 255], (y * n + x) * 4);
   }
   return d;
 }
+/* How grainy a patch of skin is: how much it varies. */
+function grain(d, n){
+  const v = [];
+  for (let y = 22; y < 30; y++) for (let x = 14; x < 22; x++) v.push(d[(y * n + x) * 4]);
+  const m = v.reduce((a, b) => a + b) / v.length;
+  return Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / v.length);
+}
 
-test('a face photo is read for skin tone, hair colour and long or short hair', () => {
-  const short = lookFrom(photo(), 64, 64);
-  assert.equal(short.skin, 'rgb(230,185,150)');
-  assert.equal(short.hair, 'rgb(70,45,30)');
-  assert.equal(short.long, false);
-  const long = lookFrom(photo({ long: true, hair: [200, 160, 60], skin: [120, 80, 55] }), 64, 64);
-  assert.equal(long.hair, 'rgb(200,160,60)');
-  assert.equal(long.skin, 'rgb(120,80,55)');
-  assert.equal(long.long, true);
+test('a face picture is cleaned up: the grain smoothed away, the eye still sharp', () => {
+  const n = 48, before = photo(n), after = enhance(photo(n), n, n);
+  assert.ok(grain(after, n) < grain(before, n) * 0.5, `grain ${grain(before, n)} -> ${grain(after, n)}`);
+  /* The eye stays dark against the skin around it. */
+  const at = (d, x, y) => d[(y * n + x) * 4];
+  assert.ok(at(after, 28, 21) < 90 && at(after, 21, 30) > 160 && at(after, 21, 30) < 250, `eye ${at(after, 28, 21)}, cheek ${at(after, 21, 30)}`);
 });

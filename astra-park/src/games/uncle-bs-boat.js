@@ -315,7 +315,7 @@ class Boat {
     const present = pose.players[who].present;
     const poseName = this.out || (this.admire[0] && this.admire[0].who === who) ? 'cheer' : 'idle';
     drawCrew(c, W, H, this.t, seat, PLAYER_COLORS[who], (x, y, rr) => {
-      if (present && this.faces.has(who)) this.faces.draw(c, who, x, y, rr);
+      if (present && this.faces.has(who)) this.faces.draw(c, who, x, y, rr, PLAYER_COLORS[who]);
       else drawKid(c, x, y + rr * 0.08, rr * 0.95, this.t + who, KID_SKINS[who]);
     }, poseName);
   }

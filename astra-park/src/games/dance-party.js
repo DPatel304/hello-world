@@ -208,10 +208,10 @@ class Party {
     silhouette(c, lm, W, H, col, 0.55);
     const x = lm[L.NOSE].x * W, y = lm[L.NOSE].y * H - sw * 0.08, r = sw * 0.5;
     if (r < 6) return;
+    if (this.faces.draw(c, i, x, y, r * 1.1, col)) return;
     c.save(); c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.clip();
     c.fillStyle = col; c.fillRect(x - r, y - r, r * 2, r * 2);
-    if (this.faces.has(i)) this.faces.draw(c, i, x, y, r);
-    else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
+    drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
     c.restore();
     c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.1; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.stroke();
   }
