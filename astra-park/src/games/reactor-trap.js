@@ -3,15 +3,17 @@
    A long hall seen from high up, the view holding still: the crew start
    along the near end, and across the far end is the finish line, with the
    Watcher - a big security robot - beyond it. While its back is turned
-   and its lamp is green, march on the spot to walk up the hall (lean to
-   go left and right, as ever). When the lamp goes yellow it's turning
-   round; red, it's looking - and anyone it sees moving (after a moment's
-   GRACE to stop) gets zapped: ZAP health, knocked back a bit, a second's
-   safety. A trap room never puts anyone to sleep - 1 health at worst.
+   and its lamp is green, walk or run on the spot to go up the hall -
+   walking gets you there, running gets you there quicker (lean to go left
+   and right, as ever). When the lamp goes yellow it's turning round;
+   red, it's looking - and anyone it sees really moving (after a moment's
+   GRACE to stop - and a wobble, a sway or a fidget is fine) gets zapped:
+   ZAP health, knocked back a bit, a second's safety. A trap room never
+   puts anyone to sleep - 1 health at worst.
 
-   Over the finish line you're safe, and you wait for the rest. Once
-   everyone's over, the door opens; and however it's going, after len
-   seconds the Watcher gives up and lets them through.
+   The first over the finish line wins it for everyone: the door opens.
+   However it's going, after len seconds the Watcher gives up and lets
+   them through anyway.
 
    Its own view: the hall is drawn by Q(lane, along) here, not the
    corridor's P. */
@@ -24,9 +26,9 @@ import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
 export const GREEN = [2, 4], YELLOW = 0.8, RED = [1.5, 3], READY = 1.5;
 /* Stopping: this long after red to keep still; moving less than STILL
    (body sizes a second) counts as still. */
-export const GRACE = 0.4, STILL = 0.35;
-/* Up the hall (0 to 1) a second, marching all-out. */
-export const STRIDE = 0.12;
+export const GRACE = 0.6, STILL = 0.8;
+/* Up the hall (0 to 1) a second, running all-out (walking is about half). */
+export const STRIDE = 0.16;
 export const ZAP = 10, KNOCK = 0.08, ZAP_SAFE = 1.2;
 export const CLEAR_COINS = 15;
 export const TRAP_MAX = 90;
@@ -78,7 +80,7 @@ export class Lights {
       if (rn.along >= 1 && !rn.over){ rn.over = true; sfx.twinkle(); }
     }
 
-    if (g.here.length && g.here.every(i => g.crew[i].over)) this._clear(W, H);
+    if (g.here.some(i => g.crew[i].over)) this._clear(W, H);
     else if (this.t > this.len) this._clear(W, H);
   }
 
@@ -134,7 +136,9 @@ export class Lights {
     const order = g.here.slice().sort((a, b) => g.crew[b].along - g.crew[a].along);
     for (const i of order){
       const rn = g.crew[i], q = Q(rn.x, rn.along, W, H);
-      drawCrew(i, q.x, q.y, H * 0.2 * q.k, rn.marching > 0.15 && this.light !== 'red' ? Math.abs(Math.sin(this.t * 10 + i)) * H * 0.012 : 0);
+      /* Walking, a steady bob; running, a quicker, bigger one. */
+      const going = this.light !== 'red' && !this.done ? rn.marching : 0;
+      drawCrew(i, q.x, q.y, H * 0.2 * q.k, going > 0.1 ? Math.abs(Math.sin(this.t * (6 + 8 * going) + i)) * H * (0.006 + 0.016 * going) : 0);
     }
     /* In from the door: a quick fade up from black. */
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }

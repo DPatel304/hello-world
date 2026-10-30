@@ -91,15 +91,31 @@ test('standing still on red is safe', () => {
   assert.equal(inst.crew[0].hp, MAX_HP);
 });
 
-test('everyone over the line opens the door, and the run goes on', () => {
+test('the first one over the line opens the door for everyone, and the run goes on', () => {
   const inst = room(2);
   const coins = inst.coins;
-  for (let k = 0; k < 120 / DT && inst.trap; k++){
-    for (const i of inst.here) body(i, inst.t, inst.trap.light === 'green' ? 'march' : 'still');
+  inst.crew[0].along = 0.95;
+  lightIs(inst, 'green');
+  for (let k = 0; k < 10 / DT && inst.trap && !inst.trap.done; k++){
+    body(0, inst.t, inst.trap.light === 'green' ? 'march' : 'still'); body(1, inst.t, 'still');
     inst.step(DT, W, H);
   }
+  assert.ok(inst.trap.done);
+  assert.ok(inst.crew[1].along < 0.1, 'the other never moved');
+  run(inst, 2);
   assert.equal(inst.phase, 'corridor');
   assert.equal(inst.coins - coins, CLEAR_COINS);
+});
+
+test('a little sway on red is fine', () => {
+  const inst = room();
+  lightIs(inst, 'red');
+  for (let k = 0; k < 1.4 / DT; k++){
+    body(0, inst.t, 'still');
+    pose.players[0].lm.forEach(q => { q.x += Math.sin(inst.t * 3) * 0.01; });
+    inst.step(DT, W, H);
+  }
+  assert.equal(inst.crew[0].hp, MAX_HP);
 });
 
 test('while playtesting, a trap room is over in PLAYTEST seconds', () => {
