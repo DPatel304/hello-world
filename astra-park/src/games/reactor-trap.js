@@ -11,11 +11,10 @@
    ZAP health, knocked back a bit, a second's safety. A trap room never
    puts anyone to sleep - 1 health at worst.
 
-   Coins lie scattered up the hall, off the straight way up: go out of
-   your way for them, or just make a dash for the line. The first over the
-   finish line wins it for everyone: the door opens.
+   A pile of coins waits past the finish line. The first over the line
+   wins it - and the coins - for everyone, and the door opens.
    However it's going, after len seconds the Watcher gives up and lets
-   them through anyway.
+   them through anyway - but nobody won the coins.
 
    Its own view: the hall is drawn by Q(lane, along) here, not the
    corridor's P. */
@@ -31,18 +30,16 @@ export const GREEN = [2, 4], YELLOW = 0.8, RED = [1.5, 3], READY = 1.5;
    (body sizes a second) counts as still. */
 export const GRACE = 0.6, STILL = 0.8;
 /* Up the hall (0 to 1) a second, running all-out (walking is about half). */
-export const STRIDE = 0.16;
+export const STRIDE = 0.09;
 export const ZAP = 10, KNOCK = 0.08, ZAP_SAFE = 1.2;
-export const CLEAR_COINS = 15;
-/* Coins up the hall: how many, and how near (across, lanes; up, of the
-   hall) picks one up. */
-export const HALL_COINS = 14, COIN_ACROSS = 0.16, COIN_UP = 0.04;
+/* The pile of coins at the end, everyone's when the first is over. */
+export const CLEAR_COINS = 25;
 export const TRAP_MAX = 90;
 
 /* The hall, from up high: the near end low on the screen and wide, the
    far end higher up and narrower. lane -1..1 across, along 0 (start) to
    1 (finish). */
-const NEAR_Y = 0.88, FAR_Y = 0.38, NEAR_HALF = 0.4, FAR_HALF = 0.27;
+const NEAR_Y = 0.9, FAR_Y = 0.34, NEAR_HALF = 0.4, FAR_HALF = 0.22;
 export function Q(lane, along, W, H){
   const u = Math.max(-0.1, Math.min(1.15, along));
   const k = 1 - (1 - FAR_HALF / NEAR_HALF) * u;
@@ -59,13 +56,8 @@ export class Lights {
     this.marches = pose.players.map(() => new MarchWatch());
     this.moves = pose.players.map(() => new MoveWatch());
     for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; }
-    /* Scattered up the hall, all across it - in little clusters, some
-       out by the walls. */
-    this.coins = [];
-    for (let k = 0; k < HALL_COINS; k++){
-      const lane = Math.max(-0.95, Math.min(0.95, (Math.random() * 2 - 1) * 1.1));
-      this.coins.push({ lane, along: 0.12 + Math.random() * 0.8, got: false, seed: Math.random() * 6 });
-    }
+    /* The pile: a heap past the finish line, in front of the Watcher. */
+    this.pile = Array.from({ length: CLEAR_COINS }, (_, k) => ({ lane: (Math.random() - 0.5) * 0.5, up: Math.random() * 0.05, z: k }));
   }
 
   step(dt, W, H){
@@ -90,18 +82,11 @@ export class Lights {
       if (rn.over) continue;
       if (this.light !== 'red') rn.along = Math.min(1, rn.along + STRIDE * march * dt);
       else if (looking && rn.safe <= 0 && moving > STILL) this._zap(i, W, H);
-      for (const cn of this.coins){
-        if (cn.got || Math.abs(cn.lane - rn.x) > COIN_ACROSS || Math.abs(cn.along - rn.along) > COIN_UP) continue;
-        cn.got = true; g.coins++;
-        sfx.jar(1 + (g.coins % 8));
-        const q = Q(cn.lane, cn.along, W, H);
-        g._sparkle(q.x / W, (q.y - H * 0.03) / H, 6, 50);
-      }
       if (rn.along >= 1 && !rn.over){ rn.over = true; sfx.twinkle(); }
     }
 
-    if (g.here.some(i => g.crew[i].over)) this._clear(W, H);
-    else if (this.t > this.len) this._clear(W, H);
+    if (g.here.some(i => g.crew[i].over)) this._clear(W, H, true);
+    else if (this.t > this.len) this._clear(W, H, false);
   }
 
   _zap(i, W, H){
@@ -114,12 +99,15 @@ export class Lights {
     sfx.zap(); sfx.thud();
   }
 
-  _clear(W, H){
+  _clear(W, H, won){
     const g = this.g;
     this.done = true;
+    if (!won){ sfx.whoosh(); return; }
     g.coins += CLEAR_COINS;
     sfx.gold();
-    for (let k = 0; k < 6; k++) g._sparkle(0.2 + k * 0.12, 0.25, 8, 120);
+    /* The pile bursts. */
+    for (const cn of this.pile){ const q = Q(cn.lane, 1.06 + cn.up, W, H); g._sparkle(q.x / W, q.y / H, 2, 50); }
+    this.pile = [];
   }
 
   /* The hall, the Watcher, and the crew - drawn by the game's own crew
@@ -133,7 +121,7 @@ export class Lights {
     c.fillStyle = red ? '#2e1d26' : '#232a3c';
     c.beginPath(); c.moveTo(...corner(-1.1, -0.1)); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(1.1, 1.15)); c.lineTo(...corner(-1.1, 1.15)); c.closePath(); c.fill();
     c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 2;
-    for (let k = 1; k < 10; k++){ c.beginPath(); c.moveTo(...corner(-1.1, k / 10)); c.lineTo(...corner(1.1, k / 10)); c.stroke(); }
+    for (let k = 1; k < 16; k++){ c.beginPath(); c.moveTo(...corner(-1.1, k / 16)); c.lineTo(...corner(1.1, k / 16)); c.stroke(); }
     c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = H * 0.006;
     c.beginPath(); c.moveTo(...corner(-1.1, 0)); c.lineTo(...corner(1.1, 0)); c.stroke();
     /* The finish: a checked strip. */
@@ -152,10 +140,9 @@ export class Lights {
       c.beginPath(); c.moveTo(W / 2, H * 0.24); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(-1.1, -0.1)); c.closePath(); c.fill();
       c.restore();
     }
-    for (const cn of this.coins){
-      if (cn.got) continue;
-      const q = Q(cn.lane, cn.along, W, H);
-      drawCoin(c, q.x, q.y - H * 0.025 * q.k, H * 0.02 * q.k, this.t + cn.seed);
+    for (const cn of this.pile){
+      const q = Q(cn.lane, 1.06 + cn.up, W, H);
+      drawCoin(c, q.x, q.y - H * 0.015 * q.k - cn.z * H * 0.0015, H * 0.02 * q.k, this.t + cn.z);
     }
     /* The crew, far ones first. */
     const order = g.here.slice().sort((a, b) => g.crew[b].along - g.crew[a].along);

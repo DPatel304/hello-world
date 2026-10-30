@@ -149,7 +149,8 @@ class ReactorRun {
       this.seg.room = this.rooms[this.rooms.length - 1];
       this.seg.len = ROOM_STUB;
       if (this.seg.room === 'combat') this.fight = PLAYTEST ? new Fight(this, PLAYTEST) : new Fight(this);
-      if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST) : new Lights(this);
+      /* A longer hall: twice the playtest time to get up it. */
+      if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
       sfx.whoosh();
     } else if (kind === 'end'){
       this.over = true;

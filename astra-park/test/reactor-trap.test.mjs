@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { MAX_HP, PLAYTEST } from '../src/games/reactor-run.js';
-import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_COINS, HALL_COINS } from '../src/games/reactor-trap.js';
+import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_COINS } from '../src/games/reactor-trap.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 30;
@@ -94,7 +94,6 @@ test('standing still on red is safe', () => {
 test('the first one over the line opens the door for everyone, and the run goes on', () => {
   const inst = room(2);
   const coins = inst.coins;
-  inst.trap.coins = [];
   inst.crew[0].along = 0.95;
   lightIs(inst, 'green');
   for (let k = 0; k < 10 / DT && inst.trap && !inst.trap.done; k++){
@@ -108,19 +107,6 @@ test('the first one over the line opens the door for everyone, and the run goes 
   assert.equal(inst.coins - coins, CLEAR_COINS);
 });
 
-test('coins are scattered all over the hall, for whoever goes and gets them', () => {
-  const inst = room();
-  const cs = inst.trap.coins;
-  assert.equal(cs.length, HALL_COINS);
-  assert.ok(Math.min(...cs.map(c => c.lane)) < -0.3 && Math.max(...cs.map(c => c.lane)) > 0.3, 'all across');
-  /* One right in their way. */
-  inst.trap.coins = [{ lane: inst.crew[0].x, along: 0.2, got: false, seed: 0 }, { lane: inst.crew[0].x + 0.8, along: 0.2, got: false, seed: 0 }];
-  const coins = inst.coins;
-  lightIs(inst, 'green');
-  for (let k = 0; k < 20 / DT && inst.crew[0].along < 0.3; k++){ body(0, inst.t, inst.trap.light === 'green' ? 'march' : 'still'); inst.step(DT, W, H); }
-  assert.equal(inst.coins - coins, 1, 'the one in the way; not the one off to the side');
-});
-
 test('a little sway on red is fine', () => {
   const inst = room();
   lightIs(inst, 'red');
@@ -132,12 +118,13 @@ test('a little sway on red is fine', () => {
   assert.equal(inst.crew[0].hp, MAX_HP);
 });
 
-test('while playtesting, a trap room is over in PLAYTEST seconds', () => {
+test('while playtesting, a trap room is over in twice PLAYTEST seconds', () => {
   const inst = room();
-  if (PLAYTEST) inst.trap.len = PLAYTEST;
+  if (PLAYTEST) inst.trap.len = PLAYTEST * 2;
   let t = 0;
   while (inst.trap && t < 200){ run(inst, DT); t += DT; }
-  assert.ok(t <= (PLAYTEST || TRAP_MAX) + 3, `${t}s`);
+  assert.ok(t <= (PLAYTEST * 2 || TRAP_MAX) + 3, `${t}s`);
+  assert.equal(inst.coins, 0, 'nobody over the line: no coins');
   assert.equal(inst.phase, 'corridor');
 });
 
