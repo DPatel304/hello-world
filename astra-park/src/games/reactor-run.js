@@ -44,9 +44,14 @@ export const VOTE = 10;                         /* seconds to vote - always the 
 export const DOOR_EDGE = 0.08;
 export const ROOM_STUB = 3.5;                   /* stage 1: seconds in a room's doorway */
 /* How tall the crew stand (screen heights), and how far off the doors are
-   when the crew stop in front of them - far enough that the doors stand
-   clear above everyone's heads. */
-export const CREW_SIZE = 0.19, DOOR_STOP = 0.42;
+   when the crew stop in front of them. */
+export const CREW_SIZE = 0.19, DOOR_STOP = 0.25;
+/* At the doors the run pauses and the view closes in: over ZOOM_IN
+   seconds, ZOOM times closer, round a point just over the crew's heads -
+   so the doors fill the screen. Once through, it eases back out over
+   ZOOM_OUT. Walking through, the crew go WALK_THROUGH as fast as they
+   run. */
+export const ZOOM = 1.5, ZOOM_IN = 2, ZOOM_OUT = 0.8, WALK_THROUGH = 0.35;
 export const GRAVITY = 7, HOP = 1;              /* a hop: about a second in the air */
 /* A hop is a little one: the body rising this much (body sizes) this fast
    (body sizes a second) - a small bounce on the spot is plenty. A stray
@@ -82,7 +87,7 @@ const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corrido
 export default {
   id: 'reactor-run', name: 'Reactor Run', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
   /* The moves it uses, shown as pictures on the home screen. */
-  moves: ['lean', 'jump', 'duck', 'clap'],
+  moves: ['lean', 'jump', 'duck', 'clap', 'hug'],
   /* Arms go up in every hop; holding them up a while is still a pause. */
   pauseHold: 2.5,
   create(n){ return new ReactorRun(n); }
@@ -93,6 +98,7 @@ class ReactorRun {
     this.players = players;
     this.t = 0; this.over = false; this.lost = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
+    this.zoom = 0;                  /* how far the view has closed in, 0..1 */
     this.coins = 0; this.kills = 0;
     this.fight = null;              /* the fight, in a combat room */
     this.faces = new FaceCam();
@@ -215,6 +221,11 @@ class ReactorRun {
        stopping at the doors. */
     let want = SPEED * (this.slow > 0 ? SLOW : 1);
     if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z < DOOR_STOP) want = 0;
+    /* A door chosen: it opens, then everyone walks through. */
+    if (seg.kind === 'cross' && seg.choice != null) want = seg.opening < 0.6 ? 0 : SPEED * WALK_THROUGH;
+    /* At the doors, the view closes in; once through, back out. */
+    const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
+    this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
     if (seg.kind === 'room') want = this.fight ? 0 : SPEED * 0.4;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
@@ -281,7 +292,9 @@ class ReactorRun {
        - never so far as another door). */
     /* In a fight, the whole width too, but standing apart unless they
        lean in to stand together. */
-    const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
+    /* A door chosen: all together, over to it and through. */
+    const want = this.seg.kind === 'cross' && this.seg.choice != null ? DOORS[this.seg.choice] + this._home(i) * 0.12
+      : this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
       : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
       : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
@@ -426,6 +439,11 @@ class ReactorRun {
   draw(c, W, H){
     c.save();
     if (this.shake > 0) c.translate((Math.random() - 0.5) * this.shake * H * 0.02, (Math.random() - 0.5) * this.shake * H * 0.02);
+    /* Closing in on the doors. */
+    if (this.zoom > 0){
+      const e = this.zoom * this.zoom * (3 - 2 * this.zoom), z = 1 + (ZOOM - 1) * e, py = H * 0.66;
+      c.translate(W / 2, py); c.scale(z, z); c.translate(-W / 2, -py);
+    }
     const seg = this.seg;
     drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     const items = [];
@@ -461,9 +479,9 @@ class ReactorRun {
   _drawDoors(c, W, H, rel){
     const seg = this.seg;
     drawDoors(c, W, H, rel, this.t, seg.kinds, seg.votes, seg.choice, seg.opening);
-    /* The time left: a bar draining across the top of the doorway wall. */
+    /* The time left: a bar draining along the foot of the doorway wall. */
     if (seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02){
-      const l = P(-1, rel, W, H), r = P(1, rel, W, H), y = l.y - H * 0.6 * l.k, u = clamp(seg.vote / VOTE, 0, 1);
+      const l = P(-1, rel, W, H), r = P(1, rel, W, H), y = l.y - H * 0.03 * l.k, u = clamp(seg.vote / VOTE, 0, 1);
       c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(l.x, y, r.x - l.x, H * 0.018);
       c.fillStyle = u < 0.3 ? '#ff5b5b' : '#7ff3ff'; c.fillRect(l.x, y, (r.x - l.x) * u, H * 0.018);
     }
@@ -490,9 +508,10 @@ class ReactorRun {
   }
 
   _drawCrew(c, i, W, H){
-    const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN, W, H), h = H * CREW_SIZE;
+    /* Healing in a fight, they've stepped back a little. */
+    const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN - (rn.back || 0) * 0.025, W, H), h = H * CREW_SIZE;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
+      { air: rn.air * h * 0.55 + (this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06 : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -549,6 +568,12 @@ class ReactorRun {
       if (b.kind === 'spark'){
         c.fillStyle = `hsla(${b.hue},100%,70%,${1 - k})`;
         c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.007 * (1 - k * 0.5), 0, 6.2832); c.fill();
+      } else if (b.kind === 'heart'){
+        const x = b.x * W, y = b.y * H, s = H * 0.014;
+        c.save(); c.globalAlpha = 1 - k; c.fillStyle = '#ff7eb6';
+        c.beginPath(); c.moveTo(x, y + s); c.bezierCurveTo(x - s * 2, y - s * 0.5, x - s * 0.8, y - s * 1.8, x, y - s * 0.6);
+        c.bezierCurveTo(x + s * 0.8, y - s * 1.8, x + s * 2, y - s * 0.5, x, y + s); c.fill();
+        c.restore();
       } else if (b.kind === 'shot'){
         c.save(); c.globalAlpha = 1 - k; c.strokeStyle = '#7ff3ff'; c.lineWidth = H * 0.012 * (1 - k * 0.5); c.lineCap = 'round';
         c.beginPath(); c.moveTo(b.x * W, b.y * H); c.lineTo(b.x2 * W, b.y2 * H); c.stroke();

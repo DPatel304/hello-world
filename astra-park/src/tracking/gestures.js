@@ -13,11 +13,15 @@
    round, that's one - once it's turning steadily (CRANK_SPIN radians,
    built up over about CRANK_FOR seconds), hands no more than CRANK_GAP
    apart. Hands just going up and down only swing the line to and fro,
-   which cancels out. (The same rolling as Tower Defense's fast sword.) */
+   which cancels out. (The same rolling as Tower Defense's fast sword.)
+
+   A hug is hugging yourself: each hand at the other shoulder (within
+   HUG_NEAR shoulder widths), held for HUG_SETTLE seconds. */
 import { L } from './pose.js';
 
 export const CLAP_APART = 0.8, CLAP_SHUT = 0.6, CLAP_SPEED = 1.5;
 export const CRANK_SPIN = 3, CRANK_FOR = 0.6, CRANK_GAP = 0.4;
+export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3;
 const ASPECT = 16 / 9;
 
 export class CrankWatch {
@@ -60,5 +64,21 @@ export class ClapWatch {
     this.gap = gap;
     if (gap < CLAP_SHUT && this.apart > 0 && closing > CLAP_SPEED && !(crank && crank.rolling)){ this.apart = 0; return true; }
     return false;
+  }
+}
+
+export class HugWatch {
+  constructor(){ this.t = 0; }
+  /* Are they hugging themselves (and have been, a moment)? */
+  step(p, dt){
+    const lm = p && p.lm;
+    const vis = (j) => (lm[j].v ?? 1) > 0.4;
+    const near = (a, b) => Math.hypot((lm[a].x - lm[b].x) * ASPECT, lm[a].y - lm[b].y);
+    const hug = !!lm && vis(L.L_WRIST) && vis(L.R_WRIST) && (() => {
+      const sw = near(L.L_SHOULDER, L.R_SHOULDER) || 0.05;
+      return near(L.L_WRIST, L.R_SHOULDER) < HUG_NEAR * sw && near(L.R_WRIST, L.L_SHOULDER) < HUG_NEAR * sw;
+    })();
+    this.t = hug ? this.t + dt : 0;
+    return this.t >= HUG_SETTLE;
   }
 }

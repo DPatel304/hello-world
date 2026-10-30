@@ -18,6 +18,10 @@
    robots are still walking up, a hop fires a shot up the corridor at the
    nearest one coming.
 
+   Hug yourself to heal: you step back out of the robots' reach and get
+   HUG_HEAL health a second back - but while you're hugging you're not
+   hitting anything, and your teammates are holding the line without you.
+
    Run out of health and you fall asleep where you stand - only ever in a
    fight; corridors and trap rooms leave you at 1 at worst. A teammate
    beside you clapping wakes you - REVIVE_CLAPS claps between everyone,
@@ -30,7 +34,7 @@
 import { RUN, P } from './reactor-art.js';
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
-import { ClapWatch, CrankWatch } from '../tracking/gestures.js';
+import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';
 
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
    it reaches. */
@@ -43,6 +47,8 @@ export const SWING = 1.5, SWING_HIT = 6, RANGE = 0.32, RANGE_D = 0.14;
 export const BUDDY = 0.32, TEAM = 0.5;
 /* The wheels on the bus: an extra hit, this hard, every turn. */
 export const CRANK_HIT = 6;
+/* Hugging yourself: health back a second, out of reach, not hitting. */
+export const HUG_HEAL = 6;
 /* A hop while robots are walking up: a shot at the nearest one coming
    (within SHOT_ACROSS lanes of you), this hard. */
 export const SHOT_HIT = 12, SHOT_ACROSS = 0.35;
@@ -73,7 +79,8 @@ export class Fight {
     this.toughness = Math.max(0.5, Math.max(1, game.here.length) / 4);
     this.claps = pose.players.map(() => new ClapWatch());
     this.cranks = pose.players.map(() => new CrankWatch());
-    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; }
+    this.hugs = pose.players.map(() => new HugWatch());
+    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; rn.healing = false; rn.back = 0; }
     this._wave();
   }
 
@@ -115,12 +122,22 @@ export class Fight {
       this.bots.push(this._bot(Math.random() * 1.8 - 0.9, 0.95 + Math.random() * 0.08));
     }
 
-    const up = this.up;
-    this._aim(up);
+    /* Who's hugging - stepped back to heal, out of it for now. */
+    for (const i of g.here){
+      const rn = g.crew[i];
+      rn.healing = !rn.down && this.hugs[i].step(pose.players[i], dt);
+      rn.back += ((rn.healing ? 1 : 0) - rn.back) * Math.min(1, dt * 6);
+      if (rn.healing && rn.hp < rn.max){
+        rn.hp = Math.min(rn.max, rn.hp + HUG_HEAL * dt);
+        if (Math.random() < dt * 5){ const p = P(rn.x, RUN, W, H); g.bits.push({ kind: 'heart', x: (p.x + (Math.random() - 0.5) * H * 0.06) / W, y: (p.y - H * 0.2) / H, vy: -0.08, age: 0, life: 0.9 }); }
+      }
+    }
+    const up = this.up, front = up.filter(i => !g.crew[i].healing);
+    this._aim(front);
     /* Front first, so those behind queue up behind them. */
     this.bots.sort((a, b) => a.d - b.d);
-    for (const b of this.bots) this._walk(b, up, dt, W, H);
-    for (const i of up) this._fight(i, dt, W, H, jumped.includes(i));
+    for (const b of this.bots) this._walk(b, front, dt, W, H);
+    for (const i of front) this._fight(i, dt, W, H, jumped.includes(i));
     this._wake(dt, W, H);
     this.bots = this.bots.filter(b => b.hp > 0);
 
@@ -188,7 +205,7 @@ export class Fight {
      a turn of the arms, an extra hit; a hop, a shot. */
   _fight(i, dt, W, H, hopped){
     const g = this.g, rn = g.crew[i], p = pose.players[i];
-    rn.buddies = this.up.filter(j => j !== i && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
+    rn.buddies = this.up.filter(j => j !== i && !g.crew[j].healing && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
     const power = (rn.power || 1) * (1 + TEAM * rn.buddies);
     const near = this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE);
     rn.swingT = (rn.swingT || 0) + dt;

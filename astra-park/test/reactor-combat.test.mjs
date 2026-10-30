@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { MAX_HP, FIGHT_APART, PLAYTEST } from '../src/games/reactor-run.js';
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
-         REVIVE_CLAPS, WAKE_HP, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/reactor-combat.js';
-import { pose } from '../src/tracking/pose.js';
+         REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/reactor-combat.js';
+import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
 const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i++){ if (each) each(i * DT); inst.step(DT, W, H); } };
@@ -163,6 +163,33 @@ test('out of health, you fall asleep - and a teammate clapping beside you wakes 
   assert.equal(inst.crew[1].down, false, 'awake');
   assert.equal(inst.crew[1].hp, MAX_HP * WAKE_HP);
   assert.ok(n > (REVIVE_CLAPS - 1) * 0.4 - 0.5, 'after a bunch of claps, not one');
+});
+
+/* Player i hugging themselves (or not): their pose, each hand at the
+   other shoulder. */
+function hugging(i, on = true){
+  const lm = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, v: 0.9 }));
+  lm[L.L_SHOULDER] = { x: 0.55, y: 0.4, v: 0.9 }; lm[L.R_SHOULDER] = { x: 0.45, y: 0.4, v: 0.9 };
+  lm[L.L_WRIST] = on ? { x: 0.455, y: 0.41, v: 0.9 } : { x: 0.6, y: 0.7, v: 0.9 };
+  lm[L.R_WRIST] = on ? { x: 0.545, y: 0.41, v: 0.9 } : { x: 0.4, y: 0.7, v: 0.9 };
+  pose.players[i].lm = lm;
+}
+
+test('hugging yourself heals - stepped back out of reach, and not hitting', () => {
+  const inst = fight();
+  run(inst, 0.5);
+  const x = inst.crew[0].x, bots = only(inst, [bot(x)]);
+  inst.crew[0].hp = 50;
+  hugging(0);
+  run(inst, 3);
+  assert.ok(inst.crew[0].healing);
+  assert.ok(Math.abs(inst.crew[0].hp - (50 + HUG_HEAL * (3 - 0.3))) < 2, `hp ${inst.crew[0].hp}`);
+  assert.equal(bots[0].hp, 999, 'not hitting');
+  hugging(0, false);
+  run(inst, SWING + BOT_EVERY + 0.2);
+  assert.equal(inst.crew[0].healing, false);
+  assert.ok(bots[0].hp < 999, 'back to it');
+  pose.players[0].lm = null;
 });
 
 test('everyone asleep at once ends the run', () => {

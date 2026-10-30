@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS } from '../src/games/reactor-run.js';
+import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS, ZOOM_IN } from '../src/games/reactor-run.js';
 import { RUN, DOORS } from '../src/games/reactor-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 
@@ -229,4 +229,28 @@ test('someone who drops out of view holds their place till they are back', () =>
   run(inst, 1);
   assert.equal(inst.crew[1].x, x);
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
+});
+
+test('at the doors the view closes in, over a couple of seconds; once through, it opens out again', () => {
+  const inst = atDoors([0]);
+  run(inst, ZOOM_IN);
+  assert.equal(inst.zoom, 1, 'closed in');
+  while (inst.seg.choice == null) inst.step(DT, W, H);
+  run(inst, 1);
+  assert.equal(inst.phase, 'cross');
+  assert.equal(inst.zoom, 1, 'still close, walking through');
+  for (let k = 0; k < 2000 && inst.phase === 'cross'; k++) inst.step(DT, W, H);
+  run(inst, 1);
+  assert.equal(inst.zoom, 0);
+});
+
+test('a door chosen, the whole crew walk over to it and through together', () => {
+  const inst = atDoors([0, 1, 1]);
+  toDoor(inst, 0, 1); toDoor(inst, 1, 0); toDoor(inst, 2, 0);
+  while (inst.seg.choice == null) inst.step(DT, W, H);
+  const d = inst.doors[0];
+  run(inst, 1);
+  assert.equal(inst.phase, 'cross', 'on the way through');
+  assert.ok(inst.crew.slice(0, 3).every(rn => Math.abs(rn.x - DOORS[d]) < 0.25), inst.crew.slice(0, 3).map(r => r.x.toFixed(2)).join());
+  assert.ok(inst.speed > 0, 'walking');
 });

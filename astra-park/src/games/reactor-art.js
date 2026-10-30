@@ -107,22 +107,23 @@ export function drawFountain(c, W, H, rel, lane, t, used){
 
 /* ---------- the crossroads ---------- */
 
-export const DOORS = [-0.5, 0.5];
+export const DOORS = [-0.72, 0.72];
 /* Each kind of door: its colour and its sign. */
 const DOOR_LOOK = { combat: ['#e5484d', 'skull'], traps: ['#f59e0b', 'spikes'], mystery: ['#a855f7', 'mystery'] };
 /* Two doors in a wall across the floor - kinds says which is which - each
    with its sign over it, the votes in front as dots in the voters'
    colours, and the chosen one opening. */
 export function drawDoors(c, W, H, rel, t, kinds, votes, open = null, opening = 0){
-  const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k, top = l.y - H * 0.62 * k;
-  c.fillStyle = '#3a4057'; c.fillRect(l.x, top, r.x - l.x, l.y - top);
+  /* The wall fills everything behind it: nothing to see past the doors. */
+  const l = P(-WALL, rel, W, H), k = l.k;
+  c.fillStyle = '#3a4057'; c.fillRect(-W, -H, W * 3, l.y + H);
   DOORS.forEach((lane, i) => {
-    const p = P(lane, rel, W, H), w = H * 0.22 * k, h = H * 0.42 * k, x0 = p.x - w / 2, y0 = p.y - h, [col, mark] = DOOR_LOOK[kinds[i]];
+    const p = P(lane, rel, W, H), w = H * 0.5 * k, h = H * 0.52 * k, x0 = p.x - w / 2, y0 = p.y - h, [col, mark] = DOOR_LOOK[kinds[i]];
     c.fillStyle = '#05060a'; c.fillRect(x0, y0, w, h);
     const half = w / 2 * (1 - (open === i ? opening : 0));
     c.fillStyle = col; c.fillRect(x0, y0, half, h); c.fillRect(x0 + w - half, y0, half, h);
     c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(x0, y0, w, h);
-    sign(c, mark, p.x, y0 - H * 0.07 * k, H * 0.05 * k, col, t);
+    sign(c, mark, p.x, y0 - H * 0.085 * k, H * 0.06 * k, col, t);
     const vs = votes[i] || [];
     vs.forEach((vc, n) => {
       const vx = p.x + (n - (vs.length - 1) / 2) * H * 0.045 * k, vy = y0 + h * 0.5;
