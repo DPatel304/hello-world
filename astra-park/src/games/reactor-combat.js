@@ -18,11 +18,12 @@
    robots are still walking up, a hop fires a shot up the corridor at the
    nearest one coming.
 
-   Nobody is ever beaten: run out of health and you fall asleep where you
-   stand. A teammate beside you clapping wakes you - REVIVE_CLAPS claps
-   between everyone, though it should just feel like "clap a bunch" - at
-   half health. Clearing the room wakes everyone at half health too, and
-   if the whole crew is asleep at once, after a moment they all wake.
+   Run out of health and you fall asleep where you stand - only ever in a
+   fight; corridors and trap rooms leave you at 1 at worst. A teammate
+   beside you clapping wakes you - REVIVE_CLAPS claps between everyone,
+   though it should just feel like "clap a bunch" - at half health.
+   Clearing the room wakes everyone at half health too. But if the whole
+   crew is asleep at once, that's the end of the run.
 
    Each robot drops coins; clearing the room drops more, and the run goes
    on. */
@@ -54,8 +55,8 @@ export const WAVE = [5, 3], STREAM = 0.5;
 export const KILL_COINS = 1, CLEAR_COINS = 10;
 /* Asleep: claps to wake, how close (lanes) a clapper has to be, and how
    long claps last when they stop. Waking: at this share of health. All
-   asleep: everyone wakes after this long. */
-export const REVIVE_CLAPS = 10, REVIVE_R = 0.35, CLAP_FADE = 6, WAKE_HP = 0.5, RALLY = 3;
+   asleep: the run ends, this long after the last falls asleep. */
+export const REVIVE_CLAPS = 10, REVIVE_R = 0.35, CLAP_FADE = 6, WAKE_HP = 0.5, LAST_SLEEP = 1.5;
 /* However it's going, a room is over after this long. */
 export const FIGHT_MAX = 120;
 /* How many robots in wave w (from 0) for n players. */
@@ -65,7 +66,7 @@ export class Fight {
   constructor(game){
     this.g = game;
     this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.streamT = 0;
-    this.done = false; this.clearT = 0; this.rally = 0; this.banner = 0;
+    this.done = false; this.lost = false; this.clearT = 0; this.allAsleep = 0; this.banner = 0;
     /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
     this.toughness = Math.max(0.5, Math.max(1, game.here.length) / 4);
     this.claps = pose.players.map(() => new ClapWatch());
@@ -105,7 +106,7 @@ export class Fight {
     this.banner = Math.max(0, this.banner - dt);
     for (const b of this.bots){ b.flash = Math.max(0, b.flash - dt * 4); b.swing = Math.max(0, b.swing - dt * 3); }
     for (const rn of g.crew) rn.swing = Math.max(0, (rn.swing || 0) - dt * 2);
-    if (this.done){ this.clearT += dt; return; }
+    if (this.done || this.lost){ this.clearT += dt; return; }
 
     if (this.queue > 0 && (this.streamT -= dt) <= 0){
       this.streamT = STREAM; this.queue--;
@@ -248,11 +249,11 @@ export class Fight {
       }
       if (f.claps >= REVIVE_CLAPS) this._rise(j, W, H);
     }
-    /* Everyone asleep: a moment, then all awake. */
+    /* Everyone asleep: a moment for it to sink in, and the run is over. */
     if (here.length && !up.length){
-      this.rally += dt;
-      if (this.rally >= RALLY){ this.rally = 0; for (const i of here) this._rise(i, W, H); }
-    } else this.rally = 0;
+      this.allAsleep += dt;
+      if (this.allAsleep >= LAST_SLEEP && !this.lost){ this.lost = true; g.lost = true; g.over = true; }
+    } else this.allAsleep = 0;
   }
 
   _rise(i, W, H){

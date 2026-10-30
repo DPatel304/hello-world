@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { MAX_HP, FIGHT_APART } from '../src/games/reactor-run.js';
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
-         REVIVE_CLAPS, WAKE_HP, RALLY, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/reactor-combat.js';
+         REVIVE_CLAPS, WAKE_HP, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/reactor-combat.js';
 import { pose } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
@@ -153,12 +153,34 @@ test('out of health, you fall asleep - and a teammate clapping beside you wakes 
   assert.ok(n > (REVIVE_CLAPS - 1) * 0.4 - 0.5, 'after a bunch of claps, not one');
 });
 
-test('everyone asleep: a moment, and they all wake', () => {
+test('everyone asleep at once ends the run', () => {
   const inst = fight(2);
   run(inst, 1);
   for (const i of [0, 1]){ inst.crew[i].hp = 0; inst.fight._sleep(i); }
-  run(inst, RALLY + 0.2);
-  assert.ok(inst.crew.slice(0, 2).every(rn => !rn.down && rn.hp === MAX_HP * WAKE_HP));
+  run(inst, LAST_SLEEP * 0.5);
+  assert.equal(inst.over, false, 'a moment first');
+  run(inst, LAST_SLEEP);
+  assert.equal(inst.over, true);
+  assert.equal(inst.lost, true);
+  let k = 0; while (!inst.outro(DT, W, H) && k++ < 1000);
+  assert.ok(inst.crew[0].down && inst.crew[1].down, 'still asleep at the end');
+});
+
+test('one asleep is not the end while a teammate is awake', () => {
+  const inst = fight(2);
+  run(inst, 1);
+  inst.crew[0].hp = 0; inst.fight._sleep(0);
+  run(inst, LAST_SLEEP * 3);
+  assert.equal(inst.over, false);
+});
+
+test('only a fight puts anyone to sleep: corridors leave them at 1', () => {
+  crew(1);
+  const inst = game.create(1);
+  inst.crew[0].hp = 3;
+  inst._hurt(0, 50, W, H);
+  assert.equal(inst.crew[0].hp, 1);
+  assert.equal(inst.crew[0].down, false);
 });
 
 test('robots spread out among the crew rather than piling on one', () => {

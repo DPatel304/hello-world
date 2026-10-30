@@ -86,7 +86,7 @@ export default {
 class ReactorRun {
   constructor(players){
     this.players = players;
-    this.t = 0; this.over = false; this.out = null;
+    this.t = 0; this.over = false; this.lost = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.coins = 0; this.kills = 0;
     this.fight = null;              /* the fight, in a combat room */
@@ -396,13 +396,16 @@ class ReactorRun {
     this.bits = this.bits.filter(b => b.age < b.life);
   }
 
-  /* ---------- the ending (stage 1: through the last corridor) ---------- */
+  /* ---------- the ending ---------- */
 
+  /* The ending: through the last corridor, cheering - or, with the whole
+     crew asleep in a fight, sleeping where they lie, robots and all. */
   outro(dt, W, H){
-    if (!this.out){ this.out = { t: 0 }; sfx.fanfare(); }
+    if (!this.out){ this.out = { t: 0 }; if (this.lost) sfx.lose(); else sfx.fanfare(); }
     const o = this.out;
     o.t += dt; this.t += dt;
     this.faces.step(dt);
+    if (this.lost){ this._stepBits(dt); return o.t > 4; }
     this.speed = Math.max(0, this.speed - dt * 0.3);
     this.z += this.speed * dt;
     for (const rn of this.crew){ rn.duck = 0; rn.air = Math.abs(Math.sin(o.t * 5)) * 0.25; }
