@@ -17,7 +17,7 @@
 
    The picture is cleaned up once, when it's taken: webcam grain smoothed
    away without blurring the eyes and mouth, a touch sharper, brighter and
-   more colourful (enhance). It's shown cut to an oval around the face, so
+   more colourful (enhance). It's shown cut to a circle around the face, so
    the room behind doesn't come too, with a thick outline in the player's
    colour. */
 import { pose, L, MAX_PLAYERS } from '../tracking/pose.js';
@@ -34,11 +34,10 @@ const EAR_L = 7, EAR_R = 8;
 export const STEADY = 0.3, STILL = 0.15, STRAIGHT = 0.3, LEVEL = 0.4, BIG = 24, FORGET = 5, LATE = 3, ROUGHLY = 0.6;
 const SNAP = 160, FLASH = 0.5;
 /* How much of the head to take around the face: the crop is this many
-   ear-widths across - the face and hair, not much more. */
-const HEAD = 1.75;
-/* The oval the face is shown in, as fractions of the circle it's drawn
-   into, and its outline's width. */
-export const OVAL_W = 0.74, OVAL_H = 0.95, RIM = 0.13;
+   ear-widths across - the whole face and hair, not much more. */
+const HEAD = 2;
+/* The width of the outline round the face, as a fraction of its radius. */
+export const RIM = 0.13;
 
 /* Where a face is in the video, as a square in video pixels - { x, y, size }
    centred on the face - plus how far the head is tilted, or null if there's
@@ -189,24 +188,23 @@ export class FaceCam {
   has(i){ return !!snaps[i]; }
   roll(i){ return this.boxes[i] ? this.boxes[i].roll : 0; }
 
-  /* Paint player i's picture at (x, y): cut to an oval that fits a circle
-     of radius r, mirrored like a mirror, outlined thickly in col, with a
-     white flash just after it's taken. */
+  /* Paint player i's picture at (x, y): cut to a circle of radius r,
+     mirrored like a mirror, outlined thickly in col, with a white flash
+     just after it's taken. */
   draw(c, i, x, y, r, col = '#ffffff'){
     const sn = snaps[i];
     if (!sn) return false;
-    const rim = r * RIM, rx = r * OVAL_W - rim / 2, ry = r * OVAL_H - rim / 2;
+    const rim = r * RIM, rc = r - rim / 2;
     c.save();
     c.translate(x, y);
     c.save();
-    c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 6.2832); c.clip();
+    c.beginPath(); c.arc(0, 0, rc, 0, 6.2832); c.clip();
     c.scale(-1, 1);
-    /* The picture is a little wider than the oval is: fill its height. */
-    c.drawImage(sn.canvas, -ry, -ry, ry * 2, ry * 2);
+    c.drawImage(sn.canvas, -rc, -rc, rc * 2, rc * 2);
     if (sn.age < FLASH){ c.globalAlpha = 1 - sn.age / FLASH; c.fillStyle = '#ffffff'; c.fillRect(-r, -r, r * 2, r * 2); }
     c.restore();
     c.strokeStyle = col; c.lineWidth = rim;
-    c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 6.2832); c.stroke();
+    c.beginPath(); c.arc(0, 0, rc, 0, 6.2832); c.stroke();
     c.restore();
     return true;
   }
