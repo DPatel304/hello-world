@@ -11,7 +11,9 @@
    ZAP health, knocked back a bit, a second's safety. A trap room never
    puts anyone to sleep - 1 health at worst.
 
-   The first over the finish line wins it for everyone: the door opens.
+   Coins lie scattered up the hall, off the straight way up: go out of
+   your way for them, or just make a dash for the line. The first over the
+   finish line wins it for everyone: the door opens.
    However it's going, after len seconds the Watcher gives up and lets
    them through anyway.
 
@@ -20,6 +22,7 @@
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
+import { drawCoin } from './reactor-art.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
    red to start, before the first green. */
@@ -31,6 +34,9 @@ export const GRACE = 0.6, STILL = 0.8;
 export const STRIDE = 0.16;
 export const ZAP = 10, KNOCK = 0.08, ZAP_SAFE = 1.2;
 export const CLEAR_COINS = 15;
+/* Coins up the hall: how many, and how near (across, lanes; up, of the
+   hall) picks one up. */
+export const HALL_COINS = 14, COIN_ACROSS = 0.16, COIN_UP = 0.04;
 export const TRAP_MAX = 90;
 
 /* The hall, from up high: the near end low on the screen and wide, the
@@ -53,6 +59,13 @@ export class Lights {
     this.marches = pose.players.map(() => new MarchWatch());
     this.moves = pose.players.map(() => new MoveWatch());
     for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; }
+    /* Scattered up the hall, all across it - in little clusters, some
+       out by the walls. */
+    this.coins = [];
+    for (let k = 0; k < HALL_COINS; k++){
+      const lane = Math.max(-0.95, Math.min(0.95, (Math.random() * 2 - 1) * 1.1));
+      this.coins.push({ lane, along: 0.12 + Math.random() * 0.8, got: false, seed: Math.random() * 6 });
+    }
   }
 
   step(dt, W, H){
@@ -77,6 +90,13 @@ export class Lights {
       if (rn.over) continue;
       if (this.light !== 'red') rn.along = Math.min(1, rn.along + STRIDE * march * dt);
       else if (looking && rn.safe <= 0 && moving > STILL) this._zap(i, W, H);
+      for (const cn of this.coins){
+        if (cn.got || Math.abs(cn.lane - rn.x) > COIN_ACROSS || Math.abs(cn.along - rn.along) > COIN_UP) continue;
+        cn.got = true; g.coins++;
+        sfx.jar(1 + (g.coins % 8));
+        const q = Q(cn.lane, cn.along, W, H);
+        g._sparkle(q.x / W, (q.y - H * 0.03) / H, 6, 50);
+      }
       if (rn.along >= 1 && !rn.over){ rn.over = true; sfx.twinkle(); }
     }
 
@@ -131,6 +151,11 @@ export class Lights {
       c.fillStyle = '#ff3b3b';
       c.beginPath(); c.moveTo(W / 2, H * 0.24); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(-1.1, -0.1)); c.closePath(); c.fill();
       c.restore();
+    }
+    for (const cn of this.coins){
+      if (cn.got) continue;
+      const q = Q(cn.lane, cn.along, W, H);
+      drawCoin(c, q.x, q.y - H * 0.025 * q.k, H * 0.02 * q.k, this.t + cn.seed);
     }
     /* The crew, far ones first. */
     const order = g.here.slice().sort((a, b) => g.crew[b].along - g.crew[a].along);
