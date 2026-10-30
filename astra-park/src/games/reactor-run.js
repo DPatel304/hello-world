@@ -38,7 +38,14 @@ export const ROOM_STUB = 3.5;                   /* stage 1: seconds in a room's 
    when the crew stop in front of them - far enough that the doors stand
    clear above everyone's heads. */
 export const CREW_SIZE = 0.19, DOOR_STOP = 0.42;
-export const GRAVITY = 12.5, HOP = 1;           /* a hop: about 0.8 seconds in the air */
+export const GRAVITY = 7, HOP = 1;              /* a hop: about a second in the air */
+/* A hop is a little one: the body rising this much (body sizes) this fast
+   (body sizes a second) - a small bounce on the spot is plenty. A stray
+   one does no harm here. */
+export const HOP_RISE = 0.045, HOP_SPEED = 0.35;
+/* A hop just too late still clears a breach: up to this long (seconds)
+   after it arrives. */
+export const LATE_HOP = 0.3;
 export const CLEAR = 0.15;                      /* how high (of a full hop) clears a breach */
 export const DUCKED = 0.5;                      /* how far down (0..1) passes under a bulkhead */
 export const DUCK = 0.15;                       /* head drop, in body sizes, that counts as ducking */
@@ -66,9 +73,9 @@ class ReactorRun {
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.coins = 0;
     this.faces = new FaceCam();
-    this.jumps = new JumpWatch();
+    this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED });
     this.heads = pose.players.map(() => null);
-    this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, safe: 0, hit: 0, played: false }));
+    this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
     this.things = [];
     this.bits = [];
     this.guide = 0;                 /* whose crown breaks a tied vote */
@@ -184,7 +191,7 @@ class ReactorRun {
     const before = this.z;
     this.z += this.speed * dt;
     const jumped = this.jumps.step(dt, pose.players, this.players);
-    for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i));
+    for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
     if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
@@ -221,10 +228,17 @@ class ReactorRun {
     return down;
   }
 
-  _move(i, dt, jumped){
+  _move(i, dt, jumped, W, H){
     const rn = this.crew[i];
     rn.safe = Math.max(0, rn.safe - dt);
     rn.hit = Math.max(0, rn.hit - dt * 2.5);
+    /* Over a breach on the ground: a hop now still makes it; too late and
+       they've fallen in. */
+    if (rn.falling > 0){
+      rn.falling -= dt;
+      if (jumped) rn.falling = 0;
+      else if (rn.falling <= 0){ rn.falling = 0; this._hurt(i, HURT[rn.fall], W, H); }
+    }
     /* Tracking lost: they hold where they are until they're back. */
     if (!pose.players[i].present) return;
     if (!rn.played){ rn.played = true; rn.x = this._home(i); }
@@ -237,7 +251,7 @@ class ReactorRun {
        - never so far as another door). */
     const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1) : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
-    if (jumped && rn.air <= 0){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
+    if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
     if (rn.air > 0 || rn.airV > 0){
       rn.air += rn.airV * dt; rn.airV -= GRAVITY * dt;
       if (rn.air <= 0){ rn.air = 0; rn.airV = 0; }
@@ -276,7 +290,8 @@ class ReactorRun {
         if (th.kind === 'beam') hit = rn.duck < DUCKED && this.t - rn.lastDuck > 0.25;
         else if (th.kind === 'gap' || th.kind === 'ledge') hit = rn.x > th.a - BODY * 0.5 && rn.x < th.b + BODY * 0.5 && rn.air < CLEAR;
         else if (th.kind === 'blocker') hit = rn.x > th.a - BODY && rn.x < th.b + BODY && rn.air < CLEAR * 4;
-        if (hit) this._hurt(i, HURT[th.kind], W, H);
+        if (hit && (th.kind === 'gap' || th.kind === 'ledge')){ if (!rn.falling){ rn.falling = LATE_HOP; rn.fall = th.kind; } }
+        else if (hit) this._hurt(i, HURT[th.kind], W, H);
       }
     }
   }
