@@ -7,6 +7,7 @@ import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz } from './reactor-art.js';
 import { Fight, RANGE, BUDDY } from './reactor-combat.js';
+import { Lights } from './reactor-trap.js';
 
 /* Reactor Run. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
@@ -22,8 +23,9 @@ import { Fight, RANGE, BUDDY } from './reactor-combat.js';
    Corridors wound but never kill: nobody's knocked below a sliver of
    health by them. (That's for the rooms, to come.)
 
-   The fight door is a combat room (reactor-combat.js). The other rooms
-   are only their signs for now - each lets the crew straight through. */
+   The fight door is a combat room (reactor-combat.js); the traps door, a
+   trap room - red light, green light (reactor-trap.js). Treasure is only
+   its sign for now, letting the crew straight through. */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
 /* While we playtest the mechanics, every part of the run is PLAYTEST
@@ -101,6 +103,7 @@ class ReactorRun {
     this.zoom = 0;                  /* how far the view has closed in, 0..1 */
     this.coins = 0; this.kills = 0;
     this.fight = null;              /* the fight, in a combat room */
+    this.trap = null;               /* the trap, in a trap room */
     this.faces = new FaceCam();
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
@@ -127,7 +130,7 @@ class ReactorRun {
     this.step_++;
     const kind = PLAN[this.step_] || 'end';
     this.seg = { kind, t: 0 };
-    this.fight = null;
+    this.fight = null; this.trap = null;
     if (kind === 'corridor'){
       const n = PLAN.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -146,6 +149,7 @@ class ReactorRun {
       this.seg.room = this.rooms[this.rooms.length - 1];
       this.seg.len = ROOM_STUB;
       if (this.seg.room === 'combat') this.fight = PLAYTEST ? new Fight(this, PLAYTEST) : new Fight(this);
+      if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST) : new Lights(this);
       sfx.whoosh();
     } else if (kind === 'end'){
       this.over = true;
@@ -226,7 +230,7 @@ class ReactorRun {
     /* At the doors, the view closes in; once through, back out. */
     const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
     this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
-    if (seg.kind === 'room') want = this.fight ? 0 : SPEED * 0.4;
+    if (seg.kind === 'room') want = this.fight || this.trap ? 0 : SPEED * 0.4;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
     this.z += this.speed * dt;
@@ -235,6 +239,7 @@ class ReactorRun {
     if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
+    else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > 1.5) this._next(); }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
     this._stepBits(dt);
@@ -437,6 +442,16 @@ class ReactorRun {
   /* ---------- drawing ---------- */
 
   draw(c, W, H){
+    /* A trap room has its own view, from up high. */
+    if (this.trap){
+      c.save();
+      if (this.shake > 0) c.translate((Math.random() - 0.5) * this.shake * H * 0.02, 0);
+      this.trap.draw(c, W, H, (i, x, y, h, bob) => this._drawCrew(c, i, W, H, { x, y, h, bob }));
+      this._drawBits(c, W, H);
+      c.restore();
+      this._drawHud(c, W, H);
+      return;
+    }
     c.save();
     if (this.shake > 0) c.translate((Math.random() - 0.5) * this.shake * H * 0.02, (Math.random() - 0.5) * this.shake * H * 0.02);
     /* Closing in on the doors. */
@@ -507,11 +522,15 @@ class ReactorRun {
     c.restore();
   }
 
-  _drawCrew(c, i, W, H){
+  /* at: { x, y, h, bob } to draw them somewhere else - a trap room's own
+     view - instead of at their place in the corridor. */
+  _drawCrew(c, i, W, H, at = null){
     /* Healing in a fight, they've stepped back a little. */
-    const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN - (rn.back || 0) * 0.025, W, H), h = H * CREW_SIZE;
+    const rn = this.crew[i], here = pose.players[i].present;
+    const p = at || P(rn.x, RUN - (rn.back || 0) * 0.025, W, H), h = at ? at.h : H * CREW_SIZE;
+    const walking = this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06 : 0;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06 : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
+      { air: rn.air * h * 0.55 + walking + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -524,7 +543,7 @@ class ReactorRun {
     if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */
     const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
-    drawHealth(c, p.x, top - H * 0.03, H * 0.1, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
+    drawHealth(c, p.x, top - H * 0.03, h * 0.53, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 

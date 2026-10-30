@@ -16,12 +16,23 @@
    which cancels out. (The same rolling as Tower Defense's fast sword.)
 
    A hug is hugging yourself: each hand at the other shoulder (within
-   HUG_NEAR shoulder widths), held for HUG_SETTLE seconds. */
+   HUG_NEAR shoulder widths), held for HUG_SETTLE seconds.
+
+   Marching is any marching, walking or running on the spot, however
+   little the feet come up: the knees or the ankles, whichever are in view,
+   going up and down - MARCH_FULL body sizes a second is all-out. Quick to
+   get going, slow to stop, so the pause between steps is no stop.
+
+   Moving is anything at all: how fast the head, hands, hips, knees and
+   feet are going, in body sizes a second, smoothed a little - for
+   standing still. With the mouse, both are how fast the mouse is
+   moving. */
 import { L } from './pose.js';
 
 export const CLAP_APART = 0.8, CLAP_SHUT = 0.6, CLAP_SPEED = 1.5;
 export const CRANK_SPIN = 3, CRANK_FOR = 0.6, CRANK_GAP = 0.4;
 export const HUG_NEAR = 0.6, HUG_SETTLE = 0.3;
+export const MARCH_FULL = 0.5;
 const ASPECT = 16 / 9;
 
 export class CrankWatch {
@@ -80,5 +91,49 @@ export class HugWatch {
     })();
     this.t = hug ? this.t + dt : 0;
     return this.t >= HUG_SETTLE;
+  }
+}
+
+export class MarchWatch {
+  constructor(){ this.was = null; this.march = 0; }
+  /* How hard they're marching, 0..1. */
+  step(p, dt, mouse = false){
+    let legs = 0;
+    if (mouse) legs = (p.hands.right.speed || 0) * 0.5;
+    else if (p && p.lm){
+      const lm = p.lm, vis = (j) => (lm[j].v ?? 1) > 0.5;
+      const pairs = [[L.L_KNEE, L.R_KNEE], [L.L_ANKLE, L.R_ANKLE]].filter(([a, b]) => vis(a) && vis(b));
+      const was = this.was;
+      for (const [a, b] of pairs){
+        if (was && was[a] != null) legs = Math.max(legs, (Math.abs(lm[a].y - was[a]) + Math.abs(lm[b].y - was[b])) / 2 / Math.max(dt, 1e-3) / (p.scale || 0.3));
+      }
+      this.was = {};
+      for (const [a, b] of pairs){ this.was[a] = lm[a].y; this.was[b] = lm[b].y; }
+    } else this.was = null;
+    const want = Math.min(1, legs / MARCH_FULL);
+    this.march += (want - this.march) * Math.min(1, dt * (want > this.march ? 4 : 1.5));
+    return this.march;
+  }
+}
+
+const MOVERS = [L.NOSE, L.L_WRIST, L.R_WRIST, L.L_HIP, L.R_HIP, L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE];
+export class MoveWatch {
+  constructor(){ this.was = null; this.moving = 0; }
+  /* How much they're moving: body sizes a second. */
+  step(p, dt, mouse = false){
+    let v = 0;
+    if (mouse) v = p.hands.right.speed || 0;
+    else if (p && p.lm){
+      const lm = p.lm, was = this.was;
+      if (was){
+        const fast = MOVERS.filter(j => (lm[j].v ?? 1) > 0.5 && was[j]).map(j => Math.hypot(lm[j].x - was[j].x, lm[j].y - was[j].y));
+        /* The second fastest: a waving hand counts, one jittery point doesn't. */
+        if (fast.length) v = fast.sort((a, b) => a - b)[Math.max(0, fast.length - 2)] / Math.max(dt, 1e-3) / (p.scale || 0.3);
+      }
+      this.was = {};
+      for (const j of MOVERS) this.was[j] = { x: lm[j].x, y: lm[j].y };
+    } else this.was = null;
+    this.moving += (v - this.moving) * Math.min(1, dt * 8);
+    return this.moving;
   }
 }
