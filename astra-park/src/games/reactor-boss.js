@@ -24,11 +24,21 @@
    laser sweeping in at head height - duck under it. Either one missed is
    a BLAST.
 
+   The arena is a ring round a pit, the Warden rising out of the middle,
+   and the view holds still behind the crew for each phase. Between
+   phases it roars, the floor shakes, and the crew run a quarter of the
+   way round the ring - MOVE seconds on their own, quicker the harder
+   they run on the spot (up to RUN_BOOST times) - and the view settles
+   again, looking at it from another side: each phase its own side.
+   Nothing happens on the way round; any robots left go back to it.
+
    Down to nothing, it bursts in a shower of coins, and the run is won.
    (However it's going, after len seconds it gives up and bursts anyway.) */
-import { RUN, P } from './reactor-art.js';
+import { RUN, P, PIT_NEAR } from './reactor-art.js';
 import { sfx } from '../audio/sound.js';
 import { Fight, FRONT, FIGHT_MAX } from './reactor-combat.js';
+import { pose } from '../tracking/pose.js';
+import { MarchWatch } from '../tracking/gestures.js';
 
 /* Health, for a crew of four (fewer, less: as a fight's robots). */
 export const ARM_HP = 90, CORE_HP = 360;
@@ -50,6 +60,10 @@ export const OVERLOAD = 0.4, BLAST_EVERY = 2.8, ROLL = 0.55, BLAST = 12;
    sweep: ducked this far (as under a bulkhead). */
 const HOPPED = 0.15, DUCKED = 0.5;
 export const BOSS_COINS = 50;
+/* Round the ring between phases: the roar and the shaking first (ROAR
+   seconds), then MOVE seconds of running - down to MOVE / RUN_BOOST
+   if everyone's running all-out. */
+export const ROAR = 0.8, MOVE = 5, RUN_BOOST = 1.7;
 
 export class Warden {
   constructor(game, len = FIGHT_MAX, toughness = 1){
@@ -65,7 +79,33 @@ export class Warden {
     this.next = 1.5; this.which = 0; this.spit = 0;
     this.blasts = []; this.blastT = 1.5; this.blastKind = 0;
     this.banner = 2;
+    this.view = 0;                  /* which side of it they're looking at: one a phase */
+    this.move = null;               /* running round the ring: { t, along 0..1 } */
+    this.marches = pose.players.map(() => new MarchWatch());
     sfx.siren(true);
+  }
+
+  /* Where the view is round the ring, in quarter turns. */
+  get angle(){ const m = this.move; return this.view + (m ? m.along * m.along * (3 - 2 * m.along) : 0); }
+
+  /* The next phase: first, round the ring to see it from another side. */
+  _phase(name){
+    const g = this.g, f = this.fight;
+    this.phase = name; this.move = { t: 0, along: 0 };
+    g.shake = 1; sfx.boom(); sfx.siren(true);
+    f.bots = f.bots.filter(b => b.part && b.hp > 0);
+    this.blasts = [];
+  }
+
+  /* Round the ring, by themselves - quicker for running on the spot. */
+  _run(dt){
+    const g = this.g, m = this.move;
+    m.t += dt;
+    const here = g.here, go = here.length ? here.reduce((s, i) => s + this.marches[i].step(pose.players[i], dt, pose.mouse.active), 0) / here.length : 0;
+    m.boost = go;
+    if (m.t < ROAR) return;
+    m.along = Math.min(1, m.along + dt / MOVE * (1 + (RUN_BOOST - 1) * go));
+    if (m.along >= 1){ this.move = null; this.view++; this.banner = 1.6; }
   }
 
   get bots(){ return this.fight.bots; }
@@ -75,6 +115,7 @@ export class Warden {
     const g = this.g, f = this.fight;
     this.t += dt; this.banner = Math.max(0, this.banner - dt);
     if (this.done){ this.clearT += dt; f.step(dt, W, H, []); return; }
+    if (this.move){ this._run(dt); return; }
     f.step(dt, W, H, jumped);
     if (f.lost) return;
 
@@ -85,10 +126,9 @@ export class Warden {
     /* The core lurching forward, once there's nothing left to stop it. */
     if (this.phase !== 'arms') this.core.d += (CORE_NEAR - this.core.d) * Math.min(1, dt * 2);
     if (this.phase === 'arms' && this.arms.every(a => a.hp <= 0)){
-      this.phase = 'robots'; this.core.wide = CORE_W; this.banner = 1.6;
-      g.shake = 1; sfx.boom(); sfx.siren(true);
+      this._phase('robots'); this.core.wide = CORE_W;
     }
-    if (this.phase === 'robots' && this.core.hp <= this.core.max * OVERLOAD){ this.phase = 'overload'; this.banner = 1.6; sfx.siren(true); }
+    else if (this.phase === 'robots' && this.core.hp <= this.core.max * OVERLOAD) this._phase('overload');
     if (this.core.hp <= 0 || this.t > this.len) this._win(W, H);
   }
 
@@ -134,7 +174,8 @@ export class Warden {
     this.spit -= dt;
     if (this.spit > 0 || f.bots.filter(b => !b.part).length >= n * SPIT_MAX) return;
     this.spit = SPIT;
-    const b = f._bot((Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.5), this.core.d + 0.1);
+    /* Climbing up out of the pit. */
+    const b = f._bot((Math.random() * 2 - 1) * 0.9, PIT_NEAR);
     f.bots.push(b);
   }
 

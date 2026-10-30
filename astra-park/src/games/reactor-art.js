@@ -253,8 +253,60 @@ export function drawRustbot(c, x, base, s, t, st){
 
 /* ---------- the Warden ---------- */
 
+/* Each side of the ring, a phase each, has its own light. */
+export const SIDES = ['#3fd0ff', '#ffb02e', '#ff3b3b'];
+/* How far in (corridor depth) the pit's near edge is. */
+export const PIT_NEAR = 0.26;
+
+/* The Warden's arena: a ring of floor round a great pit, seen from on the
+   ring, looking in. angle is how far round the ring the view is, in
+   quarter turns: going round, the far wall's panels slide one way and the
+   floor's lines the other. tint is that side's light. */
+export function drawArena(c, W, H, angle, t, tint){
+  const a = angle * Math.PI / 2;
+  c.fillStyle = '#12131c'; c.fillRect(0, 0, W, H);
+  /* The far side of the ring: its wall, a band of panels with lights. */
+  const top = H * 0.16, bot = H * 0.42;
+  c.fillStyle = '#1d2030'; c.fillRect(0, top, W, bot - top);
+  for (let k = 0; k < 24; k++){
+    const rel = k * Math.PI / 12 - a, s = Math.sin(rel), z = Math.cos(rel);
+    if (z < 0.15) continue;
+    const x = W / 2 + s * W * 0.62, w = W * 0.05 * z;
+    c.fillStyle = '#272b3e'; c.fillRect(x - w / 2, top + H * 0.02, w, bot - top - H * 0.04);
+    c.fillStyle = tint; c.globalAlpha = 0.5 * z; c.fillRect(x - w * 0.3, top + H * 0.05, w * 0.6, H * 0.012); c.globalAlpha = 1;
+  }
+  /* The ring's floor - the far side of it a strip under the wall - and
+     the pit in the middle: a great dark hollow from the near edge
+     (PIT_NEAR) back to the far one, lit from below. */
+  const near = P(0, PIT_NEAR, W, H).y, far = P(0, 1, W, H).y + H * 0.01;
+  c.fillStyle = '#2a2d3d'; c.fillRect(0, bot, W, H - bot);
+  const cy = (near + far) / 2, ry = (near - far) / 2, rx = W * 0.4;
+  const g = c.createRadialGradient(W / 2, cy, H * 0.02, W / 2, cy, rx);
+  g.addColorStop(0, tint); g.addColorStop(0.18, '#0b0c14'); g.addColorStop(1, '#07080d');
+  c.fillStyle = g; c.beginPath(); c.ellipse(W / 2, cy, rx, ry, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = tint; c.globalAlpha = 0.7; c.lineWidth = H * 0.006;
+  c.beginPath(); c.ellipse(W / 2, cy, rx, ry, 0, 0, 6.2832); c.stroke(); c.globalAlpha = 1;
+  /* A column up out of the pit, that the core stands on. */
+  c.fillStyle = '#1f2230'; c.fillRect(W / 2 - W * 0.04, cy - H * 0.06, W * 0.08, H * 0.06 + ry * 0.3);
+  /* The floor's lines: round the ring (across) and out from the middle,
+     these sliding as the view goes round. */
+  c.strokeStyle = LINE; c.lineWidth = 2;
+  for (const rel of [0.04, 0.1, 0.17]){ const p = P(-3, rel, W, H), q = P(3, rel, W, H); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.stroke(); }
+  const slide = ((angle * 4) % 1 + 1) % 1;
+  for (let k = -7; k <= 7; k++){
+    const lane = (k + slide) * 0.4, n = P(lane, -0.08, W, H), f = P(lane, PIT_NEAR, W, H);
+    if (Math.abs(f.x - W / 2) < rx * 0.98 && f.y < near + 2){
+      /* Stop at the pit's edge. */
+      const e = near - ry * (1 - Math.sqrt(Math.max(0, 1 - ((f.x - W / 2) / rx) ** 2)));
+      c.beginPath(); c.moveTo(n.x, n.y); c.lineTo(f.x, Math.max(f.y, e)); c.stroke();
+    } else { c.beginPath(); c.moveTo(n.x, n.y); c.lineTo(f.x, f.y); c.stroke(); }
+  }
+}
+
 /* Its core: a great round reactor, s across, glowing cyan - red and
-   pulsing in overload, white when hit. */
+   pulsing in overload, white when hit. st.side is the side of it in
+   view: 0 its face, 1 the hatch its robots come out of, 2 cracked
+   open. */
 export function drawCore(c, x, base, s, t, st){
   const r = s / 2, cy = base - r * 1.1;
   c.save();
@@ -267,6 +319,16 @@ export function drawCore(c, x, base, s, t, st){
   c.fillStyle = '#4b5563'; c.beginPath(); c.arc(x, cy, r, 0, 6.2832); c.fill(); c.stroke();
   c.fillStyle = glow; c.beginPath(); c.arc(x, cy, r * (0.55 + 0.04 * Math.sin(t * 6)), 0, 6.2832); c.fill();
   c.fillStyle = INK; c.beginPath(); c.arc(x, cy, r * 0.2, 0, 6.2832); c.fill();
+  if (st.side === 1){
+    /* The hatch, low on its housing. */
+    box(c, x - r * 0.5, cy + r * 0.6, r, r * 0.45, '#1f2230');
+    c.fillStyle = '#ffb02e'; c.fillRect(x - r * 0.4, cy + r * 0.66, r * 0.8, r * 0.06);
+  } else if (st.side === 2){
+    /* Cracks across it, glowing. */
+    c.strokeStyle = glow; c.lineWidth = r * 0.06; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(x - r * 0.9, cy - r * 0.3); c.lineTo(x - r * 0.5, cy - r * 0.1); c.lineTo(x - r * 0.6, cy + r * 0.3); c.lineTo(x - r * 0.2, cy + r * 0.5); c.stroke();
+    c.beginPath(); c.moveTo(x + r * 0.9, cy - r * 0.5); c.lineTo(x + r * 0.55, cy - r * 0.2); c.lineTo(x + r * 0.7, cy + r * 0.2); c.stroke();
+  }
   c.restore();
 }
 

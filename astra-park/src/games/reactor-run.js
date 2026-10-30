@@ -6,7 +6,7 @@ import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz,
-         drawCore, drawArm, drawShockwave, drawSweep } from './reactor-art.js';
+         drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './reactor-art.js';
 import { Fight, RANGE, BUDDY, FRONT } from './reactor-combat.js';
 import { Lights } from './reactor-trap.js';
 import { Warden, SLAM_W } from './reactor-boss.js';
@@ -471,7 +471,8 @@ class ReactorRun {
       c.translate(W / 2, py); c.scale(z, z); c.translate(-W / 2, -py);
     }
     const seg = this.seg;
-    drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? (this.boss ? 0.5 : 0.3) : 0);
+    if (this.boss) drawArena(c, W, H, this.boss.angle, this.t, SIDES[Math.min(2, this.boss.view)]);
+    else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     const items = [];
     for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
@@ -499,7 +500,7 @@ class ReactorRun {
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
-      case 'core': drawCore(c, p.x, p.y, Math.min(H * 0.34, H * 0.75 * p.k), this.t, { flash: this.boss.core.flash, glow: this.boss.phase === 'overload' ? 1 : 0, dead: this.boss.done }); break;
+      case 'core': drawCore(c, p.x, p.y, Math.min(H * 0.34, H * 0.75 * p.k), this.t, { flash: this.boss.core.flash, glow: this.boss.phase === 'overload' && !this.boss.move ? 1 : 0, side: Math.min(2, this.boss.view), dead: this.boss.done }); break;
       case 'arm': this._drawArm(c, it.a, W, H); break;
       case 'tell': this._drawTell(c, it.a, W, H); break;
       case 'wave': drawShockwave(c, W, H, it.rel, this.t); break;
@@ -580,7 +581,10 @@ class ReactorRun {
     /* Healing in a fight, they've stepped back a little. */
     const rn = this.crew[i], here = pose.players[i].present;
     const p = at || P(rn.x, RUN - (rn.back || 0) * 0.025, W, H), h = at ? at.h : H * CREW_SIZE;
-    const walking = this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06 : 0;
+    /* Walking through a door; running round the Warden's ring. */
+    const round = this.boss && this.boss.move && this.boss.move.t >= 0.8;
+    const walking = this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06
+      : round ? Math.abs(Math.sin(this.t * (10 + 6 * (this.boss.move.boost || 0)) + i * 1.7)) * h * 0.09 : 0;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
       { air: rn.air * h * 0.55 + walking + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
       (x, y, r) => {

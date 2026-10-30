@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { MAX_HP } from '../src/games/reactor-run.js';
-import { TELL, SLAM, SLAM_W, DOWN, OVERLOAD, ROLL, BLAST, BOSS_COINS, CORE_NEAR } from '../src/games/reactor-boss.js';
+import { TELL, SLAM, SLAM_W, DOWN, OVERLOAD, ROLL, BLAST, BOSS_COINS, CORE_NEAR, ROAR, MOVE, RUN_BOOST } from '../src/games/reactor-boss.js';
 import { FRONT } from '../src/games/reactor-combat.js';
 import { RUN } from '../src/games/reactor-art.js';
 import { pose } from '../src/tracking/pose.js';
@@ -69,19 +69,20 @@ test('a slammed arm lies there a while - lean back in and hit it', () => {
 test('both arms broken, the core lurches up close; low on health, it overloads', () => {
   const inst = boss(2);
   for (const a of inst.boss.arms) a.hp = 0;
-  run(inst, 3);
+  run(inst, ROAR + MOVE + 3);
   assert.equal(inst.boss.phase, 'robots');
   assert.ok(Math.abs(inst.boss.core.d - CORE_NEAR) < 0.01, 'up close');
   assert.ok(inst.boss.bots.some(b => !b.part), 'robots');
   inst.boss.core.hp = Math.floor(inst.boss.core.max * OVERLOAD) - 1;
   run(inst, 0.1);
   assert.equal(inst.boss.phase, 'overload');
+  assert.equal(inst.boss.bots.filter(b => !b.part).length, 0, 'the robots gone back');
 });
 
 test('overload: a shockwave to jump and a sweep to duck - missed, they hurt', () => {
   const inst = boss();
   for (const a of inst.boss.arms) a.hp = 0;
-  run(inst, 0.5);
+  run(inst, ROAR + MOVE + 0.5);
   inst.boss.core.hp = 1e6; inst.boss.core.max = 1e6; inst.boss.phase = 'overload';
   inst.fight.bots = inst.fight.bots.filter(b => b.part);
   inst.boss._spit = () => {};
@@ -105,6 +106,24 @@ test('overload: a shockwave to jump and a sweep to duck - missed, they hurt', ()
   inst.boss.blasts = [{ kind: 'sweep', d: RUN + 0.005 }];
   inst.boss.step(DT, W, H, []);
   assert.equal(rn.hp, MAX_HP - 2 * BLAST, 'stood up');
+});
+
+test('between phases the crew run round the ring by themselves - quicker running on the spot - and see it from another side', () => {
+  const a = boss(), b = boss();
+  for (const inst of [a, b]) for (const arm of inst.boss.arms) arm.hp = 0;
+  run(a, 0.1); run(b, 0.1);
+  assert.ok(a.boss.move, 'off round the ring');
+  const hp = a.crew[0].hp;
+  let ta = 0, tb = 0;
+  while (a.boss.move && ta < 20){ run(a, DT); ta += DT; }
+  /* b's crew run on the spot all the way. */
+  pose.players[0].hands.right.speed = 4;
+  while (b.boss.move && tb < 20){ run(b, DT); tb += DT; }
+  pose.players[0].hands.right.speed = 0;
+  assert.ok(Math.abs(ta - (ROAR + MOVE)) < 0.3, `by themselves: ${ta.toFixed(1)}s`);
+  assert.ok(tb < ROAR + MOVE / RUN_BOOST + 0.5, `running: ${tb.toFixed(1)}s`);
+  assert.equal(a.boss.view, 1, 'another side');
+  assert.equal(a.crew[0].hp, hp, 'nothing happens on the way');
 });
 
 test('the Warden beaten: a shower of coins, and the run is won', () => {
