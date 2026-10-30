@@ -34,6 +34,10 @@ export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment
 export const HEAL = 30;                         /* a repair station */
 export const VOTE = 10, LOCK = 1.5;             /* seconds to vote; all in one doorway this long locks it */
 export const ROOM_STUB = 3.5;                   /* stage 1: seconds in a room's doorway */
+/* How tall the crew stand (screen heights), and how far off the doors are
+   when the crew stop in front of them - far enough that the doors stand
+   clear above everyone's heads. */
+export const CREW_SIZE = 0.19, DOOR_STOP = 0.42;
 export const GRAVITY = 12.5, HOP = 1;           /* a hop: about 0.8 seconds in the air */
 export const CLEAR = 0.15;                      /* how high (of a full hop) clears a breach */
 export const DUCKED = 0.5;                      /* how far down (0..1) passes under a bulkhead */
@@ -174,7 +178,7 @@ class ReactorRun {
     /* How fast down the corridor: steady, a dip when someone's hit, and
        stopping at the doors. */
     let want = SPEED * (this.slow > 0 ? SLOW : 1);
-    if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z < 0.32) want = 0;
+    if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z < DOOR_STOP) want = 0;
     if (seg.kind === 'room') want = SPEED * 0.4;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
@@ -228,8 +232,10 @@ class ReactorRun {
     rn.lean += ((lean ?? 0) - rn.lean) * Math.min(1, dt * 8);
     /* In a corridor, round their own stretch of it; at a crossroads, the
        whole width is everyone's - lean left for the left door, stand
-       straight for the middle one, lean right for the right. */
-    const want = this.seg.kind === 'cross' ? clamp(rn.lean, -1, 1) : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
+       straight for the middle one, lean right for the right (each a little
+       to one side of the others, so they don't stand on top of each other
+       - never so far as another door). */
+    const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1) : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
     if (jumped && rn.air <= 0){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
     if (rn.air > 0 || rn.airV > 0){
@@ -301,7 +307,7 @@ class ReactorRun {
       if (this.z > seg.wall - RUN * 0.5){ this.rooms.push(seg.room); this._next(); }
       return;
     }
-    if (seg.wall - this.z > 0.34) return;     /* still coming up to the doors */
+    if (seg.wall - this.z > DOOR_STOP + 0.02) return;     /* still coming up to the doors */
     seg.vote -= dt;
     const votes = [[], [], []], who = [[], [], []];
     for (const i of this.here){ const d = this.doorOf(this.crew[i].x); votes[d].push(PLAYER_COLORS[i]); who[d].push(i); }
@@ -413,7 +419,7 @@ class ReactorRun {
     const seg = this.seg;
     drawDoors(c, W, H, rel, this.t, seg.votes, seg.choice, seg.opening);
     /* The time left: a bar draining across the top of the doorway wall. */
-    if (seg.choice == null && seg.wall - this.z <= 0.34){
+    if (seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02){
       const l = P(-1, rel, W, H), r = P(1, rel, W, H), y = l.y - H * 0.6 * l.k, u = clamp(seg.vote / VOTE, 0, 1);
       c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(l.x, y, r.x - l.x, H * 0.018);
       c.fillStyle = u < 0.3 ? '#ff5b5b' : '#7ff3ff'; c.fillRect(l.x, y, (r.x - l.x) * u, H * 0.018);
@@ -421,7 +427,7 @@ class ReactorRun {
   }
 
   _drawCrew(c, i, W, H){
-    const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN, W, H), h = H * 0.25;
+    const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN, W, H), h = H * CREW_SIZE;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
       { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here },
       (x, y, r) => {
@@ -429,9 +435,9 @@ class ReactorRun {
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
       });
     /* Their health over their head; the guide's crown at a crossroads. */
-    const top = p.y - rn.air * h * 0.55 - h * (1.32 - rn.duck * 0.42);
-    drawHealth(c, p.x, top - H * 0.035, H * 0.11, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
-    if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.08, H * 0.025, this.t);
+    const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
+    drawHealth(c, p.x, top - H * 0.03, H * 0.1, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
+    if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 
   /* Stage 1: a room is its sign, big in the doorway, as the crew pass
