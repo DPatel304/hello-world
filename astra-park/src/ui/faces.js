@@ -13,8 +13,15 @@
    (or the eyes, if the ears are hidden).
 
    The pictures are kept in memory only, for as long as the page is open:
-   nothing is saved or sent anywhere. */
+   nothing is saved or sent anywhere.
+
+   A child isn't shown as the photo itself but as a cartoon
+   drawn from it - the photo is read for their skin tone, their hair colour
+   and whether their hair is long, and they're drawn as one of the park's
+   own cartoon people with those (lookFrom). (Where a photo can't be read,
+   it's shown as it is.) */
 import { pose, L, MAX_PLAYERS } from '../tracking/pose.js';
+import { drawToon } from './kids.js';
 
 const EAR_L = 7, EAR_R = 8;
 /* A good picture: the face held steady (moving less than STILL of its size
@@ -54,6 +61,29 @@ export function faceBox(lm, vw, vh){
   return { x: nose.x, y: nose.y - eyes * 0.35, size, roll, turn };
 }
 
+/* Reading a face photo for a cartoon. data is RGBA pixels of a w x h
+   picture of the face, centred, the head about two-fifths of its width
+   (as _snap takes them). Skin from the cheeks; hair from just over the
+   forehead; long hair if the sides below the ears are hair-coloured
+   rather than skin or background. Returns { skin, hair, long }. */
+export function lookFrom(data, w, h){
+  const px = (x, y) => { const i = (Math.round(y) * w + Math.round(x)) * 4; return [data[i], data[i + 1], data[i + 2]]; };
+  /* The middle colour of a patch, by fractions of the picture: steady
+     against a stray highlight or shadow. */
+  const patch = (x0, y0, x1, y1) => {
+    const pts = [];
+    for (let y = y0 * h; y <= y1 * h; y += 2) for (let x = x0 * w; x <= x1 * w; x += 2) pts.push(px(x, y));
+    return [0, 1, 2].map(k => pts.map(p => p[k]).sort((a, b) => a - b)[pts.length >> 1]);
+  };
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const skin = patch(0.38, 0.52, 0.62, 0.66);
+  const hair = patch(0.38, 0.14, 0.62, 0.24);
+  const sides = [patch(0.1, 0.62, 0.22, 0.8), patch(0.78, 0.62, 0.9, 0.8)];
+  const corner = patch(0.02, 0.02, 0.1, 0.1);
+  const long = sides.every(sd => dist(sd, hair) < 60 && dist(sd, skin) > 50) && dist(hair, corner) > 30;
+  const css = (c) => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  return { skin: css(skin), hair: css(hair), long };
+}
 /* The pictures, one per player, shared by every game for the session. */
 const snaps = Array(MAX_PLAYERS).fill(null);
 const gone = Array(MAX_PLAYERS).fill(0), steady = Array(MAX_PLAYERS).fill(0), looked = Array(MAX_PLAYERS).fill(0);
@@ -103,10 +133,14 @@ export class FaceCam {
   _snap(i, v, b, rough = false, quiet = false){
     const cv = makeCanvas(SNAP);
     if (!cv) return;
-    try { cv.getContext('2d').drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, 0, 0, SNAP, SNAP); }
-    catch (e){ return; }
+    let look = null;
+    try {
+      const g = cv.getContext('2d');
+      g.drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, 0, 0, SNAP, SNAP);
+      if (g.getImageData) look = lookFrom(g.getImageData(0, 0, SNAP, SNAP).data, SNAP, SNAP);
+    } catch (e){ return; }
     /* A better one swapped in quietly, without the flash. */
-    snaps[i] = { canvas: cv, age: quiet ? FLASH : 0, rough };
+    snaps[i] = { canvas: cv, age: quiet ? FLASH : 0, rough, look };
   }
 
   /* Is player i's picture there to draw? */
@@ -120,8 +154,15 @@ export class FaceCam {
     const sn = snaps[i];
     if (!sn) return false;
     c.save();
-    c.translate(x, y); c.scale(-1, 1);
-    c.drawImage(sn.canvas, -r, -r, r * 2, r * 2);
+    if (sn.look){
+      /* As a cartoon of themselves, on a soft backdrop. */
+      c.fillStyle = '#fff6e2'; c.fillRect(x - r, y - r, r * 2, r * 2);
+      drawToon(c, x, y, r, sn.age + i * 1.3, sn.look);
+      c.translate(x, y);
+    } else {
+      c.translate(x, y); c.scale(-1, 1);
+      c.drawImage(sn.canvas, -r, -r, r * 2, r * 2);
+    }
     if (sn.age < FLASH){ c.globalAlpha = 1 - sn.age / FLASH; c.fillStyle = '#ffffff'; c.fillRect(-r, -r, r * 2, r * 2); }
     c.restore();
     return true;
