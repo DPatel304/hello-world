@@ -5,19 +5,18 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawBot } from './reactor-art.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth } from './reactor-art.js';
 
 /* Reactor Run. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
    under the low bulkheads, hop the breaches in the floor, run through the
    coins and the green repair stations. At each crossroads the crew votes
-   with their feet - three doors, a fight, traps or anything: lean left
-   for the left door, stand straight for the middle, lean right for the
-   right, and whichever door has the most of them in front of it is the
-   way they go.
+   with their feet - two doors, each a fight, traps or anything (?): lean
+   left for the left door, right for the right, and whichever door has the
+   most of them in front of it when the time's up is the way they go.
 
    It teaches by showing: the first corridor is gentle, one new thing at a
-   time, with a little helper drone flying ahead doing each move first.
+   time, with coins to show the way.
 
    Corridors wound but never kill: nobody's knocked below a sliver of
    health by them. (That's for the rooms, to come.)
@@ -57,11 +56,17 @@ export const CLEAR = 0.15;                      /* how high (of a full hop) clea
 export const DUCKED = 0.5;                      /* how far down (0..1) passes under a bulkhead */
 export const DUCK = 0.15;                       /* head drop, in body sizes, that counts as ducking */
 export const LEAN = 0.35;                       /* shoulder-widths of lean for full reach */
-export const MYSTERY = [['treasure', 0.4], ['puzzle', 0.25], ['combat', 0.2], ['traps', 0.15]];
+export const MYSTERY = [['treasure', 0.5], ['combat', 0.25], ['traps', 0.25]];
 const HOMES = { 2: [-0.45, 0.45], 3: [-0.6, 0, 0.6], 4: [-0.72, -0.24, 0.24, 0.72] };
 const REACH = { 1: 1, 2: 0.55, 3: 0.5, 4: 0.45 };
 const BODY = 0.1, COIN_REACH = 0.18, FOUNTAIN_REACH = 0.3;
-const DOOR_KINDS = ['combat', 'traps', 'mystery'];
+/* What a door can be: a fight, traps, or anything (?). Each crossroads
+   has two of them, different, either way round. */
+export const DOOR_KINDS = ['combat', 'traps', 'mystery'];
+const twoDoors = () => {
+  const k = DOOR_KINDS.slice().sort(() => Math.random() - 0.5);
+  return [k[0], k[1]];
+};
 const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'end'];
 
 export default {
@@ -88,7 +93,6 @@ class ReactorRun {
     this.guide = 0;                 /* whose crown breaks a tied vote */
     this.rooms = [];                /* the rooms the crew have chosen, in order */
     this.doors = [];                /* and the doors they chose them by */
-    this.bot = { rel: 0.3, lane: 0, act: 'fly', k: 0, gone: false };
     this.step_ = -1;
     this._next();
   }
@@ -114,7 +118,8 @@ class ReactorRun {
     } else if (kind === 'cross'){
       /* The doors, coming up the corridor; the crew stop in front of them. */
       this.seg.wall = this.z + 0.9;
-      this.seg.votes = [[], [], []];
+      this.seg.votes = [[], []];
+      this.seg.kinds = twoDoors();
       this.seg.choice = null; this.seg.opening = 0;
       for (const rn of this.crew) rn.door = null;
       this.seg.vote = VOTE;
@@ -204,7 +209,6 @@ class ReactorRun {
     else if (seg.kind === 'cross') this._vote(dt);
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
-    this._bot(dt);
     this._stepBits(dt);
   }
 
@@ -333,7 +337,7 @@ class ReactorRun {
     }
     if (seg.wall - this.z > DOOR_STOP + 0.02) return;     /* still coming up to the doors */
     seg.vote -= dt;
-    const votes = [[], [], []], who = [[], [], []];
+    const votes = [[], []], who = [[], []];
     for (const i of this.here){
       const rn = this.crew[i];
       rn.door = this.doorOf(rn.x, rn.door);
@@ -343,43 +347,23 @@ class ReactorRun {
     if (seg.vote <= 0) this._decide(who);
   }
   doorOf(x, was = null){
-    const d = x < -0.33 ? 0 : x > 0.33 ? 2 : 1;
-    if (was == null || d === was) return d;
     /* Moving on from a door: only once clearly past the line. */
-    const edge = DOOR_EDGE, held = x < -0.33 - edge ? 0 : x > 0.33 + edge ? 2 : x > -0.33 + edge && x < 0.33 - edge ? 1 : was;
-    return held;
+    if (was != null && Math.abs(x) < DOOR_EDGE) return was;
+    return x < 0 ? 0 : 1;
   }
   _decide(who){
     const seg = this.seg, most = Math.max(...who.map(w => w.length));
-    const tied = [0, 1, 2].filter(d => who[d].length === most);
+    const tied = [0, 1].filter(d => who[d].length === most);
     const mine = this.doorOf(this.crew[this.guide].x);
     const door = tied.length === 1 ? tied[0] : tied.includes(mine) ? mine : tied[Math.floor(Math.random() * tied.length)];
     seg.choice = door; this.doors.push(door);
-    seg.room = DOOR_KINDS[door] === 'mystery' ? this.mystery() : DOOR_KINDS[door];
+    seg.room = seg.kinds[door] === 'mystery' ? this.mystery() : seg.kinds[door];
     sfx.thud(); sfx.whoosh();
   }
   /* What's behind the ? door. Treasure is only ever found this way. */
   mystery(r = Math.random()){
     for (const [kind, w] of MYSTERY){ if (r < w) return kind; r -= w; }
     return MYSTERY[0][0];
-  }
-
-  /* ---------- the helper drone ---------- */
-
-  _bot(dt){
-    const b = this.bot;
-    if (this.seg.kind !== 'corridor' || this.seg.n > 0){ b.gone = true; b.rel += dt * 0.3; return; }
-    b.gone = false;
-    const near = this.things.filter(th => th.kind !== 'coin' && th.kind !== 'fountain' && Math.abs(th.d - this.z - b.rel) < 0.07)[0];
-    b.act = 'fly'; b.k = 0;
-    let lane = 0;
-    if (near){
-      const u = 1 - Math.abs(near.d - this.z - b.rel) / 0.07;
-      if (near.kind === 'beam') b.act = 'duck';
-      else if (near.kind === 'gap'){ b.act = 'hop'; b.k = Math.sin(u * Math.PI / 2); }
-      else lane = near.kind === 'ledge' || near.kind === 'blocker' ? ((near.a + near.b) / 2 > 0 ? -0.6 : 0.6) : 0;
-    }
-    b.lane += (lane - b.lane) * Math.min(1, dt * 5);
   }
 
   /* ---------- little things ---------- */
@@ -421,7 +405,6 @@ class ReactorRun {
     const items = [];
     for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
-    if (!this.bot.gone || this.bot.rel < 1) items.push({ kind: 'bot', rel: this.bot.rel, lane: this.bot.lane });
     for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     items.sort((a, b) => b.rel - a.rel);
     for (const it of items){ if (it.rel > 1 || it.rel < -0.12) continue; this._drawItem(c, it, W, H); }
@@ -441,14 +424,13 @@ class ReactorRun {
       case 'coin': drawCoin(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
       case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.used.size >= this.here.length); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
-      case 'bot': drawBot(c, p.x, p.y, H * 0.08 * p.k, this.t, this.bot.act, this.bot.k); break;
       case 'crew': this._drawCrew(c, it.i, W, H); break;
     }
   }
 
   _drawDoors(c, W, H, rel){
     const seg = this.seg;
-    drawDoors(c, W, H, rel, this.t, seg.votes, seg.choice, seg.opening);
+    drawDoors(c, W, H, rel, this.t, seg.kinds, seg.votes, seg.choice, seg.opening);
     /* The time left: a bar draining across the top of the doorway wall. */
     if (seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02){
       const l = P(-1, rel, W, H), r = P(1, rel, W, H), y = l.y - H * 0.6 * l.k, u = clamp(seg.vote / VOTE, 0, 1);
@@ -476,7 +458,7 @@ class ReactorRun {
   _drawRoom(c, W, H){
     const kind = this.seg.kind === 'room' ? this.rooms[this.rooms.length - 1] : null;
     const u = clamp(this.seg.t / 0.4, 0, 1) * clamp((this.seg.len - this.seg.t) / 0.4, 0, 1);
-    const s = { combat: ['skull', '#ff5b5b'], traps: ['spikes', '#ffc531'], treasure: ['mystery', '#ffd24a'], puzzle: ['mystery', '#7ff3ff'] }[kind] || ['mystery', '#c46bff'];
+    const s = { combat: ['skull', '#ff5b5b'], traps: ['spikes', '#ffc531'], treasure: ['mystery', '#ffd24a'] }[kind] || ['mystery', '#c46bff'];
     c.save(); c.globalAlpha = u;
     sign(c, s[0], W / 2, H * 0.36, H * 0.1 * (0.8 + 0.2 * u), s[1], this.t);
     c.restore();

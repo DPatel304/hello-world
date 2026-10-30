@@ -10,7 +10,7 @@
      coin             a yellow circle
      repair station   a green ring with a plus
      crew             a capsule in their colour, face on top
-     doors            tall rectangles: red (fight), yellow (traps), purple (?)
+     doors            two tall rectangles: red (fight), yellow (traps), purple (?)
 
    Depth is `rel`: 0 is the crew, 1 the far end. P(lane, rel) turns a place
    on the floor - lane -1 its left edge, 1 its right - into the screen;
@@ -107,21 +107,22 @@ export function drawFountain(c, W, H, rel, lane, t, used){
 
 /* ---------- the crossroads ---------- */
 
-export const DOORS = [-0.68, 0, 0.68];
-const DOOR_COLS = ['#e5484d', '#f59e0b', '#a855f7'];
-/* Three doors in a wall across the floor: each with its sign over it, the
-   votes in front as dots in the voters' colours, and the chosen one
-   opening. */
-export function drawDoors(c, W, H, rel, t, votes, open = null, opening = 0){
+export const DOORS = [-0.5, 0.5];
+/* Each kind of door: its colour and its sign. */
+const DOOR_LOOK = { combat: ['#e5484d', 'skull'], traps: ['#f59e0b', 'spikes'], mystery: ['#a855f7', 'mystery'] };
+/* Two doors in a wall across the floor - kinds says which is which - each
+   with its sign over it, the votes in front as dots in the voters'
+   colours, and the chosen one opening. */
+export function drawDoors(c, W, H, rel, t, kinds, votes, open = null, opening = 0){
   const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k, top = l.y - H * 0.62 * k;
   c.fillStyle = '#3a4057'; c.fillRect(l.x, top, r.x - l.x, l.y - top);
   DOORS.forEach((lane, i) => {
-    const p = P(lane, rel, W, H), w = H * 0.22 * k, h = H * 0.42 * k, x0 = p.x - w / 2, y0 = p.y - h, col = DOOR_COLS[i];
+    const p = P(lane, rel, W, H), w = H * 0.22 * k, h = H * 0.42 * k, x0 = p.x - w / 2, y0 = p.y - h, [col, mark] = DOOR_LOOK[kinds[i]];
     c.fillStyle = '#05060a'; c.fillRect(x0, y0, w, h);
     const half = w / 2 * (1 - (open === i ? opening : 0));
     c.fillStyle = col; c.fillRect(x0, y0, half, h); c.fillRect(x0 + w - half, y0, half, h);
     c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(x0, y0, w, h);
-    sign(c, ['skull', 'spikes', 'mystery'][i], p.x, y0 - H * 0.07 * k, H * 0.05 * k, col, t);
+    sign(c, mark, p.x, y0 - H * 0.07 * k, H * 0.05 * k, col, t);
     const vs = votes[i] || [];
     vs.forEach((vc, n) => {
       const vx = p.x + (n - (vs.length - 1) / 2) * H * 0.045 * k, vy = y0 + h * 0.5;
@@ -197,17 +198,6 @@ export function drawHealth(c, x, y, w, frac, col, low){
   const h = w * 0.16;
   c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - w / 2 - 2, y - 2, w + 4, h + 4);
   c.fillStyle = low ? '#ef4444' : col; c.fillRect(x - w / 2, y, Math.max(2, w * frac), h);
-}
-
-/* The helper drone: a white circle with two eyes, bobbing - lower when it
-   ducks, higher when it hops. */
-export function drawBot(c, x, base, s, t, act = 'fly', k = 0){
-  const y = base - s * 1.1 - (act === 'hop' ? k * s * 1.2 : 0) + (act === 'duck' ? s * 0.55 : 0);
-  c.fillStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.ellipse(x, base, s * 0.4, s * 0.08, 0, 0, 6.2832); c.fill();
-  c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, y, s * 0.4, 0, 6.2832); c.fill();
-  c.strokeStyle = INK; c.lineWidth = 2; c.stroke();
-  c.fillStyle = INK;
-  for (const side of [-1, 1]){ c.beginPath(); c.arc(x + side * s * 0.14, y - s * 0.04, s * 0.07, 0, 6.2832); c.fill(); }
 }
 
 function box(c, x, y, w, h, col){

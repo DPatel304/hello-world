@@ -9,7 +9,7 @@ import { glow } from './backdrop.js';
 import { drawKid, KID_SKINS } from './kids.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
-import { P as reactorP, RUN as REACTOR_RUN, drawCorridor, drawGloom, drawBeam, drawCoin, drawBot, drawCrew as drawSpaceCrew, drawBlocker } from '../games/reactor-art.js';
+import { P as reactorP, RUN as REACTOR_RUN, drawCorridor, drawGloom, drawBeam, drawCoin, drawCrew as drawSpaceCrew, drawBlocker } from '../games/reactor-art.js';
 import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster, drawTree as drawCastleTree, TREES, drawTent, inked } from '../games/castle-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
@@ -78,7 +78,6 @@ function reactorRun(){
     drawBlocker(c, W, H, 0.55, 0.2, 1.05, t, 3);
     drawBeam(c, W, H, 0.32, t);
     for (const k of [-1, 0, 1]){ const p = reactorP(k * 0.45, 0.2, W, H); drawCoin(c, p.x, p.y - H * 0.11 * p.k, H * 0.022 * p.k, t + k); }
-    const b = reactorP(-0.3, 0.42, W, H); drawBot(c, b.x, b.y, H * 0.08 * b.k, t, 'fly');
     const hop = Math.max(0, Math.sin(t * 2.2)) * H * 0.08;
     [[0, -0.6], [1, -0.2], [2, 0.2], [3, 0.6]].forEach(([i, lane]) => {
       const p = reactorP(lane, REACTOR_RUN, W, H);

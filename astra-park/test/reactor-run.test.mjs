@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY } from '../src/games/reactor-run.js';
+import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS } from '../src/games/reactor-run.js';
 import { RUN, DOORS } from '../src/games/reactor-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 
@@ -127,21 +127,23 @@ test('a repair station heals whoever runs through it', () => {
 
 /* ---------- the crossroads ---------- */
 
-const toDoor = (inst, i, d) => hand(0.5 + [-0.36, 0, 0.36][d], 0.5, i);
+const toDoor = (inst, i, d) => hand(0.5 + [-0.36, 0.36][d], 0.5, i);
 /* Into the crossroads, straight away, each standing in front of a door:
-   doors[i] for crew member i. */
-function atDoors(doors){
+   doors[i] for crew member i. The doors are a fight and traps, unless
+   kinds says otherwise. */
+function atDoors(doors, kinds = ['combat', 'traps']){
   const inst = quiet(doors.length);
   doors.forEach((d, i) => toDoor(inst, i, d));
   inst.seg.t = inst.seg.len;
   run(inst, 0.1);
   assert.equal(inst.phase, 'cross');
+  inst.seg.kinds = kinds;
   run(inst, 3.5);
   return inst;
 }
 
-test('the crew stop at three doors and vote with their feet: most wins', () => {
-  const inst = atDoors([0, 0, 2]);
+test('the crew stop at two doors and vote with their feet: most wins', () => {
+  const inst = atDoors([0, 0, 1]);
   const z = inst.z; run(inst, 0.5);
   assert.ok(Math.abs(inst.z - z) < 0.01, 'stopped at the doors');
   run(inst, VOTE + 0.5);
@@ -160,29 +162,40 @@ test('the doors stay shut for the whole vote, even when everyone has chosen', ()
 });
 
 test('a tie goes the way the crowned guide is standing', () => {
-  const inst = atDoors([2, 0]);
+  const inst = atDoors([1, 0]);
   const g = inst.guide, other = g === 0 ? 1 : 0;
-  toDoor(inst, g, 2); toDoor(inst, other, 0);
+  toDoor(inst, g, 1); toDoor(inst, other, 0);
   run(inst, VOTE + 0.5);
-  assert.equal(inst.doors[0], 2);
+  assert.equal(inst.doors[0], 1);
 });
 
 test('the guide crown passes on at each crossroads', () => {
-  const inst = atDoors([0, 2]);
+  const inst = atDoors([0, 1]);
   const first = inst.guide;
   inst._next(); inst._next(); inst._next();
   assert.equal(inst.phase, 'cross');
   assert.notEqual(inst.guide, first);
 });
 
-test('the ? door is anything - treasure most often - and treasure is never a door of its own', () => {
+test('each crossroads is two different doors of fight, traps and ?', () => {
+  const seen = new Set();
+  for (let k = 0; k < 40; k++){
+    const inst = quiet(); inst.seg.t = inst.seg.len; run(inst, 0.1);
+    const [a, b] = inst.seg.kinds;
+    assert.notEqual(a, b);
+    assert.ok(DOOR_KINDS.includes(a) && DOOR_KINDS.includes(b));
+    seen.add(a); seen.add(b);
+  }
+  assert.equal(seen.size, 3);
+});
+
+test('the ? door is monsters, traps or treasure - treasure most often', () => {
   const inst = quiet();
   const n = {}; for (let k = 0; k < 2000; k++){ const r = inst.mystery(); n[r] = (n[r] || 0) + 1; }
   for (const [kind, w] of MYSTERY) assert.ok(Math.abs(n[kind] / 2000 - w) < 0.04, `${kind}: ${n[kind]}`);
-  /* The two other doors are always a fight and traps. */
-  const a = atDoors([0]); run(a, VOTE + 0.5); run(a, 5);
-  const b = atDoors([1]); run(b, VOTE + 0.5); run(b, 5);
-  assert.deepEqual([a.rooms[0], b.rooms[0]], ['combat', 'traps']);
+  assert.deepEqual(Object.keys(n).sort(), ['combat', 'traps', 'treasure']);
+  const a = atDoors([1], ['traps', 'mystery']); run(a, VOTE + 0.5); run(a, 5);
+  assert.ok(['combat', 'traps', 'treasure'].includes(a.rooms[0]));
 });
 
 test('the floor runs corridor, crossroads, room, corridor, crossroads, room, corridor - and ends', () => {
