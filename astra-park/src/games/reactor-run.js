@@ -5,7 +5,8 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth } from './reactor-art.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawSwing } from './reactor-art.js';
+import { Fight, WIND } from './reactor-combat.js';
 
 /* Reactor Run. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
@@ -21,7 +22,7 @@ import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap,
    Corridors wound but never kill: nobody's knocked below a sliver of
    health by them. (That's for the rooms, to come.)
 
-   Stage 1: the corridors and the crossroads. The rooms behind the doors
+   The fight door is a combat room (reactor-combat.js). The other rooms
    are only their signs for now - each lets the crew straight through. */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
@@ -83,11 +84,12 @@ class ReactorRun {
     this.players = players;
     this.t = 0; this.over = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
-    this.coins = 0;
+    this.coins = 0; this.kills = 0;
+    this.fight = null;              /* the fight, in a combat room */
     this.faces = new FaceCam();
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
-    this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
+    this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
     this.things = [];
     this.bits = [];
     this.guide = 0;                 /* whose crown breaks a tied vote */
@@ -110,6 +112,7 @@ class ReactorRun {
     this.step_++;
     const kind = PLAN[this.step_] || 'end';
     this.seg = { kind, t: 0 };
+    this.fight = null;
     if (kind === 'corridor'){
       const n = PLAN.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -125,7 +128,9 @@ class ReactorRun {
       this.seg.vote = VOTE;
       this.guide = this._nextGuide();
     } else if (kind === 'room'){
+      this.seg.room = this.rooms[this.rooms.length - 1];
       this.seg.len = ROOM_STUB;
+      if (this.seg.room === 'combat') this.fight = new Fight(this);
       sfx.whoosh();
     } else if (kind === 'end'){
       this.over = true;
@@ -199,7 +204,7 @@ class ReactorRun {
        stopping at the doors. */
     let want = SPEED * (this.slow > 0 ? SLOW : 1);
     if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z < DOOR_STOP) want = 0;
-    if (seg.kind === 'room') want = SPEED * 0.4;
+    if (seg.kind === 'room') want = this.fight ? 0 : SPEED * 0.4;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
     this.z += this.speed * dt;
@@ -207,6 +212,7 @@ class ReactorRun {
     for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
     if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
+    else if (this.fight){ this.fight.step(dt, W, H); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
     this._stepBits(dt);
@@ -251,8 +257,9 @@ class ReactorRun {
       if (jumped) rn.falling = 0;
       else if (rn.falling <= 0){ rn.falling = 0; this._hurt(i, HURT[rn.fall], W, H); }
     }
-    /* Tracking lost: they hold where they are until they're back. */
-    if (!pose.players[i].present) return;
+    /* Tracking lost: they hold where they are until they're back. Down:
+       they lie where they fell. */
+    if (!pose.players[i].present || rn.down) return;
     if (!rn.played){ rn.played = true; rn.x = this._home(i); }
     const lean = this.leanOf(i);
     rn.lean += ((lean ?? 0) - rn.lean) * Math.min(1, dt * 8);
@@ -261,7 +268,10 @@ class ReactorRun {
        straight for the middle one, lean right for the right (each a little
        to one side of the others, so they don't stand on top of each other
        - never so far as another door). */
-    const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1) : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
+    /* In a fight, the whole width too, but standing a little more apart. */
+    const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
+      : this.fight ? clamp(rn.lean + this._home(i) * 0.5, -1, 1)
+      : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
     if (this.t - rn.lastDuck < UNDUCK) jumped = false;
     if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
@@ -310,10 +320,12 @@ class ReactorRun {
   }
 
   /* Hit: a red flash, a jolt, everyone slows a moment, and a second of
-   safety. In a corridor, never down to nothing. */
-  _hurt(i, dmg, W, H){
+     safety. In a corridor, never down to nothing; in a room (canDown),
+     down they go. */
+  _hurt(i, dmg, W, H, canDown = false){
     const rn = this.crew[i];
-    rn.hp = Math.max(1, rn.hp - dmg);
+    rn.hp = Math.max(canDown ? 0 : 1, rn.hp - dmg);
+    if (rn.hp <= 0){ rn.down = true; rn.duck = 0; rn.air = 0; rn.airV = 0; }
     rn.safe = SAFE; rn.hit = 1;
     this.slow = SLOW_FOR; this.shake = Math.min(1, this.shake + 0.5);
     sfx.thud();
@@ -401,10 +413,11 @@ class ReactorRun {
     c.save();
     if (this.shake > 0) c.translate((Math.random() - 0.5) * this.shake * H * 0.02, (Math.random() - 0.5) * this.shake * H * 0.02);
     const seg = this.seg;
-    drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : 0);
+    drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     const items = [];
     for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
+    if (this.fight) for (const b of this.fight.bots) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
     for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     items.sort((a, b) => b.rel - a.rel);
     for (const it of items){ if (it.rel > 1 || it.rel < -0.12) continue; this._drawItem(c, it, W, H); }
@@ -424,6 +437,7 @@ class ReactorRun {
       case 'coin': drawCoin(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
       case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.used.size >= this.here.length); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
+      case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'crew': this._drawCrew(c, it.i, W, H); break;
     }
   }
@@ -439,14 +453,31 @@ class ReactorRun {
     }
   }
 
+  /* A robot - and while it winds up, a line along the floor to the one
+     it's after, in their colour. */
+  _drawBot(c, b, W, H){
+    const p = P(b.x, b.d, W, H);
+    if (b.wind > 0 && this.crew[b.target]){
+      const q = P(this.crew[b.target].x, RUN, W, H), u = 1 - b.wind / WIND;
+      c.save(); c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(this.t * 14));
+      c.strokeStyle = PLAYER_COLORS[b.target]; c.lineWidth = H * 0.012; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x + (q.x - p.x) * (0.4 + 0.6 * u), p.y + (q.y - p.y) * (0.4 + 0.6 * u)); c.stroke();
+      c.restore();
+    }
+    drawRustbot(c, p.x, p.y, H * 0.17 * p.k, this.t + b.seed, { wind: b.wind > 0 ? 1 - b.wind / WIND : 0, swing: b.swing, flash: b.flash, hp: b.hp / b.max });
+  }
+
   _drawCrew(c, i, W, H){
     const rn = this.crew[i], here = pose.players[i].present, p = P(rn.x, RUN, W, H), h = H * CREW_SIZE;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i) },
+      { air: rn.air * h * 0.55, duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
       });
+    /* Swinging at a robot: an arc in front, towards it. */
+    if (this.fight && rn.swing > 0) drawSwing(c, p.x, p.y - h * 0.45, h, rn.swing, (rn.swingAt ?? rn.x) - rn.x);
+    if (rn.down) return;
     /* Their health over their head; the guide's crown at a crossroads. */
     const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
     drawHealth(c, p.x, top - H * 0.03, H * 0.1, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
@@ -456,8 +487,10 @@ class ReactorRun {
   /* Stage 1: a room is its sign, big in the doorway, as the crew pass
      through. */
   _drawRoom(c, W, H){
-    const kind = this.seg.kind === 'room' ? this.rooms[this.rooms.length - 1] : null;
-    const u = clamp(this.seg.t / 0.4, 0, 1) * clamp((this.seg.len - this.seg.t) / 0.4, 0, 1);
+    const kind = this.seg.room;
+    /* A fight shows its sign as each wave starts. */
+    const u = this.fight ? clamp(this.fight.banner / 0.4, 0, 1) * clamp((1.6 - this.fight.banner) / 0.3, 0, 1)
+      : clamp(this.seg.t / 0.4, 0, 1) * clamp((this.seg.len - this.seg.t) / 0.4, 0, 1);
     const s = { combat: ['skull', '#ff5b5b'], traps: ['spikes', '#ffc531'], treasure: ['mystery', '#ffd24a'] }[kind] || ['mystery', '#c46bff'];
     c.save(); c.globalAlpha = u;
     sign(c, s[0], W / 2, H * 0.36, H * 0.1 * (0.8 + 0.2 * u), s[1], this.t);
@@ -495,7 +528,7 @@ class ReactorRun {
         c.save(); c.globalAlpha = 1 - k;
         c.font = `700 ${Math.round(H * 0.045)}px Fredoka, sans-serif`; c.textAlign = 'center';
         c.lineWidth = H * 0.008; c.strokeStyle = '#05060f'; c.strokeText(b.text, b.x * W, b.y * H);
-        c.fillStyle = '#ff6b6b'; c.fillText(b.text, b.x * W, b.y * H);
+        c.fillStyle = b.col || '#ff6b6b'; c.fillText(b.text, b.x * W, b.y * H);
         c.restore();
       }
     }

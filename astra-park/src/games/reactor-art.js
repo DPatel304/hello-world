@@ -165,13 +165,15 @@ export function drawCrown(c, x, y, s){
 /* A crew member: a small capsule body in their colour under a big head -
    their own face. st: { air (screen px up), duck 0..1, lean -1..1, hit
    0..1 (a red flash), blink, lost (tracking lost: faded, with a dashed
-   outline), photo (the face is their picture, which outlines itself) }.
+   outline), photo (the face is their picture, which outlines itself),
+   down (knocked down: lying on the floor) }.
    face(x, y, r) paints the face: a picture as it is, anything else into
    a clipped circle. */
 export function drawCrew(c, x, base, h, t, col, st, face){
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, h * 0.2, h * 0.04, 0, 0, 6.2832); c.fill();
   c.save();
   c.translate(x, base - st.air); c.rotate(st.lean * 0.2);
+  if (st.down){ c.translate(h * 0.4, -h * 0.16); c.rotate(-Math.PI / 2); c.globalAlpha = 0.55; }
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   const tall = h * (1 - (st.duck || 0) * 0.45), w = h * 0.32, r = h * 0.3;
@@ -191,6 +193,49 @@ export function drawCrew(c, x, base, h, t, col, st, face){
   if (st.lost){ c.setLineDash?.([6, 6]); c.strokeStyle = '#ffffff'; c.lineWidth = 3; c.beginPath(); c.arc(0, hy, r * 1.25, 0, 6.2832); c.stroke(); c.setLineDash?.([]); }
   if (st.hit > 0){ c.globalAlpha = st.hit * 0.6; c.fillStyle = '#ff3b3b'; c.beginPath(); c.arc(0, hy, r * 1.2, 0, 6.2832); c.fill(); }
   c.restore();
+}
+
+/* A crew member's swing: a white arc sweeping up in front of them, leaning
+   towards dx (lanes) across. k runs 1 to 0 as it fades. */
+export function drawSwing(c, x, y, h, k, dx){
+  c.save(); c.globalAlpha = k;
+  c.strokeStyle = '#ffffff'; c.lineWidth = h * 0.06; c.lineCap = 'round';
+  const a = -Math.PI / 2 + Math.max(-0.6, Math.min(0.6, dx * 2)), sweep = (1 - k) * 1.6;
+  c.beginPath(); c.arc(x, y, h * 0.5, a - 0.9 + sweep, a + 0.2 + sweep * 0.5); c.stroke();
+  c.restore();
+}
+
+/* ---------- the robots ---------- */
+
+/* A rustbot: a rust-orange box on stubby legs, a head with one glowing
+   eye, an arm each side. s is its height. st: { wind 0..1 (winding up:
+   it flashes red and its arm goes up), swing 1..0 (the arm coming down),
+   flash 1..0 (just hit: white), hp 0..1 (its health bar) }. */
+export function drawRustbot(c, x, base, s, t, st){
+  const bob = Math.sin(t * 7) * s * 0.02, w = s * 0.55;
+  c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.6, s * 0.06, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(x, base + bob);
+  const red = st.wind > 0 && Math.floor(t * 10) % 2 === 0;
+  const body = st.flash > 0.5 ? '#ffffff' : red ? '#ff3b3b' : '#c2410c';
+  /* Legs, body, head. */
+  c.fillStyle = '#4b5563'; c.fillRect(-w * 0.35, -s * 0.18, w * 0.2, s * 0.18); c.fillRect(w * 0.15, -s * 0.18, w * 0.2, s * 0.18);
+  box(c, -w / 2, -s * 0.7, w, s * 0.52, body);
+  box(c, -w * 0.32, -s, w * 0.64, s * 0.3, st.flash > 0.5 ? '#ffffff' : '#7c2d12');
+  c.fillStyle = st.wind > 0 ? '#ff3b3b' : '#7ff3ff';
+  c.beginPath(); c.arc(0, -s * 0.85, s * 0.07, 0, 6.2832); c.fill();
+  /* Arms: the right one goes up as it winds up, and comes down to swing. */
+  const lift = st.wind > 0 ? st.wind : st.swing > 0 ? -st.swing * 0.4 : 0;
+  c.fillStyle = '#9a3412';
+  c.fillRect(-w * 0.72, -s * 0.62, w * 0.2, s * 0.36);
+  c.save(); c.translate(w * 0.62, -s * 0.62); c.rotate(-lift * 2.4);
+  c.fillRect(-w * 0.1, 0, w * 0.2, s * 0.36); c.restore();
+  c.restore();
+  /* Health over its head. */
+  if (st.hp < 1){
+    const bw = s * 0.6, by = base - s * 1.12;
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - bw / 2 - 2, by - 2, bw + 4, s * 0.07 + 4);
+    c.fillStyle = '#ff8a3d'; c.fillRect(x - bw / 2, by, Math.max(1, bw * st.hp), s * 0.07);
+  }
 }
 
 /* Health: a plain bar, in their colour, red when low. */

@@ -317,6 +317,11 @@ export const sfx = {
             blip({ freq: 330 * Math.pow(2, s/12), dur: 0.42, type:'sawtooth',
                    gain:0.2, delay:i*0.13 })); },
   whoosh(){ hiss({ dur: 0.3, gain: 0.18, hp: 300, sweep: 2600 }); },
+  /* Reactor Run's fights: a swing landing on metal, a robot winding up,
+     and one bursting into scrap. */
+  clank(){ blip({ freq: 980, to: 640, dur: 0.09, type: 'square', gain: 0.08 }); hiss({ dur: 0.08, gain: 0.1, hp: 2500 }); },
+  windup(){ blip({ freq: 260, to: 620, dur: 0.6, type: 'sawtooth', gain: 0.06 }); },
+  scrap(){ hiss({ dur: 0.45, gain: 0.26, hp: 200, sweep: -150 }); blip({ freq: 140, to: 40, dur: 0.3, type: 'sawtooth', gain: 0.16 }); },
   /* A war drum: the monsters are coming. The last beat is the big one. */
   drum(big = false){
     blip({ freq: big ? 110 : 95, to: 50, dur: big ? 0.5 : 0.32, type: 'sine', gain: big ? 0.6 : 0.45 });
