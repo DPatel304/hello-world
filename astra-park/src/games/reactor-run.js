@@ -26,7 +26,12 @@ import { Fight, RANGE, BUDDY } from './reactor-combat.js';
    are only their signs for now - each lets the crew straight through. */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
-export const CORRIDOR = [50, 45, 45];           /* seconds of each corridor */
+/* While we playtest the mechanics, every part of the run is PLAYTEST
+   seconds long - each corridor, and at most each fight - so it's quick
+   to try everything. 0 for the full lengths. */
+export const PLAYTEST = 20;
+const FULL = [50, 45, 45];                      /* seconds of each corridor, in full */
+export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
 export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10 };   /* ledge: a breach across part of the floor */
 export const SAFE = 1;                          /* seconds of safety after a hit */
@@ -134,7 +139,7 @@ class ReactorRun {
     } else if (kind === 'room'){
       this.seg.room = this.rooms[this.rooms.length - 1];
       this.seg.len = ROOM_STUB;
-      if (this.seg.room === 'combat') this.fight = new Fight(this);
+      if (this.seg.room === 'combat') this.fight = PLAYTEST ? new Fight(this, PLAYTEST) : new Fight(this);
       sfx.whoosh();
     } else if (kind === 'end'){
       this.over = true;
@@ -152,9 +157,11 @@ class ReactorRun {
      hop, each alone, with coins to show the way - and the later ones mix
      them up, faster and closer. */
   _layout(n){
-    const at = (secs) => this.z + RUN + SPEED * secs + 0.9;   /* reaching the crew `secs` in */
+    /* Laid out for the full length, and squeezed to fit a shorter one. */
+    const squeeze = this.seg.len / (FULL[n] || 45);
+    const at = (secs) => this.z + RUN + SPEED * secs * squeeze + 0.9;   /* reaching the crew `secs` in */
     const add = (secs, th) => this.things.push({ d: at(secs), ...th });
-    const coinLine = (secs, lane, k = 5, high = false) => { for (let i = 0; i < k; i++) add(secs + i * 0.3, { kind: 'coin', lane, high }); };
+    const coinLine = (secs, lane, k = 5, high = false) => { for (let i = 0; i < k; i++) add(secs + i * 0.3 / squeeze, { kind: 'coin', lane, high }); };
     const side = () => (Math.random() < 0.5 ? -1 : 1);
     const blocker = (secs, s = side(), width = 0.9) => {
       const a = s < 0 ? -1.05 : 1.05 - width, b = a + width;
@@ -187,7 +194,7 @@ class ReactorRun {
       /* The middle: a coin rush, or a repair station. */
       if (n === 1){ for (let k = 0; k < 4; k++) coinLine(s + k * 0.9, Math.sin(k) * 0.7, 3); s += 4.5; }
       else { fountain(s, side() * 0.45); s += 2.5; }
-      for (let k = 0; k < 8 && s < this.seg.len - 3; k++){
+      for (let k = 0; k < 8 && s < (FULL[n] || 45) - 3; k++){
         const r = Math.random();
         if (r < 0.35) blocker(s, side(), 1.1); else if (r < 0.6) beam(s); else if (r < 0.8) gap(s, false); else gap(s);
         s += 2.2 * hard + Math.random();

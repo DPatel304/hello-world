@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { MAX_HP, FIGHT_APART } from '../src/games/reactor-run.js';
+import game, { MAX_HP, FIGHT_APART, PLAYTEST } from '../src/games/reactor-run.js';
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
          REVIVE_CLAPS, WAKE_HP, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/reactor-combat.js';
 import { pose } from '../src/tracking/pose.js';
@@ -28,6 +28,7 @@ function fight(n = 1){
   inst.step_ = 1; inst.rooms.push('combat'); inst._next();
   assert.equal(inst.phase, 'room');
   assert.ok(inst.fight);
+  inst.fight.len = FIGHT_MAX;   /* the full length, whatever we're playtesting */
   return inst;
 }
 /* Till the room's done and the run goes on (or the time's up). */
@@ -58,6 +59,17 @@ test('standing still, the crew clear both waves on their own, and the run goes o
   const killed = waveSize(2, 0) + waveSize(2, 1);
   assert.equal(inst.kills, killed);
   assert.equal(inst.coins - coins, killed * KILL_COINS + CLEAR_COINS);
+});
+
+test('while playtesting, a fight is over in PLAYTEST seconds, whatever is left', () => {
+  crew(2);
+  const inst = game.create(2);
+  run(inst, 0.2);
+  inst.step_ = 1; inst.rooms.push('combat'); inst._next();
+  let t = 0;
+  while (inst.fight && t < 60){ inst.step(DT, W, H); t += DT; }
+  if (PLAYTEST) assert.ok(t <= PLAYTEST + 2, `${t.toFixed(1)}s`);
+  assert.equal(inst.phase, 'corridor');
 });
 
 test('robots nibble constantly, a little at a time - and only those close by', () => {

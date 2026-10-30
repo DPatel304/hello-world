@@ -57,14 +57,16 @@ export const KILL_COINS = 1, CLEAR_COINS = 10;
    long claps last when they stop. Waking: at this share of health. All
    asleep: the run ends, this long after the last falls asleep. */
 export const REVIVE_CLAPS = 10, REVIVE_R = 0.35, CLAP_FADE = 6, WAKE_HP = 0.5, LAST_SLEEP = 1.5;
-/* However it's going, a room is over after this long. */
+/* However it's going, a room is over after this long (unless the game
+   asks for shorter): whatever robots are left pop, and it counts as
+   cleared. */
 export const FIGHT_MAX = 120;
 /* How many robots in wave w (from 0) for n players. */
 export const waveSize = (n, w) => Math.max(1, n) * WAVE[w];
 
 export class Fight {
-  constructor(game){
-    this.g = game;
+  constructor(game, len = FIGHT_MAX){
+    this.g = game; this.len = len;
     this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.streamT = 0;
     this.done = false; this.lost = false; this.clearT = 0; this.allAsleep = 0; this.banner = 0;
     /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
@@ -123,7 +125,7 @@ export class Fight {
     this.bots = this.bots.filter(b => b.hp > 0);
 
     if (!this.queue && !this.bots.length){ if (this.wave + 1 < WAVE.length) this._wave(); else this._clear(W, H); }
-    else if (this.t > FIGHT_MAX){
+    else if (this.t > this.len){
       for (const b of this.bots) this._scrap(b, W, H);
       this.bots = []; this.queue = 0; this._clear(W, H);
     }
