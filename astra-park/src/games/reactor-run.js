@@ -46,6 +46,9 @@ export const HOP_RISE = 0.045, HOP_SPEED = 0.35;
 /* A hop just too late still clears a breach: up to this long (seconds)
    after it arrives. */
 export const LATE_HOP = 0.3;
+/* Getting up from a duck is never a hop: not for this long (seconds)
+   after the head comes back up - and the feet have to leave the floor. */
+export const UNDUCK = 0.5;
 export const CLEAR = 0.15;                      /* how high (of a full hop) clears a breach */
 export const DUCKED = 0.5;                      /* how far down (0..1) passes under a bulkhead */
 export const DUCK = 0.15;                       /* head drop, in body sizes, that counts as ducking */
@@ -73,7 +76,7 @@ class ReactorRun {
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.coins = 0;
     this.faces = new FaceCam();
-    this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED });
+    this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
     this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
     this.things = [];
@@ -251,6 +254,7 @@ class ReactorRun {
        - never so far as another door). */
     const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1) : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
+    if (this.t - rn.lastDuck < UNDUCK) jumped = false;
     if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
     if (rn.air > 0 || rn.airV > 0){
       rn.air += rn.airV * dt; rn.airV -= GRAVITY * dt;

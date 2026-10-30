@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { HOP_RISE, LATE_HOP, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, LOCK, CORRIDOR, MYSTERY } from '../src/games/reactor-run.js';
+import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, LOCK, CORRIDOR, MYSTERY } from '../src/games/reactor-run.js';
 import { RUN, DOORS } from '../src/games/reactor-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 
@@ -81,6 +81,15 @@ test('a hop a moment too late still clears a breach; much too late does not', ()
   const b = quiet();
   ahead(b, 'gap', 0.3, { a: -1.05, b: 1.05 }); run(b, 0.3 + LATE_HOP + 0.2); hop(b); run(b, 1);
   assert.equal(hp(b), MAX_HP - HURT.gap, 'fell in');
+});
+
+test('getting up from a duck is never a hop', () => {
+  const inst = quiet();
+  inst.crew[0].lastDuck = inst.t - UNDUCK * 0.5;
+  hop(inst);
+  assert.equal(inst.crew[0].air, 0);
+  run(inst, UNDUCK + 0.5); hop(inst);
+  assert.ok(inst.crew[0].air > 0, 'a moment later, it is');
 });
 
 test('a hit gives a moment of safety, so one thing never hits twice', () => {
