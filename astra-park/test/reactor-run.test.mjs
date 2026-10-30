@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, LOCK, CORRIDOR, MYSTERY } from '../src/games/reactor-run.js';
+import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY } from '../src/games/reactor-run.js';
 import { RUN, DOORS } from '../src/games/reactor-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 
@@ -150,21 +150,12 @@ test('the crew stop at three doors and vote with their feet: most wins', () => {
   assert.equal(inst.rooms[0], 'combat', 'through the fight door');
 });
 
-test('all in front of one door locks it early', () => {
-  const inst = atDoors([0, 2]);
-  toDoor(inst, 0, 1); toDoor(inst, 1, 1);
-  const left = inst.seg;
-  run(inst, LOCK + 0.8);
-  assert.equal(inst.doors[0], 1);
-  assert.ok(left.vote > VOTE - 3.5 - LOCK - 1.5, 'well before time');
-});
-
-test('a wobble on the line between two doors does not start the lock over', () => {
-  const inst = atDoors([1]);
-  for (let k = 0; k < Math.round(LOCK / 0.2) + 2; k++){
-    toDoor(inst, 0, 1); run(inst, 0.17);
-    hand(0.5 - 0.36 * 0.5, 0.5, 0); run(inst, 0.03);
-  }
+test('the doors stay shut for the whole vote, even when everyone has chosen', () => {
+  const inst = atDoors([1, 1]);
+  assert.ok(inst.seg.vote > 0 && inst.seg.vote <= VOTE);
+  run(inst, inst.seg.vote - 0.3);
+  assert.equal(inst.seg.choice, null, 'still deciding');
+  run(inst, 1);
   assert.equal(inst.doors[0], 1);
 });
 

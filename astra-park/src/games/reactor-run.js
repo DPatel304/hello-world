@@ -32,7 +32,7 @@ export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10 };   /* ledge: a
 export const SAFE = 1;                          /* seconds of safety after a hit */
 export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment */
 export const HEAL = 30;                         /* a repair station */
-export const VOTE = 8, LOCK = 1;                /* seconds to vote; all in one doorway this long locks it */
+export const VOTE = 10;                         /* seconds to vote - always the whole time, to think it over */
 /* How far past the line between two doors (of the corridor's half-width)
    someone has to go to count as at the next door - so a wobble on the
    line doesn't flip their vote back and forth. */
@@ -115,7 +115,7 @@ class ReactorRun {
       /* The doors, coming up the corridor; the crew stop in front of them. */
       this.seg.wall = this.z + 0.9;
       this.seg.votes = [[], [], []];
-      this.seg.same = 0; this.seg.sameDoor = -1; this.seg.choice = null; this.seg.opening = 0;
+      this.seg.choice = null; this.seg.opening = 0;
       for (const rn of this.crew) rn.door = null;
       this.seg.vote = VOTE;
       this.guide = this._nextGuide();
@@ -320,8 +320,8 @@ class ReactorRun {
 
   /* ---------- the crossroads ---------- */
 
-  /* Everyone votes by standing in front of a door. When they're all in
-     front of the same one for a moment, or the time's up, it's decided:
+  /* Everyone votes by standing in front of a door, and can change their
+     mind till the time's up - always the whole time. Then it's decided:
      most voters, and a tie goes the way the crowned guide is standing. */
   _vote(dt){
     const seg = this.seg;
@@ -340,12 +340,7 @@ class ReactorRun {
       votes[rn.door].push(PLAYER_COLORS[i]); who[rn.door].push(i);
     }
     seg.votes = votes;
-    /* All at one door: it fills towards chosen. A moment's flicker off it
-       only drains it a little, rather than starting over. */
-    const n = this.here.length, one = who.findIndex(w => w.length === n && n > 0);
-    if (one >= 0 && one !== seg.sameDoor){ seg.sameDoor = one; seg.same = 0; }
-    seg.same = one >= 0 ? seg.same + dt : Math.max(0, seg.same - dt * 2);
-    if (seg.same >= LOCK || seg.vote <= 0) this._decide(who);
+    if (seg.vote <= 0) this._decide(who);
   }
   doorOf(x, was = null){
     const d = x < -0.33 ? 0 : x > 0.33 ? 2 : 1;
@@ -453,7 +448,7 @@ class ReactorRun {
 
   _drawDoors(c, W, H, rel){
     const seg = this.seg;
-    drawDoors(c, W, H, rel, this.t, seg.votes, seg.choice, seg.opening, seg.sameDoor, clamp(seg.same / LOCK, 0, 1));
+    drawDoors(c, W, H, rel, this.t, seg.votes, seg.choice, seg.opening);
     /* The time left: a bar draining across the top of the doorway wall. */
     if (seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02){
       const l = P(-1, rel, W, H), r = P(1, rel, W, H), y = l.y - H * 0.6 * l.k, u = clamp(seg.vote / VOTE, 0, 1);

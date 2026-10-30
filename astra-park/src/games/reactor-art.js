@@ -112,21 +112,15 @@ const DOOR_COLS = ['#e5484d', '#f59e0b', '#a855f7'];
 /* Three doors in a wall across the floor: each with its sign over it, the
    votes in front as dots in the voters' colours, and the chosen one
    opening. */
-/* lock: the door everyone is in front of, and how near (0..1) it is to
-   being chosen - it lights up and starts to part. */
-export function drawDoors(c, W, H, rel, t, votes, open = null, opening = 0, lock = -1, lockK = 0){
+export function drawDoors(c, W, H, rel, t, votes, open = null, opening = 0){
   const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k, top = l.y - H * 0.62 * k;
   c.fillStyle = '#3a4057'; c.fillRect(l.x, top, r.x - l.x, l.y - top);
   DOORS.forEach((lane, i) => {
     const p = P(lane, rel, W, H), w = H * 0.22 * k, h = H * 0.42 * k, x0 = p.x - w / 2, y0 = p.y - h, col = DOOR_COLS[i];
     c.fillStyle = '#05060a'; c.fillRect(x0, y0, w, h);
-    const half = w / 2 * (1 - (open === i ? opening : open == null && lock === i ? lockK * 0.15 : 0));
+    const half = w / 2 * (1 - (open === i ? opening : 0));
     c.fillStyle = col; c.fillRect(x0, y0, half, h); c.fillRect(x0 + w - half, y0, half, h);
     c.strokeStyle = INK; c.lineWidth = 3; c.strokeRect(x0, y0, w, h);
-    if (open == null && lock === i && lockK > 0){
-      c.save(); c.globalAlpha = lockK; c.strokeStyle = '#ffffff'; c.lineWidth = 4 + lockK * H * 0.012 * k;
-      c.strokeRect(x0, y0, w, h); c.restore();
-    }
     sign(c, ['skull', 'spikes', 'mystery'][i], p.x, y0 - H * 0.07 * k, H * 0.05 * k, col, t);
     const vs = votes[i] || [];
     vs.forEach((vc, n) => {
