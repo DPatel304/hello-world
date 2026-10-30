@@ -31,7 +31,13 @@
    crew is asleep at once, that's the end of the run.
 
    Each robot drops coins; clearing the room drops more, and the run goes
-   on. */
+   on.
+
+   The boss fight (reactor-boss.js) runs on a Fight too, without the
+   waves: it puts its own robots in, and its own parts - an arm slammed
+   down, the core - as `part`s among them: they don't walk or nibble, but
+   the crew hit them like anything else in reach (`wide` ones from
+   further across), and a hop's shot can reach them. */
 import { RUN, P } from './reactor-art.js';
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
@@ -40,6 +46,8 @@ import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
    it reaches. */
 export const BOT_HP = 20, BOT_HIT = 2, BOT_EVERY = 1.2, BOT_REACH = 0.18;
+/* A hit bigger than this is a big one: a jolt, and its number shown. */
+const BIG = 5;
 /* The crew's own hits: how often, how hard, how far across (lanes) and
    how deep (corridor depth) they reach. */
 export const SWING = 1.5, SWING_HIT = 6, RANGE = 0.32, RANGE_D = 0.14;
@@ -72,8 +80,8 @@ export const FIGHT_MAX = 120;
 export const waveSize = (n, w) => Math.max(1, n) * WAVE[w];
 
 export class Fight {
-  constructor(game, len = FIGHT_MAX){
-    this.g = game; this.len = len;
+  constructor(game, len = FIGHT_MAX, { waves = true } = {}){
+    this.g = game; this.len = len; this.waves = waves;
     this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.streamT = 0;
     this.done = false; this.lost = false; this.clearT = 0; this.allAsleep = 0; this.banner = 0;
     /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
@@ -82,7 +90,7 @@ export class Fight {
     this.cranks = pose.players.map(() => new CrankWatch());
     this.hugs = pose.players.map(() => new HugWatch());
     for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; rn.healing = false; rn.back = 0; }
-    this._wave();
+    if (waves) this._wave();
   }
 
   _bot(x, d){
@@ -142,7 +150,8 @@ export class Fight {
     this._wake(dt, W, H);
     this.bots = this.bots.filter(b => b.hp > 0);
 
-    if (!this.queue && !this.bots.length){ if (this.wave + 1 < WAVE.length) this._wave(); else this._clear(W, H); }
+    if (!this.waves){ if (this.t > this.len) this._clear(W, H); }
+    else if (!this.queue && !this.bots.length){ if (this.wave + 1 < WAVE.length) this._wave(); else this._clear(W, H); }
     else if (this.t > this.len){
       for (const b of this.bots) this._scrap(b, W, H);
       this.bots = []; this.queue = 0; this._clear(W, H);
@@ -153,7 +162,7 @@ export class Fight {
      than their share, so they spread out among the crew. */
   _aim(up){
     const count = new Map(up.map(i => [i, 0])), share = Math.ceil(this.bots.length / Math.max(1, up.length));
-    const order = this.bots.slice().sort((a, b) => a.d - b.d);
+    const order = this.bots.filter(b => !b.part).sort((a, b) => a.d - b.d);
     for (const b of order){
       const byNear = up.slice().sort((i, j) => Math.abs(this.g.crew[i].x - b.x) - Math.abs(this.g.crew[j].x - b.x));
       b.target = byNear.find(i => count.get(i) < share) ?? byNear[0] ?? -1;
@@ -164,6 +173,7 @@ export class Fight {
   /* A robot walks up towards its one, keeping its distance from the rest,
      and once close enough nibbles at whoever's nearest. */
   _walk(b, up, dt, W, H){
+    if (b.part) return;
     const g = this.g, rn = g.crew[b.target];
     /* Stopped by the front line, or by a robot just in front. */
     let stop = FRONT;
@@ -189,10 +199,18 @@ export class Fight {
     this._nibble(near, W, H);
   }
 
-  _nibble(i, W, H){
-    const rn = this.g.crew[i];
-    rn.hp = Math.max(0, rn.hp - BOT_HIT); rn.hit = Math.max(rn.hit, 0.5);
-    if (Math.random() < 0.35) sfx.tick();
+  _nibble(i, W, H){ this.hurt(i, BOT_HIT, W, H); }
+
+  /* Damage to a crew member: a nibble's a little flash; a big hit (over
+     BIG) a jolt and a number. Out of health, asleep. */
+  hurt(i, dmg, W, H){
+    const g = this.g, rn = g.crew[i];
+    rn.hp = Math.max(0, rn.hp - dmg); rn.hit = Math.max(rn.hit, dmg > BIG ? 1 : 0.5);
+    if (dmg > BIG){
+      g.shake = Math.min(1, g.shake + 0.5); sfx.thud();
+      const p = P(rn.x, RUN, W, H);
+      g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.25) / H, vy: -0.08, age: 0, life: 0.9, text: `-${dmg}` });
+    } else if (Math.random() < 0.35) sfx.tick();
     if (rn.hp <= 0) this._sleep(i);
   }
 
@@ -221,7 +239,7 @@ export class Fight {
     if (hopped){
       let shot = null;
       for (const b of this.bots){
-        if (b.hp <= 0 || b.d <= FRONT + 0.03 || Math.abs(b.x - rn.x) > SHOT_ACROSS) continue;
+        if (b.hp <= 0 || b.d <= FRONT + 0.03 || Math.abs(b.x - rn.x) > SHOT_ACROSS + (b.wide || 0)) continue;
         if (!shot || b.d < shot.d) shot = b;
       }
       if (shot){
@@ -234,7 +252,7 @@ export class Fight {
   }
 
   /* The robots within a crew member's reach. */
-  _inReach(rn){ return this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE); }
+  _inReach(rn){ return this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE + (b.wide || 0)); }
 
   _hit(b, dmg, W, H){
     const g = this.g, p = P(b.x, b.d, W, H);
@@ -242,7 +260,7 @@ export class Fight {
     b.hp -= dmg; b.flash = 1;
     sfx.clank();
     g.bits.push({ kind: 'num', x: (p.x + (Math.random() - 0.5) * H * 0.03) / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.6, text: `${dmg}`, col: '#ffffff', small: true });
-    if (b.hp <= 0){ g.coins += KILL_COINS; g.kills++; this._scrap(b, W, H); }
+    if (b.hp <= 0 && !b.part){ g.coins += KILL_COINS; g.kills++; this._scrap(b, W, H); }
   }
 
   /* A robot popping into scrap and sparks. */

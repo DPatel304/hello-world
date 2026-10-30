@@ -5,9 +5,11 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz } from './reactor-art.js';
-import { Fight, RANGE, BUDDY } from './reactor-combat.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz,
+         drawCore, drawArm, drawShockwave, drawSweep } from './reactor-art.js';
+import { Fight, RANGE, BUDDY, FRONT } from './reactor-combat.js';
 import { Lights } from './reactor-trap.js';
+import { Warden, SLAM_W } from './reactor-boss.js';
 
 /* Reactor Run. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
@@ -84,7 +86,7 @@ const twoDoors = () => {
   const k = DOOR_KINDS.slice().sort(() => Math.random() - 0.5);
   return [k[0], k[1]];
 };
-const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'end'];
+const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'];
 
 export default {
   id: 'reactor-run', name: 'Reactor Run', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
@@ -104,6 +106,7 @@ class ReactorRun {
     this.coins = 0; this.kills = 0;
     this.fight = null;              /* the fight, in a combat room */
     this.trap = null;               /* the trap, in a trap room */
+    this.boss = null;               /* the Warden, at the end */
     this.faces = new FaceCam();
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
@@ -130,7 +133,7 @@ class ReactorRun {
     this.step_++;
     const kind = PLAN[this.step_] || 'end';
     this.seg = { kind, t: 0 };
-    this.fight = null; this.trap = null;
+    this.fight = null; this.trap = null; this.boss = null;
     if (kind === 'corridor'){
       const n = PLAN.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -152,6 +155,11 @@ class ReactorRun {
       /* A longer hall: twice the playtest time to get up it. */
       if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
       sfx.whoosh();
+    } else if (kind === 'boss'){
+      /* While playtesting, a Warden you can beat in a playtest's time. */
+      this.boss = PLAYTEST ? new Warden(this, PLAYTEST * 2, 0.35) : new Warden(this);
+      this.fight = this.boss.fight;
+      this.things = [];
     } else if (kind === 'end'){
       this.over = true;
     }
@@ -232,6 +240,7 @@ class ReactorRun {
     const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
     this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
     if (seg.kind === 'room') want = this.fight || this.trap ? 0 : SPEED * 0.4;
+    if (seg.kind === 'boss') want = 0;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
     this.z += this.speed * dt;
@@ -239,6 +248,7 @@ class ReactorRun {
     for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
     if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
+    else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
     else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > 1.5) this._next(); }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
@@ -461,11 +471,12 @@ class ReactorRun {
       c.translate(W / 2, py); c.scale(z, z); c.translate(-W / 2, -py);
     }
     const seg = this.seg;
-    drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
+    drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? (this.boss ? 0.5 : 0.3) : 0);
     const items = [];
     for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
-    if (this.fight) for (const b of this.fight.bots) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
+    if (this.fight) for (const b of this.fight.bots) if (!b.part) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
+    if (this.boss) this._bossItems(items);
     for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
@@ -488,6 +499,11 @@ class ReactorRun {
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
+      case 'core': drawCore(c, p.x, p.y, Math.min(H * 0.34, H * 0.75 * p.k), this.t, { flash: this.boss.core.flash, glow: this.boss.phase === 'overload' ? 1 : 0, dead: this.boss.done }); break;
+      case 'arm': this._drawArm(c, it.a, W, H); break;
+      case 'tell': this._drawTell(c, it.a, W, H); break;
+      case 'wave': drawShockwave(c, W, H, it.rel, this.t); break;
+      case 'sweep': drawSweep(c, W, H, it.rel, this.t); break;
       case 'crew': this._drawCrew(c, it.i, W, H); break;
     }
   }
@@ -525,6 +541,41 @@ class ReactorRun {
 
   /* at: { x, y, h, bob } to draw them somewhere else - a trap room's own
      view - instead of at their place in the corridor. */
+  /* ---------- the Warden ---------- */
+
+  _bossItems(items){
+    const bs = this.boss;
+    if (!bs.done) items.push({ kind: 'core', rel: bs.core.d, lane: 0 });
+    for (const a of bs.arms){
+      if (a.state === 'broken') continue;
+      items.push({ kind: 'arm', rel: a.state === 'down' ? a.d : bs.core.d - 0.02, a });
+      if (a.state === 'tell') items.push({ kind: 'tell', rel: RUN + 0.002, a });
+    }
+    for (const b of bs.blasts) items.push({ kind: b.kind, rel: b.d });
+  }
+
+  /* An arm: from the core's shoulder out to its fist - raised high over
+     its target as it winds up, flat on the floor once it's slammed. */
+  _drawArm(c, a, W, H){
+    const bs = this.boss, core = P(0, bs.core.d, W, H);
+    const cs = Math.min(H * 0.34, H * 0.75 * core.k), sx = core.x + a.side * cs * 0.7, sy = core.y - cs * 0.55;
+    let fx, fy, s;
+    if (a.state === 'down'){ const f = P(a.x, a.d, W, H); fx = f.x; fy = f.y; s = H * 0.16 * f.k; }
+    else if (a.state === 'tell'){ const f = P(a.x, FRONT + 0.08, W, H), u = Math.min(1, a.t / 0.4); fx = sx + (f.x - sx) * u; fy = sy + (f.y - H * 0.36 * f.k - sy) * u; s = H * 0.16 * f.k * (0.6 + 0.4 * u); }
+    else { fx = sx + a.side * cs * 0.3; fy = sy + cs * 0.4; s = cs * 0.25; }
+    drawArm(c, sx, sy, fx, fy, s, { flash: a.flash, hp: a.hp / a.max, down: a.state === 'down' });
+  }
+
+  /* Where an arm's about to slam: a red stripe up that lane. */
+  _drawTell(c, a, W, H){
+    const near = RUN - 0.04, far = FRONT + 0.12;
+    const pts = [P(a.x - SLAM_W, near, W, H), P(a.x + SLAM_W, near, W, H), P(a.x + SLAM_W, far, W, H), P(a.x - SLAM_W, far, W, H)];
+    c.save(); c.globalAlpha = 0.25 + 0.25 * Math.abs(Math.sin(this.t * 12));
+    c.fillStyle = '#ff3b3b';
+    c.beginPath(); pts.forEach((q, k) => k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath(); c.fill();
+    c.restore();
+  }
+
   _drawCrew(c, i, W, H, at = null){
     /* Healing in a fight, they've stepped back a little. */
     const rn = this.crew[i], here = pose.players[i].present;
@@ -562,6 +613,21 @@ class ReactorRun {
   }
 
   _drawHud(c, W, H){
+    /* The Warden's health, big across the top: the core's, and an arm's
+       either side while they last. */
+    if (this.boss && !this.boss.done){
+      const bs = this.boss, w = W * 0.4, y = H * 0.11, h = H * 0.03;
+      c.save();
+      c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(W / 2 - w / 2 - 4, y - 4, w + 8, h + 8);
+      c.fillStyle = bs.phase === 'overload' ? '#ff5b5b' : '#ff8a3d'; c.fillRect(W / 2 - w / 2, y, w * Math.max(0, bs.core.hp / bs.core.max), h);
+      for (const a of bs.arms){
+        if (a.hp <= 0) continue;
+        const ax = W / 2 + a.side * (w / 2 + W * 0.05) - W * 0.035, aw = W * 0.07;
+        c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(ax - 3, y - 3, aw + 6, h + 6);
+        c.fillStyle = '#c2410c'; c.fillRect(ax, y, aw * a.hp / a.max, h);
+      }
+      c.restore();
+    }
     /* The team's coins, top right. */
     const x = W - H * 0.06, y = H * 0.07;
     c.save();
@@ -577,6 +643,7 @@ class ReactorRun {
       c.fillStyle = done ? '#7ff3ff' : now ? '#fff6e2' : 'rgba(255,255,255,.25)';
       c.beginPath();
       if (kind === 'corridor') c.roundRect(px - w * 0.6, H * 0.055 - w * 0.2, w * 1.2, w * 0.4, w * 0.2);
+      else if (kind === 'boss') c.arc(px, H * 0.055, w * (now ? 0.55 : 0.45), 0, 6.2832);
       else c.arc(px, H * 0.055, w * (now ? 0.36 : 0.28), 0, 6.2832);
       c.fill();
     }

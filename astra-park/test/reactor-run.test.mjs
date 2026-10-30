@@ -198,7 +198,7 @@ test('the ? door is monsters, traps or treasure - treasure most often', () => {
   assert.ok(['combat', 'traps', 'treasure'].includes(a.rooms[0]));
 });
 
-test('the floor runs corridor, crossroads, room, corridor, crossroads, room, corridor - and ends', () => {
+test('the floor runs corridor, crossroads, room, corridor, crossroads, room, corridor, the boss - and ends', () => {
   const inst = quiet();
   const seen = [];
   for (let k = 0; k < 2000 && !inst.over; k++){
@@ -206,7 +206,7 @@ test('the floor runs corridor, crossroads, room, corridor, crossroads, room, cor
     if (inst.phase === 'corridor') inst.seg.t = inst.seg.len;
     run(inst, 0.5);
   }
-  assert.deepEqual(seen, ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor']);
+  assert.deepEqual(seen, ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss']);
   assert.ok(inst.over);
 });
 

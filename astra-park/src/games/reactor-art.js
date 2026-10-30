@@ -251,6 +251,67 @@ export function drawRustbot(c, x, base, s, t, st){
   }
 }
 
+/* ---------- the Warden ---------- */
+
+/* Its core: a great round reactor, s across, glowing cyan - red and
+   pulsing in overload, white when hit. */
+export function drawCore(c, x, base, s, t, st){
+  const r = s / 2, cy = base - r * 1.1;
+  c.save();
+  c.fillStyle = '#2c3142'; c.fillRect(x - r * 1.5, cy - r * 0.4, r * 3, r * 1.5);
+  c.strokeStyle = INK; c.lineWidth = 4; c.strokeRect(x - r * 1.5, cy - r * 0.4, r * 3, r * 1.5);
+  const glow = st.flash > 0.5 ? '#ffffff' : st.glow ? `hsl(0,90%,${55 + 10 * Math.sin(t * 10)}%)` : '#3fd0ff';
+  const g = c.createRadialGradient(x, cy, r * 0.1, x, cy, r * 1.4);
+  g.addColorStop(0, st.glow ? 'rgba(255,80,80,.55)' : 'rgba(63,208,255,.45)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, cy, r * 1.4, 0, 6.2832); c.fill();
+  c.fillStyle = '#4b5563'; c.beginPath(); c.arc(x, cy, r, 0, 6.2832); c.fill(); c.stroke();
+  c.fillStyle = glow; c.beginPath(); c.arc(x, cy, r * (0.55 + 0.04 * Math.sin(t * 6)), 0, 6.2832); c.fill();
+  c.fillStyle = INK; c.beginPath(); c.arc(x, cy, r * 0.2, 0, 6.2832); c.fill();
+  c.restore();
+}
+
+/* An arm: a thick beam from its shoulder (sx, sy) to a big square fist at
+   (fx, fy), s across. White when hit; a health bar over the fist while
+   it's down. */
+export function drawArm(c, sx, sy, fx, fy, s, st){
+  c.save();
+  c.strokeStyle = INK; c.lineCap = 'round'; c.lineWidth = s * 0.55;
+  c.beginPath(); c.moveTo(sx, sy); c.lineTo(fx, fy - s * 0.5); c.stroke();
+  c.strokeStyle = st.flash > 0.5 ? '#ffffff' : '#6b7280'; c.lineWidth = s * 0.4;
+  c.beginPath(); c.moveTo(sx, sy); c.lineTo(fx, fy - s * 0.5); c.stroke();
+  box(c, fx - s * 0.6, fy - s, s * 1.2, s, st.flash > 0.5 ? '#ffffff' : '#c2410c');
+  if (st.down && st.hp < 1){
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(fx - s * 0.6 - 2, fy - s * 1.3 - 2, s * 1.2 + 4, s * 0.14 + 4);
+    c.fillStyle = '#ff8a3d'; c.fillRect(fx - s * 0.6, fy - s * 1.3, s * 1.2 * st.hp, s * 0.14);
+  }
+  c.restore();
+}
+
+/* A shockwave rolling along the floor at depth rel: a bright ridge right
+   across. Jump it. */
+export function drawShockwave(c, W, H, rel, t){
+  const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k;
+  c.save();
+  c.strokeStyle = '#7ff3ff'; c.lineWidth = H * 0.02 * k; c.lineCap = 'round';
+  c.shadowColor = '#7ff3ff'; c.shadowBlur = 20 * k;
+  c.beginPath(); c.moveTo(l.x, l.y);
+  for (let u = 0; u <= 1.001; u += 0.05) c.lineTo(l.x + (r.x - l.x) * u, l.y - Math.abs(Math.sin(u * 18 + t * 12)) * H * 0.03 * k);
+  c.stroke();
+  c.restore();
+}
+
+/* A laser sweeping in at head height at depth rel: a red bar right
+   across. Duck under it. */
+export function drawSweep(c, W, H, rel, t){
+  const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k;
+  const y = l.y - H * 0.28 * k;
+  c.save();
+  c.shadowColor = '#ff3b3b'; c.shadowBlur = 24 * k;
+  c.fillStyle = `rgba(255,60,60,${0.75 + 0.2 * Math.sin(t * 20)})`;
+  c.fillRect(l.x, y - H * 0.012 * k, r.x - l.x, H * 0.024 * k);
+  c.restore();
+}
+
 /* Health: a plain bar, in their colour, red when low. */
 export function drawHealth(c, x, y, w, frac, col, low){
   const h = w * 0.16;
