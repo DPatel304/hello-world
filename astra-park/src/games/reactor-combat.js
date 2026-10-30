@@ -1,151 +1,223 @@
-/* Reactor Run's combat rooms. The run stops and the room's robots come at
-   the crew - rustbots, for now: clanking boxes that shamble up to whoever
-   is nearest, stop face to face, and swing.
+/* Reactor Run's combat rooms - closer to tower defense than a brawl. What
+   wins a fight is mostly decided before it: how much health the crew walk
+   in with, and how strong they've grown. In the room itself, standing in
+   the right place does the rest.
 
-   The crew fight by standing in front of them: anyone with a robot right
-   in front swings at it on their own, every SWING seconds - so a child who
-   just stands there still helps. Where to stand is the game: slide over to
-   the robot you want, spread out to take one each, or all crowd one to
-   finish it fast.
+   The room is full of rustbots: the first wave fills the whole corridor
+   ahead, at least WAVE[0] for each player, and a second streams in from
+   the far end. They walk up and crowd round the crew, spread out among
+   them so nobody's swamped while someone else has none, and every robot
+   close enough keeps hitting whoever's nearest - each hit only a nibble,
+   but they never stop. There's no wind-up to watch for.
 
-   A robot always warns before it swings: it stops, flashes red and winds
-   up for WIND seconds, with a line on the floor to the one it's after, in
-   their colour. Slide out of its reach before it lands and it misses.
+   The crew hit back on their own, every SWING seconds, every robot within
+   RANGE of them - wider than a robot's reach, so the front row and the one
+   behind. They hit harder standing together: each teammate close by
+   (BUDDY) adds TEAM to their hits. Rolling their arms - the wheels on the
+   bus - lands an extra hit on all of them with every turn. And while
+   robots are still walking up, a hop fires a shot up the corridor at the
+   nearest one coming.
 
-   Two waves, the second bigger, sized for how many are playing - and the
-   robots tougher the more there are. Rooms can down someone, unlike
-   corridors: down, they lie where they are until the room's cleared, then
-   get up at half health. If everyone's down at once, they all get up
-   again at half health and carry on - a fight here is never lost.
+   Nobody is ever beaten: run out of health and you fall asleep where you
+   stand. A teammate beside you clapping wakes you - REVIVE_CLAPS claps
+   between everyone, though it should just feel like "clap a bunch" - at
+   half health. Clearing the room wakes everyone at half health too, and
+   if the whole crew is asleep at once, after a moment they all wake.
 
    Each robot drops coins; clearing the room drops more, and the run goes
    on. */
 import { RUN, P } from './reactor-art.js';
+import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
+import { ClapWatch, CrankWatch } from '../tracking/gestures.js';
 
-export const BOT_HP = 30, BOT_HIT = 10;
-/* A robot's wind-up before it swings, its rest after, and how far across
-   (lanes) its swing reaches. */
-export const WIND = 0.9, BOT_REST = 1.6, BOT_REACH = 0.3;
-/* The crew's own swings: how often, how hard, how far across. */
-export const SWING = 2, SWING_HIT = 10, ARM = 0.28;
-/* Where the robots stop, face to face with the crew; where they come in;
-   how fast they walk up (depth a second) and across (lanes a second). */
-export const FACE = RUN + 0.09, SPAWN_AT = 0.9, WALK = 0.16, SIDE = 0.45;
-export const WAVES = 2;
-export const KILL_COINS = 3, CLEAR_COINS = 10;
-/* Getting up: at this share of their health; after everyone's been down
-   this long. */
-export const RISE_HP = 0.5, RALLY = 1.5;
+/* A rustbot: its health, its nibble, how often, and how far across (lanes)
+   it reaches. */
+export const BOT_HP = 20, BOT_HIT = 2, BOT_EVERY = 1.2, BOT_REACH = 0.18;
+/* The crew's own hits: how often, how hard, how far across (lanes) and
+   how deep (corridor depth) they reach. */
+export const SWING = 1.5, SWING_HIT = 6, RANGE = 0.32, RANGE_D = 0.14;
+/* Standing together: teammates this close (lanes) each add TEAM to your
+   hits (0.5 is half as much again). */
+export const BUDDY = 0.32, TEAM = 0.5;
+/* The wheels on the bus: an extra hit, this hard, every turn. */
+export const CRANK_HIT = 6;
+/* A hop while robots are walking up: a shot at the nearest one coming
+   (within SHOT_ACROSS lanes of you), this hard. */
+export const SHOT_HIT = 12, SHOT_ACROSS = 0.35;
+/* The front line, face to face with the crew; the rows behind it; how far
+   apart robots keep side by side; how fast they walk up and across. */
+export const FRONT = RUN + 0.09, ROW = 0.08, BOT_GAP = 0.16, WALK = 0.14, SIDE = 0.3;
+/* Robots in each wave, per player. The first fills the corridor; the
+   second comes in from the far end, one every STREAM seconds. */
+export const WAVE = [5, 3], STREAM = 0.5;
+export const KILL_COINS = 1, CLEAR_COINS = 10;
+/* Asleep: claps to wake, how close (lanes) a clapper has to be, and how
+   long claps last when they stop. Waking: at this share of health. All
+   asleep: everyone wakes after this long. */
+export const REVIVE_CLAPS = 10, REVIVE_R = 0.35, CLAP_FADE = 6, WAKE_HP = 0.5, RALLY = 3;
 /* However it's going, a room is over after this long. */
-export const FIGHT_MAX = 90;
+export const FIGHT_MAX = 120;
 /* How many robots in wave w (from 0) for n players. */
-export const waveSize = (n, w) => Math.max(1, n) + 1 + w;
+export const waveSize = (n, w) => Math.max(1, n) * WAVE[w];
 
 export class Fight {
   constructor(game){
     this.g = game;
-    this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.spawnT = 0;
+    this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.streamT = 0;
     this.done = false; this.clearT = 0; this.rally = 0; this.banner = 0;
-    /* Tougher the more there are: a full crew of four meets the full 30. */
+    /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
     this.toughness = Math.max(0.5, Math.max(1, game.here.length) / 4);
-    for (const i of game.here){ const rn = game.crew[i]; rn.swingT = SWING; rn.swing = 0; }
+    this.claps = pose.players.map(() => new ClapWatch());
+    this.cranks = pose.players.map(() => new CrankWatch());
+    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; }
     this._wave();
+  }
+
+  _bot(x, d){
+    const hp = Math.round(BOT_HP * this.toughness);
+    return { x, d, hp, max: hp, hitT: Math.random() * BOT_EVERY, target: -1, flash: 0, swing: 0, seed: Math.random() * 6 };
   }
 
   _wave(){
     this.wave++;
-    this.queue = waveSize(this.g.here.length, this.wave);
-    this.spawnT = this.wave ? 1.2 : 0.6;
+    const n = waveSize(this.g.here.length, this.wave);
+    if (this.wave === 0){
+      /* The whole corridor ahead, full of them: rows across, a little
+         jumbled. */
+      const across = Math.min(7, Math.max(3, Math.ceil(n / 4))), rows = Math.ceil(n / across);
+      for (let k = 0; k < n; k++){
+        const col = k % across, row = Math.floor(k / across);
+        const x = -0.9 + 1.8 * (col + 0.5) / across + (Math.random() - 0.5) * 0.1;
+        this.bots.push(this._bot(x, 0.3 + 0.65 * (rows > 1 ? row / (rows - 1) : 0.5) + Math.random() * 0.04));
+      }
+    } else { this.queue = n; this.streamT = 1; }
     this.banner = 1.6;
     sfx.siren(this.wave > 0);
   }
 
-  step(dt, W, H){
+  get up(){ return this.g.here.filter(i => !this.g.crew[i].down); }
+
+  /* jumped: who hopped this step. */
+  step(dt, W, H, jumped = []){
     const g = this.g;
     this.t += dt;
     this.banner = Math.max(0, this.banner - dt);
     for (const b of this.bots){ b.flash = Math.max(0, b.flash - dt * 4); b.swing = Math.max(0, b.swing - dt * 3); }
-    for (const i of g.here){ const rn = g.crew[i]; rn.swing = Math.max(0, (rn.swing || 0) - dt * 3); }
+    for (const rn of g.crew) rn.swing = Math.max(0, (rn.swing || 0) - dt * 2);
     if (this.done){ this.clearT += dt; return; }
 
-    /* In they come, one at a time, across the far end. */
-    if (this.queue > 0 && (this.spawnT -= dt) <= 0){
-      this.spawnT = 1;
-      this.queue--;
-      const hp = Math.round(BOT_HP * this.toughness);
-      this.bots.push({ x: Math.random() * 1.6 - 0.8, d: SPAWN_AT + Math.random() * 0.1, hp, max: hp,
-        wind: 0, rest: 0.4 + Math.random() * 0.6, target: -1, flash: 0, swing: 0, seed: Math.random() * 6 });
+    if (this.queue > 0 && (this.streamT -= dt) <= 0){
+      this.streamT = STREAM; this.queue--;
+      this.bots.push(this._bot(Math.random() * 1.8 - 0.9, 0.95 + Math.random() * 0.08));
     }
 
-    const up = g.here.filter(i => !g.crew[i].down);
-    for (const b of this.bots) this._bot(b, up, dt, W, H);
-    for (const i of up) this._swing(i, dt, W, H);
+    const up = this.up;
+    this._aim(up);
+    /* Front first, so those behind queue up behind them. */
+    this.bots.sort((a, b) => a.d - b.d);
+    for (const b of this.bots) this._walk(b, up, dt, W, H);
+    for (const i of up) this._fight(i, dt, W, H, jumped.includes(i));
+    this._wake(dt, W, H);
     this.bots = this.bots.filter(b => b.hp > 0);
 
-    /* Everyone down: a moment, then all up again. */
-    if (g.here.length && !up.length){
-      this.rally += dt;
-      if (this.rally >= RALLY){ this.rally = 0; for (const i of g.here) this._rise(i, W, H); }
-    } else this.rally = 0;
-
-    if (!this.queue && !this.bots.length){ if (this.wave + 1 < WAVES) this._wave(); else this._clear(W, H); }
+    if (!this.queue && !this.bots.length){ if (this.wave + 1 < WAVE.length) this._wave(); else this._clear(W, H); }
     else if (this.t > FIGHT_MAX){
       for (const b of this.bots) this._scrap(b, W, H);
       this.bots = []; this.queue = 0; this._clear(W, H);
     }
   }
 
-  /* A robot: up to the nearest of the crew, face to face, and swing. */
-  _bot(b, up, dt, W, H){
-    const g = this.g;
-    if (b.wind > 0){
-      b.wind -= dt;
-      if (b.wind <= 0){
-        b.wind = 0; b.rest = BOT_REST; b.swing = 1;
-        const rn = g.crew[b.target];
-        if (rn && !rn.down && Math.abs(rn.x - b.x) < BOT_REACH) g._hurt(b.target, BOT_HIT, W, H, true);
-        else sfx.whoosh();
-      }
-      return;
+  /* Who each robot goes for: whoever's nearest - but nobody takes more
+     than their share, so they spread out among the crew. */
+  _aim(up){
+    const count = new Map(up.map(i => [i, 0])), share = Math.ceil(this.bots.length / Math.max(1, up.length));
+    const order = this.bots.slice().sort((a, b) => a.d - b.d);
+    for (const b of order){
+      const byNear = up.slice().sort((i, j) => Math.abs(this.g.crew[i].x - b.x) - Math.abs(this.g.crew[j].x - b.x));
+      b.target = byNear.find(i => count.get(i) < share) ?? byNear[0] ?? -1;
+      if (b.target >= 0) count.set(b.target, count.get(b.target) + 1);
     }
-    if (!up.length) return;
-    let near = up[0];
-    for (const i of up) if (Math.abs(g.crew[i].x - b.x) < Math.abs(g.crew[near].x - b.x)) near = i;
-    b.target = near;
-    const rn = g.crew[near];
-    b.d = Math.max(FACE, b.d - WALK * dt);
-    b.x += Math.max(-SIDE * dt, Math.min(SIDE * dt, rn.x - b.x));
-    /* Not on top of each other. */
-    for (const o of this.bots){
-      if (o === b || Math.abs(o.d - b.d) > 0.12) continue;
-      const gap = b.x - o.x;
-      if (Math.abs(gap) < 0.22) b.x += (gap >= 0 ? 1 : -1) * (0.22 - Math.abs(gap)) * Math.min(1, dt * 4);
-    }
-    b.x = Math.max(-1, Math.min(1, b.x));
-    b.rest -= dt;
-    if (b.d <= FACE + 0.001 && b.rest <= 0 && Math.abs(rn.x - b.x) < BOT_REACH * 0.7){ b.wind = WIND; sfx.windup(); }
   }
 
-  /* A crew member swings at the robot in front of them, if there is one. */
-  _swing(i, dt, W, H){
-    const rn = this.g.crew[i];
-    rn.swingT = Math.min(SWING, (rn.swingT ?? SWING) + dt);
-    let foe = null;
-    for (const b of this.bots){
-      if (b.hp <= 0 || b.d > FACE + 0.06 || Math.abs(b.x - rn.x) > ARM) continue;
-      if (!foe || Math.abs(b.x - rn.x) < Math.abs(foe.x - rn.x)) foe = b;
+  /* A robot walks up towards its one, keeping its distance from the rest,
+     and once close enough nibbles at whoever's nearest. */
+  _walk(b, up, dt, W, H){
+    const g = this.g, rn = g.crew[b.target];
+    /* Stopped by the front line, or by a robot just in front. */
+    let stop = FRONT;
+    for (const o of this.bots){
+      if (o === b || o.hp <= 0 || o.d >= b.d) continue;
+      if (Math.abs(o.x - b.x) < BOT_GAP) stop = Math.max(stop, o.d + ROW);
     }
-    if (!foe || rn.swingT < SWING) return;
-    rn.swingT = 0; rn.swing = 1; rn.swingAt = foe.x;
-    this._hit(foe, SWING_HIT, W, H);
+    b.d = Math.max(stop, b.d - WALK * dt);
+    if (rn) b.x += Math.max(-SIDE * dt, Math.min(SIDE * dt, rn.x - b.x));
+    for (const o of this.bots){
+      if (o === b || Math.abs(o.d - b.d) > ROW * 0.9) continue;
+      const gap = b.x - o.x;
+      if (Math.abs(gap) < BOT_GAP) b.x += (gap >= 0 ? 1 : -1) * (BOT_GAP - Math.abs(gap)) * Math.min(1, dt * 5);
+    }
+    b.x = Math.max(-1.05, Math.min(1.05, b.x));
+    /* Its nibble: whoever's in reach, if it's at the front. */
+    b.hitT += dt;
+    if (b.d > FRONT + 0.01 || b.hitT < BOT_EVERY) return;
+    let near = -1;
+    for (const i of up) if (g.crew[i].safe <= 0 && Math.abs(g.crew[i].x - b.x) < BOT_REACH && (near < 0 || Math.abs(g.crew[i].x - b.x) < Math.abs(g.crew[near].x - b.x))) near = i;
+    if (near < 0) return;
+    b.hitT = 0; b.swing = 1;
+    this._nibble(near, W, H);
+  }
+
+  _nibble(i, W, H){
+    const rn = this.g.crew[i];
+    rn.hp = Math.max(0, rn.hp - BOT_HIT); rn.hit = Math.max(rn.hit, 0.5);
+    if (Math.random() < 0.35) sfx.tick();
+    if (rn.hp <= 0) this._sleep(i);
+  }
+
+  _sleep(i){
+    const rn = this.g.crew[i];
+    rn.down = true; rn.duck = 0; rn.air = 0; rn.airV = 0; rn.claps = 0; rn.clapAgo = 0;
+    sfx.yawn();
+  }
+
+  /* A crew member's own hits: every robot in range, every SWING seconds;
+     a turn of the arms, an extra hit; a hop, a shot. */
+  _fight(i, dt, W, H, hopped){
+    const g = this.g, rn = g.crew[i], p = pose.players[i];
+    rn.buddies = this.up.filter(j => j !== i && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
+    const power = (rn.power || 1) * (1 + TEAM * rn.buddies);
+    const near = this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE);
+    rn.swingT = (rn.swingT || 0) + dt;
+    if (rn.swingT >= SWING && near.length){
+      rn.swingT = 0; rn.swing = 1;
+      for (const b of near) this._hit(b, SWING_HIT * power, W, H);
+    }
+    if (this.cranks[i].step(p, dt) && near.length){
+      rn.swing = 1;
+      for (const b of near) this._hit(b, CRANK_HIT * power, W, H);
+    }
+    if (hopped){
+      let shot = null;
+      for (const b of this.bots){
+        if (b.hp <= 0 || b.d <= FRONT + 0.03 || Math.abs(b.x - rn.x) > SHOT_ACROSS) continue;
+        if (!shot || b.d < shot.d) shot = b;
+      }
+      if (shot){
+        const a = P(rn.x, RUN, W, H), z = P(shot.x, shot.d, W, H);
+        g.bits.push({ kind: 'shot', x: a.x / W, y: (a.y - H * 0.12) / H, x2: z.x / W, y2: (z.y - H * 0.08 * z.k) / H, age: 0, life: 0.3 });
+        sfx.zap();
+        this._hit(shot, SHOT_HIT * power, W, H);
+      }
+    }
   }
 
   _hit(b, dmg, W, H){
     const g = this.g, p = P(b.x, b.d, W, H);
+    dmg = Math.round(dmg);
     b.hp -= dmg; b.flash = 1;
     sfx.clank();
-    g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.8, text: `${dmg}`, col: '#ffffff' });
+    g.bits.push({ kind: 'num', x: (p.x + (Math.random() - 0.5) * H * 0.03) / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.6, text: `${dmg}`, col: '#ffffff', small: true });
     if (b.hp <= 0){ g.coins += KILL_COINS; g.kills++; this._scrap(b, W, H); }
   }
 
@@ -153,16 +225,43 @@ export class Fight {
   _scrap(b, W, H){
     const p = P(b.x, b.d, W, H);
     b.hp = 0;
-    this.g._sparkle(p.x / W, (p.y - H * 0.1 * p.k) / H, 18, 25);
+    this.g._sparkle(p.x / W, (p.y - H * 0.1 * p.k) / H, 12, 25);
     sfx.scrap();
+  }
+
+  /* Waking the sleepers: claps from anyone awake close by, all counting
+     together; they wear off if the clapping stops a while. */
+  _wake(dt, W, H){
+    const g = this.g, here = g.here, up = this.up;
+    const clapped = new Set(up.filter(i => this.claps[i].step(pose.players[i], dt, this.cranks[i])));
+    for (const j of here){
+      const f = g.crew[j];
+      if (!f.down) continue;
+      f.clapAgo += dt;
+      if (f.clapAgo > CLAP_FADE) f.claps = Math.max(0, f.claps - dt * 0.5);
+      for (const i of clapped){
+        if (Math.abs(g.crew[i].x - f.x) > REVIVE_R) continue;
+        f.claps = Math.floor(f.claps) + 1; f.clapAgo = 0;
+        sfx.pop(1 + f.claps * 0.1);
+        const p = P(f.x, RUN, W, H);
+        g._sparkle(p.x / W, (p.y - H * 0.08) / H, 3, 50);
+      }
+      if (f.claps >= REVIVE_CLAPS) this._rise(j, W, H);
+    }
+    /* Everyone asleep: a moment, then all awake. */
+    if (here.length && !up.length){
+      this.rally += dt;
+      if (this.rally >= RALLY){ this.rally = 0; for (const i of here) this._rise(i, W, H); }
+    } else this.rally = 0;
   }
 
   _rise(i, W, H){
     const rn = this.g.crew[i];
     if (!rn.down) return;
-    rn.down = false; rn.hp = Math.max(rn.hp, Math.round(rn.max * RISE_HP)); rn.safe = 1.5;
+    rn.down = false; rn.claps = 0; rn.hp = Math.max(rn.hp, Math.round(rn.max * WAKE_HP)); rn.safe = 1.5;
     const p = P(rn.x, RUN, W, H);
-    this.g._sparkle(p.x / W, (p.y - H * 0.12) / H, 10, 140);
+    this.g._sparkle(p.x / W, (p.y - H * 0.12) / H, 14, 140);
+    sfx.twinkle();
   }
 
   _clear(W, H){

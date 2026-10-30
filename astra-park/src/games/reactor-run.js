@@ -5,8 +5,8 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawSwing } from './reactor-art.js';
-import { Fight, WIND } from './reactor-combat.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz } from './reactor-art.js';
+import { Fight, RANGE, BUDDY } from './reactor-combat.js';
 
 /* Reactor Run. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
@@ -60,6 +60,10 @@ export const LEAN = 0.35;                       /* shoulder-widths of lean for f
 export const MYSTERY = [['treasure', 0.5], ['combat', 0.25], ['traps', 0.25]];
 const HOMES = { 2: [-0.45, 0.45], 3: [-0.6, 0, 0.6], 4: [-0.72, -0.24, 0.24, 0.72] };
 const REACH = { 1: 1, 2: 0.55, 3: 0.5, 4: 0.45 };
+/* In a fight, how far apart (of their corridor places) the crew stand
+   when they're not leaning: just far enough that nobody's standing with
+   a teammate till they lean in. */
+export const FIGHT_APART = 0.7;
 const BODY = 0.1, COIN_REACH = 0.18, FOUNTAIN_REACH = 0.3;
 /* What a door can be: a fight, traps, or anything (?). Each crossroads
    has two of them, different, either way round. */
@@ -73,7 +77,7 @@ const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corrido
 export default {
   id: 'reactor-run', name: 'Reactor Run', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
   /* The moves it uses, shown as pictures on the home screen. */
-  moves: ['lean', 'jump', 'duck'],
+  moves: ['lean', 'jump', 'duck', 'clap'],
   /* Arms go up in every hop; holding them up a while is still a pause. */
   pauseHold: 2.5,
   create(n){ return new ReactorRun(n); }
@@ -212,7 +216,7 @@ class ReactorRun {
     for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
     if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
-    else if (this.fight){ this.fight.step(dt, W, H); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
+    else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
     this._stepBits(dt);
@@ -268,9 +272,10 @@ class ReactorRun {
        straight for the middle one, lean right for the right (each a little
        to one side of the others, so they don't stand on top of each other
        - never so far as another door). */
-    /* In a fight, the whole width too, but standing a little more apart. */
+    /* In a fight, the whole width too, but standing apart unless they
+       lean in to stand together. */
     const want = this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
-      : this.fight ? clamp(rn.lean + this._home(i) * 0.5, -1, 1)
+      : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
       : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
     rn.x += (want - rn.x) * Math.min(1, dt * 6);
     if (this.t - rn.lastDuck < UNDUCK) jumped = false;
@@ -320,12 +325,11 @@ class ReactorRun {
   }
 
   /* Hit: a red flash, a jolt, everyone slows a moment, and a second of
-     safety. In a corridor, never down to nothing; in a room (canDown),
-     down they go. */
-  _hurt(i, dmg, W, H, canDown = false){
+     safety. In a corridor, never down to nothing. (Fights hurt their own
+     way: see reactor-combat.js.) */
+  _hurt(i, dmg, W, H){
     const rn = this.crew[i];
-    rn.hp = Math.max(canDown ? 0 : 1, rn.hp - dmg);
-    if (rn.hp <= 0){ rn.down = true; rn.duck = 0; rn.air = 0; rn.airV = 0; }
+    rn.hp = Math.max(1, rn.hp - dmg);
     rn.safe = SAFE; rn.hit = 1;
     this.slow = SLOW_FOR; this.shake = Math.min(1, this.shake + 0.5);
     sfx.thud();
@@ -419,6 +423,7 @@ class ReactorRun {
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
     if (this.fight) for (const b of this.fight.bots) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
     for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
+    if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
     for (const it of items){ if (it.rel > 1 || it.rel < -0.12) continue; this._drawItem(c, it, W, H); }
     drawGloom(c, W, H);
@@ -438,6 +443,7 @@ class ReactorRun {
       case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.used.size >= this.here.length); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
+      case 'team': this._drawTeam(c, W, H); break;
       case 'crew': this._drawCrew(c, it.i, W, H); break;
     }
   }
@@ -453,18 +459,24 @@ class ReactorRun {
     }
   }
 
-  /* A robot - and while it winds up, a line along the floor to the one
-     it's after, in their colour. */
   _drawBot(c, b, W, H){
     const p = P(b.x, b.d, W, H);
-    if (b.wind > 0 && this.crew[b.target]){
-      const q = P(this.crew[b.target].x, RUN, W, H), u = 1 - b.wind / WIND;
-      c.save(); c.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(this.t * 14));
-      c.strokeStyle = PLAYER_COLORS[b.target]; c.lineWidth = H * 0.012; c.lineCap = 'round';
-      c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x + (q.x - p.x) * (0.4 + 0.6 * u), p.y + (q.y - p.y) * (0.4 + 0.6 * u)); c.stroke();
-      c.restore();
+    drawRustbot(c, p.x, p.y, H * 0.14 * p.k, this.t + b.seed, { swing: b.swing, flash: b.flash, hp: b.hp / b.max });
+  }
+
+  /* In a fight, teammates standing together are joined along the floor:
+     they're hitting harder for it. */
+  _drawTeam(c, W, H){
+    const up = this.here.filter(i => !this.crew[i].down);
+    c.save(); c.lineCap = 'round';
+    for (const i of up) for (const j of up){
+      if (j <= i || Math.abs(this.crew[i].x - this.crew[j].x) > BUDDY) continue;
+      const a = P(this.crew[i].x, RUN, W, H), b = P(this.crew[j].x, RUN, W, H);
+      c.globalAlpha = 0.45 + 0.2 * Math.sin(this.t * 6);
+      c.strokeStyle = '#7ff3ff'; c.lineWidth = H * 0.016;
+      c.beginPath(); c.moveTo(a.x, a.y - H * 0.01); c.lineTo(b.x, b.y - H * 0.01); c.stroke();
     }
-    drawRustbot(c, p.x, p.y, H * 0.17 * p.k, this.t + b.seed, { wind: b.wind > 0 ? 1 - b.wind / WIND : 0, swing: b.swing, flash: b.flash, hp: b.hp / b.max });
+    c.restore();
   }
 
   _drawCrew(c, i, W, H){
@@ -475,9 +487,12 @@ class ReactorRun {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
       });
-    /* Swinging at a robot: an arc in front, towards it. */
-    if (this.fight && rn.swing > 0) drawSwing(c, p.x, p.y - h * 0.45, h, rn.swing, (rn.swingAt ?? rn.x) - rn.x);
-    if (rn.down) return;
+    /* Hitting out: a ring bursting along the floor, as far as they reach. */
+    if (this.fight && rn.swing > 0){
+      const l = P(rn.x - RANGE, RUN, W, H), r = P(rn.x + RANGE, RUN, W, H);
+      drawPulse(c, p.x, p.y, (r.x - l.x) / 2, rn.swing, PLAYER_COLORS[i], rn.buddies > 0);
+    }
+    if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */
     const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
     drawHealth(c, p.x, top - H * 0.03, H * 0.1, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
@@ -524,9 +539,13 @@ class ReactorRun {
       if (b.kind === 'spark'){
         c.fillStyle = `hsla(${b.hue},100%,70%,${1 - k})`;
         c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.007 * (1 - k * 0.5), 0, 6.2832); c.fill();
+      } else if (b.kind === 'shot'){
+        c.save(); c.globalAlpha = 1 - k; c.strokeStyle = '#7ff3ff'; c.lineWidth = H * 0.012 * (1 - k * 0.5); c.lineCap = 'round';
+        c.beginPath(); c.moveTo(b.x * W, b.y * H); c.lineTo(b.x2 * W, b.y2 * H); c.stroke();
+        c.restore();
       } else if (b.kind === 'num'){
         c.save(); c.globalAlpha = 1 - k;
-        c.font = `700 ${Math.round(H * 0.045)}px Fredoka, sans-serif`; c.textAlign = 'center';
+        c.font = `700 ${Math.round(H * (b.small ? 0.028 : 0.045))}px Fredoka, sans-serif`; c.textAlign = 'center';
         c.lineWidth = H * 0.008; c.strokeStyle = '#05060f'; c.strokeText(b.text, b.x * W, b.y * H);
         c.fillStyle = b.col || '#ff6b6b'; c.fillText(b.text, b.x * W, b.y * H);
         c.restore();

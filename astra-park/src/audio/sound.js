@@ -317,10 +317,12 @@ export const sfx = {
             blip({ freq: 330 * Math.pow(2, s/12), dur: 0.42, type:'sawtooth',
                    gain:0.2, delay:i*0.13 })); },
   whoosh(){ hiss({ dur: 0.3, gain: 0.18, hp: 300, sweep: 2600 }); },
-  /* Reactor Run's fights: a swing landing on metal, a robot winding up,
-     and one bursting into scrap. */
+  /* Reactor Run's fights: a hit landing on metal, a shot, and a robot
+     bursting into scrap. */
   clank(){ blip({ freq: 980, to: 640, dur: 0.09, type: 'square', gain: 0.08 }); hiss({ dur: 0.08, gain: 0.1, hp: 2500 }); },
-  windup(){ blip({ freq: 260, to: 620, dur: 0.6, type: 'sawtooth', gain: 0.06 }); },
+  zap(){ blip({ freq: 1400, to: 300, dur: 0.18, type: 'square', gain: 0.07 }); hiss({ dur: 0.12, gain: 0.06, hp: 3000 }); },
+  /* Falling asleep: a sleepy slide down. */
+  yawn(){ blip({ freq: 520, to: 260, dur: 0.6, type: 'sine', gain: 0.14 }); blip({ freq: 390, to: 200, dur: 0.5, type: 'sine', gain: 0.08, delay: 0.25 }); },
   scrap(){ hiss({ dur: 0.45, gain: 0.26, hp: 200, sweep: -150 }); blip({ freq: 140, to: 40, dur: 0.3, type: 'sawtooth', gain: 0.16 }); },
   /* A war drum: the monsters are coming. The last beat is the big one. */
   drum(big = false){

@@ -195,36 +195,48 @@ export function drawCrew(c, x, base, h, t, col, st, face){
   c.restore();
 }
 
-/* A crew member's swing: a white arc sweeping up in front of them, leaning
-   towards dx (lanes) across. k runs 1 to 0 as it fades. */
-export function drawSwing(c, x, y, h, k, dx){
-  c.save(); c.globalAlpha = k;
-  c.strokeStyle = '#ffffff'; c.lineWidth = h * 0.06; c.lineCap = 'round';
-  const a = -Math.PI / 2 + Math.max(-0.6, Math.min(0.6, dx * 2)), sweep = (1 - k) * 1.6;
-  c.beginPath(); c.arc(x, y, h * 0.5, a - 0.9 + sweep, a + 0.2 + sweep * 0.5); c.stroke();
+/* A crew member hitting out: a ring bursting along the floor round them,
+   rx across (screen px), in their colour - brighter when they're
+   standing with a teammate. k runs 1 to 0 as it fades. */
+export function drawPulse(c, x, y, rx, k, col, team){
+  c.save(); c.globalAlpha = k * (team ? 0.9 : 0.6);
+  c.strokeStyle = team ? '#7ff3ff' : col; c.lineWidth = rx * 0.06 * (team ? 1.5 : 1);
+  const u = 0.5 + 0.5 * (1 - k);
+  c.beginPath(); c.ellipse(x, y, rx * u, rx * u * 0.22, 0, 0, 6.2832); c.stroke();
+  c.restore();
+}
+
+/* Asleep: Z z z drifting up from (x, y), s tall. */
+export function drawZzz(c, x, y, s, t){
+  c.save(); c.textAlign = 'center'; c.fillStyle = '#ffffff';
+  for (let k = 0; k < 3; k++){
+    const u = (t * 0.5 + k / 3) % 1;
+    c.globalAlpha = Math.sin(u * Math.PI);
+    c.font = `700 ${Math.round(s * (0.5 + u * 0.6))}px Fredoka, sans-serif`;
+    c.fillText('z', x - u * s * 0.6, y - u * s * 1.8);
+  }
   c.restore();
 }
 
 /* ---------- the robots ---------- */
 
 /* A rustbot: a rust-orange box on stubby legs, a head with one glowing
-   eye, an arm each side. s is its height. st: { wind 0..1 (winding up:
-   it flashes red and its arm goes up), swing 1..0 (the arm coming down),
-   flash 1..0 (just hit: white), hp 0..1 (its health bar) }. */
+   eye, an arm each side. s is its height. st: { swing 1..0 (its arm
+   coming down on someone), flash 1..0 (just hit: white), hp 0..1 (its
+   health bar) }. */
 export function drawRustbot(c, x, base, s, t, st){
   const bob = Math.sin(t * 7) * s * 0.02, w = s * 0.55;
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.6, s * 0.06, 0, 0, 6.2832); c.fill();
   c.save(); c.translate(x, base + bob);
-  const red = st.wind > 0 && Math.floor(t * 10) % 2 === 0;
-  const body = st.flash > 0.5 ? '#ffffff' : red ? '#ff3b3b' : '#c2410c';
+  const body = st.flash > 0.5 ? '#ffffff' : '#c2410c';
   /* Legs, body, head. */
   c.fillStyle = '#4b5563'; c.fillRect(-w * 0.35, -s * 0.18, w * 0.2, s * 0.18); c.fillRect(w * 0.15, -s * 0.18, w * 0.2, s * 0.18);
   box(c, -w / 2, -s * 0.7, w, s * 0.52, body);
   box(c, -w * 0.32, -s, w * 0.64, s * 0.3, st.flash > 0.5 ? '#ffffff' : '#7c2d12');
-  c.fillStyle = st.wind > 0 ? '#ff3b3b' : '#7ff3ff';
+  c.fillStyle = '#7ff3ff';
   c.beginPath(); c.arc(0, -s * 0.85, s * 0.07, 0, 6.2832); c.fill();
-  /* Arms: the right one goes up as it winds up, and comes down to swing. */
-  const lift = st.wind > 0 ? st.wind : st.swing > 0 ? -st.swing * 0.4 : 0;
+  /* Arms: the right one chops down as it swings. */
+  const lift = st.swing > 0 ? Math.sin(st.swing * Math.PI) * 0.8 : 0;
   c.fillStyle = '#9a3412';
   c.fillRect(-w * 0.72, -s * 0.62, w * 0.2, s * 0.36);
   c.save(); c.translate(w * 0.62, -s * 0.62); c.rotate(-lift * 2.4);
