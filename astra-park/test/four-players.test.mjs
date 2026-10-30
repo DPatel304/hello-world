@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pose, L, MAX_PLAYERS, PLAYER_COLORS } from '../src/tracking/pose.js';
 import { GAMES } from '../src/games/index.js';
-import forestRun from '../src/games/forest-run.js';
+import reactorRun from '../src/games/reactor-run.js';
 import boat from '../src/games/uncle-bs-boat.js';
 import danceParty from '../src/games/dance-party.js';
 import popParty from '../src/games/pop-party.js';
-import { RUN } from '../src/games/forest-art.js';
+import { RUN } from '../src/games/reactor-art.js';
 import { WATER, seatsFor } from '../src/games/fishing-art.js';
 import { standIn } from '../src/games/moon-art.js';
 
@@ -45,21 +45,21 @@ test('every game runs a while with four children and draws them', () => {
   }
 });
 
-test('Forest Run: four runners share the path, and each can lean round a stump', () => {
+test('Reactor Run: four crew share the corridor, and each can lean round debris', () => {
   row(4);
-  const inst = forestRun.create(4);
-  inst.things = []; inst.nextAt = 1e9;
+  const inst = reactorRun.create(4);
+  inst.things = [];
   run(inst, 1);
-  const xs = inst.runners.map(r => r.x);
+  const xs = inst.crew.map(r => r.x);
   for (let k = 1; k < 4; k++) assert.ok(xs[k] > xs[k - 1] + 0.3, `spread out: ${xs.map(x => x.toFixed(2))}`);
-  /* A stump right in front of the third runner; they lean away from it. */
+  /* Debris right in front of the third; they lean away from it. */
   const home = inst._home(2);
-  inst.things.push({ kind: 'stump', d: inst.z + RUN + inst.speed * 0.8, lane: home, w: 0.2 });
+  inst.things.push({ kind: 'blocker', d: inst.z + RUN + inst.speed * 0.8, a: home - 0.08, b: home + 0.08, seed: 1 });
   const lm = standIn(XS[2]);
   lm[L.L_SHOULDER] = { ...lm[L.L_SHOULDER], x: lm[L.L_SHOULDER].x + 0.03 }; lm[L.R_SHOULDER] = { ...lm[L.R_SHOULDER], x: lm[L.R_SHOULDER].x + 0.03 };
   pose.players[2].lm = lm;
   run(inst, 1.5);
-  assert.equal(inst.runners[2].down, 0, 'missed it');
+  assert.equal(inst.crew[2].hp, inst.crew[2].max, 'missed it');
 });
 
 test("Uncle B's Boat: four seats, and every child can scoop a fish", () => {

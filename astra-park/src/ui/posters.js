@@ -9,7 +9,7 @@ import { glow } from './backdrop.js';
 import { drawKid, KID_SKINS } from './kids.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
-import { P as forestP, RUN as FOREST_RUN, drawForest, drawLeaves, drawTree, drawLog, drawCrystal, drawFox, drawRunner } from '../games/forest-art.js';
+import { P as reactorP, RUN as REACTOR_RUN, drawCorridor, drawGloom, drawBeam, drawCoin, drawBot, drawCrew as drawSpaceCrew, drawBlocker } from '../games/reactor-art.js';
 import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster, drawTree as drawCastleTree, TREES, drawTent, inked } from '../games/castle-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
@@ -71,20 +71,20 @@ function danceParty(){
   };
 }
 
-function forestRun(){
+function reactorRun(){
   return (c, W, H, t) => {
     const z = t * 0.3;
-    drawForest(c, W, H, z, 0.15, t);
-    for (const [lane, rel, seed] of [[-2.2, 0.7, 1], [2.1, 0.55, 2], [-1.9, 0.3, 3], [2.0, 0.15, 4]]){ const p = forestP(lane, rel, W, H); drawTree(c, p.x, p.y, H * 0.42 * p.k, seed, 0.15); }
-    drawLog(c, W, H, 0.3, 0.15);
-    for (const k of [-1, 0, 1]){ const p = forestP(k * 0.45, 0.3, W, H); drawCrystal(c, p.x, p.y - H * 0.3 * p.k, H * 0.025 * p.k, t + k, 300 + k * 30); }
-    const f = forestP(0, 0.42, W, H); drawFox(c, f.x, f.y, H * 0.11 * f.k, t, 'run');
+    drawCorridor(c, W, H, z, t, 0);
+    drawBlocker(c, W, H, 0.55, 0.2, 1.05, t, 3);
+    drawBeam(c, W, H, 0.32, t);
+    for (const k of [-1, 0, 1]){ const p = reactorP(k * 0.45, 0.2, W, H); drawCoin(c, p.x, p.y - H * 0.11 * p.k, H * 0.022 * p.k, t + k); }
+    const b = reactorP(-0.3, 0.42, W, H); drawBot(c, b.x, b.y, H * 0.08 * b.k, t, 'fly');
     const hop = Math.max(0, Math.sin(t * 2.2)) * H * 0.08;
-    for (const [i, lane, col] of [[0, -0.45, '#3da9ff'], [1, 0.45, '#ff8a3d']]){
-      const p = forestP(lane, FOREST_RUN, W, H);
-      drawRunner(c, p.x, p.y, H * 0.26, t + i * 0.4, col, { air: i ? hop : 0, duck: 0, lean: 0, down: 0 }, (x, y, r) => drawKid(c, x, y + r * 0.1, r, t + i, KID_SKINS[i]));
-    }
-    drawLeaves(c, W, H);
+    [[0, -0.6], [1, -0.2], [2, 0.2], [3, 0.6]].forEach(([i, lane]) => {
+      const p = reactorP(lane, REACTOR_RUN, W, H);
+      drawSpaceCrew(c, p.x, p.y, H * 0.25, t + i * 0.4, ['#3da9ff', '#ff8a3d', '#3fcf7f', '#c46bff'][i], { air: i === 1 ? hop : 0, duck: 0, lean: 0 }, (x, y, r) => drawKid(c, x, y + r * 0.1, r, t + i, KID_SKINS[i]));
+    });
+    drawGloom(c, W, H);
   };
 }
 
@@ -114,7 +114,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'forest-run': forestRun, 'castle-defense': castleDefense };
+const POSTERS = { 'pop-party': popParty, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'reactor-run': reactorRun, 'castle-defense': castleDefense };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();
