@@ -18,9 +18,10 @@
    robots are still walking up, a hop fires a shot up the corridor at the
    nearest one coming.
 
-   Hug yourself to heal: you step back out of the robots' reach and get
-   HUG_HEAL health a second back - but while you're hugging you're not
-   hitting anything, and your teammates are holding the line without you.
+   While robots are still walking up to you - none in your reach yet -
+   you can hug yourself to heal: you step back and get HUG_HEAL health a
+   second back. Once one's in reach, though, there's no time for that:
+   you're fighting, hug or no hug.
 
    Run out of health and you fall asleep where you stand - only ever in a
    fight; corridors and trap rooms leave you at 1 at worst. A teammate
@@ -122,10 +123,10 @@ export class Fight {
       this.bots.push(this._bot(Math.random() * 1.8 - 0.9, 0.95 + Math.random() * 0.08));
     }
 
-    /* Who's hugging - stepped back to heal, out of it for now. */
+    /* Who's hugging - stepped back to heal - with no robot in reach yet. */
     for (const i of g.here){
       const rn = g.crew[i];
-      rn.healing = !rn.down && this.hugs[i].step(pose.players[i], dt);
+      rn.healing = this.hugs[i].step(pose.players[i], dt) && !rn.down && !this._inReach(rn).length;
       rn.back += ((rn.healing ? 1 : 0) - rn.back) * Math.min(1, dt * 6);
       if (rn.healing && rn.hp < rn.max){
         rn.hp = Math.min(rn.max, rn.hp + HUG_HEAL * dt);
@@ -207,7 +208,7 @@ export class Fight {
     const g = this.g, rn = g.crew[i], p = pose.players[i];
     rn.buddies = this.up.filter(j => j !== i && !g.crew[j].healing && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
     const power = (rn.power || 1) * (1 + TEAM * rn.buddies);
-    const near = this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE);
+    const near = this._inReach(rn);
     rn.swingT = (rn.swingT || 0) + dt;
     if (rn.swingT >= SWING && near.length){
       rn.swingT = 0; rn.swing = 1;
@@ -231,6 +232,9 @@ export class Fight {
       }
     }
   }
+
+  /* The robots within a crew member's reach. */
+  _inReach(rn){ return this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE); }
 
   _hit(b, dmg, W, H){
     const g = this.g, p = P(b.x, b.d, W, H);

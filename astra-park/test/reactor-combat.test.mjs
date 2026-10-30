@@ -175,20 +175,28 @@ function hugging(i, on = true){
   pose.players[i].lm = lm;
 }
 
-test('hugging yourself heals - stepped back out of reach, and not hitting', () => {
+test('while robots are still walking up, hugging yourself heals - not hitting, stepped back', () => {
+  const inst = fight();
+  run(inst, 0.5);
+  const x = inst.crew[0].x, bots = only(inst, [bot(x, 0.95)]);
+  inst.crew[0].hp = 50;
+  hugging(0);
+  run(inst, 2);
+  assert.ok(inst.crew[0].healing);
+  assert.ok(Math.abs(inst.crew[0].hp - (50 + HUG_HEAL * (2 - 0.3))) < 2, `hp ${inst.crew[0].hp}`);
+  pose.players[0].lm = null;
+});
+
+test('once a robot is in reach, no more hugging: you fight', () => {
   const inst = fight();
   run(inst, 0.5);
   const x = inst.crew[0].x, bots = only(inst, [bot(x)]);
   inst.crew[0].hp = 50;
   hugging(0);
-  run(inst, 3);
-  assert.ok(inst.crew[0].healing);
-  assert.ok(Math.abs(inst.crew[0].hp - (50 + HUG_HEAL * (3 - 0.3))) < 2, `hp ${inst.crew[0].hp}`);
-  assert.equal(bots[0].hp, 999, 'not hitting');
-  hugging(0, false);
-  run(inst, SWING + BOT_EVERY + 0.2);
+  run(inst, SWING + 0.5);
   assert.equal(inst.crew[0].healing, false);
-  assert.ok(bots[0].hp < 999, 'back to it');
+  assert.ok(inst.crew[0].hp <= 50, 'no healing');
+  assert.ok(bots[0].hp < 999, 'hitting');
   pose.players[0].lm = null;
 });
 
