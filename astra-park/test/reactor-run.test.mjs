@@ -159,6 +159,15 @@ test('all in front of one door locks it early', () => {
   assert.ok(left.vote > VOTE - 3.5 - LOCK - 1.5, 'well before time');
 });
 
+test('a wobble on the line between two doors does not start the lock over', () => {
+  const inst = atDoors([1]);
+  for (let k = 0; k < Math.round(LOCK / 0.2) + 2; k++){
+    toDoor(inst, 0, 1); run(inst, 0.17);
+    hand(0.5 - 0.36 * 0.5, 0.5, 0); run(inst, 0.03);
+  }
+  assert.equal(inst.doors[0], 1);
+});
+
 test('a tie goes the way the crowned guide is standing', () => {
   const inst = atDoors([2, 0]);
   const g = inst.guide, other = g === 0 ? 1 : 0;
