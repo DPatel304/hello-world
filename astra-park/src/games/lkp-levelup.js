@@ -1,9 +1,11 @@
-/* Levelling up. The team shares its XP and levels together - from the
-   things they knock out, the rooms they get through, the treasure, the
-   boss (XP) - at each of THRESHOLDS. Each level up, when things are calm
-   (in a corridor, or at the doors before they're chosen - never in the
-   middle of a fight), the game stops and every player gets three cards
-   to pick from, of UPGRADES: lean to choose - left, middle, right - and
+/* Levelling up, the Vampire Survivors way: the team shares its XP and
+   levels together, and levels up often - from the things they knock out,
+   the rooms they get through, the treasure, the boss (XP). Level ups can
+   come at any time, mid-fight too ("LEVEL UP!" and a star beside the
+   level for each one waiting), but they're picked between rooms: as the
+   next corridor starts, or at the doors before they're chosen, the game
+   stops and, for each level waiting, every player gets three cards to
+   pick from, of UPGRADES: lean to choose - left, middle, right - and
    wave to take it. Once everyone has (or after `len` seconds, whatever
    they're leaning towards), the upgrades are theirs, and on they go.
    Picking the same one again stacks it. */
@@ -11,8 +13,9 @@ import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
 
-/* XP for each level after the first: level 2 at 100, ... */
-export const THRESHOLDS = [100, 220, 360, 520, 700, 900, 1120];
+/* The XP from one level to the next: FIRST to level 2, then STEP more
+   each level after - often at first, and steadily less often. */
+export const FIRST = 30, STEP = 15;
 /* What each thing's worth. */
 export const XP = { kill: 10, fight: 50, trap: 75, trapTimeout: 25, treasure: 25, boss: 300 };
 /* The upgrades: what it's called (a word or two), a picture, and what it
@@ -25,8 +28,8 @@ export const UPGRADES = {
 };
 export const PICK_TIME = 30;
 
-/* The XP needed to reach level lvl + 1. */
-export const needFor = (lvl) => THRESHOLDS[Math.min(lvl - 1, THRESHOLDS.length - 1)] + Math.max(0, lvl - THRESHOLDS.length) * 250;
+/* The XP needed to go from level lvl to the next. */
+export const needFor = (lvl) => FIRST + STEP * (lvl - 1);
 
 export class LevelUp {
   constructor(game, len = PICK_TIME){

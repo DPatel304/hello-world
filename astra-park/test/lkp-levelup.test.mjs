@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story, MAX_HP } from '../src/games/lkp-game.js';
-import { THRESHOLDS, XP, UPGRADES, needFor } from '../src/games/lkp-levelup.js';
+import { XP, UPGRADES, needFor } from '../src/games/lkp-levelup.js';
 import { SWING, SWING_HIT, FRONT } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
@@ -29,13 +29,15 @@ function pickAt(inst, i, x, secs = 2){
 test('the team levels up at each threshold of shared XP', () => {
   crew(1);
   const inst = game.create(1);
-  inst.addXp(THRESHOLDS[0] - 1);
+  inst.addXp(needFor(1) - 1);
   assert.equal(inst.lvl, 1);
   inst.addXp(1);
   assert.equal(inst.lvl, 2);
   inst.addXp(needFor(2) + needFor(3));
   assert.equal(inst.lvl, 4);
   assert.equal(inst.pending, 3);
+  /* Often at first, then steadily less often. */
+  assert.ok(needFor(1) < needFor(5) && needFor(5) < needFor(10));
 });
 
 test('knocking things out, clearing a fight and beating the boss all give XP', () => {
@@ -44,7 +46,7 @@ test('knocking things out, clearing a fight and beating the boss all give XP', (
   inst.step(DT, W, H);
   inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
   const f = inst.fight; f.len = 999;
-  const xp = () => inst.xp + [1, 2, 3, 4, 5, 6, 7].filter(l => l < inst.lvl).reduce((s, l) => s + needFor(l), 0);
+  const xp = () => inst.xp + Array.from({ length: inst.lvl - 1 }, (_, k) => needFor(k + 1)).reduce((s, n) => s + n, 0);
   const before = xp();
   f._hit(f.bots[0], 9999, W, H);
   assert.equal(xp() - before, XP.kill);
@@ -53,12 +55,12 @@ test('knocking things out, clearing a fight and beating the boss all give XP', (
   assert.equal(xp() - before, XP.kill + XP.fight);
 });
 
-test('a level up waits for a calm moment - never mid-fight', () => {
+test('levelling up mid-fight is fine - but the picking waits till the room is over', () => {
   crew(1);
   const inst = game.create(1);
   inst.step(DT, W, H);
   inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
-  inst.addXp(THRESHOLDS[0]);
+  inst.addXp(needFor(1));
   run(inst, 1);
   assert.equal(inst.levelup, null, 'not in a fight');
   inst.fight.bots = []; inst.fight.queue = 0; inst.fight.wave = 1;
@@ -71,7 +73,7 @@ test('everyone leans to a card and waves to take it - and has it', () => {
   crew(2);
   const inst = game.create(2);
   inst.step(DT, W, H);
-  inst.addXp(THRESHOLDS[0]);
+  inst.addXp(needFor(1));
   inst.step(DT, W, H);
   const lu = inst.levelup;
   assert.ok(lu);
@@ -91,7 +93,7 @@ test('nobody picking, it takes what they lean to, in the end', () => {
   crew(1);
   const inst = game.create(1);
   inst.step(DT, W, H);
-  inst.addXp(THRESHOLDS[0]);
+  inst.addXp(needFor(1));
   inst.step(DT, W, H);
   inst.levelup.len = 2;
   run(inst, 2.5);
@@ -121,7 +123,7 @@ test('the level up draws', () => {
   crew(3);
   const inst = game.create(3);
   inst.step(DT, W, H);
-  inst.addXp(THRESHOLDS[0]); inst.step(DT, W, H);
+  inst.addXp(needFor(1)); inst.step(DT, W, H);
   inst.levelup.took[1] = 2;
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
 });

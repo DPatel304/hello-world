@@ -15,6 +15,11 @@
                     is 'nova' or 'robot'; words, a few under the speaker,
                     or none. 'PRAISE' in `won` is each player, by colour.
 
+   A run is five levels, one after another (only the first is built so
+   far): hard, Slay the Spire hard - losing is normal, and the fun is
+   getting further next time. The doors are the run's path, chosen
+   blind: there's no map of what's ahead.
+
    A new level is a new entry (and, if it needs one, a new boss). */
 
 export const LEVELS = [

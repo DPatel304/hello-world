@@ -335,9 +335,9 @@ class LastKnownPosition {
       this.bits.push({ kind: 'num', x: 0.5, y: 0.2, vy: -0.04, age: 0, life: 1.6, text: 'LEVEL UP!', col: '#ffd24a' });
     }
   }
-  /* Calm enough to stop for a level up: a corridor, or the doors before
-     they're chosen. */
-  get calm(){ return !this.over && (this.seg.kind === 'corridor' || (this.seg.kind === 'cross' && this.seg.choice == null)); }
+  /* Calm enough to stop for level ups - between rooms: a corridor just
+     starting, or the doors before they're chosen. */
+  get calm(){ return !this.over && ((this.seg.kind === 'corridor' && this.seg.t < 1.5) || (this.seg.kind === 'cross' && this.seg.choice == null)); }
 
   /* What Nova calls what's behind a door - and the fights, here and now. */
   behind(kind){ return kind === 'combat' ? this.foes : kind === 'traps' ? 'traps' : 'who knows what'; }
@@ -769,6 +769,9 @@ class LastKnownPosition {
       c.fillStyle = '#a78bfa'; c.fillRect(x0, y0, w * Math.min(1, this.xp / needFor(this.lvl)), H * 0.012);
       c.font = `700 ${Math.round(H * 0.026)}px Fredoka, sans-serif`; c.textAlign = 'right'; c.textBaseline = 'middle';
       c.fillStyle = '#e9e3ff'; c.fillText(`LV ${this.lvl}`, x0 - H * 0.012, y0 + H * 0.006);
+      /* A star for each level up waiting to be picked. */
+      c.textAlign = 'left'; c.fillStyle = '#ffd24a';
+      if (this.pending > 0) c.fillText('\u2605'.repeat(Math.min(5, this.pending)), x0 + w + H * 0.012, y0 + H * 0.006);
       c.restore();
     }
     /* The boss's health, big across the top. */
