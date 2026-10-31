@@ -26,7 +26,9 @@ function boss(n = 1){
   const inst = game.create(n);
   run(inst, 0.2);
   inst.things = [];
-  inst.step_ = 6; inst._next();
+  /* The Warden, whichever level's boss it is. */
+  inst.level = { ...inst.level, boss: 'warden', bossName: 'Warden' };
+  inst.step_ = inst.level.plan.indexOf('boss') - 1; inst._next();
   assert.equal(inst.phase, 'boss');
   inst.boss.len = Infinity;
   return inst;
@@ -142,7 +144,8 @@ test('a playtest Warden can be beaten in time by a crew that just stands there a
   crew(2);
   const inst = game.create(2);
   run(inst, 0.2);
-  inst.step_ = 6; inst._next();
+  inst.level = { ...inst.level, boss: 'warden', bossName: 'Warden' };
+  inst.step_ = inst.level.plan.indexOf('boss') - 1; inst._next();
   let t = 0;
   while (!inst.over && t < 120){
     const a = tell(inst);

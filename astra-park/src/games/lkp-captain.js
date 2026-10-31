@@ -1,24 +1,25 @@
-/* Last Known Position's captain: Captain Nova, on the crew's own ship, talking
-   them through the job over the radio - their guide, their teacher and
-   the story's narrator.
+/* Last Known Position's voice in your ear: Nova, the crew's ship's
+   computer, talking them through it from the wreck over the radio -
+   their guide, their teacher and the story's narrator.
 
    In play she's a small window up in the top left: it slides in, her face
    in it talking, and slides away when she's done. She says it out loud
    (voice.js) - children can't read fast - with no more than a word or
-   three under her window. She teaches by noticing: the first debris,
+   three under her window. She teaches by noticing: the first fallen tree,
    "Lean!"; the first one asleep, "Clap!" - each tip once a run.
 
-   And there are three little scenes, the only times the game stops for
-   her: the opening (the crew's ship docking with the wreck, and the job),
-   the Warden showing itself before the boss fight, and the ending - home,
-   or pulled out asleep. Any player waving skips one.
+   And there are a few little scenes, the only times the game stops for
+   her: the level opening (its name, its goal, the job), the boss showing
+   itself, and the ending - level clear, or pulled out asleep. What's said
+   in them is the level's (lkp-levels.js). Any player waving skips one.
 
    Warm and encouraging, a bit of action-film drama, never scary. */
-import { pose, PLAYER_COLORS } from '../tracking/pose.js';
+import { pose } from '../tracking/pose.js';
+import { PAL } from './lkp-art.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
 import { voice, lineTime } from '../audio/voice.js';
 
-export const CAPTAIN = 'Nova';
+export const NOVA = 'Nova';
 /* Each player by their colour, as she'd call them. */
 export const NAMES = ['Blue', 'Orange', 'Green', 'Purple'];
 /* After a line's said, it stays up this long. */
@@ -32,7 +33,7 @@ export class Captain {
   /* Say text (words: the few words under her window). once: a tip given
      only once a run. Lines cut in, unless polite, when they wait their
      turn. Returns whether it'll be said. */
-  say(text, words = '', { once = null, polite = false, who = 'captain' } = {}){
+  say(text, words = '', { once = null, polite = false, who = 'nova' } = {}){
     if (once){ if (this.said.has(once)) return false; this.said.add(once); }
     const line = { text, words, who, t: 0, len: lineTime(text, who) + HOLD };
     if (polite && this.line){ this.queue.push(line); return true; }
@@ -69,15 +70,15 @@ export class Captain {
   }
 }
 
-/* A radio window at (x, y), w x h, with the captain in it - or the Warden
-   (who) - talking or not; static, 0..1, over it. */
-function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'captain'){
+/* A radio window at (x, y), w x h, with Nova in it - or a robot (who),
+   called label - talking or not; static, 0..1, over it. */
+function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', label = 'ROBOT'){
   c.save();
-  c.fillStyle = '#0b1220'; c.strokeStyle = who === 'warden' ? '#ff3b3b' : '#3fd0ff'; c.lineWidth = h * 0.03;
+  c.fillStyle = '#0b1220'; c.strokeStyle = who === 'robot' ? '#ff3b3b' : '#3fd0ff'; c.lineWidth = h * 0.03;
   c.beginPath(); c.roundRect(x, y, w, h, h * 0.08); c.fill();
   c.save(); c.clip();
-  if (who === 'warden') wardenFace(c, x + w / 2, y + h * 0.5, h * 0.42, t, talking);
-  else captainFace(c, x + w / 2, y + h * 0.56, h * 0.36, t, talking);
+  if (who === 'robot') robotFace(c, x + w / 2, y + h * 0.5, h * 0.42, t, talking);
+  else novaFace(c, x + w / 2, y + h * 0.56, h * 0.36, t, talking);
   /* Scan lines, and a fizz of static. */
   c.fillStyle = 'rgba(0,0,0,.18)';
   for (let k = 0; k < h; k += 4) c.fillRect(x, y + k, w, 1.5);
@@ -89,15 +90,16 @@ function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'captain'){
   c.stroke();
   /* Her name, small, on the frame. */
   c.font = `700 ${Math.round(h * 0.11)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillStyle = who === 'warden' ? '#ff3b3b' : '#3fd0ff';
-  c.fillText(who === 'warden' ? 'WARDEN' : CAPTAIN.toUpperCase(), x + w / 2, y + h * 0.92);
+  c.fillStyle = who === 'robot' ? '#ff3b3b' : '#3fd0ff';
+  c.fillText(who === 'robot' ? label : NOVA.toUpperCase(), x + w / 2, y + h * 0.92);
   c.restore();
 }
 
-/* Captain Nova: short dark hair, warm brown skin, a headset with a mic,
-   a teal uniform collar - and a smile. Her mouth moves while she talks;
-   she blinks now and then. r is her head's size. */
-export function captainFace(c, x, y, r, t, talking){
+/* Nova, as the ship shows her: short dark hair, warm brown skin, a
+   headset with a mic, a teal crew collar - and a smile - with a faint
+   hologram shimmer. Her mouth moves while she talks; she blinks now and
+   then. r is her head's size. */
+export function novaFace(c, x, y, r, t, talking){
   const ink = '#2b2440', skin = '#a8714f', hair = '#2a1a14';
   c.save();
   /* Shoulders, in uniform. */
@@ -131,11 +133,14 @@ export function captainFace(c, x, y, r, t, talking){
   c.fillStyle = '#3a4057'; c.beginPath(); c.roundRect(x - r * 1.02, y - r * 0.15, r * 0.24, r * 0.4, r * 0.08); c.fill();
   c.lineWidth = r * 0.05; c.beginPath(); c.moveTo(x - r * 0.9, y + r * 0.2); c.quadraticCurveTo(x - r * 0.7, y + r * 0.55, x - r * 0.3, y + r * 0.5); c.stroke();
   c.fillStyle = '#3fd0ff'; c.beginPath(); c.arc(x - r * 0.28, y + r * 0.5, r * 0.06, 0, 6.2832); c.fill();
+  /* The shimmer: she's the ship's computer, after all. */
+  c.globalAlpha = 0.1 + 0.05 * Math.sin(t * 3); c.fillStyle = '#7ff3ff';
+  c.fillRect(x - r * 1.3, y - r * 1.2, r * 2.6, r * 3);
   c.restore();
 }
 
-/* The Warden on the radio: its great eye, red, pulsing as it speaks. */
-function wardenFace(c, x, y, r, t, talking){
+/* A robot on the radio: one great eye, red, pulsing as it speaks. */
+function robotFace(c, x, y, r, t, talking){
   c.save();
   c.fillStyle = '#2c3142'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
   const k = talking ? 0.5 + 0.12 * Math.sin(t * 18) : 0.45;
@@ -148,38 +153,22 @@ function wardenFace(c, x, y, r, t, talking){
 
 /* ---------- the scenes ---------- */
 
-/* What's said in each scene, in order: [who, text, words]. */
+/* What's said in a scene of the level's, in order: [who, text, words].
+   'PRAISE' is each player there, by their colour. */
 export function script(kind, game){
-  const here = game ? game.here : [];
-  if (kind === 'opening') return [
-    ['captain', `Crew, this is Captain ${CAPTAIN}. Can you hear me?`, ''],
-    ['captain', 'That wreck out there is a reactor ship, and its security computer, the Warden, has gone haywire.', ''],
-    ['captain', 'Get to the reactor core and shut it down. I\'ll be in your ear the whole way.', 'GET TO THE CORE'],
-    ['captain', 'Ready, crew? Let\'s go!', 'GO!']
-  ];
-  if (kind === 'warden') return [
-    ['warden', 'Intruders. You will go no further.', 'INTRUDERS.'],
-    ['captain', 'That\'s the Warden! This is it, crew. Take it down!', 'TAKE IT DOWN!']
-  ];
-  if (kind === 'won'){
-    const cheers = ['great dodging', 'amazing fighting', 'super running', 'brilliant teamwork'];
-    const praise = here.map((i, k) => `${NAMES[i]}, ${cheers[(i + k) % cheers.length]}!`).join(' ');
-    return [
-      ['captain', 'You did it! The Warden\'s shut down and the reactor\'s safe.', 'YOU DID IT!'],
-      ...(praise ? [['captain', praise, '']] : []),
-      ['captain', 'Come on home, crew. Dinner\'s on me.', '']
-    ];
-  }
-  return [
-    ['captain', 'Everyone\'s out cold! Hang on, I\'m pulling you back to the ship.', ''],
-    ['captain', 'That was brave, crew. We\'ll get it next time!', 'NEXT TIME!']
-  ];
+  const here = game ? game.here : [], cheers = ['great dodging', 'amazing fighting', 'super running', 'brilliant teamwork'];
+  const praise = here.map((i, k) => `${NAMES[i]}, ${cheers[(i + k) % cheers.length]}!`).join(' ');
+  return ((game && game.level.lines[kind]) || []).flatMap(l => l === 'PRAISE' ? (praise ? [['nova', praise, '']] : []) : [l]);
 }
 
 export class Scene {
   constructor(kind, game){
     this.kind = kind; this.t = 0; this.k = -1; this.line = null; this.done = false;
     this.lines = script(kind, game);
+    /* The robot on the radio: the boss by name, or just the robots. */
+    this.label = (kind === 'boss' && game ? game.level.bossName : 'Robots').toUpperCase();
+    /* Opening a level: its name and goal, big, at the top. */
+    this.title = kind === 'opening' && game ? [game.level.name, game.level.goal] : null;
     this.waves = new WaveWatch(); this.n = game ? game.players : 4;
     this._next();
   }
@@ -201,17 +190,27 @@ export class Scene {
     if (this.line.t >= this.line.len) this._next();
   }
 
-  /* The scene, behind - drawn by the caller - then her (or the Warden),
-     big, on the radio, the words, and a hand to wave in the corner. */
+  /* The scene, behind - drawn by the caller - then the level's name, her
+     (or a robot), big, on the radio, the words, and a hand to wave in
+     the corner. */
   draw(c, W, H){
     if (!this.line) return;
+    if (this.title){
+      c.save(); c.globalAlpha = Math.min(1, this.t * 1.5); c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.lineWidth = H * 0.012; c.strokeStyle = '#05060f';
+      c.font = `700 ${Math.round(H * 0.09)}px Fredoka, sans-serif`;
+      c.strokeText(this.title[0].toUpperCase(), W / 2, H * 0.13); c.fillStyle = '#ffffff'; c.fillText(this.title[0].toUpperCase(), W / 2, H * 0.13);
+      c.font = `700 ${Math.round(H * 0.045)}px Fredoka, sans-serif`;
+      c.strokeText(this.title[1].toUpperCase(), W / 2, H * 0.23); c.fillStyle = '#ffd24a'; c.fillText(this.title[1].toUpperCase(), W / 2, H * 0.23);
+      c.restore();
+    }
     const who = this.line.who, s = H * 0.36, x = W * 0.06, y = H * 0.38;
-    radio(c, x, y, s, s, this.t, this.talking, Math.max(0, 1 - this.t * 3), who);
+    radio(c, x, y, s, s, this.t, this.talking, Math.max(0, 1 - this.t * 3), who, this.label);
     if (this.line.words){
       c.save();
       c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
       c.lineWidth = H * 0.012; c.strokeStyle = '#05060f'; c.strokeText(this.line.words, x + s + H * 0.05, y + s * 0.5);
-      c.fillStyle = who === 'warden' ? '#ff5b5b' : '#ffffff'; c.fillText(this.line.words, x + s + H * 0.05, y + s * 0.5);
+      c.fillStyle = who === 'robot' ? '#ff5b5b' : '#ffffff'; c.fillText(this.line.words, x + s + H * 0.05, y + s * 0.5);
       c.restore();
     }
     /* Wave to skip: a hand, with how much of a wave it's had. */
@@ -227,48 +226,54 @@ export class Scene {
   }
 }
 
-/* The backdrops. The opening: stars, the great dark wreck with its sick
-   red reactor glow, and the crew's little ship flying in to dock. */
-export function drawOpening(c, W, H, t){
-  c.fillStyle = '#05060f'; c.fillRect(0, 0, W, H);
-  stars(c, W, H, t);
-  /* The wreck. */
-  const wx = W * 0.68, wy = H * 0.45, ws = H * 0.5;
-  c.fillStyle = '#2c3142'; c.strokeStyle = '#0b0d1c'; c.lineWidth = 4;
-  c.beginPath(); c.roundRect(wx - ws, wy - ws * 0.35, ws * 2, ws * 0.7, ws * 0.12); c.fill(); c.stroke();
-  c.fillRect(wx - ws * 0.4, wy - ws * 0.6, ws * 0.8, ws * 0.3);
-  for (let k = 0; k < 7; k++){ c.fillStyle = k % 3 ? '#1b1f2e' : '#ffb02e'; c.fillRect(wx - ws * 0.85 + k * ws * 0.26, wy - ws * 0.1, ws * 0.12, ws * 0.06); }
-  const g = c.createRadialGradient(wx + ws * 0.6, wy, 0, wx + ws * 0.6, wy, ws * 0.4);
-  g.addColorStop(0, `rgba(255,70,70,${0.7 + 0.2 * Math.sin(t * 3)})`); g.addColorStop(1, 'rgba(255,70,70,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(wx + ws * 0.6, wy, ws * 0.4, 0, 6.2832); c.fill();
-  /* The crew's ship, flying in, slowing to dock at the wreck's side. */
-  const u = Math.min(1, t / 10), e = 1 - (1 - u) * (1 - u);
-  const sx = W * (0.15 + 0.23 * e), sy = H * (0.95 - 0.35 * e) + Math.sin(t * 2) * H * 0.005;
-  ship(c, sx, sy, H * 0.06, t);
-}
+/* The backdrops, in the level's colours. The crash site: the forest at
+   dawn, the ship's wreck far off on a hill, smoke still rising from it. */
+export function drawOpening(c, W, H, t){ landscape(c, W, H, t, 0); }
 
-/* Before the boss: the arena dark, the Warden's eye opening. (The arena
-   itself the game draws; this darkens it and lights the eye.) */
-export function drawWardenRising(c, W, H, t){
+/* Before a boss: its arena, darkening. (The game draws the arena; this
+   darkens it.) */
+export function drawBossRising(c, W, H, t){
   c.fillStyle = `rgba(5,6,15,${Math.max(0.35, 0.8 - t * 0.1)})`; c.fillRect(0, 0, W, H);
 }
 
-/* The ending: the wreck dark and still, the crew's ship flying home - or
-   the beam pulling them back. */
+/* The level's end: the same land - lit gold and sparkling for a level
+   cleared, dim for a crew pulled out. */
 export function drawEnding(c, W, H, t, won){
-  c.fillStyle = '#05060f'; c.fillRect(0, 0, W, H);
-  stars(c, W, H, t);
-  const wx = W * 0.75, wy = H * 0.45, ws = H * 0.4;
-  c.fillStyle = '#20232f'; c.beginPath(); c.roundRect(wx - ws, wy - ws * 0.35, ws * 2, ws * 0.7, ws * 0.12); c.fill();
-  if (won){
-    const u = Math.min(1, t / 12);
-    ship(c, W * (0.45 + 0.6 * u * u), H * (0.5 - 0.2 * u), H * 0.06, t);
-    for (let k = 0; k < 6; k++){ const a = t * 0.5 + k; c.fillStyle = `hsl(${(k * 60 + t * 40) % 360},90%,70%)`; c.beginPath(); c.arc(W * (0.3 + 0.4 * ((k * 0.37 + t * 0.05) % 1)), H * (0.2 + 0.1 * Math.sin(a)), H * 0.006, 0, 6.2832); c.fill(); }
-  } else {
-    ship(c, W * 0.42, H * 0.3, H * 0.06, t);
-    c.fillStyle = `rgba(127,243,255,${0.2 + 0.1 * Math.sin(t * 8)})`;
-    c.beginPath(); c.moveTo(W * 0.42 - H * 0.03, H * 0.33); c.lineTo(W * 0.42 + H * 0.03, H * 0.33); c.lineTo(wx - ws * 0.5, wy + ws * 0.3); c.lineTo(wx - ws * 0.9, wy + ws * 0.3); c.fill();
+  landscape(c, W, H, t, won ? 1 : -1);
+  if (won) for (let k = 0; k < 8; k++){
+    const a = t * 0.5 + k;
+    c.fillStyle = `hsl(${(k * 45 + t * 40) % 360},90%,70%)`;
+    c.beginPath(); c.arc(W * (0.2 + 0.6 * ((k * 0.37 + t * 0.05) % 1)), H * (0.25 + 0.1 * Math.sin(a)), H * 0.007, 0, 6.2832); c.fill();
   }
+}
+
+/* The level's land, from the edge of the forest: sky, far hills, the
+   wreck on one with its smoke, and dark trees in front. mood: 0 dawn, 1
+   bright, -1 dim. */
+function landscape(c, W, H, t, mood){
+  const g = c.createLinearGradient(0, 0, 0, H * 0.7);
+  g.addColorStop(0, mood < 0 ? '#0b1018' : '#1d2b4a'); g.addColorStop(1, mood < 0 ? '#1a1e26' : mood > 0 ? '#f6c87a' : '#e89a6a');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  if (mood <= 0) stars(c, W, H * 0.4, t);
+  c.fillStyle = PAL.floor;
+  c.beginPath(); c.moveTo(0, H * 0.62); c.quadraticCurveTo(W * 0.3, H * 0.5, W * 0.6, H * 0.58); c.quadraticCurveTo(W * 0.85, H * 0.5, W, H * 0.6); c.lineTo(W, H); c.lineTo(0, H); c.fill();
+  /* The wreck, small and far, and its smoke. */
+  const wx = W * 0.74, wy = H * 0.53;
+  c.fillStyle = '#9aa3b5'; c.save(); c.translate(wx, wy); c.rotate(-0.2);
+  c.beginPath(); c.moveTo(-H * 0.06, 0); c.lineTo(H * 0.05, -H * 0.015); c.quadraticCurveTo(H * 0.08, 0, H * 0.05, H * 0.015); c.closePath(); c.fill();
+  c.restore();
+  if (mood <= 0) for (let k = 0; k < 6; k++){
+    const u = ((t * 0.15 + k / 6) % 1);
+    c.fillStyle = `rgba(160,160,170,${0.35 * (1 - u)})`;
+    c.beginPath(); c.arc(wx + u * H * 0.06, wy - H * 0.02 - u * H * 0.25, H * (0.015 + u * 0.03), 0, 6.2832); c.fill();
+  }
+  /* Trees in front. */
+  for (let k = 0; k < 14; k++){
+    const x = (k / 13) * W, h = H * (0.25 + ((k * 37) % 10) / 40), w = h * 0.4, y = H * 1.02;
+    c.fillStyle = PAL.trees || '#1f5a34';
+    c.beginPath(); c.moveTo(x, y - h); c.lineTo(x + w / 2, y); c.lineTo(x - w / 2, y); c.fill();
+  }
+  if (mood < 0){ c.fillStyle = 'rgba(5,6,15,.35)'; c.fillRect(0, 0, W, H); }
 }
 
 function stars(c, W, H, t){
@@ -277,17 +282,4 @@ function stars(c, W, H, t){
     c.fillStyle = `rgba(255,255,255,${0.3 + 0.5 * ((k * 7) % 10) / 10})`;
     c.fillRect(x, y, 2, 2);
   }
-}
-
-/* The crew's ship: a chunky little shuttle with a cyan engine glow. */
-function ship(c, x, y, s, t){
-  c.save(); c.translate(x, y);
-  c.fillStyle = `rgba(127,243,255,${0.5 + 0.3 * Math.sin(t * 20)})`;
-  c.beginPath(); c.moveTo(-s * 1.6, -s * 0.25); c.lineTo(-s * 2.3 - Math.random() * s * 0.3, 0); c.lineTo(-s * 1.6, s * 0.25); c.fill();
-  c.fillStyle = '#e8ecf5'; c.strokeStyle = '#0b0d1c'; c.lineWidth = 3;
-  c.beginPath(); c.moveTo(-s * 1.6, -s * 0.5); c.lineTo(s * 0.9, -s * 0.5); c.quadraticCurveTo(s * 1.6, 0, s * 0.9, s * 0.5); c.lineTo(-s * 1.6, s * 0.5); c.closePath(); c.fill(); c.stroke();
-  c.fillStyle = '#3fd0ff'; c.beginPath(); c.roundRect(s * 0.3, -s * 0.3, s * 0.6, s * 0.3, s * 0.1); c.fill();
-  c.fillStyle = PLAYER_COLORS[0]; c.fillRect(-s * 1.2, -s * 0.15, s * 0.3, s * 0.3);
-  c.fillStyle = PLAYER_COLORS[1]; c.fillRect(-s * 0.8, -s * 0.15, s * 0.3, s * 0.3);
-  c.restore();
 }

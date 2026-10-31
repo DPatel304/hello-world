@@ -105,7 +105,7 @@ test('the first one over the line opens the door for everyone, and the run goes 
   assert.ok(inst.trap.done);
   assert.ok(inst.crew[1].along < 0.1, 'the other never moved');
   run(inst, 2);
-  assert.equal(inst.phase, 'corridor');
+  assert.notEqual(inst.phase, 'room', 'and on');
   assert.equal(inst.coins - coins, CLEAR_COINS);
 });
 
@@ -127,7 +127,7 @@ test('while playtesting, a trap room is over in twice PLAYTEST seconds', () => {
   while (inst.trap && t < 200){ run(inst, DT); t += DT; }
   assert.ok(t <= (PLAYTEST * 2 || TRAP_MAX) + 3, `${t}s`);
   assert.equal(inst.coins, 0, 'nobody over the line: no coins');
-  assert.equal(inst.phase, 'corridor');
+  assert.notEqual(inst.phase, 'room', 'and on');
 });
 
 test('a trap room draws', () => {

@@ -21,7 +21,7 @@
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
-import { drawCoin } from './lkp-art.js';
+import { drawCoin, PAL } from './lkp-art.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
    red to start, before the first green. */
@@ -114,11 +114,11 @@ export class Lights {
      drawing, at their places in the hall. */
   draw(c, W, H, drawCrew){
     const g = this.g, red = this.light === 'red', lamp = { green: '#3fcf7f', yellow: '#ffc531', red: '#ff3b3b' }[this.light];
-    c.fillStyle = '#141826'; c.fillRect(0, 0, W, H);
+    c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
     /* The floor, with lines across it every so far up, the start, and the
        finish. */
     const corner = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
-    c.fillStyle = red ? '#2e1d26' : '#232a3c';
+    c.fillStyle = red ? PAL.hallRed : PAL.hallFloor;
     c.beginPath(); c.moveTo(...corner(-1.1, -0.1)); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(1.1, 1.15)); c.lineTo(...corner(-1.1, 1.15)); c.closePath(); c.fill();
     c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 2;
     for (let k = 1; k < 16; k++){ c.beginPath(); c.moveTo(...corner(-1.1, k / 16)); c.lineTo(...corner(1.1, k / 16)); c.stroke(); }

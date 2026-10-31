@@ -5,12 +5,19 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz,
-         drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './lkp-art.js';
-import { Fight, RANGE, BUDDY, FRONT } from './lkp-combat.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette } from './lkp-art.js';
+import { Fight, RANGE, BUDDY } from './lkp-combat.js';
 import { Lights } from './lkp-trap.js';
-import { Warden, SLAM_W } from './lkp-boss.js';
-import { Captain, Scene, NAMES, drawOpening, drawWardenRising, drawEnding } from './lkp-captain.js';
+import { Warden } from './lkp-boss.js';
+import { Scout } from './lkp-scout.js';
+import { Depot } from './lkp-depot.js';
+import { LEVELS } from './lkp-levels.js';
+import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
+
+/* The bosses, by the name a level gives (lkp-levels.js). Each is a fight
+   with its own step(dt, W, H, jumped), arena(), items(), hud() and
+   cues() - see the Scout. */
+const BOSSES = { scout: Scout, warden: Warden };
 
 /* Last Known Position. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
@@ -37,16 +44,6 @@ export const SPEED = 0.3;                       /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
    play itself). */
 export const story = { on: true };
-/* Nova's first tip for each thing in a corridor, said as it comes. */
-const TIPS = {
-  coin: ['Grab those coins!', 'COINS!'],
-  blocker: ['Junk ahead! Lean to slide around it.', 'LEAN!'],
-  beam: ['Low pipe! Duck under it!', 'DUCK!'],
-  gap: ['Hole in the floor! Hop over it!', 'HOP!'],
-  fountain: ['A repair station! Run through it to fix yourselves up.', 'HEAL']
-};
-/* What she calls each kind of door. */
-const BEHIND = { combat: 'robots', traps: 'traps', mystery: 'who knows what' };
 
 /* While we playtest the mechanics, every part of the run is PLAYTEST
    seconds long - each corridor, and at most each fight - so it's quick
@@ -96,6 +93,8 @@ const REACH = { 1: 1, 2: 0.55, 3: 0.5, 4: 0.45 };
    when they're not leaning: just far enough that nobody's standing with
    a teammate till they lean in. */
 export const FIGHT_APART = 0.7;
+/* A sentence starting with a capital. */
+const cap1 = (s) => s[0].toUpperCase() + s.slice(1);
 const BODY = 0.1, COIN_REACH = 0.18, FOUNTAIN_REACH = 0.3;
 /* What a door can be: a fight, traps, or anything (?). Each crossroads
    has two of them, different, either way round. */
@@ -104,7 +103,6 @@ const twoDoors = () => {
   const k = DOOR_KINDS.slice().sort(() => Math.random() - 0.5);
   return [k[0], k[1]];
 };
-const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'];
 
 export default {
   id: 'last-known-position', name: 'Last Known Position', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
@@ -112,19 +110,25 @@ export default {
   moves: ['lean', 'jump', 'duck', 'clap', 'hug'],
   /* Arms go up in every hop; holding them up a while is still a pause. */
   pauseHold: 2.5,
-  create(n){ return new ReactorRun(n); }
+  create(n){ return new LastKnownPosition(n); }
 };
 
-class ReactorRun {
+class LastKnownPosition {
   constructor(players){
     this.players = players;
+    /* The level being played (only the first, for now), in its colours;
+       its robots asleep till its depot wakes them. */
+    this.level = LEVELS[0];
+    setPalette(this.level.palette);
+    this.awake = !this.level.plan.includes('depot');
+    this.depot = null;
     this.t = 0; this.over = false; this.lost = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.zoom = 0;                  /* how far the view has closed in, 0..1 */
     this.coins = 0; this.kills = 0;
     this.fight = null;              /* the fight, in a combat room */
     this.trap = null;               /* the trap, in a trap room */
-    this.boss = null;               /* the Warden, at the end */
+    this.boss = null;               /* the level's boss, at the end */
     this.faces = new FaceCam();
     this.captain = new Captain();
     this.scene = story.on ? new Scene('opening', this) : null;
@@ -151,11 +155,11 @@ class ReactorRun {
 
   _next(){
     this.step_++;
-    const kind = PLAN[this.step_] || 'end';
+    const plan = this.level.plan, kind = plan[this.step_] || 'end';
     this.seg = { kind, t: 0 };
-    this.fight = null; this.trap = null; this.boss = null;
+    this.fight = null; this.trap = null; this.boss = null; this.depot = null;
     if (kind === 'corridor'){
-      const n = PLAN.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
+      const n = plan.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
       this.seg.len = CORRIDOR[n] || 45;
       this._layout(n);
@@ -175,10 +179,15 @@ class ReactorRun {
       /* A longer hall: twice the playtest time to get up it. */
       if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
       sfx.whoosh();
+    } else if (kind === 'depot'){
+      this.depot = new Depot(this);
+      this.things = [];
+      if (story.on){ const [, text, words] = this.level.lines.depot[0]; this.captain.say(text, words); }
     } else if (kind === 'boss'){
-      if (story.on) this.scene = new Scene('warden', this);
-      /* While playtesting, a Warden you can beat in a playtest's time. */
-      this.boss = PLAYTEST ? new Warden(this, PLAYTEST * 2, 0.35) : new Warden(this);
+      if (story.on) this.scene = new Scene('boss', this);
+      /* While playtesting, a boss you can beat in a playtest's time. */
+      const Boss = BOSSES[this.level.boss];
+      this.boss = PLAYTEST ? new Boss(this, PLAYTEST * 2, 0.35) : new Boss(this);
       this.fight = this.boss.fight;
       this.things = [];
     } else if (kind === 'end'){
@@ -270,7 +279,7 @@ class ReactorRun {
     const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
     this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
     if (seg.kind === 'room') want = this.fight || this.trap ? 0 : SPEED * 0.4;
-    if (seg.kind === 'boss') want = 0;
+    if (seg.kind === 'boss' || seg.kind === 'depot') want = 0;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
     this.z += this.speed * dt;
@@ -281,12 +290,23 @@ class ReactorRun {
     else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
     else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > 1.5) this._next(); }
+    else if (this.depot){
+      this.depot.step(dt, W, H);
+      /* Woken: the robots speak, and on. */
+      if (this.depot.done){ this._next(); if (story.on) this.scene = new Scene('waking', this); }
+    }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
     this._stepBits(dt);
   }
 
-  /* ---------- the captain's tips ---------- */
+  /* What Nova calls what's behind a door - and the fights, here and now. */
+  behind(kind){ return kind === 'combat' ? this.foes : kind === 'traps' ? 'traps' : 'who knows what'; }
+  get foes(){ const e = this.level.enemies; return this.awake ? e.awakeName : e.wildName; }
+  /* Who's in a fight here and now: the level's wildlife, or its robots. */
+  get enemy(){ const e = this.level.enemies; return this.awake ? e.awake : e.wild; }
+
+  /* ---------- the ship's computer's tips ---------- */
 
   /* Nova noticing what's happening, and saying something - each tip
      once a run, the rest when they matter. */
@@ -296,7 +316,7 @@ class ReactorRun {
       for (const th of this.things){
         const ahead = th.d - this.z - RUN;
         if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
-        const kind = th.kind === 'ledge' ? 'gap' : th.kind, tip = TIPS[kind];
+        const kind = th.kind === 'ledge' ? 'gap' : th.kind, tip = this.level.tips[kind];
         if (tip && cap.say(tip[0], tip[1], { once: kind })) break;
       }
     }
@@ -304,12 +324,12 @@ class ReactorRun {
       seg.told = true;
       const [a, b] = seg.kinds;
       if (!cap.say('Two doors! Lean to the one you want, and stay there till time\'s up.', 'PICK A DOOR', { once: 'doors' }))
-        cap.say(`${BEHIND[a][0].toUpperCase() + BEHIND[a].slice(1)} on the left, ${BEHIND[b]} on the right. Your call!`, '');
+        cap.say(`${cap1(this.behind(a))} on the left, ${this.behind(b)} on the right. Your call!`, '');
     }
     if (f && !bs && !seg.told){
       seg.told = true;
-      if (!cap.say('Robots! You\'ll hit them on your own. Stand close together to hit harder!', 'STAND TOGETHER', { once: 'fight' }))
-        cap.say(['Here they come!', 'More robots! Stick together!', 'Stand together, crew!'][Math.floor(Math.random() * 3)], '');
+      if (!cap.say(`${cap1(this.foes)}! You'll hit them on your own. Stand close together to hit harder!`, 'STAND TOGETHER', { once: 'fight' }))
+        cap.say(['Here they come!', `More ${this.foes}! Stick together!`, 'Stand together, crew!'][Math.floor(Math.random() * 3)], '');
     }
     if (f && !f.done && !bs){
       if (f.t > 4 && f.bots.some(b => b.d > 0.2)) cap.say('Jump to zap them while they\'re still coming!', 'JUMP!', { once: 'zap', polite: true });
@@ -335,13 +355,7 @@ class ReactorRun {
     }
     if (tr && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
     if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The coins are yours.', ''); }
-    if (bs && !bs.done){
-      if (bs.arms.some(a => a.state === 'tell')) cap.say('Watch the red stripe! Get out from under it!', 'MOVE!', { once: 'slam' });
-      if (bs.arms.some(a => a.state === 'down')) cap.say('Its arm\'s down! Lean in and hit it!', 'HIT THE ARM', { once: 'arm', polite: true });
-      if (bs.move && !bs.move.told){ bs.move.told = true; cap.say('Run! Run round the ring!', 'RUN!'); }
-      if (!bs.move && bs.phase === 'robots') cap.say('It\'s opened up! Get in close and hit the core!', 'HIT THE CORE', { once: 'core' });
-      if (!bs.move && bs.phase === 'overload') cap.say('It\'s overloading! Jump the waves, duck the lasers!', 'JUMP! DUCK!', { once: 'overload' });
-    }
+    if (bs && !bs.done) bs.cues(cap);
   }
 
   /* How far a child leans, -1 left to 1 right: shoulders over hips, in
@@ -547,16 +561,16 @@ class ReactorRun {
 
   draw(c, W, H){
     /* The scenes: the opening, the ending, each its own picture; the
-       Warden's over its arena, darkened. */
+       others over the play, darkened. */
     const sc = this.scene || (this.out && this.out.scene);
-    if (sc && sc.kind !== 'warden'){
+    if (sc && (sc.kind === 'opening' || sc.kind === 'won' || sc.kind === 'lost')){
       if (sc.kind === 'opening') drawOpening(c, W, H, sc.t);
       else drawEnding(c, W, H, this.out.t, sc.kind === 'won');
       sc.draw(c, W, H);
       return;
     }
     this._drawPlay(c, W, H);
-    if (sc){ drawWardenRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
+    if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
     this.captain.draw(c, W, H);
   }
 
@@ -579,13 +593,14 @@ class ReactorRun {
       c.translate(W / 2, py); c.scale(z, z); c.translate(-W / 2, -py);
     }
     const seg = this.seg;
-    if (this.boss) drawArena(c, W, H, this.boss.angle, this.t, SIDES[Math.min(2, this.boss.view)]);
+    if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     const items = [];
     for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
     if (this.fight) for (const b of this.fight.bots) if (!b.part) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
-    if (this.boss) this._bossItems(items);
+    if (this.boss) this.boss.items(items);
+    if (this.depot) this.depot.items(items);
     for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
@@ -593,6 +608,7 @@ class ReactorRun {
     drawGloom(c, W, H);
     if (seg.kind === 'room') this._drawRoom(c, W, H);
     this._drawBits(c, W, H);
+    if (this.depot) this.depot.draw(c, W, H);
     c.restore();
     this._drawHud(c, W, H);
   }
@@ -608,11 +624,8 @@ class ReactorRun {
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
-      case 'core': drawCore(c, p.x, p.y, Math.min(H * 0.34, H * 0.75 * p.k), this.t, { flash: this.boss.core.flash, glow: this.boss.phase === 'overload' && !this.boss.move ? 1 : 0, side: Math.min(2, this.boss.view), dead: this.boss.done }); break;
-      case 'arm': this._drawArm(c, it.a, W, H); break;
-      case 'tell': this._drawTell(c, it.a, W, H); break;
-      case 'wave': drawShockwave(c, W, H, it.rel, this.t); break;
-      case 'sweep': drawSweep(c, W, H, it.rel, this.t); break;
+      /* The boss's own things draw themselves. */
+      case 'boss': it.draw(c, W, H, this.t); break;
       case 'crew': this._drawCrew(c, it.i, W, H); break;
     }
   }
@@ -630,7 +643,7 @@ class ReactorRun {
 
   _drawBot(c, b, W, H){
     const p = P(b.x, b.d, W, H);
-    drawRustbot(c, p.x, p.y, H * 0.14 * p.k, this.t + b.seed, { swing: b.swing, flash: b.flash, hp: b.hp / b.max });
+    (b.kind === 'beast' ? drawBeast : drawRustbot)(c, p.x, p.y, H * 0.14 * p.k, this.t + b.seed, { swing: b.swing, flash: b.flash, hp: b.hp / b.max });
   }
 
   /* In a fight, teammates standing together are joined along the floor:
@@ -650,41 +663,6 @@ class ReactorRun {
 
   /* at: { x, y, h, bob } to draw them somewhere else - a trap room's own
      view - instead of at their place in the corridor. */
-  /* ---------- the Warden ---------- */
-
-  _bossItems(items){
-    const bs = this.boss;
-    if (!bs.done) items.push({ kind: 'core', rel: bs.core.d, lane: 0 });
-    for (const a of bs.arms){
-      if (a.state === 'broken') continue;
-      items.push({ kind: 'arm', rel: a.state === 'down' ? a.d : bs.core.d - 0.02, a });
-      if (a.state === 'tell') items.push({ kind: 'tell', rel: RUN + 0.002, a });
-    }
-    for (const b of bs.blasts) items.push({ kind: b.kind, rel: b.d });
-  }
-
-  /* An arm: from the core's shoulder out to its fist - raised high over
-     its target as it winds up, flat on the floor once it's slammed. */
-  _drawArm(c, a, W, H){
-    const bs = this.boss, core = P(0, bs.core.d, W, H);
-    const cs = Math.min(H * 0.34, H * 0.75 * core.k), sx = core.x + a.side * cs * 0.7, sy = core.y - cs * 0.55;
-    let fx, fy, s;
-    if (a.state === 'down'){ const f = P(a.x, a.d, W, H); fx = f.x; fy = f.y; s = H * 0.16 * f.k; }
-    else if (a.state === 'tell'){ const f = P(a.x, FRONT + 0.08, W, H), u = Math.min(1, a.t / 0.4); fx = sx + (f.x - sx) * u; fy = sy + (f.y - H * 0.36 * f.k - sy) * u; s = H * 0.16 * f.k * (0.6 + 0.4 * u); }
-    else { fx = sx + a.side * cs * 0.3; fy = sy + cs * 0.4; s = cs * 0.25; }
-    drawArm(c, sx, sy, fx, fy, s, { flash: a.flash, hp: a.hp / a.max, down: a.state === 'down' });
-  }
-
-  /* Where an arm's about to slam: a red stripe up that lane. */
-  _drawTell(c, a, W, H){
-    const near = RUN - 0.04, far = FRONT + 0.12;
-    const pts = [P(a.x - SLAM_W, near, W, H), P(a.x + SLAM_W, near, W, H), P(a.x + SLAM_W, far, W, H), P(a.x - SLAM_W, far, W, H)];
-    c.save(); c.globalAlpha = 0.25 + 0.25 * Math.abs(Math.sin(this.t * 12));
-    c.fillStyle = '#ff3b3b';
-    c.beginPath(); pts.forEach((q, k) => k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath(); c.fill();
-    c.restore();
-  }
-
   _drawCrew(c, i, W, H, at = null){
     /* Healing in a fight, they've stepped back a little. */
     const rn = this.crew[i], here = pose.players[i].present;
@@ -725,21 +703,8 @@ class ReactorRun {
   }
 
   _drawHud(c, W, H){
-    /* The Warden's health, big across the top: the core's, and an arm's
-       either side while they last. */
-    if (this.boss && !this.boss.done){
-      const bs = this.boss, w = W * 0.4, y = H * 0.11, h = H * 0.03;
-      c.save();
-      c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(W / 2 - w / 2 - 4, y - 4, w + 8, h + 8);
-      c.fillStyle = bs.phase === 'overload' ? '#ff5b5b' : '#ff8a3d'; c.fillRect(W / 2 - w / 2, y, w * Math.max(0, bs.core.hp / bs.core.max), h);
-      for (const a of bs.arms){
-        if (a.hp <= 0) continue;
-        const ax = W / 2 + a.side * (w / 2 + W * 0.05) - W * 0.035, aw = W * 0.07;
-        c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(ax - 3, y - 3, aw + 6, h + 6);
-        c.fillStyle = '#c2410c'; c.fillRect(ax, y, aw * a.hp / a.max, h);
-      }
-      c.restore();
-    }
+    /* The boss's health, big across the top. */
+    if (this.boss && !this.boss.done) this.boss.hud(c, W, H);
     /* The team's coins, top right. */
     const x = W - H * 0.06, y = H * 0.07;
     c.save();
@@ -749,9 +714,9 @@ class ReactorRun {
     c.fillText(String(this.coins), x, y + H * 0.003);
     c.restore();
     /* The floor, as a row of pips along the top: where the crew are. */
-    const n = PLAN.length - 1, w = H * 0.034;
+    const plan = this.level.plan, n = plan.length - 1, w = H * 0.034;
     for (let k = 0; k < n; k++){
-      const px = W / 2 + (k - (n - 1) / 2) * w * 1.6, done = k < this.step_, now = k === this.step_, kind = PLAN[k];
+      const px = W / 2 + (k - (n - 1) / 2) * w * 1.6, done = k < this.step_, now = k === this.step_, kind = plan[k];
       c.fillStyle = done ? '#7ff3ff' : now ? '#fff6e2' : 'rgba(255,255,255,.25)';
       c.beginPath();
       if (kind === 'corridor') c.roundRect(px - w * 0.6, H * 0.055 - w * 0.2, w * 1.2, w * 0.4, w * 0.2);

@@ -174,7 +174,7 @@ test('a tie goes the way the crowned guide is standing', () => {
 test('the guide crown passes on at each crossroads', () => {
   const inst = atDoors([0, 1]);
   const first = inst.guide;
-  inst._next(); inst._next(); inst._next();
+  do inst._next(); while (inst.phase !== 'cross' && inst.phase !== 'end');
   assert.equal(inst.phase, 'cross');
   assert.notEqual(inst.guide, first);
 });
@@ -200,7 +200,7 @@ test('the ? door is monsters, traps or treasure - treasure most often', () => {
   assert.ok(['combat', 'traps', 'treasure'].includes(a.rooms[0]));
 });
 
-test('the floor runs corridor, crossroads, room, corridor, crossroads, room, corridor, the boss - and ends', () => {
+test('level 1 runs corridor, crossroads, room, the depot, corridor, crossroads, room, corridor, the boss - and ends', () => {
   const inst = quiet();
   const seen = [];
   for (let k = 0; k < 2000 && !inst.over; k++){
@@ -208,7 +208,7 @@ test('the floor runs corridor, crossroads, room, corridor, crossroads, room, cor
     if (inst.phase === 'corridor') inst.seg.t = inst.seg.len;
     run(inst, 0.5);
   }
-  assert.deepEqual(seen, ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss']);
+  assert.deepEqual(seen, ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss']);
   assert.ok(inst.over);
 });
 

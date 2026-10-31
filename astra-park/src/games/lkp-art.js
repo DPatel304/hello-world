@@ -32,16 +32,27 @@ export function P(lane, rel, W, H){
 export const INK = '#0b0d1c';
 const LINE = 'rgba(255,255,255,.18)';
 
+/* The colours: each level has its own (lkp-levels.js), set as it starts.
+   These are the greybox ones - a starship's - for anything that doesn't
+   say. trees: trees along the sides of the way, in that colour. */
+export const METAL = {
+  bg: '#1b1f2e', floor: '#2a3043', edge: 'rgba(255,255,255,.5)', blocker: '#e5484d', beam: '#f59e0b', post: '#8a8f9e',
+  gap: '#05060a', fountain: '#22c55e', wall: '#3a4057', hall: '#141826', hallFloor: '#232a3c', hallRed: '#2e1d26', trees: null
+};
+export const PAL = { ...METAL };
+export function setPalette(p){ Object.assign(PAL, METAL, p || {}); }
+
 /* ---------- the floor ---------- */
 
 /* The corridor: a flat floor, its edges, lane lines, and cross lines
    sliding past so you can feel the speed. `alarm` tints it red. */
 export function drawCorridor(c, W, H, z, t, alarm = 0){
-  c.fillStyle = '#1b1f2e'; c.fillRect(0, 0, W, H);
+  c.fillStyle = PAL.bg; c.fillRect(0, 0, W, H);
   const nl = P(-WALL, -0.08, W, H), nr = P(WALL, -0.08, W, H), fl = P(-WALL, 1, W, H), fr = P(WALL, 1, W, H);
-  c.fillStyle = '#2a3043';
+  if (PAL.trees) trees(c, W, H, z, PAL.trees);
+  c.fillStyle = PAL.floor;
   c.beginPath(); c.moveTo(nl.x, nl.y); c.lineTo(fl.x, fl.y); c.lineTo(fr.x, fr.y); c.lineTo(nr.x, nr.y); c.closePath(); c.fill();
-  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 3;
+  c.strokeStyle = PAL.edge; c.lineWidth = 3;
   c.beginPath(); c.moveTo(nl.x, nl.y); c.lineTo(fl.x, fl.y); c.moveTo(nr.x, nr.y); c.lineTo(fr.x, fr.y); c.stroke();
   /* Lane lines: thirds of the floor. */
   c.strokeStyle = LINE; c.lineWidth = 2;
@@ -61,12 +72,28 @@ export function drawCorridor(c, W, H, z, t, alarm = 0){
 /* No gloom in the greybox. */
 export function drawGloom(){}
 
+/* Trees along both sides of the way, sliding past: greybox ones, a
+   triangle on a trunk, in col. */
+function trees(c, W, H, z, col){
+  const STEP = 0.16, N = 8;
+  for (let n = N - 1; n >= 0; n--){
+    const rel = ((n * STEP - z) % (STEP * N) + STEP * N) % (STEP * N) - 0.05;
+    if (rel > 1.05 || rel < -0.1) continue;
+    for (const side of [-1, 1]){
+      const lane = side * (1.6 + ((n * 7 + (side > 0 ? 3 : 0)) % 5) * 0.25);
+      const p = P(lane, rel, W, H), h = H * 0.5 * p.k, w = h * 0.45;
+      c.fillStyle = '#3d2a17'; c.fillRect(p.x - w * 0.08, p.y - h * 0.3, w * 0.16, h * 0.3);
+      c.fillStyle = col; c.beginPath(); c.moveTo(p.x, p.y - h); c.lineTo(p.x + w / 2, p.y - h * 0.25); c.lineTo(p.x - w / 2, p.y - h * 0.25); c.closePath(); c.fill();
+    }
+  }
+}
+
 /* ---------- on the floor ---------- */
 
 /* Debris from lane a to b: a red block. Slide round it. */
 export function drawBlocker(c, W, H, rel, a, b){
   const l = P(a, rel, W, H), r = P(b, rel, W, H), h = H * 0.17 * l.k;
-  box(c, l.x, l.y - h, r.x - l.x, h, '#e5484d');
+  box(c, l.x, l.y - h, r.x - l.x, h, PAL.blocker);
 }
 
 /* A low bulkhead across the whole floor at head height: an orange bar,
@@ -74,8 +101,8 @@ export function drawBlocker(c, W, H, rel, a, b){
 export function drawBeam(c, W, H, rel){
   const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k;
   const top = l.y - H * 0.36 * k, bot = l.y - H * 0.2 * k;
-  c.fillStyle = '#8a8f9e'; c.fillRect(l.x, top, 6 * k + 2, l.y - top); c.fillRect(r.x - 6 * k - 2, top, 6 * k + 2, l.y - top);
-  box(c, l.x, top, r.x - l.x, bot - top, '#f59e0b');
+  c.fillStyle = PAL.post; c.fillRect(l.x, top, 6 * k + 2, l.y - top); c.fillRect(r.x - 6 * k - 2, top, 6 * k + 2, l.y - top);
+  box(c, l.x, top, r.x - l.x, bot - top, PAL.beam);
 }
 
 /* A breach in the floor from lane a to b: a black gap with a white edge.
@@ -83,7 +110,7 @@ export function drawBeam(c, W, H, rel){
 export function drawGap(c, W, H, rel, a, b){
   const d = 0.045;
   const l0 = P(a, rel + d, W, H), r0 = P(b, rel + d, W, H), l1 = P(a, rel - d * 0.4, W, H), r1 = P(b, rel - d * 0.4, W, H);
-  c.fillStyle = '#05060a';
+  c.fillStyle = PAL.gap;
   c.beginPath(); c.moveTo(l0.x, l0.y); c.lineTo(r0.x, r0.y); c.lineTo(r1.x, r1.y); c.lineTo(l1.x, l1.y); c.closePath(); c.fill();
   c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(1.5, 4 * l1.k); c.stroke();
 }
@@ -98,9 +125,9 @@ export function drawCoin(c, x, y, s){
 export function drawFountain(c, W, H, rel, lane, t, used){
   const p = P(lane, rel, W, H), r = H * 0.09 * p.k, y = p.y - r * 1.15;
   c.globalAlpha = used ? 0.35 : 1;
-  c.strokeStyle = '#22c55e'; c.lineWidth = Math.max(2, r * 0.22);
+  c.strokeStyle = PAL.fountain; c.lineWidth = Math.max(2, r * 0.22);
   c.beginPath(); c.arc(p.x, y, r, 0, 6.2832); c.stroke();
-  c.fillStyle = '#22c55e';
+  c.fillStyle = PAL.fountain;
   c.fillRect(p.x - r * 0.15, y - r * 0.55, r * 0.3, r * 1.1); c.fillRect(p.x - r * 0.55, y - r * 0.15, r * 1.1, r * 0.3);
   c.globalAlpha = 1;
 }
@@ -116,7 +143,7 @@ const DOOR_LOOK = { combat: ['#e5484d', 'skull'], traps: ['#f59e0b', 'spikes'], 
 export function drawDoors(c, W, H, rel, t, kinds, votes, open = null, opening = 0){
   /* The wall fills everything behind it: nothing to see past the doors. */
   const l = P(-WALL, rel, W, H), k = l.k;
-  c.fillStyle = '#3a4057'; c.fillRect(-W, -H, W * 3, l.y + H);
+  c.fillStyle = PAL.wall; c.fillRect(-W, -H, W * 3, l.y + H);
   DOORS.forEach((lane, i) => {
     const p = P(lane, rel, W, H), w = H * 0.5 * k, h = H * 0.52 * k, x0 = p.x - w / 2, y0 = p.y - h, [col, mark] = DOOR_LOOK[kinds[i]];
     c.fillStyle = '#05060a'; c.fillRect(x0, y0, w, h);
@@ -248,6 +275,92 @@ export function drawRustbot(c, x, base, s, t, st){
     const bw = s * 0.6, by = base - s * 1.12;
     c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - bw / 2 - 2, by - 2, bw + 4, s * 0.07 + 4);
     c.fillStyle = '#ff8a3d'; c.fillRect(x - bw / 2, by, Math.max(1, bw * st.hp), s * 0.07);
+  }
+}
+
+/* A charger-beast: the planet's own wildlife, before the robots wake -
+   a stocky four-legged thing, mossy green, with two short horns. Drawn
+   like a rustbot (same st), as it plays like one. */
+export function drawBeast(c, x, base, s, t, st){
+  const bob = Math.abs(Math.sin(t * 7)) * s * 0.03, w = s * 0.75;
+  c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.6, s * 0.06, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(x, base - bob);
+  const body = st.flash > 0.5 ? '#ffffff' : '#4d7c3a';
+  /* Legs, body, head with horns. */
+  c.fillStyle = '#2f4a22';
+  for (const lx of [-0.38, -0.18, 0.12, 0.32]) c.fillRect(lx * w, -s * 0.25, w * 0.1, s * 0.25);
+  c.fillStyle = body; c.strokeStyle = INK; c.lineWidth = 3;
+  c.beginPath(); c.ellipse(0, -s * 0.42, w * 0.5, s * 0.22, 0, 0, 6.2832); c.fill(); c.stroke();
+  const hx = st.swing > 0 ? Math.sin(st.swing * Math.PI) * w * 0.1 : 0;
+  c.beginPath(); c.ellipse(hx, -s * 0.5, w * 0.22, s * 0.18, 0, 0, 6.2832); c.fill(); c.stroke();
+  c.fillStyle = '#e8dcc0';
+  for (const sd of [-1, 1]){ c.beginPath(); c.moveTo(hx + sd * w * 0.12, -s * 0.62); c.lineTo(hx + sd * w * 0.22, -s * 0.8); c.lineTo(hx + sd * w * 0.05, -s * 0.64); c.fill(); }
+  c.fillStyle = '#ffdd55'; for (const sd of [-1, 1]){ c.beginPath(); c.arc(hx + sd * w * 0.08, -s * 0.52, s * 0.03, 0, 6.2832); c.fill(); }
+  c.restore();
+  if (st.hp < 1){
+    const bw = s * 0.6, by = base - s * 0.95;
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - bw / 2 - 2, by - 2, bw + 4, s * 0.07 + 4);
+    c.fillStyle = '#ff8a3d'; c.fillRect(x - bw / 2, by, Math.max(1, bw * st.hp), s * 0.07);
+  }
+}
+
+/* The depot, at depth rel: what = 'shed', an old metal shed across the
+   end of the path, its door open; or 'piece', the ship's engine piece on
+   the floor, glowing, with a ring round it filling (charge 0..1) as the
+   crew power it up. */
+export function drawDepot(c, W, H, rel, t, what, charge = 0){
+  const p = P(0, rel, W, H), k = p.k;
+  if (what === 'shed'){
+    const w = H * 1.1 * k, h = H * 0.55 * k;
+    box(c, p.x - w / 2, p.y - h, w, h, '#6b7280');
+    c.fillStyle = '#4b5563'; c.beginPath(); c.moveTo(p.x - w * 0.55, p.y - h); c.lineTo(p.x, p.y - h * 1.35); c.lineTo(p.x + w * 0.55, p.y - h); c.fill();
+    c.fillStyle = '#111318'; c.fillRect(p.x - w * 0.15, p.y - h * 0.65, w * 0.3, h * 0.65);
+    return;
+  }
+  const s = H * 0.09 * k, cy = p.y - s * 0.6;
+  const g = c.createRadialGradient(p.x, cy, 0, p.x, cy, s * 3);
+  g.addColorStop(0, `rgba(127,243,255,${0.5 + 0.2 * Math.sin(t * 5)})`); g.addColorStop(1, 'rgba(127,243,255,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(p.x, cy, s * 3, 0, 6.2832); c.fill();
+  box(c, p.x - s, cy - s * 0.6, s * 2, s * 1.2, '#cbd5e1');
+  c.fillStyle = '#7ff3ff'; c.fillRect(p.x - s * 0.6, cy - s * 0.2, s * 1.2, s * 0.4);
+  c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = s * 0.25;
+  c.beginPath(); c.arc(p.x, cy, s * 2, 0, 6.2832); c.stroke();
+  c.strokeStyle = '#7ff3ff'; c.beginPath(); c.arc(p.x, cy, s * 2, -Math.PI / 2, -Math.PI / 2 + charge * 6.2832); c.stroke();
+}
+
+/* ---------- the bosses ---------- */
+
+/* The Scout: a lean, tan, long-legged robot with one big eye visor and
+   an antenna, s tall. st: { flash (just hit), tell 0..1 (crouching to
+   charge, eye red), dash (charging: leaning in), dazed (staggered or
+   stuck: slumped, stars), panic (phase 3: shaking), off (powered off:
+   dark, slumped) }. */
+export function drawScout(c, x, base, s, t, st){
+  const w = s * 0.5, crouch = st.tell * 0.15 + (st.dazed || st.off ? 0.2 : 0);
+  c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.9, s * 0.05, 0, 0, 6.2832); c.fill();
+  c.save();
+  c.translate(x + (st.panic && !st.off ? Math.sin(t * 40) * s * 0.01 : 0), base);
+  if (st.dash) c.rotate(0.15);
+  if (st.dazed || st.off) c.rotate(-0.12);
+  const body = st.flash > 0.5 ? '#ffffff' : st.off ? '#6b6457' : '#c9b48a';
+  /* Legs. */
+  c.strokeStyle = '#5b5346'; c.lineWidth = w * 0.12; c.lineCap = 'round';
+  for (const sd of [-1, 1]){ c.beginPath(); c.moveTo(sd * w * 0.25, -s * (0.55 - crouch)); c.lineTo(sd * w * 0.45, -s * 0.25); c.lineTo(sd * w * 0.3, 0); c.stroke(); }
+  /* Body and head. */
+  c.translate(0, s * crouch);
+  box(c, -w / 2, -s * 0.85, w, s * 0.35, body);
+  c.fillStyle = '#2b2a33'; c.fillRect(-w * 0.4, -s * 0.78, w * 0.8, s * 0.14);
+  const eye = st.off ? '#2b2a33' : st.tell > 0 || st.dash ? '#ff3b3b' : '#7ff3ff';
+  c.fillStyle = eye; c.fillRect(-w * 0.32 + Math.sin(t * 2) * w * 0.1, -s * 0.76, w * 0.25, s * 0.1);
+  c.strokeStyle = '#5b5346'; c.lineWidth = w * 0.05;
+  c.beginPath(); c.moveTo(w * 0.3, -s * 0.85); c.lineTo(w * 0.4, -s * 1.02); c.stroke();
+  c.fillStyle = st.off ? '#2b2a33' : '#ff8a3d'; c.beginPath(); c.arc(w * 0.4, -s * 1.03, w * 0.06, 0, 6.2832); c.fill();
+  c.restore();
+  /* Dazed: stars going round its head. */
+  if (st.dazed && !st.off) for (let k = 0; k < 4; k++){
+    const a = t * 5 + k * 1.57;
+    c.fillStyle = k % 2 ? '#ffd24a' : '#ffffff';
+    c.beginPath(); c.arc(x + Math.cos(a) * w * 0.6, base - s * 0.95 + Math.sin(a) * s * 0.06, s * 0.03, 0, 6.2832); c.fill();
   }
 }
 

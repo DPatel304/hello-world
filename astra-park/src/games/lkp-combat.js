@@ -95,7 +95,9 @@ export class Fight {
 
   _bot(x, d){
     const hp = Math.round(BOT_HP * this.toughness);
-    return { x, d, hp, max: hp, hitT: Math.random() * BOT_EVERY, target: -1, flash: 0, swing: 0, seed: Math.random() * 6 };
+    /* What it is - the level's wildlife or its robots - is only how it
+       looks: they fight the same. */
+    return { kind: this.g.enemy || 'rustbot', x, d, hp, max: hp, hitT: Math.random() * BOT_EVERY, target: -1, flash: 0, swing: 0, seed: Math.random() * 6 };
   }
 
   _wave(){
@@ -256,7 +258,8 @@ export class Fight {
 
   _hit(b, dmg, W, H){
     const g = this.g, p = P(b.x, b.d, W, H);
-    dmg = Math.round(dmg);
+    /* A staggered boss burns: hit harder. */
+    dmg = Math.round(dmg * (b.burn || 1));
     b.hp -= dmg; b.flash = 1;
     sfx.clank();
     g.bits.push({ kind: 'num', x: (p.x + (Math.random() - 0.5) * H * 0.03) / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.6, text: `${dmg}`, col: '#ffffff', small: true });

@@ -34,7 +34,7 @@
 
    Down to nothing, it bursts in a shower of coins, and the run is won.
    (However it's going, after len seconds it gives up and bursts anyway.) */
-import { RUN, P, PIT_NEAR } from './lkp-art.js';
+import { RUN, P, PIT_NEAR, drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './lkp-art.js';
 import { sfx } from '../audio/sound.js';
 import { Fight, FRONT, FIGHT_MAX } from './lkp-combat.js';
 import { pose } from '../tracking/pose.js';
@@ -219,4 +219,83 @@ export class Warden {
     for (let k = 0; k < 12; k++) g._sparkle(Math.random(), 0.2 + Math.random() * 0.4, 6, 50);
     sfx.fanfare();
   }
+
+  /* ---------- what a boss shows (the same for every boss) ---------- */
+
+  /* Its arena, behind everything. */
+  arena(c, W, H, t){ drawArena(c, W, H, this.angle, t, SIDES[Math.min(2, this.view)]); }
+
+  /* Its things, among the rest, each { kind: 'boss', rel, draw }. */
+  items(list){
+    const add = (rel, draw) => list.push({ kind: 'boss', rel, draw });
+    if (!this.done) add(this.core.d, (c, W, H, t) => {
+      const p = P(0, this.core.d, W, H);
+      drawCore(c, p.x, p.y, Math.min(H * 0.34, H * 0.75 * p.k), t, { flash: this.core.flash, glow: this.phase === 'overload' && !this.move ? 1 : 0, side: Math.min(2, this.view), dead: this.done });
+    });
+    for (const a of this.arms){
+      if (a.state === 'broken') continue;
+      add(a.state === 'down' ? a.d : this.core.d - 0.02, (c, W, H) => this._drawArm(c, a, W, H));
+      if (a.state === 'tell') add(RUN + 0.002, (c, W, H, t) => stripe(c, W, H, t, a.x, SLAM_W));
+    }
+    for (const b of this.blasts) add(b.d, (c, W, H, t) => (b.kind === 'wave' ? drawShockwave : drawSweep)(c, W, H, b.d, t));
+  }
+
+  /* An arm: from the core's shoulder out to its fist - raised high over
+     its target as it winds up, flat on the floor once it's slammed. */
+  _drawArm(c, a, W, H){
+    const core = P(0, this.core.d, W, H);
+    const cs = Math.min(H * 0.34, H * 0.75 * core.k), sx = core.x + a.side * cs * 0.7, sy = core.y - cs * 0.55;
+    let fx, fy, s;
+    if (a.state === 'down'){ const f = P(a.x, a.d, W, H); fx = f.x; fy = f.y; s = H * 0.16 * f.k; }
+    else if (a.state === 'tell'){ const f = P(a.x, FRONT + 0.08, W, H), u = Math.min(1, a.t / 0.4); fx = sx + (f.x - sx) * u; fy = sy + (f.y - H * 0.36 * f.k - sy) * u; s = H * 0.16 * f.k * (0.6 + 0.4 * u); }
+    else { fx = sx + a.side * cs * 0.3; fy = sy + cs * 0.4; s = cs * 0.25; }
+    drawArm(c, sx, sy, fx, fy, s, { flash: a.flash, hp: a.hp / a.max, down: a.state === 'down' });
+  }
+
+  /* Its health, big across the top: the core's, and an arm's either side
+     while they last. */
+  hud(c, W, H){
+    healthBar(c, W, H, this.core.hp / this.core.max, this.phase === 'overload');
+    const w = W * 0.4, y = H * 0.11, h = H * 0.03;
+    for (const a of this.arms){
+      if (a.hp <= 0) continue;
+      const ax = W / 2 + a.side * (w / 2 + W * 0.05) - W * 0.035, aw = W * 0.07;
+      c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(ax - 3, y - 3, aw + 6, h + 6);
+      c.fillStyle = '#c2410c'; c.fillRect(ax, y, aw * a.hp / a.max, h);
+    }
+  }
+
+  /* What the ship's computer says about it, as it happens. */
+  cues(cap){
+    if (this.arms.some(a => a.state === 'tell')) cap.say('Watch the red stripe! Get out from under it!', 'MOVE!', { once: 'slam' });
+    if (this.arms.some(a => a.state === 'down')) cap.say('Its arm\'s down! Lean in and hit it!', 'HIT THE ARM', { once: 'arm', polite: true });
+    if (this.move && !this.move.told){ this.move.told = true; cap.say('Run! Run round the ring!', 'RUN!'); }
+    if (!this.move && this.phase === 'robots') cap.say('It\'s opened up! Get in close and hit the core!', 'HIT THE CORE', { once: 'core' });
+    if (!this.move && this.phase === 'overload') cap.say('It\'s overloading! Jump the waves, duck the lasers!', 'JUMP! DUCK!', { once: 'overload' });
+  }
+}
+
+/* ---------- shared by every boss ---------- */
+
+/* A boss's health bar, big across the top; red when it's at its worst.
+   pips: where its phases change (fractions of its health), marked. */
+export function healthBar(c, W, H, frac, worst, pips = []){
+  const w = W * 0.4, y = H * 0.11, h = H * 0.03;
+  c.save();
+  c.fillStyle = 'rgba(5,6,15,.8)'; c.fillRect(W / 2 - w / 2 - 4, y - 4, w + 8, h + 8);
+  c.fillStyle = worst ? '#ff5b5b' : '#ff8a3d'; c.fillRect(W / 2 - w / 2, y, w * Math.max(0, frac), h);
+  c.fillStyle = '#05060f';
+  for (const p of pips) c.fillRect(W / 2 - w / 2 + w * p - 2, y - 4, 4, h + 8);
+  c.restore();
+}
+
+/* Where something's about to land: a red stripe up a lane, half-width w,
+   flashing. */
+export function stripe(c, W, H, t, x, w){
+  const near = RUN - 0.04, far = FRONT + 0.12;
+  const pts = [P(x - w, near, W, H), P(x + w, near, W, H), P(x + w, far, W, H), P(x - w, far, W, H)];
+  c.save(); c.globalAlpha = 0.25 + 0.25 * Math.abs(Math.sin(t * 12));
+  c.fillStyle = '#ff3b3b';
+  c.beginPath(); pts.forEach((q, k) => k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath(); c.fill();
+  c.restore();
 }

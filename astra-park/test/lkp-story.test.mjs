@@ -25,7 +25,7 @@ test('the run opens with the captain\'s scene - nothing moves till it is done', 
   run(inst, 3);
   assert.equal(inst.z, z, 'still');
   inst.draw(fake(), W, H);
-  const len = script('opening').reduce((s, [who, text]) => s + lineTime(text, who) + 0.5, 0);
+  const len = script('opening', inst).reduce((s, [who, text]) => s + lineTime(text, who) + 0.5, 0);
   run(inst, len);
   assert.equal(inst.scene, null);
   run(inst, 1);
@@ -68,17 +68,17 @@ test('her window comes up while she talks and goes again', () => {
   cap.draw(fake(), W, H);
 });
 
-test('the Warden shows itself before the boss fight, and the ending names the crew', () => {
+test('the boss shows itself before its fight, and the ending names the crew', () => {
   story.on = true; crew(2);
   const inst = game.create(2);
   inst.scene = null; inst.things = [];
-  inst.step_ = 6; inst._next();
-  assert.equal(inst.scene.kind, 'warden');
-  assert.equal(inst.scene.lines[0][0], 'warden');
+  inst.step_ = inst.level.plan.indexOf('boss') - 1; inst._next();
+  assert.equal(inst.scene.kind, 'boss');
+  assert.equal(inst.scene.lines[0][0], 'robot');
   inst.draw(fake(), W, H);
   const won = script('won', inst).map(l => l[1]).join(' ');
   assert.ok(won.includes(NAMES[0]) && won.includes(NAMES[1]));
-  inst.boss.core.hp = 0; inst.scene = null;
+  inst.boss.fight.bots.forEach(b => { if (b.part) b.hp = 0; }); inst.scene = null;
   for (let k = 0; k < 200 && !inst.over; k++) inst.step(DT, W, H);
   assert.ok(inst.over);
   let k = 0; while (!inst.outro(DT, W, H) && k++ < 2000) if (k % 50 === 0) inst.draw(fake(), W, H);
