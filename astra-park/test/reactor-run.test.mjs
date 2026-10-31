@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS, ZOOM_IN } from '../src/games/reactor-run.js';
+import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS, ZOOM_IN, story } from '../src/games/reactor-run.js';
+/* The play itself, without the captain's scenes. */
+story.on = false;
 import { RUN, DOORS } from '../src/games/reactor-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 

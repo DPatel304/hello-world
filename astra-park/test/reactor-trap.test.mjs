@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { MAX_HP, PLAYTEST } from '../src/games/reactor-run.js';
+import game, { MAX_HP, PLAYTEST, story } from '../src/games/reactor-run.js';
+/* The play itself, without the captain's scenes. */
+story.on = false;
 import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_COINS } from '../src/games/reactor-trap.js';
 import { pose, L } from '../src/tracking/pose.js';
 

@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pose, L, MAX_PLAYERS, PLAYER_COLORS } from '../src/tracking/pose.js';
 import { GAMES } from '../src/games/index.js';
-import reactorRun from '../src/games/reactor-run.js';
+import reactorRun, { story } from '../src/games/reactor-run.js';
+/* The play itself, without the captain's scenes. */
+story.on = false;
 import boat from '../src/games/uncle-bs-boat.js';
 import danceParty from '../src/games/dance-party.js';
 import popParty from '../src/games/pop-party.js';

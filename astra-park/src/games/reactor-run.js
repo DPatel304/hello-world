@@ -10,6 +10,7 @@ import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap,
 import { Fight, RANGE, BUDDY, FRONT } from './reactor-combat.js';
 import { Lights } from './reactor-trap.js';
 import { Warden, SLAM_W } from './reactor-boss.js';
+import { Captain, Scene, NAMES, drawOpening, drawWardenRising, drawEnding } from './reactor-captain.js';
 
 /* Reactor Run. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
@@ -25,11 +26,28 @@ import { Warden, SLAM_W } from './reactor-boss.js';
    Corridors wound but never kill: nobody's knocked below a sliver of
    health by them. (That's for the rooms, to come.)
 
+   Captain Nova talks them through it on the radio (reactor-captain.js),
+   with a little scene to open, before the Warden, and to end.
+
    The fight door is a combat room (reactor-combat.js); the traps door, a
    trap room - red light, green light (reactor-trap.js). Treasure is only
    its sign for now, letting the crew straight through. */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
+/* The story - the captain's scenes - on or off (off in the tests of the
+   play itself). */
+export const story = { on: true };
+/* Nova's first tip for each thing in a corridor, said as it comes. */
+const TIPS = {
+  coin: ['Grab those coins!', 'COINS!'],
+  blocker: ['Junk ahead! Lean to slide around it.', 'LEAN!'],
+  beam: ['Low pipe! Duck under it!', 'DUCK!'],
+  gap: ['Hole in the floor! Hop over it!', 'HOP!'],
+  fountain: ['A repair station! Run through it to fix yourselves up.', 'HEAL']
+};
+/* What she calls each kind of door. */
+const BEHIND = { combat: 'robots', traps: 'traps', mystery: 'who knows what' };
+
 /* While we playtest the mechanics, every part of the run is PLAYTEST
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
@@ -108,6 +126,8 @@ class ReactorRun {
     this.trap = null;               /* the trap, in a trap room */
     this.boss = null;               /* the Warden, at the end */
     this.faces = new FaceCam();
+    this.captain = new Captain();
+    this.scene = story.on ? new Scene('opening', this) : null;
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
     this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
@@ -156,6 +176,7 @@ class ReactorRun {
       if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
       sfx.whoosh();
     } else if (kind === 'boss'){
+      if (story.on) this.scene = new Scene('warden', this);
       /* While playtesting, a Warden you can beat in a playtest's time. */
       this.boss = PLAYTEST ? new Warden(this, PLAYTEST * 2, 0.35) : new Warden(this);
       this.fight = this.boss.fight;
@@ -226,6 +247,15 @@ class ReactorRun {
   step(dt, W, H){
     this.t += dt;
     this.faces.step(dt);
+    this.captain.step(dt);
+    /* A scene: nothing else moves till it's done. */
+    if (this.scene){
+      this.scene.step(dt);
+      if (this.scene.done) this.scene = null;
+      this._stepBits(dt);
+      return;
+    }
+    this._cues();
     this.shake = Math.max(0, this.shake - dt * 3);
     const seg = this.seg;
     seg.t += dt;
@@ -254,6 +284,64 @@ class ReactorRun {
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
     this._stepBits(dt);
+  }
+
+  /* ---------- the captain's tips ---------- */
+
+  /* Nova noticing what's happening, and saying something - each tip
+     once a run, the rest when they matter. */
+  _cues(){
+    const cap = this.captain, seg = this.seg, f = this.fight, bs = this.boss, up = this.here.filter(i => !this.crew[i].down);
+    if (seg.kind === 'corridor'){
+      for (const th of this.things){
+        const ahead = th.d - this.z - RUN;
+        if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
+        const kind = th.kind === 'ledge' ? 'gap' : th.kind, tip = TIPS[kind];
+        if (tip && cap.say(tip[0], tip[1], { once: kind })) break;
+      }
+    }
+    if (seg.kind === 'cross' && seg.vote < VOTE && seg.choice == null && !seg.told){
+      seg.told = true;
+      const [a, b] = seg.kinds;
+      if (!cap.say('Two doors! Lean to the one you want, and stay there till time\'s up.', 'PICK A DOOR', { once: 'doors' }))
+        cap.say(`${BEHIND[a][0].toUpperCase() + BEHIND[a].slice(1)} on the left, ${BEHIND[b]} on the right. Your call!`, '');
+    }
+    if (f && !bs && !seg.told){
+      seg.told = true;
+      if (!cap.say('Robots! You\'ll hit them on your own. Stand close together to hit harder!', 'STAND TOGETHER', { once: 'fight' }))
+        cap.say(['Here they come!', 'More robots! Stick together!', 'Stand together, crew!'][Math.floor(Math.random() * 3)], '');
+    }
+    if (f && !f.done && !bs){
+      if (f.t > 4 && f.bots.some(b => b.d > 0.2)) cap.say('Jump to zap them while they\'re still coming!', 'JUMP!', { once: 'zap', polite: true });
+      if (f.t > 8 && this.rooms.filter(r => r === 'combat').length > 1) cap.say('Roll your arms, like the wheels on the bus, to hit even harder!', 'ROLL YOUR ARMS', { once: 'crank', polite: true });
+    }
+    if (f && f.done && !seg.cleared && !bs){ seg.cleared = true; cap.say(['Room clear! Nice work, crew.', 'That\'s all of them. Great job!'][Math.floor(Math.random() * 2)], ''); }
+    if (f && !f.done){
+      for (const i of this.here){
+        const rn = this.crew[i];
+        if (rn.down && !rn.told){
+          rn.told = true;
+          if (!cap.say(`${NAMES[i]}'s asleep! Stand next to them and clap to wake them up!`, 'CLAP!', { once: 'clap' })) cap.say(`Clap for ${NAMES[i]}!`, 'CLAP!');
+        }
+        if (!rn.down) rn.told = false;
+      }
+      const hurt = up.find(i => this.crew[i].hp < this.crew[i].max * 0.35 && !f._inReach(this.crew[i]).length);
+      if (hurt != null) cap.say(`${NAMES[hurt]}, you're hurt! Hug yourself to heal, before they reach you.`, 'HUG TO HEAL', { once: 'hug' });
+    }
+    const tr = this.trap;
+    if (tr && !seg.told){
+      seg.told = true;
+      if (!cap.say('Red light, green light! Run on the spot when it\'s green. Freeze when it\'s red!', 'RUN ON GREEN', { once: 'lights' })) cap.say('Red light, green light again! Careful now.', '');
+    }
+    if (tr && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
+    if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The coins are yours.', ''); }
+    if (bs && !bs.done){
+      if (bs.arms.some(a => a.state === 'tell')) cap.say('Watch the red stripe! Get out from under it!', 'MOVE!', { once: 'slam' });
+      if (bs.arms.some(a => a.state === 'down')) cap.say('Its arm\'s down! Lean in and hit it!', 'HIT THE ARM', { once: 'arm', polite: true });
+      if (bs.move && !bs.move.told){ bs.move.told = true; cap.say('Run! Run round the ring!', 'RUN!'); }
+      if (!bs.move && bs.phase === 'robots') cap.say('It\'s opened up! Get in close and hit the core!', 'HIT THE CORE', { once: 'core' });
+      if (!bs.move && bs.phase === 'overload') cap.say('It\'s overloading! Jump the waves, duck the lasers!', 'JUMP! DUCK!', { once: 'overload' });
+    }
   }
 
   /* How far a child leans, -1 left to 1 right: shoulders over hips, in
@@ -437,10 +525,15 @@ class ReactorRun {
   /* The ending: through the last corridor, cheering - or, with the whole
      crew asleep in a fight, sleeping where they lie, robots and all. */
   outro(dt, W, H){
-    if (!this.out){ this.out = { t: 0 }; if (this.lost) sfx.lose(); else sfx.fanfare(); }
+    if (!this.out){
+      this.out = { t: 0, scene: story.on ? new Scene(this.lost ? 'lost' : 'won', this) : null };
+      if (this.lost) sfx.lose(); else sfx.fanfare();
+    }
     const o = this.out;
     o.t += dt; this.t += dt;
     this.faces.step(dt);
+    /* With the story: the ending scene, till it's done. */
+    if (o.scene){ o.scene.step(dt); this._stepBits(dt); return o.scene.done && o.t > 2; }
     if (this.lost){ this._stepBits(dt); return o.t > 4; }
     this.speed = Math.max(0, this.speed - dt * 0.3);
     this.z += this.speed * dt;
@@ -453,6 +546,21 @@ class ReactorRun {
   /* ---------- drawing ---------- */
 
   draw(c, W, H){
+    /* The scenes: the opening, the ending, each its own picture; the
+       Warden's over its arena, darkened. */
+    const sc = this.scene || (this.out && this.out.scene);
+    if (sc && sc.kind !== 'warden'){
+      if (sc.kind === 'opening') drawOpening(c, W, H, sc.t);
+      else drawEnding(c, W, H, this.out.t, sc.kind === 'won');
+      sc.draw(c, W, H);
+      return;
+    }
+    this._drawPlay(c, W, H);
+    if (sc){ drawWardenRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
+    this.captain.draw(c, W, H);
+  }
+
+  _drawPlay(c, W, H){
     /* A trap room has its own view, from up high. */
     if (this.trap){
       c.save();
@@ -682,7 +790,7 @@ class ReactorRun {
   hud(){ return { score: pose.players.map(() => this.coins), showLives: false, hideScore: true, hideClock: true }; }
   tally(){
     const rows = [];
-    for (let i = 0; i < this.players; i++) if (this.crew[i].played) rows.push({ label: `Player ${i + 1}`, value: this.coins, color: PLAYER_COLORS[i] });
+    for (let i = 0; i < this.players; i++) if (this.crew[i].played || pose.players[i].present) rows.push({ label: `Player ${i + 1}`, value: this.coins, color: PLAYER_COLORS[i] });
     return rows;
   }
   winner(){ return this.crew.filter(r => r.played).length < 2 ? null : -1; }

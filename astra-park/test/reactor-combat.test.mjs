@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { MAX_HP, FIGHT_APART, PLAYTEST } from '../src/games/reactor-run.js';
+import game, { MAX_HP, FIGHT_APART, PLAYTEST, story } from '../src/games/reactor-run.js';
+/* The play itself, without the captain's scenes. */
+story.on = false;
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
          REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/reactor-combat.js';
 import { pose, L } from '../src/tracking/pose.js';
