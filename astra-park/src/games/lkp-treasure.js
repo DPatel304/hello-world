@@ -9,6 +9,7 @@ import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
 import { PAL, drawCoin } from './lkp-art.js';
+import { XP } from './lkp-levelup.js';
 
 export const TREASURE_TIME = 20;
 /* How many coins float about at once; how often one's big, and its
@@ -70,7 +71,7 @@ export class Treasure {
     /* New ones fade in to replace them. */
     for (const r of this.refill) r.t -= dt;
     while (this.refill.length && this.refill[0].t <= 0){ this.refill.shift(); this.coins.push(this._coin()); }
-    if (this.t >= this.len){ this.done = true; sfx.select(); }
+    if (this.t >= this.len){ this.done = true; g.addXp?.(XP.treasure); sfx.select(); }
   }
 
   _grab(cn, i, W, H){

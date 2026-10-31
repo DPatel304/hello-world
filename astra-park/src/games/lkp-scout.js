@@ -29,6 +29,7 @@
 import { RUN, P, drawCorridor, drawSweep, drawScout } from './lkp-art.js';
 import { sfx } from '../audio/sound.js';
 import { Fight, FRONT, FIGHT_MAX } from './lkp-combat.js';
+import { XP } from './lkp-levelup.js';
 import { healthBar, stripe } from './lkp-boss.js';
 
 /* For a crew of four (fewer, less: as a fight's robots). */
@@ -150,6 +151,7 @@ export class Scout {
   }
 
   _win(W, H){
+    this.g.addXp?.(XP.boss);
     const g = this.g, f = this.fight, b = this.body;
     this.done = true; this.blasts = []; b.burn = 1;
     const p = P(b.x, b.d, W, H);

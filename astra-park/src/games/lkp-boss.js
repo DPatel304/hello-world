@@ -37,6 +37,7 @@
 import { RUN, P, PIT_NEAR, drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './lkp-art.js';
 import { sfx } from '../audio/sound.js';
 import { Fight, FRONT, FIGHT_MAX } from './lkp-combat.js';
+import { XP } from './lkp-levelup.js';
 import { pose } from '../tracking/pose.js';
 import { MarchWatch } from '../tracking/gestures.js';
 
@@ -209,6 +210,7 @@ export class Warden {
   }
 
   _win(W, H){
+    this.g.addXp?.(XP.boss);
     const g = this.g, f = this.fight;
     this.done = true; this.blasts = [];
     for (const b of f.bots) if (!b.part) f._scrap(b, W, H);

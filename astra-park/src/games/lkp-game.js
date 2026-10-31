@@ -12,6 +12,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
+import { LevelUp, XP, needFor, PICK_TIME } from './lkp-levelup.js';
 import { LEVELS } from './lkp-levels.js';
 import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
 
@@ -127,6 +128,9 @@ class LastKnownPosition {
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.zoom = 0;                  /* how far the view has closed in, 0..1 */
     this.coins = 0; this.kills = 0;
+    /* The team's XP and level (lkp-levelup.js); level-ups still to pick,
+       and the picking, while it's on. */
+    this.xp = 0; this.lvl = 1; this.pending = 0; this.levelup = null;
     this.fight = null;              /* the fight, in a combat room */
     this.trap = null;               /* the trap, in a trap room */
     this.boss = null;               /* the level's boss, at the end */
@@ -266,6 +270,19 @@ class LastKnownPosition {
       this._stepBits(dt);
       return;
     }
+    /* Levelled up: picking upgrades, nothing else moving, till they're
+       picked. Only once things are calm - never mid-fight. */
+    if (this.levelup){
+      this.levelup.step(dt);
+      if (this.levelup.done){ this.levelup = null; this.pending--; }
+      this._stepBits(dt);
+      return;
+    }
+    if (this.pending > 0 && this.calm){
+      this.levelup = new LevelUp(this, PLAYTEST || PICK_TIME);
+      this.captain.say('Level up! Lean to pick a card, then wave to take it!', 'LEAN, THEN WAVE', { once: 'levelup' });
+      return;
+    }
     this._cues();
     this.shake = Math.max(0, this.shake - dt * 3);
     const seg = this.seg;
@@ -302,6 +319,20 @@ class LastKnownPosition {
     this.things = this.things.filter(th => th.d - this.z > -0.15);
     this._stepBits(dt);
   }
+
+  /* XP for the team: past the next level's mark, a level up (picked
+     when things are calm). */
+  addXp(n){
+    this.xp += n;
+    while (this.xp >= needFor(this.lvl)){
+      this.xp -= needFor(this.lvl); this.lvl++; this.pending++;
+      sfx.learnt();
+      this.bits.push({ kind: 'num', x: 0.5, y: 0.2, vy: -0.04, age: 0, life: 1.6, text: 'LEVEL UP!', col: '#ffd24a' });
+    }
+  }
+  /* Calm enough to stop for a level up: a corridor, or the doors before
+     they're chosen. */
+  get calm(){ return !this.over && (this.seg.kind === 'corridor' || (this.seg.kind === 'cross' && this.seg.choice == null)); }
 
   /* What Nova calls what's behind a door - and the fights, here and now. */
   behind(kind){ return kind === 'combat' ? this.foes : kind === 'traps' ? 'traps' : 'who knows what'; }
@@ -421,7 +452,7 @@ class LastKnownPosition {
       : this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
       : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
       : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
-    rn.x += (want - rn.x) * Math.min(1, dt * 6);
+    rn.x += (want - rn.x) * Math.min(1, dt * 6 * (rn.swift || 1));
     if (this.t - rn.lastDuck < UNDUCK) jumped = false;
     if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
     if (rn.air > 0 || rn.airV > 0){
@@ -577,6 +608,7 @@ class LastKnownPosition {
     }
     this._drawPlay(c, W, H);
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
+    if (this.levelup) this.levelup.draw(c, W, H);
     this.captain.draw(c, W, H);
   }
 
@@ -715,6 +747,16 @@ class LastKnownPosition {
   }
 
   _drawHud(c, W, H){
+    /* The team's level and XP: a thin bar under the floor's pips. */
+    {
+      const w = W * 0.22, x0 = W / 2 - w / 2, y0 = H * 0.085;
+      c.save();
+      c.fillStyle = 'rgba(5,6,15,.7)'; c.fillRect(x0 - 2, y0 - 2, w + 4, H * 0.012 + 4);
+      c.fillStyle = '#a78bfa'; c.fillRect(x0, y0, w * Math.min(1, this.xp / needFor(this.lvl)), H * 0.012);
+      c.font = `700 ${Math.round(H * 0.026)}px Fredoka, sans-serif`; c.textAlign = 'right'; c.textBaseline = 'middle';
+      c.fillStyle = '#e9e3ff'; c.fillText(`LV ${this.lvl}`, x0 - H * 0.012, y0 + H * 0.006);
+      c.restore();
+    }
     /* The boss's health, big across the top. */
     if (this.boss && !this.boss.done) this.boss.hud(c, W, H);
     /* The team's coins, top right. */

@@ -42,6 +42,7 @@ import { RUN, P } from './lkp-art.js';
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';
+import { XP } from './lkp-levelup.js';
 
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
    it reaches. */
@@ -227,16 +228,17 @@ export class Fight {
   _fight(i, dt, W, H, hopped){
     const g = this.g, rn = g.crew[i], p = pose.players[i];
     rn.buddies = this.up.filter(j => j !== i && !g.crew[j].healing && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
-    const power = (rn.power || 1) * (1 + TEAM * rn.buddies);
+    /* Standing together, and their upgrades (lkp-levelup.js). */
+    const power = 1 + TEAM * rn.buddies, fists = power * (rn.fists || 1), wheels = power * (rn.wheels || 1);
     const near = this._inReach(rn);
     rn.swingT = (rn.swingT || 0) + dt;
     if (rn.swingT >= SWING && near.length){
       rn.swingT = 0; rn.swing = 1;
-      for (const b of near) this._hit(b, SWING_HIT * power, W, H);
+      for (const b of near) this._hit(b, SWING_HIT * fists, W, H);
     }
     if (this.cranks[i].step(p, dt) && near.length){
       rn.swing = 1;
-      for (const b of near) this._hit(b, CRANK_HIT * power, W, H);
+      for (const b of near) this._hit(b, CRANK_HIT * wheels, W, H);
     }
     if (hopped){
       let shot = null;
@@ -248,7 +250,7 @@ export class Fight {
         const a = P(rn.x, RUN, W, H), z = P(shot.x, shot.d, W, H);
         g.bits.push({ kind: 'shot', x: a.x / W, y: (a.y - H * 0.12) / H, x2: z.x / W, y2: (z.y - H * 0.08 * z.k) / H, age: 0, life: 0.3 });
         sfx.zap();
-        this._hit(shot, SHOT_HIT * power, W, H);
+        this._hit(shot, SHOT_HIT * fists, W, H);
       }
     }
   }
@@ -263,7 +265,7 @@ export class Fight {
     b.hp -= dmg; b.flash = 1;
     sfx.clank();
     g.bits.push({ kind: 'num', x: (p.x + (Math.random() - 0.5) * H * 0.03) / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.6, text: `${dmg}`, col: '#ffffff', small: true });
-    if (b.hp <= 0 && !b.part){ g.coins += KILL_COINS; g.kills++; this._scrap(b, W, H); }
+    if (b.hp <= 0 && !b.part){ g.coins += KILL_COINS; g.kills++; g.addXp?.(XP.kill); this._scrap(b, W, H); }
   }
 
   /* A robot popping into scrap and sparks. */
@@ -314,6 +316,7 @@ export class Fight {
     this.done = true;
     for (const i of g.here) this._rise(i, W, H);
     g.coins += CLEAR_COINS;
+    if (this.waves) g.addXp?.(XP.fight);
     sfx.gold();
     for (let k = 0; k < 6; k++) g._sparkle(0.2 + k * 0.12, 0.4, 8, 50);
   }

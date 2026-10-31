@@ -25,6 +25,7 @@ import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
 import { drawCoin, PAL } from './lkp-art.js';
+import { XP } from './lkp-levelup.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
    red to start, before the first green. */
@@ -105,6 +106,7 @@ export class Lights {
   _clear(W, H, won){
     const g = this.g;
     this.done = true;
+    g.addXp?.(won ? XP.trap : XP.trapTimeout);
     if (!won){ sfx.whoosh(); return; }
     g.coins += CLEAR_COINS;
     sfx.gold();
