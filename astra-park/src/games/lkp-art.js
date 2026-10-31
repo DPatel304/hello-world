@@ -328,6 +328,29 @@ export function drawDepot(c, W, H, rel, t, what, charge = 0){
   c.strokeStyle = '#7ff3ff'; c.beginPath(); c.arc(p.x, cy, s * 2, -Math.PI / 2, -Math.PI / 2 + charge * 6.2832); c.stroke();
 }
 
+/* A treasure chest at depth rel: a wooden box with gold bands, its lid
+   lifting (open 0..1) - and once it's open, coins heaped inside and a
+   glow. */
+export function drawChest(c, W, H, rel, t, open, full){
+  const p = P(0, rel, W, H), s = H * 0.16 * p.k, x = p.x, y = p.y;
+  if (full){
+    const g = c.createRadialGradient(x, y - s * 0.6, 0, x, y - s * 0.6, s * 2.2);
+    g.addColorStop(0, `rgba(255,214,90,${0.5 + 0.15 * Math.sin(t * 4)})`); g.addColorStop(1, 'rgba(255,214,90,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y - s * 0.6, s * 2.2, 0, 6.2832); c.fill();
+  }
+  box(c, x - s, y - s * 0.7, s * 2, s * 0.7, '#8b5a2b');
+  c.fillStyle = '#e8b931'; c.fillRect(x - s * 0.7, y - s * 0.7, s * 0.14, s * 0.7); c.fillRect(x + s * 0.56, y - s * 0.7, s * 0.14, s * 0.7);
+  if (full) for (let k = 0; k < 9; k++){
+    c.fillStyle = '#facc15'; c.strokeStyle = INK; c.lineWidth = 2;
+    c.beginPath(); c.arc(x - s * 0.7 + (k % 5) * s * 0.35, y - s * 0.72 - Math.floor(k / 5) * s * 0.14, s * 0.13, 0, 6.2832); c.fill(); c.stroke();
+  }
+  /* The lid, swinging up and back. */
+  c.save(); c.translate(x, y - s * 0.7); c.scale(1, Math.cos(open * 1.9));
+  box(c, -s, -s * 0.4, s * 2, s * 0.4, '#a0692f');
+  c.fillStyle = '#e8b931'; c.fillRect(-s * 0.14, -s * 0.4, s * 0.28, s * 0.4);
+  c.restore();
+}
+
 /* ---------- the bosses ---------- */
 
 /* The Scout: a lean, tan, long-legged robot with one big eye visor and

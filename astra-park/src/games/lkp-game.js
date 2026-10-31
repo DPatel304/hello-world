@@ -11,6 +11,7 @@ import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Depot } from './lkp-depot.js';
+import { Treasure } from './lkp-treasure.js';
 import { LEVELS } from './lkp-levels.js';
 import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
 
@@ -37,8 +38,8 @@ const BOSSES = { scout: Scout, warden: Warden };
    with a little scene to open, before the Warden, and to end.
 
    The fight door is a combat room (lkp-combat.js); the traps door, a
-   trap room - red light, green light (lkp-trap.js). Treasure is only
-   its sign for now, letting the crew straight through. */
+   trap room - red light, green light (lkp-trap.js); and treasure, only
+   ever behind the ? door, a rest (lkp-treasure.js). */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
@@ -157,7 +158,7 @@ class LastKnownPosition {
     this.step_++;
     const plan = this.level.plan, kind = plan[this.step_] || 'end';
     this.seg = { kind, t: 0 };
-    this.fight = null; this.trap = null; this.boss = null; this.depot = null;
+    this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null;
     if (kind === 'corridor'){
       const n = plan.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -178,6 +179,7 @@ class LastKnownPosition {
       if (this.seg.room === 'combat') this.fight = PLAYTEST ? new Fight(this, PLAYTEST) : new Fight(this);
       /* A longer hall: twice the playtest time to get up it. */
       if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
+      if (this.seg.room === 'treasure') this.treasure = PLAYTEST ? new Treasure(this, PLAYTEST) : new Treasure(this);
       sfx.whoosh();
     } else if (kind === 'depot'){
       this.depot = new Depot(this);
@@ -278,7 +280,7 @@ class LastKnownPosition {
     /* At the doors, the view closes in; once through, back out. */
     const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
     this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
-    if (seg.kind === 'room') want = this.fight || this.trap ? 0 : SPEED * 0.4;
+    if (seg.kind === 'room') want = this.fight || this.trap || this.treasure ? 0 : SPEED * 0.4;
     if (seg.kind === 'boss' || seg.kind === 'depot') want = 0;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
@@ -290,6 +292,7 @@ class LastKnownPosition {
     else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
     else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > 1.5) this._next(); }
+    else if (this.treasure){ this.treasure.step(dt, W, H); if (this.treasure.done && this.treasure.clearT > 0.8) this._next(); }
     else if (this.depot){
       this.depot.step(dt, W, H);
       /* Woken: the robots speak, and on. */
@@ -348,6 +351,7 @@ class LastKnownPosition {
       const hurt = up.find(i => this.crew[i].hp < this.crew[i].max * 0.35 && !f._inReach(this.crew[i]).length);
       if (hurt != null) cap.say(`${NAMES[hurt]}, you're hurt! Hug yourself to heal, before they reach you.`, 'HUG TO HEAL', { once: 'hug' });
     }
+    if (this.treasure && !seg.told){ seg.told = true; cap.say('Treasure! Grab the coins and patch yourselves up. Wave when you\'re ready to go on!', 'WAVE WHEN READY'); }
     const tr = this.trap;
     if (tr && !seg.told){
       seg.told = true;
@@ -601,6 +605,7 @@ class LastKnownPosition {
     if (this.fight) for (const b of this.fight.bots) if (!b.part) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
     if (this.boss) this.boss.items(items);
     if (this.depot) this.depot.items(items);
+    if (this.treasure) this.treasure.items(items);
     for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
@@ -609,6 +614,7 @@ class LastKnownPosition {
     if (seg.kind === 'room') this._drawRoom(c, W, H);
     this._drawBits(c, W, H);
     if (this.depot) this.depot.draw(c, W, H);
+    if (this.treasure) this.treasure.draw(c, W, H);
     c.restore();
     this._drawHud(c, W, H);
   }
