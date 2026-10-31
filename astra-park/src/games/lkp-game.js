@@ -1,4 +1,4 @@
-import { clamp } from './common.js';
+import { clamp, scores } from './common.js';
 import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
@@ -54,6 +54,10 @@ export const PLAYTEST = 20;
 const FULL = [50, 45, 45];                      /* seconds of each corridor, in full */
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
+/* The score: every coin, 10 for each knocked out, 500 for each boss beaten. */
+export const SCORE = { kill: 10, boss: 500 };
+/* The tally at the end: each line's turn to count up, and how long. */
+const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10 };   /* ledge: a breach across part of the floor */
 export const SAFE = 1;                          /* seconds of safety after a hit */
 export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment */
@@ -106,7 +110,7 @@ const twoDoors = () => {
   return [k[0], k[1]];
 };
 
-export default {
+const def = {
   id: 'last-known-position', name: 'Last Known Position', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
   /* The moves it uses, shown as pictures on the home screen. */
   moves: ['lean', 'jump', 'duck', 'clap', 'hug'],
@@ -114,6 +118,7 @@ export default {
   pauseHold: 2.5,
   create(n){ return new LastKnownPosition(n); }
 };
+export default def;
 
 class LastKnownPosition {
   constructor(players){
@@ -127,7 +132,7 @@ class LastKnownPosition {
     this.t = 0; this.over = false; this.lost = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.zoom = 0;                  /* how far the view has closed in, 0..1 */
-    this.coins = 0; this.kills = 0;
+    this.coins = 0; this.kills = 0; this.bosses = 0;
     /* The team's XP and level (lkp-levelup.js); level-ups still to pick,
        and the picking, while it's on. */
     this.xp = 0; this.lvl = 1; this.pending = 0; this.levelup = null;
@@ -577,14 +582,22 @@ class LastKnownPosition {
      crew asleep in a fight, sleeping where they lie, robots and all. */
   outro(dt, W, H){
     if (!this.out){
-      this.out = { t: 0, scene: story.on ? new Scene(this.lost ? 'lost' : 'won', this) : null };
+      /* The score, and whether it beats the best for this many players
+         (the console keeps it once the round's over). */
+      const n = Math.max(1, this.crew.filter(r => r.played).length), score = this.value();
+      this.out = { t: 0, scene: story.on ? new Scene(this.lost ? 'lost' : 'won', this) : null,
+        score, best: scores.best(def.id, n), counted: 0 };
       if (this.lost) sfx.lose(); else sfx.fanfare();
     }
     const o = this.out;
     o.t += dt; this.t += dt;
     this.faces.step(dt);
     /* With the story: the ending scene, till it's done. */
-    if (o.scene){ o.scene.step(dt); this._stepBits(dt); return o.scene.done && o.t > 2; }
+    /* The tally ticking up, line by line. */
+    const lines = this.tallyLines().length, at = Math.min(lines, Math.floor(o.t / TALLY_STEP));
+    if (at > o.counted){ o.counted = at; if (at === lines) sfx.gold(); else sfx.tick(); }
+    const tallied = o.t > lines * TALLY_STEP + TALLY_COUNT + 1.5;
+    if (o.scene){ o.scene.step(dt); this._stepBits(dt); return o.scene.done && tallied; }
     if (this.lost){ this._stepBits(dt); return o.t > 4; }
     this.speed = Math.max(0, this.speed - dt * 0.3);
     this.z += this.speed * dt;
@@ -604,6 +617,7 @@ class LastKnownPosition {
       if (sc.kind === 'opening') drawOpening(c, W, H, sc.t);
       else drawEnding(c, W, H, this.out.t, sc.kind === 'won');
       sc.draw(c, W, H);
+      if (this.out) this._drawTally(c, W, H);
       return;
     }
     this._drawPlay(c, W, H);
@@ -807,11 +821,47 @@ class LastKnownPosition {
   }
 
   hud(){ return { score: pose.players.map(() => this.coins), showLives: false, hideScore: true, hideClock: true }; }
+  /* The tally: what the score's made of - each [picture, count, worth]. */
+  tallyLines(){
+    return [['\u{1FA99}', this.coins, this.coins], ['\u{1F916}', this.kills, this.kills * SCORE.kill], ['\u{1F451}', this.bosses, this.bosses * SCORE.boss]];
+  }
+
+  /* At the end, over the scene: the coins, the knockouts and the boss,
+     each counting up in turn, then the score - and a NEW BEST! if it is
+     one. */
+  _drawTally(c, W, H){
+    const o = this.out, lines = this.tallyLines(), x = W * 0.62, w = W * 0.32, lh = H * 0.085, y0 = H * 0.36;
+    const up = (k) => clamp((o.t - k * TALLY_STEP) / TALLY_COUNT, 0, 1);
+    c.save();
+    c.fillStyle = 'rgba(5,6,15,.72)'; c.beginPath(); c.roundRect(x - w * 0.08, y0 - lh * 0.8, w * 1.16, lh * (lines.length + 2.4), H * 0.03); c.fill();
+    c.textBaseline = 'middle';
+    lines.forEach(([icon, count, worth], k) => {
+      if (o.t < k * TALLY_STEP) return;
+      const u = up(k), y = y0 + k * lh;
+      c.font = `${Math.round(lh * 0.55)}px sans-serif`; c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.fillText(icon, x, y);
+      c.font = `700 ${Math.round(lh * 0.48)}px Fredoka, sans-serif`;
+      c.fillStyle = '#cfd6f5'; c.fillText(`\u00D7 ${Math.round(count * u)}`, x + lh * 0.9, y);
+      c.textAlign = 'right'; c.fillStyle = '#ffffff'; c.fillText(String(Math.round(worth * u)), x + w, y);
+    });
+    if (o.t >= lines.length * TALLY_STEP){
+      const u = up(lines.length), y = y0 + lines.length * lh + lh * 0.3;
+      c.fillStyle = 'rgba(255,255,255,.3)'; c.fillRect(x, y - lh * 0.55, w, 3);
+      c.font = `700 ${Math.round(lh * 0.7)}px Fredoka, sans-serif`; c.textAlign = 'right'; c.fillStyle = '#ffd24a';
+      c.fillText(String(Math.round(o.score * u)), x + w, y + lh * 0.1);
+      if (u >= 1 && o.score > o.best){
+        c.textAlign = 'left'; c.font = `700 ${Math.round(lh * 0.45)}px Fredoka, sans-serif`;
+        c.fillStyle = `hsl(${(o.t * 200) % 360},90%,65%)`; c.fillText('NEW BEST!', x, y + lh * 0.1);
+      }
+    }
+    c.restore();
+  }
+
   tally(){
     const rows = [];
-    for (let i = 0; i < this.players; i++) if (this.crew[i].played || pose.players[i].present) rows.push({ label: `Player ${i + 1}`, value: this.coins, color: PLAYER_COLORS[i] });
+    for (let i = 0; i < this.players; i++) if (this.crew[i].played || pose.players[i].present) rows.push({ label: `Player ${i + 1}`, value: this.value(), color: PLAYER_COLORS[i] });
     return rows;
   }
   winner(){ return this.crew.filter(r => r.played).length < 2 ? null : -1; }
-  value(){ return this.coins; }
+  /* The score: coins, plus knockouts and bosses (SCORE). */
+  value(){ return this.coins + this.kills * SCORE.kill + this.bosses * SCORE.boss; }
 }

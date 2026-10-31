@@ -211,6 +211,8 @@ export class Warden {
 
   _win(W, H){
     this.g.addXp?.(XP.boss);
+    /* Beaten - not just given up on. */
+    if (this.core ? this.core.hp <= 0 : this.body.hp <= 0) this.g.bosses++;
     const g = this.g, f = this.fight;
     this.done = true; this.blasts = [];
     for (const b of f.bots) if (!b.part) f._scrap(b, W, H);
