@@ -1,4 +1,4 @@
-/* Reactor Run's trap rooms. The first: red light, green light.
+/* Last Known Position's trap rooms. The first: red light, green light.
 
    A long hall seen from high up, the view holding still: the crew start
    along the near end, and across the far end is the finish line, with the
@@ -21,7 +21,7 @@
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
-import { drawCoin } from './reactor-art.js';
+import { drawCoin } from './lkp-art.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
    red to start, before the first green. */

@@ -9,7 +9,7 @@ import { glow } from './backdrop.js';
 import { drawKid, KID_SKINS } from './kids.js';
 import { drawLake, drawWeeds, drawSurface, drawBoatBack, drawBoatFront, drawUncle, drawCrew, drawRod, drawPalm } from '../games/fishing-art.js';
 import { byId as fishById, drawFish } from '../games/fishing-fish.js';
-import { P as reactorP, RUN as REACTOR_RUN, drawCorridor, drawGloom, drawBeam, drawCoin, drawCrew as drawSpaceCrew, drawBlocker } from '../games/reactor-art.js';
+import { P as lkpP, RUN as LKP_RUN, drawCorridor, drawGloom, drawBeam, drawCoin, drawCrew as drawSpaceCrew, drawBlocker } from '../games/lkp-art.js';
 import { PADS as CASTLE_PADS, along as castleAlong, PATHS as CASTLE_PATHS, drawMeadow, drawCastle, drawTower, drawMonster, drawTree as drawCastleTree, TREES, drawTent, inked } from '../games/castle-art.js';
 import { DANCERS, MOVES, FLOOR, drawStage, drawMirrorBall, drawDancer } from '../games/dance-art.js';
 
@@ -71,16 +71,16 @@ function danceParty(){
   };
 }
 
-function reactorRun(){
+function lastKnownPosition(){
   return (c, W, H, t) => {
     const z = t * 0.3;
     drawCorridor(c, W, H, z, t, 0);
     drawBlocker(c, W, H, 0.55, 0.2, 1.05, t, 3);
     drawBeam(c, W, H, 0.32, t);
-    for (const k of [-1, 0, 1]){ const p = reactorP(k * 0.45, 0.2, W, H); drawCoin(c, p.x, p.y - H * 0.11 * p.k, H * 0.022 * p.k, t + k); }
+    for (const k of [-1, 0, 1]){ const p = lkpP(k * 0.45, 0.2, W, H); drawCoin(c, p.x, p.y - H * 0.11 * p.k, H * 0.022 * p.k, t + k); }
     const hop = Math.max(0, Math.sin(t * 2.2)) * H * 0.08;
     [[0, -0.6], [1, -0.2], [2, 0.2], [3, 0.6]].forEach(([i, lane]) => {
-      const p = reactorP(lane, REACTOR_RUN, W, H);
+      const p = lkpP(lane, LKP_RUN, W, H);
       drawSpaceCrew(c, p.x, p.y, H * 0.25, t + i * 0.4, ['#3da9ff', '#ff8a3d', '#3fcf7f', '#c46bff'][i], { air: i === 1 ? hop : 0, duck: 0, lean: 0 }, (x, y, r) => drawKid(c, x, y + r * 0.1, r, t + i, KID_SKINS[i]));
     });
     drawGloom(c, W, H);
@@ -113,7 +113,7 @@ function plain(accent){
   };
 }
 
-const POSTERS = { 'pop-party': popParty, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'reactor-run': reactorRun, 'castle-defense': castleDefense };
+const POSTERS = { 'pop-party': popParty, 'uncle-bs-boat': unclesBoat, 'dance-party': danceParty, 'last-known-position': lastKnownPosition, 'castle-defense': castleDefense };
 
 export function poster(game){
   return (POSTERS[game.id] || (() => plain(game.accent)))();

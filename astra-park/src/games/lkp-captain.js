@@ -1,4 +1,4 @@
-/* Reactor Run's captain: Captain Nova, on the crew's own ship, talking
+/* Last Known Position's captain: Captain Nova, on the crew's own ship, talking
    them through the job over the radio - their guide, their teacher and
    the story's narrator.
 

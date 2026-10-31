@@ -1,4 +1,4 @@
-/* Reactor Run, drawn as a greybox: plain shapes, one clear colour each, so
+/* Last Known Position, drawn as a greybox: plain shapes, one clear colour each, so
    the play can be got right before the look is decided. Everything the
    game draws goes through here - swap this file for the real art later
    and nothing else changes.

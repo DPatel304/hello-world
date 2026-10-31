@@ -1,7 +1,7 @@
 /* Spoken lines, in the computer's own voices (the browser's speech
    synthesis - built into Windows, no download, works offline). For the
-   games with someone to talk to the players: Reactor Run's captain, and
-   the Warden.
+   games with someone to talk to the players: Last Known Position's ship's
+   computer, Nova, and the robots.
 
    Each speaker has a voice: a woman's voice if the computer has one, at
    her own pitch and pace; the Warden, a man's, low and slow. A new line

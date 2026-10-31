@@ -317,7 +317,7 @@ export const sfx = {
             blip({ freq: 330 * Math.pow(2, s/12), dur: 0.42, type:'sawtooth',
                    gain:0.2, delay:i*0.13 })); },
   whoosh(){ hiss({ dur: 0.3, gain: 0.18, hp: 300, sweep: 2600 }); },
-  /* Reactor Run's fights: a hit landing on metal, a shot, and a robot
+  /* Last Known Position's fights: a hit landing on metal, a shot, and a robot
      bursting into scrap. */
   clank(){ blip({ freq: 980, to: 640, dur: 0.09, type: 'square', gain: 0.08 }); hiss({ dur: 0.08, gain: 0.1, hp: 2500 }); },
   /* Something big winding up to hit: a rising growl. */

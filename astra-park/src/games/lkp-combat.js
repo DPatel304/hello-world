@@ -1,4 +1,4 @@
-/* Reactor Run's combat rooms - closer to tower defense than a brawl. What
+/* Last Known Position's combat rooms - closer to tower defense than a brawl. What
    wins a fight is mostly decided before it: how much health the crew walk
    in with, and how strong they've grown. In the room itself, standing in
    the right place does the rest.
@@ -33,12 +33,12 @@
    Each robot drops coins; clearing the room drops more, and the run goes
    on.
 
-   The boss fight (reactor-boss.js) runs on a Fight too, without the
+   The boss fight (lkp-boss.js) runs on a Fight too, without the
    waves: it puts its own robots in, and its own parts - an arm slammed
    down, the core - as `part`s among them: they don't walk or nibble, but
    the crew hit them like anything else in reach (`wide` ones from
    further across), and a hop's shot can reach them. */
-import { RUN, P } from './reactor-art.js';
+import { RUN, P } from './lkp-art.js';
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';

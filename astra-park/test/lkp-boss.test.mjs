@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { MAX_HP, story } from '../src/games/reactor-run.js';
+import game, { MAX_HP, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
-import { TELL, SLAM, SLAM_W, DOWN, OVERLOAD, ROLL, BLAST, BOSS_COINS, CORE_NEAR, ROAR, MOVE, RUN_BOOST } from '../src/games/reactor-boss.js';
-import { FRONT } from '../src/games/reactor-combat.js';
-import { RUN } from '../src/games/reactor-art.js';
+import { TELL, SLAM, SLAM_W, DOWN, OVERLOAD, ROLL, BLAST, BOSS_COINS, CORE_NEAR, ROAR, MOVE, RUN_BOOST } from '../src/games/lkp-boss.js';
+import { FRONT } from '../src/games/lkp-combat.js';
+import { RUN } from '../src/games/lkp-art.js';
 import { pose } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;

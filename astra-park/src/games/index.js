@@ -5,8 +5,8 @@
 import popParty from './pop-party.js';
 import uncleBsBoat from './uncle-bs-boat.js';
 import danceParty from './dance-party.js';
-import reactorRun from './reactor-run.js';
+import lastKnownPosition from './lkp-game.js';
 import castleDefense from './castle-defense.js';
 
-export const GAMES = [popParty, uncleBsBoat, danceParty, reactorRun, castleDefense];
+export const GAMES = [popParty, uncleBsBoat, danceParty, lastKnownPosition, castleDefense];
 export const byId = (id) => GAMES.find(g => g.id === id);

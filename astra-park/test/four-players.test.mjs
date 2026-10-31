@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pose, L, MAX_PLAYERS, PLAYER_COLORS } from '../src/tracking/pose.js';
 import { GAMES } from '../src/games/index.js';
-import reactorRun, { story } from '../src/games/reactor-run.js';
+import lastKnownPosition, { story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
 import boat from '../src/games/uncle-bs-boat.js';
 import danceParty from '../src/games/dance-party.js';
 import popParty from '../src/games/pop-party.js';
-import { RUN } from '../src/games/reactor-art.js';
+import { RUN } from '../src/games/lkp-art.js';
 import { WATER, seatsFor } from '../src/games/fishing-art.js';
 import { standIn } from '../src/games/moon-art.js';
 
@@ -47,9 +47,9 @@ test('every game runs a while with four children and draws them', () => {
   }
 });
 
-test('Reactor Run: four crew share the corridor, and each can lean round debris', () => {
+test('Last Known Position: four crew share the corridor, and each can lean round debris', () => {
   row(4);
-  const inst = reactorRun.create(4);
+  const inst = lastKnownPosition.create(4);
   inst.things = [];
   run(inst, 1);
   const xs = inst.crew.map(r => r.x);

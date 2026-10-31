@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { story } from '../src/games/reactor-run.js';
-import { Captain, script, NAMES } from '../src/games/reactor-captain.js';
+import game, { story } from '../src/games/lkp-game.js';
+import { Captain, script, NAMES } from '../src/games/lkp-captain.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 

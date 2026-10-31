@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { MAX_HP, PLAYTEST, story } from '../src/games/reactor-run.js';
+import game, { MAX_HP, PLAYTEST, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
-import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_COINS } from '../src/games/reactor-trap.js';
+import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_COINS } from '../src/games/lkp-trap.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 30;

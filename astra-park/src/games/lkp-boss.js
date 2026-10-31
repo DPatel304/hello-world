@@ -1,4 +1,4 @@
-/* Reactor Run's boss: the Warden, the ship's rogue security core, at the
+/* Last Known Position's boss: the Warden, the ship's rogue security core, at the
    end of the last corridor. A huge reactor core across the far end of the
    arena, with an arm either side reaching down to the crew.
 
@@ -34,9 +34,9 @@
 
    Down to nothing, it bursts in a shower of coins, and the run is won.
    (However it's going, after len seconds it gives up and bursts anyway.) */
-import { RUN, P, PIT_NEAR } from './reactor-art.js';
+import { RUN, P, PIT_NEAR } from './lkp-art.js';
 import { sfx } from '../audio/sound.js';
-import { Fight, FRONT, FIGHT_MAX } from './reactor-combat.js';
+import { Fight, FRONT, FIGHT_MAX } from './lkp-combat.js';
 import { pose } from '../tracking/pose.js';
 import { MarchWatch } from '../tracking/gestures.js';
 

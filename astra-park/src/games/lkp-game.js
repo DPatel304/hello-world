@@ -6,13 +6,13 @@ import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawPulse, drawZzz,
-         drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './reactor-art.js';
-import { Fight, RANGE, BUDDY, FRONT } from './reactor-combat.js';
-import { Lights } from './reactor-trap.js';
-import { Warden, SLAM_W } from './reactor-boss.js';
-import { Captain, Scene, NAMES, drawOpening, drawWardenRising, drawEnding } from './reactor-captain.js';
+         drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './lkp-art.js';
+import { Fight, RANGE, BUDDY, FRONT } from './lkp-combat.js';
+import { Lights } from './lkp-trap.js';
+import { Warden, SLAM_W } from './lkp-boss.js';
+import { Captain, Scene, NAMES, drawOpening, drawWardenRising, drawEnding } from './lkp-captain.js';
 
-/* Reactor Run. A salvage crew of up to four boards a derelict starship and
+/* Last Known Position. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
    under the low bulkheads, hop the breaches in the floor, run through the
    coins and the green repair stations. At each crossroads the crew votes
@@ -26,11 +26,11 @@ import { Captain, Scene, NAMES, drawOpening, drawWardenRising, drawEnding } from
    Corridors wound but never kill: nobody's knocked below a sliver of
    health by them. (That's for the rooms, to come.)
 
-   Captain Nova talks them through it on the radio (reactor-captain.js),
+   Captain Nova talks them through it on the radio (lkp-captain.js),
    with a little scene to open, before the Warden, and to end.
 
-   The fight door is a combat room (reactor-combat.js); the traps door, a
-   trap room - red light, green light (reactor-trap.js). Treasure is only
+   The fight door is a combat room (lkp-combat.js); the traps door, a
+   trap room - red light, green light (lkp-trap.js). Treasure is only
    its sign for now, letting the crew straight through. */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
@@ -107,7 +107,7 @@ const twoDoors = () => {
 const PLAN = ['corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'];
 
 export default {
-  id: 'reactor-run', name: 'Reactor Run', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
+  id: 'last-known-position', name: 'Last Known Position', stars: 4, accent: '#3fd0ff', secs: 1200, endless: true,
   /* The moves it uses, shown as pictures on the home screen. */
   moves: ['lean', 'jump', 'duck', 'clap', 'hug'],
   /* Arms go up in every hop; holding them up a while is still a pause. */
@@ -450,7 +450,7 @@ class ReactorRun {
 
   /* Hit: a red flash, a jolt, everyone slows a moment, and a second of
      safety. In a corridor, never down to nothing. (Fights hurt their own
-     way: see reactor-combat.js.) */
+     way: see lkp-combat.js.) */
   _hurt(i, dmg, W, H){
     const rn = this.crew[i];
     rn.hp = Math.max(1, rn.hp - dmg);
