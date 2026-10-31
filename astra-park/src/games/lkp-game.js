@@ -355,7 +355,9 @@ class LastKnownPosition {
     const tr = this.trap;
     if (tr && !seg.told){
       seg.told = true;
-      if (!cap.say('Red light, green light! Run on the spot when it\'s green. Freeze when it\'s red!', 'RUN ON GREEN', { once: 'lights' })) cap.say('Red light, green light again! Careful now.', '');
+      const first = this.awake ? 'A sentry robot, recharging! Run on the spot while it\'s green. When its eye opens, freeze!'
+        : 'Shh! A sleeping robot. Run on the spot while it sleeps. When its eye opens, freeze!';
+      if (!cap.say(first, this.awake ? 'RUN, THEN FREEZE' : 'SHH! RUN, THEN FREEZE', { once: 'lights' })) cap.say(this.awake ? 'Another sentry. Careful now.' : 'Another sleeper. Quietly now!', '');
     }
     if (tr && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
     if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The coins are yours.', ''); }

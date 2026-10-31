@@ -1,20 +1,23 @@
-/* Last Known Position's trap rooms. The first: red light, green light.
+/* Last Known Position's trap rooms. The first: sneak past the sleeping
+   robot - red light, green light, in the story.
 
    A long hall seen from high up, the view holding still: the crew start
-   along the near end, and across the far end is the finish line, with the
-   Watcher - a big security robot - beyond it. While its back is turned
-   and its lamp is green, walk or run on the spot to go up the hall -
-   walking gets you there, running gets you there quicker (lean to go left
-   and right, as ever). When the lamp goes yellow it's turning round;
-   red, it's looking - and anyone it sees really moving (after a moment's
-   GRACE to stop - and a wobble, a sway or a fidget is fine) gets zapped:
-   ZAP health, knocked back a bit, a second's safety. A trap room never
-   puts anyone to sleep - 1 health at worst.
+   along the near end, and across the far end is the finish line, with a
+   great cleaning robot slumped beyond it. Before the robots have woken
+   (the depot) it's asleep - snoring, Z z z; after, it's a sentry,
+   recharging. While it is (the light on it green), walk or run on the
+   spot to go up the hall - walking gets you there, running gets you
+   there quicker (lean to go left and right, as ever). When it stirs
+   (yellow), its eye flickering, it's about to look; when its eye opens
+   (red) it's looking - and anyone it sees really moving (after a
+   moment's GRACE to stop - and a wobble, a sway or a fidget is fine) gets
+   zapped: ZAP health, knocked back a bit, a second's safety. A trap room
+   never puts anyone to sleep - 1 health at worst.
 
    A pile of coins waits past the finish line. The first over the line
    wins it - and the coins - for everyone, and the door opens.
-   However it's going, after len seconds the Watcher gives up and lets
-   them through anyway - but nobody won the coins.
+   However it's going, after len seconds the door opens anyway - but
+   nobody won the coins.
 
    Its own view: the hall is drawn by Q(lane, along) here, not the
    corridor's P. */
@@ -56,8 +59,8 @@ export class Lights {
     this.marches = pose.players.map(() => new MarchWatch());
     this.moves = pose.players.map(() => new MoveWatch());
     for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; }
-    /* The pile: a heap past the finish line, in front of the Watcher. */
-    this.pile = Array.from({ length: CLEAR_COINS }, (_, k) => ({ lane: (Math.random() - 0.5) * 0.5, up: Math.random() * 0.05, z: k }));
+    /* The pile: two heaps past the finish line, either side of the robot. */
+    this.pile = Array.from({ length: CLEAR_COINS }, (_, k) => ({ lane: (k % 2 ? 1 : -1) * (0.55 + Math.random() * 0.3), up: Math.random() * 0.05, z: k / 2 }));
   }
 
   step(dt, W, H){
@@ -110,7 +113,7 @@ export class Lights {
     this.pile = [];
   }
 
-  /* The hall, the Watcher, and the crew - drawn by the game's own crew
+  /* The hall, the robot, and the crew - drawn by the game's own crew
      drawing, at their places in the hall. */
   draw(c, W, H, drawCrew){
     const g = this.g, red = this.light === 'red', lamp = { green: '#3fcf7f', yellow: '#ffc531', red: '#ff3b3b' }[this.light];
@@ -130,9 +133,9 @@ export class Lights {
       const a = corner(-1.1 + k * 0.1, 1), b = corner(-1.1 + (k + 1) * 0.1, 1.03);
       c.fillRect(a[0], b[1], b[0] - a[0], a[1] - b[1]);
     }
-    /* The Watcher, beyond the finish: back turned on green, turning on
-       yellow, looking on red. */
-    this._watcher(c, W / 2, H * 0.22, H * 0.085, lamp);
+    /* The robot, beyond the finish: asleep (or recharging) on green,
+       stirring on yellow, looking on red. */
+    this._robot(c, W / 2, H * 0.22, H * 0.085, lamp, g.awake);
     /* Its gaze, on red: a red wash down the hall. */
     if (red){
       c.save(); c.globalAlpha = 0.12 + 0.05 * Math.sin(this.t * 10);
@@ -156,25 +159,53 @@ export class Lights {
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }
   }
 
-  _watcher(c, x, y, s, lamp){
-    const turn = this.light === 'green' ? 0 : this.light === 'yellow' ? 0.5 + 0.5 * Math.sin(this.t * 8) * 0.3 : 1;
+  /* The robot: a great slumped cleaning robot, wide and boxy, a brush
+   either side, one eye in its round head - shut and snoring on green
+   (before the robots wake), or dark and recharging (after); flickering
+   on yellow, its head twitching; wide open and red on red. Its light on
+   top in the same colour, big, so it reads from across the room. */
+  _robot(c, x, y, s, lamp, awake){
+    const twitch = this.light === 'yellow' ? Math.sin(this.t * 30) * s * 0.04 : 0;
     c.save(); c.translate(x, y);
-    /* A great round head on a neck, its lamp on top. */
-    c.fillStyle = '#4b5563'; c.fillRect(-s * 0.2, s * 0.6, s * 0.4, s * 0.5);
-    c.fillStyle = '#9aa3b5'; c.strokeStyle = '#0b0d1c'; c.lineWidth = 4;
+    /* Its body, slumped, and its brushes. */
+    c.fillStyle = '#5b6375'; c.strokeStyle = '#0b0d1c'; c.lineWidth = 4;
+    c.beginPath(); c.roundRect(-s * 1.6, s * 0.35, s * 3.2, s * 0.9, s * 0.2); c.fill(); c.stroke();
+    c.fillStyle = '#c2a14a';
+    for (const sd of [-1, 1]){ c.beginPath(); c.ellipse(sd * s * 1.75, s * 1.05, s * 0.35, s * 0.18, 0, 0, 6.2832); c.fill(); c.stroke(); }
+    /* Its head. */
+    c.translate(twitch, 0);
+    c.fillStyle = '#9aa3b5';
     c.beginPath(); c.arc(0, 0, s, 0, 6.2832); c.fill(); c.stroke();
-    /* Facing them: one big eye; back turned, a panel of bolts. */
-    if (turn > 0.5){
-      c.fillStyle = '#0b0d1c'; c.beginPath(); c.ellipse(0, s * 0.05, s * 0.5 * (turn * 2 - 1), s * 0.4, 0, 0, 6.2832); c.fill();
-      c.fillStyle = lamp; c.beginPath(); c.ellipse(0, s * 0.05, s * 0.26 * (turn * 2 - 1), s * 0.26, 0, 0, 6.2832); c.fill();
+    c.fillStyle = '#0b0d1c'; c.beginPath(); c.ellipse(0, s * 0.05, s * 0.55, s * 0.4, 0, 0, 6.2832); c.fill();
+    if (this.light === 'red'){
+      c.fillStyle = lamp; c.beginPath(); c.arc(0, s * 0.05, s * 0.28, 0, 6.2832); c.fill();
+      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(-s * 0.08, -s * 0.03, s * 0.07, 0, 6.2832); c.fill();
+    } else if (this.light === 'yellow'){
+      /* Flickering, half open. */
+      if (Math.floor(this.t * 12) % 2){ c.fillStyle = lamp; c.beginPath(); c.ellipse(0, s * 0.05, s * 0.28, s * 0.1, 0, 0, 6.2832); c.fill(); }
     } else {
-      c.fillStyle = '#7a8396'; c.fillRect(-s * 0.45, -s * 0.35, s * 0.9, s * 0.75);
-      c.fillStyle = '#5b6375';
-      for (const [bx, by] of [[-0.35, -0.25], [0.35, -0.25], [-0.35, 0.3], [0.35, 0.3]]){ c.beginPath(); c.arc(bx * s, by * s, s * 0.05, 0, 6.2832); c.fill(); }
+      /* Shut - a line - or, recharging, a dim glow. */
+      c.strokeStyle = awake ? '#3b5c7a' : '#7a8396'; c.lineWidth = s * 0.08; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(-s * 0.3, s * 0.08); c.quadraticCurveTo(0, s * 0.2, s * 0.3, s * 0.08); c.stroke();
     }
-    /* The lamp: big, so it reads from across the room. */
-    c.fillStyle = lamp; c.strokeStyle = '#0b0d1c';
+    /* Its light on top. */
+    c.fillStyle = lamp; c.strokeStyle = '#0b0d1c'; c.lineWidth = 4;
     c.beginPath(); c.arc(0, -s * 1.25, s * 0.35, 0, 6.2832); c.fill(); c.stroke();
     c.restore();
+    /* Asleep: Z z z. Recharging: a little bolt, pulsing. */
+    if (this.light === 'green'){
+      c.save(); c.fillStyle = '#ffffff'; c.textAlign = 'center';
+      if (!awake) for (let k = 0; k < 3; k++){
+        const u = (this.t * 0.5 + k / 3) % 1;
+        c.globalAlpha = Math.sin(u * Math.PI);
+        c.font = `700 ${Math.round(s * (0.4 + u * 0.5))}px Fredoka, sans-serif`;
+        c.fillText('z', x + s * (0.9 + u * 0.7), y - s * (0.6 + u * 1.2));
+      } else {
+        c.globalAlpha = 0.5 + 0.5 * Math.sin(this.t * 4); c.fillStyle = '#7ff3ff';
+        c.beginPath(); c.moveTo(x + s * 1.2, y - s * 1.3); c.lineTo(x + s * 0.95, y - s * 0.9); c.lineTo(x + s * 1.12, y - s * 0.9); c.lineTo(x + s * 0.98, y - s * 0.5); c.lineTo(x + s * 1.3, y - s * 1.0); c.lineTo(x + s * 1.12, y - s * 1.0); c.closePath(); c.fill();
+      }
+      c.restore();
+    }
   }
+
 }
