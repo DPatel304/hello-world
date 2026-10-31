@@ -1,0 +1,1449 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import game, { COST, KINDS, BUILD, REPAIR, MAX_LVL, CASTLE_HEARTS, TOWER_HP, STATS, SMASH_R, SQUAT_FAST, HUG_SETTLE, HUG_MEND, POINT_HOLD, HAND_START, HAND_KEEP, HAND_HOLD, TWO_HANDS, SNAP_R, upgradeTime, castleTime,
+               WALK, RUN, SWORD_COOL, SWORD_DMG, ROLL_FAST, KNIGHT_MAX, KNIGHT_HP, TENT_R, OGRE_CLUB, WINDUP, SLAM_R, ALL_DOWN, REVIVE_R, REVIVE_CLAPS, killsFor, swordAt, HEARTS, START_COINS, BUILD_TIME, FIRST_BUILD, MONSTERS, waveOf, countOf, gapOf, CROWD, CAP, RED, redShare,
+               DODGE, AIM_LINGER, AIM_FADE, LESSONS, LESSON_WAIT, READY, DRUMS, lessons, FEET_FAR, FEET_NEAR, ROOM_MOVE, ROOM_EDGE, ROOM_RUN, HURT_SLOW, ARMS_HOLD, TROLL_EVERY, FROST_FIRST, FROST_EVERY, FROST_WARN, ICE_BREAK } from '../src/games/castle-defense.js';
+import { PADS, PATHS, CASTLE, CASTLE_BASE, along, onCastle, castleBox, TENT } from '../src/games/castle-art.js';
+import { pose, L } from '../src/tracking/pose.js';
+import { standIn } from '../src/games/moon-art.js';
+import { sfx } from '../src/audio/sound.js';
+
+const W = 1920, H = 1080, DT = 1 / 60, ASPECT = 16 / 9;
+/* The lesson's been had: the tests start straight on the game, but for the lesson's own. */
+lessons.done = true;
+/* A canvas that takes anything. */
+const fakeCtx = () => new Proxy({}, { get: (t, k) => k in t ? t[k] : (t[k] = () => ({ addColorStop(){} })), set: (t, k, v) => { t[k] = v; return true; } });
+const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i++){ if (each) each(i * DT); inst.step(DT, W, H); } };
+
+/* Children standing in the room, as the camera sees them: a hand reaching
+   out from the chest by `reach` ([x, y] torso-lengths: + x is right, - y is
+   up), knees up and down by `knee` (screen heights), hands moving up or
+   down at `hvy`, the middle of the body at `cy`, the body above the knees
+   dropped by `drop` (a squat), arms crossed in a `hug`. The first `n` are
+   there, all standing still with their hands by their sides but the first. */
+const TORSO = 0.15, CHEST = { x: 0.5, y: 0.475 + 0.15 * TORSO };
+function body({ reach = null, reach2 = null, knee = 0, knees = true, hvy = 0, cy = 0.6, drop = 0, hug = false, dx = 0, feet = 0, arms = false, n = 1 } = {}){
+  pose.mouse.active = false;
+  pose.players.forEach((p, i) => { p.present = i < n; });
+  for (let i = 0; i < n; i++){
+    const lm = standIn(0.5).map(q => ({ ...q, z: 0, v: 0.9 })), p = pose.players[i];
+    if (i === 0){
+      lm[L.L_KNEE].y -= knee; lm[L.R_KNEE].y += knee; lm[L.L_ANKLE].y -= knee; lm[L.R_ANKLE].y += knee;
+      if (!knees){ lm[L.L_KNEE].v = lm[L.R_KNEE].v = 0.1; }
+      if (dx) lm.forEach(q => { q.x += dx; });
+      if (feet) lm.forEach(q => { q.y += feet; });
+      if (drop) lm.forEach((q, j) => { if (![L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE].includes(j)) q.y += drop; });
+      if (hug){ lm[L.L_WRIST] = { ...lm[L.R_SHOULDER], y: lm[L.R_SHOULDER].y + 0.01 }; lm[L.R_WRIST] = { ...lm[L.L_SHOULDER], y: lm[L.L_SHOULDER].y + 0.01 }; }
+    }
+    p.lm = lm; p.scale = 0.3;
+    p.centre = { x: i === 0 ? 0.5 + dx : 0.5, y: i === 0 ? cy + drop + feet : 0.6 };
+    const v = i === 0 ? hvy : 0;
+    const hx = i === 0 ? dx : 0, hy = i === 0 ? feet : 0;
+    p.hands.left = { x: 0.45 + hx, y: 0.65 + hy, vx: 0, vy: v, speed: Math.abs(v) };
+    p.hands.right = { x: 0.55 + hx, y: 0.65 + hy, vx: 0, vy: -v, speed: Math.abs(v) };
+    if (i === 0 && reach) p.hands.right = { x: CHEST.x + reach[0] * TORSO / ASPECT, y: CHEST.y + reach[1] * TORSO, vx: 0, vy: 0, speed: 0 };
+    if (i === 0 && arms){ p.hands.left = { x: 0.5 - 0.12 + dx, y: 0.3 + feet }; p.hands.right = { x: 0.5 + 0.12 + dx, y: 0.3 + feet }; }
+    if (i === 0 && reach2) p.hands.left = { x: CHEST.x + reach2[0] * TORSO / ASPECT, y: CHEST.y + reach2[1] * TORSO, vx: 0, vy: 0, speed: 0 };
+  }
+}
+/* The first child standing where, in the room, is (x, y) on the map. */
+const standAt = (x, y, o = {}) => body({ ...o, dx: ROOM_EDGE + (x - 0.04) / 0.92 * (1 - 2 * ROOM_EDGE) - 0.5, feet: FEET_FAR + (y - 0.1) / 0.86 * (FEET_NEAR - FEET_FAR) - (0.55 + 0.85 * 0.3) });
+/* Standing still and upright: `n` children there. */
+const still = (n = 1) => body({ n });
+/* Nobody there at all. */
+function none(){ pose.mouse.active = false; pose.players.forEach(p => { p.present = false; }); }
+/* Running on the spot - knees up and down twice a second - with a reach. */
+const marching = (o = {}, height = 0.03) => (t) => body({ ...o, knee: Math.sin(t * Math.PI * 4) * height });
+/* Squats, up and down once a second, `depth` screen heights down. */
+const squats = (o = {}, depth = 0.06) => (t) => body({ ...o, drop: Math.sin(t * Math.PI * 2) > 0 ? depth : 0 });
+/* A jump: the middle of the body rising quickly over a few frames, then back down. */
+function jump(inst){
+  for (let k = 1; k <= 4; k++){ body({ cy: 0.6 - k * 0.03 }); inst.step(DT, W, H); }
+  for (let k = 3; k >= 0; k--){ body({ cy: 0.6 - k * 0.03 }); inst.step(DT, W, H); }
+  run(inst, 0.1);
+}
+
+/* A child's hands at (x, y), `gap` screen heights apart. */
+function hands(x, y, gap){
+  const p = pose.players[0], d = gap / 2 / ASPECT;
+  p.hands.left = { x: x - d, y, vx: 0, vy: 0, speed: 0 }; p.hands.right = { x: x + d, y, vx: 0, vy: 0, speed: 0 };
+}
+/* Rolling the arms, the wheels on the bus: the hands going round each
+   other `rev` times a second, `r` screen heights from the middle. */
+const rolling = (o = {}, rev = 1.5, r = 0.06) => (t) => {
+  body(o);
+  const p = pose.players[0], w = rev * 2 * Math.PI, a = t * w, cx = 0.5, cy = 0.55;
+  const dx = Math.cos(a) * r / ASPECT, dy = Math.sin(a) * r, vx = -Math.sin(a) * r * w / ASPECT, vy = Math.cos(a) * r * w;
+  p.hands.left = { x: cx - dx, y: cy - dy, vx: -vx, vy: -vy, speed: Math.hypot(vx, vy) };
+  p.hands.right = { x: cx + dx, y: cy + dy, vx, vy, speed: Math.hypot(vx, vy) };
+};
+
+/* One child, as the mouse: the pointer at (x, y), moving at `speed`. */
+function mouse(x, y, speed = 0){
+  pose.mouse.active = true;
+  pose.players.forEach((p, i) => { p.present = i === 0; });
+  const p = pose.players[0];
+  p.hands.right = { x, y, vx: speed, vy: 0, speed }; p.hands.left = { ...p.hands.right };
+}
+
+/* A quiet castle: no waves coming unless a test starts one, and `n`
+   children standing still. */
+function quiet(n = 1){
+  if (n) still(n); else none();
+  const inst = game.create(Math.max(1, n)); inst.breakT = 1e9; inst.quiet = true;
+  return inst;
+}
+const knight = (inst, i = 0) => inst.knights[i];
+const put = (k, x, y) => { k.x = k.tx = x; k.y = k.ty = y; };
+/* Build without the first tower calling the first wave. */
+function build(inst, i, kind){ inst._build(i, kind, 0); if (inst.quiet) inst.breakT = 1e9; }
+/* A monster parked `s` along the trail, not moving. */
+function monster(inst, kind, s){ inst._spawn(kind, 0); const m = inst.monsters[inst.monsters.length - 1]; m.s = s; m.speed = 0; m.side = 0; return m; }
+/* How far along the trail is nearest to a spot. */
+function nearestS(pt){
+  let best = 0, bd = 9;
+  for (let s = 0; s < PATHS[0].total; s += 0.005){ const p = along(s), d = Math.hypot((p.x - pt.x) * ASPECT, p.y - pt.y); if (d < bd){ bd = d; best = s; } }
+  return best;
+}
+/* A monster parked right by the knight - the knight stood on the trail. */
+function byKnight(inst, kind = 'slime', s = 1.5){
+  const m = monster(inst, kind, s), p = along(s);
+  put(knight(inst), p.x, p.y);
+  return m;
+}
+/* The spot furthest from any pad, the castle, the tent or the trail. */
+const OPEN_FIELD = (() => {
+  let best = null, bd = 0;
+  for (let x = 0.05; x < 0.95; x += 0.02) for (let y = 0.1; y < 0.95; y += 0.02){
+    if (onCastle(x, y + 0.03)) continue;
+    const t = along(nearestS({ x, y }));
+    let d = Math.hypot((t.x - x) * ASPECT, t.y - y);
+    for (const pad of PADS) d = Math.min(d, Math.hypot((pad.x - x) * ASPECT, pad.y - y));
+    d = Math.min(d, Math.hypot((TENT.x - x) * ASPECT, TENT.y - y));
+    if (d > bd){ bd = d; best = { x, y }; }
+  }
+  return best;
+})();
+const PATH = PATHS[0];
+
+/* ---------- walking ---------- */
+
+/* Where the knight starts in the walking tests: open grass, nothing near
+   to aim for. */
+const FREE = { x: 0.62, y: 0.42 };
+const moved = (k) => ({ x: (k.x - FREE.x) * ASPECT, y: k.y - FREE.y });
+
+test('marching on the spot with a hand reaching out walks the knight: out to the side, up high is up, down low is down', () => {
+  for (const [reach, check] of [[[1.3, 0], (d) => d.x > 0.1], [[-1.3, 0], (d) => d.x < -0.1],
+                                [[0, -1.2], (d) => d.y < -0.1], [[0, 0.7], (d) => d.y > 0.06]]){
+    const inst = quiet(), k = knight(inst);
+    put(k, FREE.x, FREE.y);
+    run(inst, 1.2, marching({ reach }));
+    const d = moved(k);
+    assert.ok(check(d), `${reach} -> ${d.x.toFixed(2)}, ${d.y.toFixed(2)}`);
+  }
+});
+
+test('no marching, no walking: pointing alone only picks the place, with ghostly feet to march', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 2, () => body({ reach: [1.3, 0] }));
+  assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002, 'stands there');
+  assert.ok(k.goal && k.lean && k.lean.still && k.lean.x > 0.5, 'pointing the way');
+  inst.draw(fakeCtx(), W, H);
+});
+
+test('hands by your sides, on your hips or near your chest go nowhere, marching or not', () => {
+  const cases = [() => still(), marching({}), marching({ reach: [0.2, -0.1] }), marching({ reach: [0.6, 0.92] })];
+  for (const each of cases){
+    const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+    run(inst, 2, each);
+    assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002, String(each));
+  }
+});
+
+test('just walking on the spot, feet barely lifting, is enough to go', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 2, marching({ reach: [1.3, 0] }, 0.003));
+  assert.ok(moved(k).x > 0.06, `${moved(k).x.toFixed(3)}`);
+  const ankles = quiet(), ka = knight(ankles); put(ka, FREE.x, FREE.y);
+  run(ankles, 2, (t) => body({ reach: [1.3, 0], knees: false, knee: Math.sin(t * Math.PI * 4) * 0.004 }));
+  assert.ok(moved(ka).x > 0.06, 'ankles only');
+});
+
+test('marching harder goes faster, up to a run; both hands faster still', () => {
+  const go = (each) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 0.5, each); const x0 = moved(k).x; run(inst, 1, each); return moved(k).x - x0; };
+  const gently = go(marching({ reach: [1.3, 0] }, 0.006)), hard = go(marching({ reach: [1.3, 0] }, 0.05));
+  const both = go(marching({ reach: [1.3, -0.1], reach2: [1.3, 0.1] }, 0.05));
+  assert.ok(gently > 0.03, `${gently.toFixed(3)} marching gently still walks`);
+  assert.ok(hard > gently * 1.4, `${gently.toFixed(3)} gently, ${hard.toFixed(3)} hard`);
+  assert.ok(hard <= RUN + 0.01, 'one hand: never faster than a run');
+  assert.ok(both > hard * 1.1 && both <= RUN * TWO_HANDS + 0.01, `${both.toFixed(3)} both hands`);
+});
+
+test('it takes a clear reach to set off, but a lighter one keeps it going', () => {
+  const mid = (HAND_START + HAND_KEEP) / 2;
+  const a = quiet(), ka = knight(a); put(ka, FREE.x, FREE.y);
+  run(a, 1, marching({ reach: [mid, 0] }));
+  assert.ok(Math.abs(moved(ka).x) < 0.002, 'a light reach does not set off');
+  const b = quiet(), kb = knight(b); put(kb, FREE.x, FREE.y);
+  const m = marching({ reach: [1, 0] }), l = marching({ reach: [mid, 0] });
+  run(b, 0.5, m);
+  const x0 = moved(kb).x;
+  run(b, 1, (t) => l(t + 0.5));
+  assert.ok(moved(kb).x > x0 + 0.02, 'but keeps it walking');
+});
+
+test('a quick flick of a hand - a wave, a scratch - does not set the knight off', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  const flick = marching({ reach: [1.3, -0.3] }), rest = marching({});
+  let t = 0;
+  for (let q = 0; q < 4; q++){ run(inst, HAND_HOLD * 0.7, (u) => flick(t + u)); t += HAND_HOLD * 0.7; run(inst, 0.3, (u) => rest(t + u)); t += 0.3; }
+  assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002);
+  const held = marching({ reach: [1.3, 0] });
+  run(inst, HAND_HOLD + 0.4, (u) => held(t + u));
+  assert.ok(moved(k).x > 0.005, 'held out, it goes');
+});
+
+test('both hands reaching the same way steer together, a little faster; opposite ways, the further one steers', () => {
+  const go = (o) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 1.2, marching(o)); return moved(k); };
+  const one = go({ reach: [1.0, 0] }), two = go({ reach: [1.0, -0.1], reach2: [1.0, 0.1] });
+  assert.ok(two.x > one.x * 1.1, `${one.x.toFixed(3)} one hand, ${two.x.toFixed(3)} both`);
+  assert.ok(Math.abs(two.y - one.y) < 0.01, `straight between them: ${one.y.toFixed(3)} one hand, ${two.y.toFixed(3)} both`);
+  assert.ok(TWO_HANDS > 1);
+  const apart = go({ reach: [1.3, 0], reach2: [-0.8, 0] });
+  assert.ok(apart.x > 0.05, 'the hand reaching further wins');
+});
+
+test('pointing picks the nearest place that way; march, and the knight goes there and stops on it, hand down or not', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  /* Pointing roughly right: the pad is a little up and to the right. */
+  run(inst, 0.6, () => body({ reach: [1.3, 0] }));
+  assert.ok(k.goal && Math.hypot(k.goal.x - pad.x, k.goal.y - pad.y) < 1e-9, 'the pad is picked');
+  run(inst, 4, marching({}));
+  assert.ok(Math.hypot((k.x - pad.x) * ASPECT, k.y - pad.y) < 0.006, 'on the pad');
+  assert.equal(k.at?.id, 'p2');
+  const x = k.x; run(inst, 1, marching({}));
+  assert.equal(k.x, x, 'and stays there');
+});
+
+test('the moment a hand is out, the map shows where it points - before anything is picked', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  run(inst, HAND_HOLD * 0.4, () => body({ reach: [1.3, 0] }));
+  assert.ok(k.aim && k.aim.hold > 0 && k.aim.hold < 1, 'aiming, not yet picked');
+  assert.ok(Math.hypot(k.aim.cand.x - pad.x, k.aim.cand.y - pad.y) < 1e-9, 'the pad it would pick is lit');
+  assert.equal(k.goal ?? null, null);
+  inst.draw(fakeCtx(), W, H);
+  run(inst, HAND_HOLD, () => body({ reach: [1.3, 0] }));
+  assert.equal(k.aim.hold, 1);
+  assert.ok(k.goal && Math.hypot(k.goal.x - pad.x, k.goal.y - pad.y) < 1e-9, 'held: picked');
+  run(inst, 0.2, () => still());
+  assert.equal(k.aim, null, 'hand down: no beam');
+});
+
+test('the pointer only shows for an obvious point, and fades a while after you stop pointing and marching', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  const half = (HAND_START + HAND_KEEP) / 2;
+  run(inst, 2, () => body({ reach: [half, 0] }));
+  assert.ok(!(k.aimVis > 0), 'a half-hearted reach shows nothing');
+  run(inst, 0.5, () => body({ reach: [1.3, 0] }));
+  assert.ok(k.aimVis > 0.9, 'a clear point shows it');
+  /* Marching to it: it stays. */
+  run(inst, 1, marching({}));
+  assert.ok(k.aimVis > 0.9, 'marching: it stays');
+  /* Doing neither: it lingers, then fades. */
+  put(k, pad.x, pad.y);
+  run(inst, AIM_LINGER * 0.8, () => still());
+  assert.ok(k.aimVis > 0.9, 'lingers a moment');
+  run(inst, AIM_LINGER * 0.2 + AIM_FADE + 0.3, () => still());
+  assert.equal(k.aimVis, 0, 'then gone');
+  inst.draw(fakeCtx(), W, H);
+});
+
+test('what is lit stays lit, unless you clearly point away', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.3 / ASPECT, pad.y + 0.06);
+  run(inst, 0.5, () => body({ reach: [1.3, 0] }));
+  const lit = k.aim.cand;
+  /* Wobbling a little off it: still lit. */
+  run(inst, 1, (t) => body({ reach: [1.3, Math.sin(t * 9) * 0.25] }));
+  assert.ok(Math.hypot(k.aim.cand.x - lit.x, k.aim.cand.y - lit.y) < 1e-9);
+  run(inst, 1, () => body({ reach: [0, -1.3] }));
+  assert.ok(Math.hypot(k.aim.cand.x - lit.x, k.aim.cand.y - lit.y) > 0.01, 'pointing up: something else');
+});
+
+test('pointing at a monster chases it', () => {
+  const inst = quiet(), k = knight(inst), m = monster(inst, 'slime', 1.0), p = along(1.0);
+  put(k, p.x - 0.25 / ASPECT, p.y);
+  run(inst, 0.6, () => body({ reach: [1.3, 0] }));
+  assert.equal(k.goal?.m, m);
+  run(inst, 3, marching({}));
+  assert.ok(Math.hypot((k.x - p.x) * ASPECT, k.y - p.y) < 0.05, 'right up to it');
+});
+
+test('running about the room: across the room is across the map, nearer the camera further down it', () => {
+  for (const [x, y] of [[0.9, 0.2], [0.35, 0.5], [0.15, 0.8], [0.62, 0.42]]){
+    const inst = quiet(), k = knight(inst); put(k, 0.5, 0.5);
+    run(inst, 0.5, () => still());
+    run(inst, 6, () => standAt(x, y));
+    assert.ok(Math.hypot((k.x - x) * ASPECT, k.y - y) < 0.02, `${x}, ${y}: at ${k.x.toFixed(2)}, ${k.y.toFixed(2)}`);
+  }
+});
+
+test('standing about, or shuffling a little, leaves the knight where it is', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 2, (t) => body({ dx: Math.sin(t * 3) * 0.03, feet: Math.sin(t * 2) * 0.01 }));
+  assert.ok(Math.hypot(moved(k).x, moved(k).y) < 0.002);
+});
+
+test('running about, you stand right on a pad to be on it - near it is not enough', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[4];
+  run(inst, 2, () => standAt(0.9, 0.2));
+  run(inst, 6, () => standAt(pad.x + 0.06 / ASPECT, pad.y + 0.05));
+  assert.notEqual(k.at?.id, 'p4');
+  run(inst, 3, () => standAt(pad.x, pad.y));
+  assert.equal(k.at?.id, 'p4');
+});
+
+test('running about, the knight runs along after you, a little behind', () => {
+  const inst = quiet(), k = knight(inst);
+  run(inst, 0.5, () => still());
+  run(inst, 0.5, () => standAt(0.1, 0.42));
+  assert.ok(k.x > 0.25, 'still on its way');
+  assert.ok(ROOM_RUN <= 0.25);
+});
+
+test('down to its last heart, a knight limps', () => {
+  const go = (hp) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); k.hp = hp; run(inst, 1.5, marching({ reach: [1.3, 0] })); return moved(k).x; };
+  const fine = go(KNIGHT_HP), hurt = go(1);
+  assert.ok(Math.abs(hurt / fine - HURT_SLOW) < 0.1, `${fine.toFixed(3)} fine, ${hurt.toFixed(3)} hurt`);
+});
+test('after pointing, walking off across the room is running about again', () => {
+  const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y);
+  run(inst, 0.6, () => body({ reach: [1.3, 0] }));
+  assert.equal(k.mode, 'point');
+  run(inst, 8, () => standAt(0.15, 0.8));
+  assert.equal(k.mode, 'room');
+  assert.ok(Math.hypot((k.x - 0.15) * ASPECT, k.y - 0.8) < 0.03);
+});
+
+test('rolling your arms or hugging never steers the knight', () => {
+  const r = quiet(), kr = knight(r); put(kr, FREE.x, FREE.y);
+  run(r, 2, rolling({}, 1.5, 0.12));
+  assert.ok(Math.hypot(moved(kr).x, moved(kr).y) < 0.01, 'rolling');
+  const h = quiet(), kh = knight(h); put(kh, FREE.x, FREE.y);
+  run(h, 2, () => body({ hug: true }));
+  assert.ok(Math.hypot(moved(kh).x, moved(kh).y) < 0.01, 'hugging');
+});
+
+test('aim assist: let go near a pad and the knight walks onto it', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x + SNAP_R * 0.7 / ASPECT, pad.y);
+  run(inst, 1.5);
+  assert.ok(Math.hypot((k.x - pad.x) * ASPECT, k.y - pad.y) < 0.01, 'on the pad');
+  assert.equal(k.at?.id, 'p2');
+});
+
+test('aim assist: reaching roughly toward a pad nearby bends the knight onto it', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x - 0.2 / ASPECT, pad.y + 0.05);
+  /* Reaching straight out to the right, the pad a little up and to the right. */
+  let closest = 9;
+  const m = marching({ reach: [1.3, 0] });
+  run(inst, 2, (t) => { m(t); closest = Math.min(closest, Math.hypot((k.x - pad.x) * ASPECT, k.y - pad.y)); });
+  assert.ok(closest < 0.04, `came within ${closest.toFixed(3)}`);
+});
+
+test('with the knees out of view, the ankles do the marching', () => {
+  const go = (each) => { const inst = quiet(), k = knight(inst); put(k, FREE.x, FREE.y); run(inst, 1, each); return moved(k).x; };
+  const stood = go(() => body({ reach: [1.3, 0], knees: false })), marched = go((t) => body({ reach: [1.3, 0], knees: false, knee: Math.sin(t * Math.PI * 4) * 0.03 }));
+  assert.ok(stood < 0.002 && marched > 0.05, `${stood.toFixed(3)} standing, ${marched.toFixed(3)} marching`);
+});
+
+test('every child has a knight of their own, waiting side by side', () => {
+  const inst = quiet(2);
+  assert.ok(inst.knights.length >= 4);
+  const xs = inst.knights.slice(0, 4).map(k => k.x);
+  assert.equal(new Set(xs).size, 4);
+});
+
+/* ---------- the sword ---------- */
+
+test('near a monster the knight swings its sword by itself; one far off is left alone', () => {
+  const inst = quiet();
+  const m = monster(inst, 'ogre', 1.5), far = monster(inst, 'ogre', PATH.total - 0.3);
+  put(knight(inst), along(1.5).x, along(1.5).y);
+  run(inst, 0.2);
+  assert.ok(m.hp < m.max, 'swung at');
+  assert.equal(far.hp, far.max);
+});
+
+test('the sword swings a moment apart, not every frame', () => {
+  const inst = quiet();
+  const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
+  run(inst, 2);
+  const swings = Math.round((m.max - m.hp) / SWORD_DMG);
+  assert.ok(swings >= Math.floor(2 / SWORD_COOL) && swings <= Math.ceil(2 / SWORD_COOL) + 1, `${swings} swings in two seconds`);
+});
+
+test('a knight out in the open field swings at nothing', () => {
+  const inst = quiet();
+  const m = monster(inst, 'slime', 1.5);
+  put(knight(inst), OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, 2);
+  assert.equal(m.hp, m.max);
+});
+
+test('a sword kills a slime, and its coins go in the chest', () => {
+  const inst = quiet(), before = inst.coins;
+  byKnight(inst, 'slime');
+  run(inst, 6);
+  assert.equal(inst.monsters.length, 0);
+  assert.equal(inst.coins, before + MONSTERS.slime.coins);
+});
+
+test('rolling the arms makes the sword swing twice as fast', () => {
+  const swings = (each) => {
+    const inst = quiet();
+    const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
+    run(inst, 4, each);
+    return Math.round((m.max - m.hp) / SWORD_DMG);
+  };
+  const plain = swings(() => still()), rolled = swings(rolling());
+  assert.equal(ROLL_FAST, 2);
+  assert.ok(rolled >= plain * 1.7, `${plain} swings standing, ${rolled} rolling`);
+});
+
+test('rolling either way round counts; slow circles, hands far apart or still hands do not', () => {
+  const spun = (each) => { const inst = quiet(); run(inst, 2, each); return inst.rolling(knight(inst)); };
+  assert.equal(spun(rolling()), true, 'forwards');
+  assert.equal(spun(rolling({}, -1.5)), true, 'backwards');
+  assert.equal(spun(rolling({}, 0.25)), false, 'slowly');
+  assert.equal(spun(rolling({}, 1.5, 0.3)), false, 'arms flung wide');
+  assert.equal(spun(() => still()), false, 'still');
+});
+
+test('hands bobbing up and down are not a roll', () => {
+  const inst = quiet();
+  run(inst, 2, (t) => { still(); const p = pose.players[0], u = Math.sin(t * Math.PI * 8) * 0.05; p.hands.left.y = 0.6 + u; p.hands.right.y = 0.6 - u; });
+  assert.equal(inst.rolling(knight(inst)), false);
+});
+
+test('there is no clap any more: clapping does nothing', () => {
+  const inst = quiet();
+  const m = monster(inst, 'slime', 1.5), p = along(1.5);
+  put(knight(inst), p.x + 0.2 / ASPECT, p.y);
+  hands(0.5, 0.5, 0.3); run(inst, 0.1);
+  for (const g of [0.2, 0.1, 0.03]){ hands(0.5, 0.5, g); inst.step(DT, W, H); }
+  run(inst, 0.3);
+  assert.equal(m.hp, m.max);
+  assert.equal(inst.clap, undefined);
+});
+
+test('ghostly hands roll over a knight in a fight, until someone rolls', () => {
+  const inst = quiet();
+  const m = byKnight(inst, 'slime'); m.hp = m.max = 1e9;
+  assert.equal(inst.rollHint, null, 'not before a fight');
+  run(inst, 0.3);
+  assert.equal(inst.rollHint, knight(inst));
+  run(inst, 2, rolling());
+  assert.ok(inst.seen.rolled);
+  assert.equal(inst.rollHint, null);
+});
+
+/* ---------- building ---------- */
+
+test('standing on an empty pad only shows the tower; a jump builds it', () => {
+  const inst = quiet(), pad = PADS[2], kind = KINDS[inst.picks.get(2)];
+  put(knight(inst), pad.x, pad.y);
+  run(inst, BUILD * 4);
+  assert.ok(!inst.towers.has(2), 'standing about builds nothing');
+  inst.draw(fakeCtx(), W, H);
+  jump(inst);
+  assert.equal(inst.towers.get(2)?.kind, kind);
+  assert.equal(inst.coins, START_COINS - COST[kind]);
+  assert.ok(inst.seen.built && inst.seen.jumped);
+});
+
+test('a jump without the coins builds nothing', () => {
+  const inst = quiet(), pad = PADS[2];
+  inst.coins = 0;
+  put(knight(inst), pad.x, pad.y); run(inst, 0.2);
+  jump(inst);
+  assert.ok(!inst.towers.has(2));
+});
+test('neighbouring pads start out showing different kinds', () => {
+  const inst = quiet();
+  assert.deepEqual(new Set([0, 1, 2].map(i => KINDS[inst.picks.get(i)])), new Set(KINDS));
+});
+
+test('arms up over your head on an empty pad switches which tower it will be, once each time', () => {
+  const inst = quiet(), pad = PADS[2];
+  inst.picks.set(2, 0);
+  put(knight(inst), pad.x, pad.y); run(inst, 0.2);
+  const up = () => { run(inst, ARMS_HOLD + 0.2, () => body({ arms: true })); run(inst, 0.3, () => still()); };
+  run(inst, ARMS_HOLD * 0.5, () => body({ arms: true })); run(inst, 0.3, () => still());
+  assert.equal(KINDS[inst.picks.get(2)], 'archer', 'a quick flap is nothing');
+  up();
+  assert.equal(KINDS[inst.picks.get(2)], 'cannon');
+  run(inst, 3, () => body({ arms: true }));
+  assert.equal(KINDS[inst.picks.get(2)], 'frost', 'held up three seconds: just the once');
+  run(inst, 0.3, () => still());
+  up();
+  assert.equal(KINDS[inst.picks.get(2)], 'archer', 'and round again');
+  assert.ok(inst.seen.switched);
+  assert.ok(Math.hypot((knight(inst).x - pad.x) * ASPECT, knight(inst).y - pad.y) < 0.01, 'arms up is not pointing up');
+  up(); up();
+  jump(inst);
+  assert.equal(inst.towers.get(2)?.kind, 'frost');
+});
+test('a jump out in the field changes nothing', () => {
+  const inst = quiet(), before = [...inst.picks];
+  put(knight(inst), OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, 0.5); jump(inst); run(inst, 0.5);
+  assert.deepEqual([...inst.picks], before);
+});
+
+test('a jump at a built tower changes nothing, and does not hold up the work', () => {
+  const inst = quiet(); inst.coins = 100;
+  build(inst, 2, 'archer');
+  const pick = inst.picks.get(2);
+  put(knight(inst), PADS[2].x, PADS[2].y);
+  run(inst, upgradeTime(1) - 0.3); jump(inst);
+  assert.equal(inst.picks.get(2), pick);
+  run(inst, 0.3);
+  assert.equal(inst.towers.get(2).lvl, 2);
+});
+
+test('a little wriggle is not a jump', () => {
+  const inst = quiet(), pad = PADS[2], pick = inst.picks.get(2);
+  put(knight(inst), pad.x, pad.y);
+  for (let k = 0; k < 60; k++){ body({ cy: 0.6 + Math.sin(k / 3) * 0.006 }); inst.step(DT, W, H); }
+  assert.equal(inst.picks.get(2), pick);
+});
+
+test('without the coins, a tower cannot be built', () => {
+  const inst = quiet(), pad = PADS[2];
+  inst.picks.set(2, KINDS.indexOf('cannon')); inst.coins = COST.cannon - 1;
+  put(knight(inst), pad.x, pad.y);
+  run(inst, BUILD * 3);
+  assert.ok(!inst.towers.has(2));
+  assert.equal(inst.coins, COST.cannon - 1);
+});
+
+test('walking off partway lets the work drain away', () => {
+  const inst = quiet(), pad = PADS[2], k = knight(inst);
+  put(k, pad.x, pad.y); run(inst, BUILD * 0.7);
+  put(k, OPEN_FIELD.x, OPEN_FIELD.y); run(inst, BUILD);
+  put(k, pad.x, pad.y); run(inst, BUILD * 0.5);
+  assert.ok(!inst.towers.has(2));
+});
+
+test('a tower can be built in the middle of a wave', () => {
+  const inst = quiet(), pad = PADS[2];
+  inst._startWave(); inst.spawnT = 1e9;
+  put(knight(inst), pad.x, pad.y); run(inst, 0.2); jump(inst);
+  assert.ok(inst.towers.has(2));
+});
+
+test('standing at a tower builds it up, slowly and for free, all the way to ten - not straight after building it', () => {
+  const inst = quiet(); inst.coins = 100;
+  const pad = PADS[2];
+  inst.picks.set(2, 0);
+  put(knight(inst), pad.x, pad.y);
+  run(inst, 0.2); jump(inst);
+  assert.equal(inst.towers.get(2).lvl, 1);
+  run(inst, upgradeTime(1) + 0.2 - 0.25);
+  assert.equal(inst.towers.get(2).lvl, 1, 'it takes a while, after a moment to admire it');
+  run(inst, 0.5);
+  assert.equal(inst.towers.get(2).lvl, 2);
+  assert.equal(inst.coins, 100 - COST.archer, 'free');
+  run(inst, upgradeTime(2) + 0.7);
+  assert.equal(inst.towers.get(2).lvl, 3);
+  assert.ok(upgradeTime(9) > upgradeTime(2) * 2, 'and slower every level');
+  let all = 0; for (let l = 3; l < MAX_LVL; l++) all += upgradeTime(l) + 0.7;
+  run(inst, all + 5);
+  assert.equal(inst.towers.get(2).lvl, MAX_LVL);
+  assert.equal(MAX_LVL, 10);
+  run(inst, upgradeTime(9) * 2);
+  assert.equal(inst.towers.get(2).lvl, MAX_LVL, 'ten is the top');
+  assert.equal(inst.coins, 100 - COST.archer);
+  assert.equal(inst.towers.get(2).max, TOWER_HP[MAX_LVL - 1], 'and sturdier');
+});
+
+test('a tower at the top is many times a new one, against a crowd too', () => {
+  const kills = (kind, lvl) => { const S = STATS[kind], L = lvl - 1; return S.rate[L] * (S.many ? S.many[L] : S.most[L]); };
+  for (const kind of KINDS) assert.ok(kills(kind, MAX_LVL) > kills(kind, 1) * 5, kind);
+  for (const kind of KINDS) for (let l = 1; l < MAX_LVL; l++) assert.ok(STATS[kind].range[l] > STATS[kind].range[l - 1] && STATS[kind].dmg[l] > STATS[kind].dmg[l - 1]);
+});
+
+test('a high archer tower shoots several monsters at once', () => {
+  const inst = quiet(0); build(inst, 6, 'archer');
+  inst.towers.get(6).lvl = MAX_LVL;
+  const near = [];
+  for (let s = 0; s < PATH.total; s += 0.05){ const p = along(s); if (Math.hypot((p.x - PADS[6].x) * ASPECT, p.y - PADS[6].y) < 0.2) near.push(s); }
+  const ms = near.slice(0, 4).map(s => { const m = monster(inst, 'ogre', s); m.hp = m.max = 1e9; return m; });
+  run(inst, 1);
+  assert.equal(ms.filter(m => m.hp < m.max).length, 4);
+});
+
+test('two knights on one spot work twice as fast', () => {
+  const inst = quiet(2), pad = PADS[2];
+  build(inst, 2, 'archer');
+  put(knight(inst, 0), pad.x, pad.y); put(knight(inst, 1), pad.x + 0.01, pad.y);
+  run(inst, upgradeTime(1) * 0.55);
+  assert.equal(inst.towers.get(2).lvl, 2);
+});
+test('squatting makes the work go twice as fast - bobbing squats, no need to hold one', () => {
+  const inst = quiet(), pad = PADS[2];
+  build(inst, 2, 'archer');
+  put(knight(inst), pad.x, pad.y);
+  run(inst, 0.5);
+  run(inst, upgradeTime(1) / SQUAT_FAST + 0.3, squats());
+  assert.equal(inst.towers.get(2).lvl, 2);
+  assert.ok(inst.seen.squatted);
+  const slow = quiet();
+  build(slow, 2, 'archer');
+  put(knight(slow), pad.x, pad.y);
+  run(slow, 0.5 + upgradeTime(1) / SQUAT_FAST + 0.3);
+  assert.equal(slow.towers.get(2).lvl, 1, 'just standing there takes longer');
+});
+test('a little dip, running on the spot or reaching out is not a squat', () => {
+  for (const each of [squats({}, 0.01), marching(), () => body({ reach: [1.3, 0] }), () => body({ reach: [0, -1.2] })]){
+    const inst = quiet();
+    run(inst, 2, each);
+    assert.equal(inst.squatting(knight(inst)), false);
+  }
+});
+
+test('standing up out of a squat on an empty pad is not a jump', () => {
+  const inst = quiet(), pad = PADS[2], pick = inst.picks.get(2);
+  put(knight(inst), pad.x, pad.y);
+  run(inst, 0.5);
+  body({ drop: 0.07 }); run(inst, 2);
+  for (let k = 0; k < 4; k++){ body({ drop: 0.07 * (1 - (k + 1) / 4) }); inst.step(DT, W, H); }
+  run(inst, 1);
+  assert.equal(inst.picks.get(2), pick);
+});
+
+/* Stand knight i at the medical tent. */
+const atTent = (inst, i = 0) => put(knight(inst, i), TENT.x, TENT.y + 0.02);
+
+test('at the medical tent, a hug heals a hurt knight, a bonk at a time; arms down does not', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1; atTent(inst);
+  run(inst, 3);
+  assert.equal(k.hp, 1, 'just standing there: no');
+  body({ hug: true }); run(inst, HUG_SETTLE + HUG_MEND + 0.1);
+  assert.equal(k.hp, 2);
+  assert.ok(inst.seen.hugged);
+  run(inst, HUG_MEND);
+  assert.equal(k.hp, KNIGHT_HP);
+  run(inst, HUG_MEND * 2);
+  assert.equal(k.hp, KNIGHT_HP, 'and no more');
+});
+
+test('a hug anywhere but the medical tent heals nothing, and nothing heals on its own', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1; put(k, OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, 20);
+  assert.equal(k.hp, 1, 'not on its own');
+  body({ hug: true }); run(inst, 5);
+  assert.equal(k.hp, 1, 'not away from the tent');
+  put(k, TENT.x + TENT_R * 1.5 / (16 / 9), TENT.y + 0.02); run(inst, 5);
+  assert.equal(k.hp, 1, 'not just beside it');
+  atTent(inst); run(inst, HUG_SETTLE + HUG_MEND + 0.1);
+  assert.equal(k.hp, 2, 'there');
+});
+
+test('with the mouse, standing at the tent is enough', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1;
+  mouse(TENT.x, TENT.y + 0.02); run(inst, 8);
+  assert.equal(k.hp, KNIGHT_HP);
+});
+
+test('one hand on a shoulder is not a hug', () => {
+  const inst = quiet(), k = knight(inst);
+  k.hp = 1; atTent(inst);
+  run(inst, 3, () => { body(); const lm = pose.players[0].lm; lm[L.L_WRIST] = { ...lm[L.R_SHOULDER] }; });
+  assert.equal(inst.hugging(k), false);
+  assert.equal(k.hp, 1);
+});
+
+/* ---------- ogres, and mending ---------- */
+
+test('ogres smash at the towers they pass; little monsters do not', () => {
+  for (const pad of PADS){
+    const p = along(nearestS(pad));
+    assert.ok(Math.hypot((p.x - pad.x) * ASPECT, p.y - pad.y) < SMASH_R, `pad ${pad.i} is near enough the trail to be smashed`);
+  }
+  const inst = quiet(0); build(inst, 2, 'archer');
+  const tw = inst.towers.get(2);
+  const slime = monster(inst, 'slime', nearestS(PADS[2])); slime.hp = 1e9;
+  run(inst, 1);
+  assert.equal(tw.hp, tw.max, 'a slime does no harm');
+  inst.monsters = [];
+  monster(inst, 'ogre', nearestS(PADS[2])).hp = 1e9;
+  run(inst, 1);
+  assert.ok(tw.hp < tw.max, 'an ogre does');
+});
+
+test('a smashed tower crumbles back to an empty pad', () => {
+  const inst = quiet(0); build(inst, 2, 'cannon');
+  monster(inst, 'ogre', nearestS(PADS[2])).hp = 1e9;
+  run(inst, TOWER_HP[0] / 1.5 + 0.5);
+  assert.ok(!inst.towers.has(2));
+});
+
+test('standing at a hurt tower mends it, for free, before building it up', () => {
+  const inst = quiet(); inst.coins = 100;
+  build(inst, 2, 'archer');
+  const tw = inst.towers.get(2); tw.hp = 1;
+  put(knight(inst), PADS[2].x, PADS[2].y);
+  run(inst, 1);
+  assert.ok(tw.hp > 1, 'mending');
+  assert.equal(tw.lvl, 1, 'not building up yet');
+  assert.equal(inst.coins, 100 - COST.archer, 'mending is free');
+  run(inst, 3);
+  assert.equal(tw.hp, tw.max);
+});
+
+/* Somewhere to stand on the castle, as big as it is now. */
+const atCastle = (inst) => ({ x: castleBox(inst.castleLvl).x, y: CASTLE_BASE - 0.12 });
+
+test('the castle starts small, with only a few hearts', () => {
+  const inst = quiet();
+  assert.equal(inst.castleLvl, 1);
+  assert.ok(HEARTS <= 5 && inst.hearts === HEARTS);
+  assert.ok(castleBox(1).w < CASTLE.w * 0.6);
+  const { x, y } = atCastle(inst);
+  assert.ok(onCastle(x, y + 0.03, 1));
+  assert.ok(!onCastle(CASTLE.x - CASTLE.w * 0.4, y + 0.03, 1), 'the far end is grass, for now');
+  assert.ok(onCastle(CASTLE.x - CASTLE.w * 0.4, y + 0.03, MAX_LVL));
+});
+
+test('standing at the castle mends its hearts, one at a time', () => {
+  const inst = quiet(); inst.hearts = HEARTS - 2;
+  const { x, y } = atCastle(inst);
+  put(knight(inst), x, y);
+  run(inst, REPAIR + 0.1);
+  assert.equal(inst.hearts, HEARTS - 1);
+  run(inst, REPAIR);
+  assert.equal(inst.hearts, HEARTS);
+  assert.ok(inst.seen.repaired);
+  run(inst, REPAIR * 2);
+  assert.equal(inst.hearts, HEARTS, 'and no further');
+});
+
+test('a crowd of knights mends the castle no faster than one', () => {
+  const inst = quiet(2); inst.hearts = HEARTS - 3;
+  const { x, y } = atCastle(inst);
+  put(knight(inst, 0), x, y); put(knight(inst, 1), x + 0.01, y);
+  run(inst, REPAIR * 1.6);
+  assert.equal(inst.hearts, HEARTS - 2);
+});
+
+test('a whole castle is slowly built up, for free, a little bigger with more hearts, ten times', () => {
+  const inst = quiet(); inst.coins = 0;
+  const k = knight(inst);
+  const stand = () => { const p = atCastle(inst); put(k, p.x, p.y); };
+  stand();
+  run(inst, castleTime(1) * 0.8);
+  assert.equal(inst.castleLvl, 1, 'it takes a while');
+  run(inst, castleTime(1) * 0.2 + 0.1);
+  assert.equal(inst.castleLvl, 2);
+  assert.equal(inst.maxHearts, CASTLE_HEARTS[1]);
+  assert.equal(inst.hearts, CASTLE_HEARTS[1], 'all full');
+  assert.ok(castleBox(2).w > castleBox(1).w, 'a little bigger');
+  for (let l = 2; l < MAX_LVL; l++){ stand(); run(inst, castleTime(l) + 0.7); }
+  assert.equal(inst.castleLvl, MAX_LVL);
+  stand(); run(inst, castleTime(9) * 2);
+  assert.equal(inst.castleLvl, MAX_LVL, 'ten is the top');
+  assert.ok(castleBox(MAX_LVL).w > castleBox(1).w * 1.6 && Math.abs(castleBox(MAX_LVL).w - CASTLE.w) < 1e-9, 'the full castle at the top');
+  for (let l = 1; l < MAX_LVL; l++) assert.equal(CASTLE_HEARTS[l], CASTLE_HEARTS[l - 1] + 2, 'two more hearts each time');
+});
+
+test('a hurt castle is mended before it is built up', () => {
+  const inst = quiet(); inst.hearts = HEARTS - 1;
+  const { x, y } = atCastle(inst);
+  put(knight(inst), x, y);
+  run(inst, castleTime(1) + 0.1);
+  assert.equal(inst.hearts, HEARTS);
+  assert.equal(inst.castleLvl, 1);
+});
+
+test('little monsters never hurt a knight', () => {
+  const inst = quiet();
+  for (const kind of ['slime', 'goblin', 'bat']){ const m = monster(inst, kind, 1.5); m.hp = m.max = 1e9; }
+  put(knight(inst), along(1.5).x, along(1.5).y);
+  run(inst, 10);
+  assert.equal(knight(inst).hp, KNIGHT_HP);
+  assert.equal(knight(inst).down, 0);
+});
+
+test('an ogre winds up, then bonks a knight still close by with its club, a moment apart', () => {
+  const inst = quiet();
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  const k = knight(inst);
+  put(k, along(1.5).x, along(1.5).y);
+  run(inst, 0.2);
+  assert.ok(m.wind > 0, 'club up');
+  assert.equal(k.hp, KNIGHT_HP, 'not yet');
+  run(inst, WINDUP);
+  assert.equal(k.hp, KNIGHT_HP - 1, 'down it comes');
+  run(inst, OGRE_CLUB * 0.8);
+  assert.equal(k.hp, KNIGHT_HP - 1, 'not every frame');
+  run(inst, OGRE_CLUB * 0.3 + WINDUP);
+  assert.equal(k.hp, KNIGHT_HP - 2);
+  put(k, OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, 10);
+  assert.equal(k.hp, KNIGHT_HP - 2, 'and stays hurt till it gets to the tent');
+});
+
+test('stepping out of the ring while the club is up gets away', () => {
+  const inst = quiet();
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  const k = knight(inst), p = along(1.5);
+  put(k, p.x, p.y);
+  run(inst, 0.2);
+  assert.ok(m.wind > 0);
+  put(k, p.x, p.y - SLAM_R * 1.5);
+  run(inst, WINDUP + 0.2);
+  assert.equal(k.hp, KNIGHT_HP, 'missed');
+  assert.ok(m.club > 0, 'and it has to wait to try again');
+  assert.ok(WINDUP >= 1, 'time enough to walk out');
+  assert.ok(WALK * WINDUP > SLAM_R, 'even at a walk');
+});
+
+test('jumping just as the club comes down hops over it', () => {
+  const go = (early) => {
+    const inst = quiet();
+    const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+    const k = knight(inst), p = along(1.5);
+    put(k, p.x, p.y);
+    run(inst, 0.2);
+    assert.ok(m.wind > 0 && inst.underClub(k));
+    if (!early) run(inst, m.wind - 0.3);
+    jump(inst);
+    run(inst, WINDUP);
+    return { inst, k };
+  };
+  const late = go(false);
+  assert.equal(late.k.hp, KNIGHT_HP, 'over it!');
+  assert.ok(late.inst.seen.dodged);
+  assert.ok(DODGE >= 0.4, 'a forgiving moment in the air');
+  const early = go(true);
+  assert.equal(early.k.hp, KNIGHT_HP - 1, 'too soon: back down in time to be bonked');
+});
+
+test('a jump under a club is a dodge, not a build', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x, pad.y); run(inst, 0.2);
+  inst.underClub = () => true;
+  jump(inst);
+  assert.ok(!inst.towers.has(2));
+  inst.underClub = () => false;
+  jump(inst);
+  assert.ok(inst.towers.has(2));
+});
+/* Knock knight i out, there and then. */
+const knockOut = (inst, i = 0) => { const k = knight(inst, i); k.hp = 1; inst._knockOut(i, k); return k; };
+/* Child i claps `n` times, about three a second: hands apart, then
+   snapping shut in front of the chest. Everyone there stands still. */
+function claps(inst, n, i = 1, players = 2){
+  for (let c = 0; c < n; c++){
+    for (let f = 0; f < 20; f++){
+      still(players);
+      const shut = f >= 12, gap = shut ? 0.02 : 0.3, p = pose.players[i];
+      p.hands.left = { x: 0.5 - gap / 2 / ASPECT, y: 0.5, vx: 0, vy: 0, speed: 0 }; p.hands.right = { x: 0.5 + gap / 2 / ASPECT, y: 0.5, vx: 0, vy: 0, speed: 0 };
+      inst.step(DT, W, H);
+    }
+  }
+}
+
+/* Wiggling: the whole body shaking from side to side. */
+const wiggling = (o = {}) => (t) => body({ ...o, dx: Math.sin(t * 25) * 0.04 });
+/* A Frost Troll parked on the trail, about to let its blizzard go. */
+function troll(inst, cast = FROST_WARN + 0.5){
+  inst._spawn('troll', 0); const m = inst.monsters[inst.monsters.length - 1];
+  m.s = 0.3; m.speed = 0; m.side = 0; m.hp = m.max = 1e9; m.cast = cast;
+  return m;
+}
+
+test('a Frost Troll comes every tenth wave, and only then', () => {
+  const trolls = (w) => waveOf(w).filter(m => m.kind === 'troll').length;
+  for (let w = 1; w < TROLL_EVERY; w++) assert.equal(trolls(w), 0, `wave ${w}`);
+  assert.equal(trolls(TROLL_EVERY), 1);
+  assert.equal(trolls(TROLL_EVERY + 1), 0);
+  assert.ok(trolls(TROLL_EVERY * 3) > 1, 'more later on');
+  assert.ok(MONSTERS.troll.hp > MONSTERS.ogre.hp * 3, 'a big one');
+  assert.ok(MONSTERS.troll.speed <= MONSTERS.ogre.speed);
+});
+
+test('its blizzard gathers, then freezes every knight still standing - only the troll does that', () => {
+  const inst = quiet(2);
+  put(knight(inst, 0), 0.5, 0.5); put(knight(inst, 1), 0.6, 0.5);
+  knockOut(inst, 1);
+  const m = troll(inst);
+  run(inst, 1, () => still(2));
+  assert.ok(inst.blizzard > 0, 'snow gathering');
+  assert.equal(knight(inst).ice, 0, 'not yet');
+  run(inst, FROST_WARN, () => still(2));
+  assert.ok(knight(inst).ice > 0, 'frozen');
+  assert.equal(knight(inst, 1).ice, 0, 'a knight already down is left as it is');
+  assert.ok(m.cast > FROST_EVERY - FROST_WARN - 1, 'and again a while later');
+  const ogreOnly = quiet(); monster(ogreOnly, 'ogre', 0.3).hp = 1e9;
+  run(ogreOnly, FROST_FIRST + FROST_WARN + 1);
+  assert.equal(knight(ogreOnly).ice, 0, 'nobody else freezes anyone');
+});
+
+test('a frozen knight cannot walk, fight or build', () => {
+  const inst = quiet(), k = knight(inst), pad = PADS[2];
+  put(k, pad.x, pad.y);
+  troll(inst, 0.01); run(inst, 0.1);
+  assert.ok(k.ice > 0);
+  const slime = monster(inst, 'slime', nearestS(pad)); slime.hp = slime.max = 1e9;
+  put(k, along(nearestS(pad)).x, along(nearestS(pad)).y);
+  body({ reach: [1.3, 0] }); run(inst, 2);
+  assert.equal(slime.hp, slime.max, 'no sword');
+  assert.ok(Math.abs(k.x - along(nearestS(pad)).x) < 1e-9, 'no walking');
+  put(k, pad.x, pad.y); still(); run(inst, BUILD * 2);
+  assert.ok(!inst.towers.has(2), 'no building');
+});
+
+test('wiggling breaks the ice - five seconds of it; standing still never does; stopping keeps what is done', () => {
+  const inst = quiet(), k = knight(inst);
+  troll(inst, 0.01); run(inst, 0.1);
+  inst.monsters = [];
+  run(inst, 10);
+  assert.ok(k.ice > 0, 'standing still');
+  run(inst, ICE_BREAK * 0.6, wiggling());
+  assert.ok(k.ice > 0, 'not yet');
+  run(inst, 3);
+  assert.ok(k.ice > 0, 'a rest');
+  run(inst, ICE_BREAK * 0.5, wiggling());
+  assert.equal(k.ice, 0, 'free');
+  assert.ok(inst.seen.wiggled);
+  assert.equal(ICE_BREAK, 5);
+});
+
+test('ice is armour: an ogre cannot bonk a frozen knight', () => {
+  const inst = quiet(), k = knight(inst);
+  put(k, along(1.5).x, along(1.5).y);
+  troll(inst, 0.01); run(inst, 0.1);
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  run(inst, 6);
+  assert.equal(k.hp, KNIGHT_HP);
+});
+
+test('an ogre that bonks a knight out leaves it lying there, levels and all', () => {
+  const inst = quiet(2);
+  const k = knight(inst);
+  k.lvl = 7;
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  put(k, along(1.5).x, along(1.5).y);
+  put(knight(inst, 1), OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, (OGRE_CLUB + WINDUP) * (KNIGHT_HP - 1) + WINDUP + 0.3, () => still(2));
+  assert.ok(k.down > 0, 'down');
+  assert.equal(k.lvl, 7, 'its levels wait for it');
+  run(inst, 1, () => { still(2); body({ reach: [1.3, 0], n: 2 }); });
+  assert.ok(Math.abs(k.fell.x - k.x) < 1e-9, 'it goes nowhere while it lies there');
+});
+
+test('while a friend is up, a fallen knight waits for them - however long', () => {
+  const inst = quiet(2);
+  const k = knockOut(inst);
+  put(knight(inst, 1), OPEN_FIELD.x, OPEN_FIELD.y);
+  run(inst, ALL_DOWN * 3, () => still(2));
+  assert.ok(k.down > 0);
+});
+
+test('a friend beside it clapping ten times gets a knight up, right there, levels kept', () => {
+  const inst = quiet(2);
+  const k = knight(inst);
+  k.lvl = 6; put(k, 0.5, 0.5);
+  knockOut(inst);
+  const helper = knight(inst, 1);
+  put(helper, 0.5 + REVIVE_R * 0.5 / ASPECT, 0.5);
+  run(inst, 0.2, () => still(2));
+  assert.equal(k.helper, 1, 'help is here');
+  claps(inst, REVIVE_CLAPS - 1);
+  assert.ok(k.down > 0, 'not quite');
+  assert.equal(k.claps, REVIVE_CLAPS - 1, 'every clap counted');
+  inst.draw(fakeCtx(), W, H);
+  claps(inst, 1);
+  assert.equal(k.down, 0, 'up');
+  assert.equal(k.lvl, 6, 'levels kept');
+  assert.ok(Math.hypot((k.x - 0.5) * ASPECT, k.y - 0.5) < 0.02, 'right where it fell');
+  assert.equal(k.hp, KNIGHT_HP);
+  assert.ok(k.safe > 0 && inst.seen.revived);
+  assert.ok(REVIVE_CLAPS >= 8 && REVIVE_CLAPS <= 12);
+});
+
+test('a small, soft, lopsided clap still counts', () => {
+  const inst = quiet(2);
+  const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.5 + REVIVE_R * 0.9 / ASPECT, 0.5);
+  /* Hands only a shoulder width apart, closing slowly to a little gap, one a bit higher. */
+  for (let c = 0; c < 4; c++) for (let f = 0; f < 24; f++){
+    still(2);
+    const u = Math.min(1, Math.max(0, (f - 6) / 12)), gap = 0.13 * (1 - u) + 0.05 * u, p = pose.players[1];
+    p.hands.left = { x: 0.5 - gap / 2 / ASPECT, y: 0.52 }; p.hands.right = { x: 0.5 + gap / 2 / ASPECT, y: 0.5 };
+    inst.step(DT, W, H);
+  }
+  assert.equal(k.claps, 4);
+});
+
+test('two friends clapping together count together', () => {
+  const inst = quiet(3);
+  const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.52, 0.5); put(knight(inst, 2), 0.48, 0.5);
+  claps(inst, 3, 1, 3); claps(inst, 3, 2, 3);
+  assert.equal(k.claps, 6);
+});
+
+test('clapping from far off, a friend beside it not clapping, or rolling the arms, does nothing', () => {
+  const far = quiet(2); put(knight(far), 0.5, 0.5); knockOut(far);
+  put(knight(far, 1), OPEN_FIELD.x, OPEN_FIELD.y);
+  claps(far, REVIVE_CLAPS + 2);
+  assert.ok(knight(far).down > 0, 'the friend\'s knight is far off');
+  const near = quiet(2); put(knight(near), 0.5, 0.5); knockOut(near);
+  put(knight(near, 1), 0.51, 0.5);
+  run(near, 3, () => still(2));
+  assert.ok(knight(near).down > 0, 'no claps');
+  const r = rolling({ n: 2 });
+  run(near, 4, (t) => { r(t); const a = pose.players[0].hands; pose.players[1].hands.left = a.left; pose.players[1].hands.right = a.right; pose.players[0].hands.left = { x: 0.45, y: 0.65 }; pose.players[0].hands.right = { x: 0.55, y: 0.65 }; });
+  assert.ok(!(knight(near).claps > 0), 'rolling is not clapping');
+});
+
+test('stop clapping a while and the claps wear off', () => {
+  const inst = quiet(2);
+  const k = knight(inst); put(k, 0.5, 0.5); knockOut(inst);
+  put(knight(inst, 1), 0.52, 0.5);
+  claps(inst, 5);
+  run(inst, 2, () => still(2));
+  assert.equal(k.claps, 5, 'a breather is fine');
+  run(inst, 12, () => still(2));
+  assert.ok(k.claps < 3, 'but not too long');
+});
+
+test('when every knight is down, after a while they are all back at the castle - from the start', () => {
+  const inst = quiet(2);
+  for (const i of [0, 1]){ const k = knight(inst, i); k.lvl = 5; put(k, 0.4 + i * 0.1, 0.5); knockOut(inst, i); }
+  run(inst, ALL_DOWN * 0.9, () => still(2));
+  assert.ok(knight(inst, 0).down > 0 && knight(inst, 1).down > 0);
+  run(inst, ALL_DOWN * 0.15, () => still(2));
+  for (const i of [0, 1]){
+    const k = knight(inst, i);
+    assert.equal(k.down, 0);
+    assert.equal(k.lvl, 0, 'every level gone');
+    assert.ok(Math.hypot(k.x - inst.home(i).x, k.y - inst.home(i).y) < 0.05, 'back by the castle');
+    assert.ok(k.safe > 0);
+  }
+});
+
+test('playing alone, a fallen knight is back at the castle after the wait', () => {
+  const inst = quiet();
+  const k = knight(inst); k.lvl = 4; put(k, 0.5, 0.5);
+  knockOut(inst);
+  run(inst, ALL_DOWN + 0.1);
+  assert.equal(k.down, 0);
+  assert.equal(k.lvl, 0);
+  still();
+  put(k, along(1.5).x, along(1.5).y);
+  const m = monster(inst, 'ogre', 1.5); m.hp = m.max = 1e9;
+  run(inst, 1);
+  assert.equal(k.hp, KNIGHT_HP, 'safe while it blinks');
+});
+
+test('knights level up from what they beat, a little more every ten levels, up to 99', () => {
+  const inst = quiet(), k = knight(inst);
+  assert.equal(k.lvl, 0);
+  assert.equal(KNIGHT_MAX, 99);
+  for (let q = 0; q < killsFor(0) - 1; q++){ const m = monster(inst, 'slime', 1); inst._damage(m, 99, 0); }
+  assert.equal(k.lvl, 0, 'not quite');
+  inst._damage(monster(inst, 'slime', 1), 99, 0);
+  assert.equal(k.lvl, 1);
+  const total = () => { let t = k.xp; for (let l = 0; l < k.lvl; l++) t += killsFor(l); return t; }, t0 = total();
+  inst._damage(monster(inst, 'ogre', 1), 99, 0);
+  assert.equal(total() - t0, MONSTERS.ogre.coins, 'an ogre counts for five');
+  inst._damage(monster(inst, 'slime', 1), 99);
+  assert.equal(total() - t0, MONSTERS.ogre.coins, 'a tower kill is nobody\'s');
+  assert.ok(killsFor(10) > killsFor(1) && killsFor(90) > killsFor(10));
+  for (let q = 0; q < 2000; q++) inst._damage(monster(inst, 'slime', 1), 99, 0);
+  assert.equal(k.lvl, KNIGHT_MAX, '99 is the top');
+});
+
+test('a higher knight has a bigger, harder, quicker sword - and kills faster', () => {
+  const a = swordAt(0), b = swordAt(KNIGHT_MAX);
+  assert.ok(b.size > a.size * 2 && b.reach > a.reach && b.dmg > a.dmg * 3 && b.cool < a.cool);
+  for (let l = 1; l <= KNIGHT_MAX; l++) assert.ok(swordAt(l).size > swordAt(l - 1).size, 'a little bigger every level');
+  const time = (lvl) => {
+    const inst = quiet();
+    knight(inst).lvl = lvl;
+    const m = byKnight(inst, 'slime'); m.hp = m.max = 20;
+    let t = 0; while (m.hp > 0 && t < 30){ inst.step(DT, W, H); t += DT; }
+    return t;
+  };
+  assert.ok(time(KNIGHT_MAX) < time(0) / 4);
+});
+
+/* ---------- the waves ---------- */
+
+test('the waves come on their own: no horn to call them early', () => {
+  still();
+  const inst = game.create(1);
+  run(inst, FIRST_BUILD - 1);
+  assert.equal(inst.wave, 0);
+  assert.equal(inst.horn, undefined);
+});
+
+test('the next wave waits until this one is cleared, then a break', () => {
+  const inst = quiet(0);
+  inst._startWave();
+  run(inst, 40, () => { inst.monsters.forEach(m => { m.speed = 0; }); });
+  assert.equal(inst.wave, 1, 'still on the first while its monsters are about');
+  assert.equal(inst.state, 'wave');
+  for (const m of [...inst.monsters]) inst._damage(m, 999);
+  run(inst, 0.1);
+  assert.equal(inst.held, 1);
+  assert.equal(inst.state, 'build');
+  run(inst, BUILD_TIME + 0.2);
+  assert.equal(inst.wave, 2);
+});
+
+test('the first wave comes when the first break is up', () => {
+  none();
+  const inst = game.create(1);
+  run(inst, FIRST_BUILD - 1); assert.equal(inst.wave, 0);
+  run(inst, 2); assert.equal(inst.wave, 1);
+});
+
+/* ---------- the mouse ---------- */
+
+test('with the mouse, a resting pointer sends the knight, and it fights and builds by itself', () => {
+  const inst = quiet(), k = knight(inst);
+  mouse(0.6, 0.45, 2); run(inst, POINT_HOLD);
+  assert.notEqual(k.tx, 0.6, 'a moving pointer sends nobody');
+  mouse(0.6, 0.45); run(inst, POINT_HOLD + 0.05);
+  assert.ok(Math.abs(k.tx - 0.6) < 0.01);
+  const m = monster(inst, 'slime', 1.5), p = along(1.5);
+  m.hp = m.max = 1e9;
+  mouse(p.x, p.y); run(inst, 6);
+  assert.ok(m.hp < m.max, 'sword');
+  inst.monsters = [];
+  mouse(PADS[2].x, PADS[2].y); run(inst, 6 + BUILD);
+  assert.ok(inst.towers.has(2), 'built');
+});
+
+/* ---------- towers ---------- */
+
+test('a tower shoots a monster in range until it is gone, and its coins go in the chest', () => {
+  const inst = quiet(0);
+  build(inst, 2, 'archer');
+  const before = inst.coins;
+  monster(inst, 'slime', nearestS(PADS[2]));
+  run(inst, 6);
+  assert.equal(inst.monsters.length, 0);
+  assert.equal(inst.coins, before + MONSTERS.slime.coins);
+});
+
+test('a tower ignores a monster out of range', () => {
+  const inst = quiet(0);
+  build(inst, 2, 'archer');
+  const m = monster(inst, 'slime', PATH.total * 0.97);
+  run(inst, 3);
+  assert.equal(m.hp, m.max);
+});
+
+test('cannons cannot hit bats; archers can', () => {
+  const a = quiet(0); build(a, 2, 'cannon');
+  const bat = monster(a, 'bat', nearestS(PADS[2]));
+  let fired = false;
+  run(a, 4, () => { if (a.shots.length) fired = true; });
+  assert.equal(fired, false, "the cannon doesn't waste a shot on it");
+  assert.equal(bat.hp, bat.max);
+  const b = quiet(0); build(b, 2, 'archer');
+  monster(b, 'bat', nearestS(PADS[2]));
+  run(b, 6);
+  assert.equal(b.monsters.length, 0);
+});
+
+test('a frost tower slows monsters down', () => {
+  const inst = quiet(0); build(inst, 2, 'frost');
+  const m = monster(inst, 'ogre', nearestS(PADS[2]));
+  run(inst, 1.5);
+  assert.ok(m.slowK < 1 && m.slowT > 0);
+});
+
+test('a tower fires at whichever monster in reach is nearest the castle', () => {
+  const inst = quiet(0); inst.coins = 99;
+  build(inst, 6, 'archer'); inst._upgrade(6, 0); inst._upgrade(6, 0);
+  assert.equal(STATS.archer.many[2], 1, 'one at a time, still');
+  const near = [];
+  for (let s = 0; s < PATH.total; s += 0.02){ const p = along(s); if (Math.hypot((p.x - PADS[6].x) * ASPECT, p.y - PADS[6].y) < 0.2) near.push(s); }
+  const behind = monster(inst, 'slime', near[0]), ahead = monster(inst, 'slime', near[near.length - 1]);
+  behind.hp = behind.max = ahead.hp = ahead.max = 100;
+  run(inst, 0.8);
+  assert.ok(ahead.hp < ahead.max, 'the one further along');
+  assert.equal(behind.hp, behind.max);
+});
+
+test('a tower between two turns of the trail reaches it on both sides', () => {
+  const pad = PADS[6], ys = [];
+  for (let s = 0; s < PATH.total; s += 0.02){ const p = along(s); if (Math.hypot((p.x - pad.x) * ASPECT, p.y - pad.y) < 0.24) ys.push(p.y); }
+  assert.ok(ys.some(y => y < pad.y - 0.06), 'the row above');
+  assert.ok(ys.some(y => y > pad.y + 0.06), 'and the row below');
+});
+
+/* ---------- the castle and the waves ---------- */
+
+test('a monster reaching the castle takes hearts; an ogre takes more; no hearts is the end', () => {
+  const inst = quiet(0);
+  monster(inst, 'slime', PATH.total - 0.001).speed = 1;
+  run(inst, 0.1);
+  assert.equal(inst.hearts, HEARTS - 1);
+  monster(inst, 'ogre', PATH.total - 0.001).speed = 1;
+  run(inst, 0.1);
+  assert.equal(inst.hearts, HEARTS - 1 - MONSTERS.ogre.harm);
+  assert.ok(!inst.over);
+  inst.hearts = 1;
+  monster(inst, 'slime', PATH.total - 0.001).speed = 1;
+  run(inst, 0.1);
+  assert.ok(inst.over && inst.lost);
+});
+
+test('waves grow in number; an ogre every fifth', () => {
+  const kinds = (w) => waveOf(w).map(m => m.kind);
+  assert.ok(waveOf(6).length > waveOf(1).length);
+  assert.deepEqual([...new Set(kinds(1))], ['slime']);
+  assert.ok(kinds(2).includes('goblin') && !kinds(2).includes('bat'));
+  assert.ok(kinds(3).includes('bat'));
+  assert.ok(kinds(5).includes('ogre') && !kinds(4).includes('ogre'));
+  for (let w = 2; w < 30; w++) assert.ok(countOf(w) > countOf(w - 1) || countOf(w) === CAP, 'more every wave, up to as many as can be drawn');
+});
+
+test('the more children playing, the bigger every wave', () => {
+  for (const w of [1, 5, 12]) assert.ok(countOf(w, 4) > countOf(w, 3) && countOf(w, 3) > countOf(w, 2) && countOf(w, 2) > countOf(w, 1), `wave ${w}`);
+  const ogres = (w, n) => waveOf(w, n).filter(m => m.kind === 'ogre').length;
+  assert.ok(ogres(20, 4) > ogres(20, 1));
+  for (const n of [1, 2, 4]){
+    body({ n });
+    const inst = game.create(4); inst.breakT = 0;
+    inst.step(DT, W, H);
+    assert.equal(inst.queue.length + inst.monsters.length, waveOf(1, n).length, `sized for ${n}`);
+  }
+  assert.equal(CROWD[0], 1);
+});
+
+test('red monsters: none at first, then more and more of each wave', () => {
+  const reds = (w, n = 1) => waveOf(w, n).filter(m => m.red).length / waveOf(w, n).length;
+  for (let w = 1; w <= 4; w++) assert.equal(reds(w), 0, `wave ${w}`);
+  assert.ok(reds(8) > 0 && reds(8) < 0.25, `a few by wave 8: ${reds(8).toFixed(2)}`);
+  assert.ok(reds(20) > reds(12) && reds(12) > reds(8));
+  assert.ok(reds(40) <= 0.65, 'never all of them');
+  for (const kind of ['slime', 'goblin', 'bat', 'ogre']) assert.ok(waveOf(30).some(m => m.kind === kind && m.red), `red ${kind}s`);
+  assert.ok(redShare(10, 4) > redShare(10, 1), 'a little sooner with more children');
+});
+
+test('a red monster has more life, hurts the castle more and drops more coins - but is no faster', () => {
+  const inst = quiet(0);
+  inst._spawn('slime', 0, false); inst._spawn('slime', 0, true);
+  const [plain, red] = inst.monsters;
+  assert.equal(red.max, plain.max * RED.hp);
+  assert.equal(red.speed, plain.speed);
+  const coins = inst.coins;
+  inst._damage(red, 99);
+  assert.equal(inst.coins, coins + MONSTERS.slime.coins * RED.coins);
+  inst.monsters = [];
+  monster(inst, 'slime', PATH.total - 0.001).speed = 1;
+  run(inst, 0.1);
+  const after1 = inst.hearts;
+  inst._spawn('slime', 0, true); const m = inst.monsters[0]; m.s = PATH.total - 0.001; m.speed = 1;
+  run(inst, 0.1);
+  assert.equal(after1 - inst.hearts, MONSTERS.slime.harm * RED.harm);
+});
+
+test('a red ogre bonks a knight harder', () => {
+  const inst = quiet();
+  inst._spawn('ogre', 0, true); const m = inst.monsters[0]; m.s = 1.5; m.speed = 0; m.side = 0; m.hp = m.max = 1e9;
+  const k = knight(inst);
+  put(k, along(1.5).x, along(1.5).y);
+  run(inst, 0.2 + WINDUP);
+  assert.equal(k.hp, KNIGHT_HP - RED.bonk);
+});
+
+test('later waves bring more and more ogres, spread through the wave', () => {
+  const ogres = (w) => waveOf(w).filter(m => m.kind === 'ogre').length;
+  assert.equal(ogres(4), 0);
+  assert.equal(ogres(5), 1);
+  assert.ok(ogres(30) > ogres(20) && ogres(20) > ogres(15) && ogres(29) > 0);
+  const where = waveOf(30).map((m, k) => m.kind === 'ogre' ? k : -1).filter(k => k >= 0), n = waveOf(30).length;
+  assert.ok(where[0] < n / 4 && where[where.length - 1] > n * 3 / 4, 'from the start of the wave to its end');
+});
+
+test('waves creep up slowly, then pour out ever faster', () => {
+  assert.equal(countOf(1), 7);
+  for (let w = 2; w <= 5; w++) assert.ok(countOf(w) - countOf(w - 1) <= 3, `a few more each time at first: ${countOf(w)}`);
+  assert.ok(countOf(30) > countOf(10) * 10);
+  assert.ok(gapOf(30) < gapOf(10) / 10, 'a big wave comes out several at a time');
+  const inst = quiet(0);
+  inst.wave = 29; inst._startWave();
+  inst.step(0.1, W, H);
+  assert.ok(inst.monsters.length > 1, `${inst.monsters.length} out in a tenth of a second`);
+});
+
+test('monsters never get faster or tougher, wave after wave', () => {
+  const inst = quiet(0);
+  inst.wave = 1; inst._spawn('slime'); const first = inst.monsters.pop();
+  inst.wave = 20; inst._spawn('slime'); const later = inst.monsters.pop();
+  assert.equal(later.speed, first.speed);
+  assert.equal(later.max, first.max);
+});
+
+test('one trail, in at the top left and the long way round to the castle', () => {
+  assert.equal(PATHS.length, 1);
+  const start = PATH.pts[0], end = PATH.pts[PATH.pts.length - 1];
+  assert.ok(start[1] < 0 && start[0] < 0.2, 'from over the top edge, at the left');
+  assert.ok(onCastle(end[0], end[1] + 0.02), 'to the castle');
+  assert.ok(PATH.total > 4, `the long way round: ${PATH.total.toFixed(2)} screen heights`);
+  assert.ok(Math.max(...PATH.pts.map(p => p[0])) > 0.85, 'all the way over to the right');
+  assert.ok(CASTLE.x < 0.25 && CASTLE.w >= 0.3 && CASTLE_BASE > 0.95, 'the castle wide along the bottom left');
+});
+
+test('a well-defended castle holds many waves; an empty one falls fast', () => {
+  none();
+  const idle = game.create(1);
+  run(idle, 200);
+  assert.ok(idle.over, 'no towers: overrun');
+  const keep = game.create(1); keep.coins = 999;
+  for (const i of [6, 4, 7, 2, 9, 5, 3]) keep._build(i, i % 2 ? 'archer' : 'cannon', 0);
+  for (const [i] of keep.towers){ keep._upgrade(i, 0); keep._upgrade(i, 0); }
+  run(keep, 200);
+  assert.ok(!keep.over, 'held');
+  assert.ok(keep.held >= 5, `held ${keep.held} waves`);
+});
+
+/* ---------- drawing, and the ending ---------- */
+
+test('drawing works at every stage, with hints, ghosts and work rings', () => {
+  const ctx = new Proxy({}, { get: (t, k) => k in t ? t[k] : (t[k] = () => ({ addColorStop(){} })), set: (t, k, v) => { t[k] = v; return true; } });
+  const inst = quiet(2);
+  inst.hearts = 5;
+  put(knight(inst, 0), PADS[2].x, PADS[2].y); put(knight(inst, 1), atCastle(inst).x, atCastle(inst).y);
+  run(inst, 1, squats({ n: 2 }));
+  knight(inst).hp = 1;
+  inst.draw(ctx, W, H);
+  build(inst, 4, 'cannon'); inst.towers.get(4).hp = 2;
+  monster(inst, 'ogre', 1.5).wind = 0.5; knight(inst).spin = 9; knight(inst).sword = 0.3;
+  troll(inst, 1); knight(inst, 1).ice = 1; knight(inst, 1).iceWork = 2;
+  inst._startWave(); run(inst, 0.5);
+  inst.draw(ctx, W, H);
+  inst.over = true; inst.lost = true;
+  inst.outro(DT, W, H); inst.draw(ctx, W, H);
+});
+
+test('no clock and no score on screen; the round ends with an ending', () => {
+  const inst = quiet();
+  const h = inst.hud();
+  assert.equal(h.hideClock, true);
+  assert.equal(h.hideScore, true);
+  assert.equal(game.endless, true);
+  inst.lost = true; inst.over = true;
+  let done = false, s = 0;
+  for (; s < 8 && !done; s += DT) done = inst.outro(DT, W, H);
+  assert.ok(done && s > 3);
+});
+
+/* ---------- the lesson ---------- */
+
+test('the first game starts with a lesson: one thing at a time, and nothing comes till it is done', () => {
+  lessons.done = false;
+  try {
+    still();
+    const inst = game.create(1), k = knight(inst), pad = PADS[2];
+    assert.equal(inst.state, 'learn');
+    assert.equal(inst.lessonNow, 'pad');
+    run(inst, 30, () => still());
+    assert.equal(inst.lessonNow, 'pad', 'it waits');
+    assert.equal(inst.monsters.length, 0, 'and nothing comes');
+    inst.draw(fakeCtx(), W, H);
+    put(k, pad.x, pad.y); run(inst, 0.2, () => still());
+    assert.equal(inst.lessonNow, 'switch');
+    run(inst, ARMS_HOLD + 0.2, () => body({ arms: true })); run(inst, 0.3, () => still());
+    assert.equal(inst.lessonNow, 'build');
+    jump(inst);
+    assert.ok(inst.towers.has(2));
+    run(inst, 0.1, () => still());
+    assert.equal(inst.lessonNow, 'fight');
+    const slime = inst.lesson.slime;
+    assert.equal(inst.monsters.length, 1, 'one little slime');
+    assert.ok(slime.speed < MONSTERS.slime.speed, 'a slow one');
+    inst.draw(fakeCtx(), W, H);
+    inst._damage(slime, 99, 0); run(inst, 0.1, () => still());
+    assert.equal(inst.lessonNow, 'squat');
+    run(inst, 1.5, squats());
+    assert.equal(inst.state, 'build');
+    assert.ok(inst.breakT > READY - 1.6 && inst.breakT <= READY, 'then a moment to get ready');
+    assert.equal(inst.wave, 0);
+    assert.ok(lessons.done);
+    assert.equal(game.create(1).state, 'build', 'and the next game goes straight in');
+  } finally { lessons.done = true; }
+});
+
+test('not getting something in the lesson, it moves on after a while', () => {
+  lessons.done = false;
+  try {
+    still();
+    const inst = game.create(1);
+    run(inst, LESSON_WAIT + 1, () => still());
+    assert.equal(inst.lessonNow, 'switch');
+  } finally { lessons.done = true; }
+});
+
+test('with the mouse there is no lesson', () => {
+  lessons.done = false;
+  try {
+    mouse(0.5, 0.5);
+    assert.equal(game.create(1).state, 'build');
+  } finally { lessons.done = true; }
+});
+
+/* ---------- sounds ---------- */
+
+test('a war drum beats the last few seconds before a wave, the last beat a big one', () => {
+  const beats = [], drum = sfx.drum;
+  sfx.drum = (big) => beats.push(!!big);
+  try {
+    const inst = quiet(); inst.breakT = DRUMS + 2;
+    run(inst, DRUMS + 2.1);
+    assert.equal(inst.state, 'wave');
+    assert.deepEqual(beats, [...Array(DRUMS).fill(false), true]);
+  } finally { sfx.drum = drum; }
+});
+
+test('jumping over a club, switching a tower and picking a place each have a sound of their own', () => {
+  const heard = [], keep = {};
+  for (const n of ['dodge', 'flip', 'pick']){ keep[n] = sfx[n]; sfx[n] = () => heard.push(n); }
+  try {
+    const a = quiet(); put(knight(a), PADS[2].x, PADS[2].y); run(a, 0.2);
+    run(a, ARMS_HOLD + 0.2, () => body({ arms: true }));
+    const b = quiet(); put(knight(b), FREE.x, FREE.y);
+    run(b, 0.6, () => body({ reach: [1.3, 0] }));
+    const c = quiet(), m = monster(c, 'ogre', 1.5); m.hp = m.max = 1e9;
+    put(knight(c), along(1.5).x, along(1.5).y); run(c, 0.2); run(c, m.wind - 0.3); jump(c); run(c, WINDUP);
+    assert.deepEqual([...new Set(heard)].sort(), ['dodge', 'flip', 'pick']);
+    assert.equal(heard.filter(h => h === 'pick').length, 1, 'once, not every frame');
+  } finally { Object.assign(sfx, keep); }
+});
+
+test('arms up on an empty pad switches the tower, and does not pause the game', () => {
+  const inst = quiet(); put(knight(inst), PADS[2].x, PADS[2].y); run(inst, 0.2);
+  body({ arms: true });
+  assert.equal(inst.pausable(), false);
+  put(knight(inst), FREE.x, FREE.y); run(inst, 0.2, () => body({ arms: true }));
+  assert.equal(inst.pausable(), true, 'off the pad, arms up still pauses');
+});

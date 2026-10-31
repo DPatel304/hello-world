@@ -1,0 +1,489 @@
+/* Read from across a living room: everything is sized against viewport height,
+   because a 10-foot interface has no business using fixed pixels. */
+/* Fredoka: round and warm, and readable from the sofa. Bundled - inlined
+   into the single file by build-single.mjs - so it works offline. OFL. */
+@font-face{
+  font-family:"Fredoka"; font-weight:300 700; font-display:block;
+  src:url(fonts/fredoka.woff2) format("woff2");
+}
+:root{
+  --bg:#0d0b1a; --bg2:#151130; --line:#2c2752;
+  --fg:#f3f0ff; --dim:#9b94c4; --faint:#635c92;
+  --p1:#3da9ff; --p2:#ff8a3d;
+  --good:#53e59a; --bad:#ff5d73; --gold:#ffd24a;
+  --ui:"Fredoka",ui-rounded,"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+  --safe:clamp(12px,2.6vmin,40px);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:var(--ui);color:var(--fg);-webkit-font-smoothing:antialiased;}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;}
+#cam{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;top:0;left:0;}
+#ui{position:fixed;inset:0;pointer-events:none;}
+/* The dwell ring lives above the interface, not behind it. */
+#over{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9;}
+#ui > *{pointer-events:auto;}
+
+.screen{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:clamp(14px,3vh,40px);
+  padding:var(--safe);text-align:center;
+}
+.screen.dim{background:rgba(9,7,20,.88);}
+.screen.dim.pause{background:rgba(9,7,20,.6);}
+.screen.dim.lost{background:rgba(9,7,20,.55);}
+.screen.lost .lede{ color:#fff6e2; text-shadow:0 1px 4px rgba(0,0,0,.5); }
+.stepin{ width:clamp(120px,30vh,320px); height:clamp(120px,30vh,320px); color:#fff6e2; }
+.stepin svg{ width:100%; height:100%; filter:drop-shadow(0 .4vh 1.2vh rgba(0,0,0,.4)); }
+.stepin .kid{ animation:stepin 1.8s ease-in-out infinite; }
+@keyframes stepin{ 0%{ transform:translateX(-26px); opacity:.3 } 50%,100%{ transform:translateX(0); opacity:1 } }
+
+/* ---------- the end of a round ----------
+   The game's own ending stays in view; the way on sits along the bottom. */
+.screen.end{
+  justify-content:flex-end; padding-bottom:clamp(24px,7vh,90px);
+  background:linear-gradient(180deg, rgba(9,7,20,0) 45%, rgba(9,7,20,.55) 100%);
+}
+.endname{
+  font-size:clamp(28px,7vh,84px); font-weight:600; color:#fff6e2;
+  text-shadow:0 0 .3em rgba(0,0,0,.45), 0 .05em 0 rgba(40,30,70,.4);
+}
+.bigrow{ gap:clamp(16px,4vw,64px); }
+.btn.big{
+  display:flex; align-items:center; gap:.5em;
+  min-width:min(36vw,520px); justify-content:center;
+  padding:clamp(16px,3.6vh,40px) clamp(20px,3vw,44px);
+  font-size:clamp(20px,4.4vh,52px); font-weight:600; border-radius:999px;
+  border:clamp(4px,.6vh,7px) solid rgba(255,255,255,.85);
+  box-shadow:0 clamp(6px,1.2vh,14px) clamp(16px,3vh,36px) rgba(0,0,0,.3);
+}
+.btn.big .lbl{ display:flex; align-items:center; gap:.45em; }
+.btn.big .ic{ width:1.3em; height:1.3em; display:inline-flex; }
+.btn.big .ic svg{ width:100%; height:100%; }
+.btn.big.go{ background:var(--accent,#53e59a); color:#1a1430; }
+.btn.big.home{ background:#fff6e2; color:#2b2440; }
+.btn.big .fill{ background:#fff; opacity:.35; }
+.btn.big.hot{ transform:scale(1.05); }
+h1{font-size:clamp(34px,9vh,110px);font-weight:900;letter-spacing:-.03em;line-height:.92;}
+h2{font-size:clamp(22px,5vh,60px);font-weight:800;letter-spacing:-.02em;}
+.lede{font-size:clamp(14px,2.4vh,26px);color:var(--dim);max-width:46ch;line-height:1.5;}
+
+/* Hover-to-select: every control is a .btn and the ring fills as you dwell. */
+.btn{
+  position:relative;border:3px solid var(--line);background:var(--bg2);color:var(--fg);
+  border-radius:clamp(14px,2.2vh,26px);padding:clamp(12px,2.2vh,26px) clamp(18px,3vw,38px);
+  font:inherit;font-size:clamp(15px,2.6vh,30px);font-weight:800;cursor:pointer;
+  overflow:hidden;transition:transform .12s ease,border-color .12s ease;
+}
+.btn .fill{
+  position:absolute;inset:0;background:var(--who,currentColor);opacity:.22;
+  transform-origin:left center;transform:scaleX(0);pointer-events:none;
+}
+.btn.hot{border-color:var(--who,currentColor);transform:scale(1.04);}
+.btn:focus-visible{outline:4px solid var(--fg);outline-offset:4px;}
+
+/* Sized by the cards rather than a fixed column count: with two games a
+   four-column grid shoves them into a corner, and the catalogue grows. */
+.grid{
+  display:grid;gap:clamp(10px,1.8vh,24px);
+  width:min(96vw,1700px);justify-content:center;
+  grid-template-columns:repeat(auto-fit,minmax(clamp(220px,19vw,330px),1fr));
+}
+@media (max-aspect-ratio:1/1){
+  .grid{grid-template-columns:repeat(auto-fit,minmax(clamp(150px,40vw,330px),1fr));}
+}
+.card{
+  display:flex;flex-direction:column;gap:.4em;align-items:flex-start;text-align:left;
+  min-height:clamp(96px,15vh,170px);justify-content:center;
+  border-top-width:9px;border-top-color:var(--accent,var(--p1));
+}
+.card .nm{font-size:clamp(17px,3.1vh,36px);font-weight:900;line-height:1.05;}
+.card .meta{display:flex;gap:.7em;align-items:baseline;font-size:clamp(11px,1.6vh,18px);
+  color:var(--dim);font-weight:700;}
+.stars{color:var(--gold);letter-spacing:.08em;}
+.best{color:var(--faint);}
+
+.topbar{
+  position:absolute;top:var(--safe);left:var(--safe);right:var(--safe);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.topbar .brand{font-size:clamp(18px,3.4vh,40px);font-weight:900;letter-spacing:-.02em;}
+.topbar .tools{display:flex;gap:clamp(6px,1vw,14px);}
+.topbar .btn{padding:clamp(8px,1.4vh,16px) clamp(12px,1.8vw,24px);font-size:clamp(12px,1.8vh,20px);}
+
+.row{display:flex;gap:clamp(10px,2vw,28px);flex-wrap:wrap;justify-content:center;}
+.bullets{display:flex;flex-direction:column;gap:.6em;font-size:clamp(14px,2.4vh,28px);
+  text-align:left;max-width:30ch;}
+.bullets li{list-style:none;display:flex;gap:.6em;align-items:baseline;}
+.bullets .ic{font-size:1.2em;}
+.dot{width:.8em;height:.8em;border-radius:50%;display:inline-block;}
+.hide{display:none!important;}
+label.slider{display:flex;align-items:center;gap:1em;font-size:clamp(13px,2.2vh,26px);font-weight:700;}
+input[type=range]{width:min(50vw,420px);height:2.2vh;}
+
+.warn{
+  display:inline-flex;align-items:center;
+  background:#3a1f12;color:#ffb37a;border:2px solid #7a3f1e;
+  border-radius:999px;padding:clamp(7px,1.3vh,14px) clamp(12px,1.7vw,22px);
+  font-size:clamp(11px,1.7vh,19px);font-weight:800;
+}
+
+
+/* ---------- title screen ----------
+   A ten-foot front door: the name, the park, and a friend to wave to. The
+   corners are kept clear, and the type is big enough that the name is the
+   first thing anyone sees from the sofa. */
+.screen.title{ justify-content:flex-start; padding-top:clamp(18px,5vh,70px); gap:clamp(8px,1.6vh,22px); }
+
+/* The name, soft and warm, with the evening star tucked between the words.
+   It floats a little, the way everything on this screen does. */
+.logo{
+  display:flex; align-items:flex-start; gap:.18em;
+  font-size:clamp(48px,14vh,180px); font-weight:600; line-height:1; letter-spacing:.005em;
+  color:#fff6e2;
+  text-shadow:0 0 .3em rgba(255,196,140,.55), 0 .05em 0 rgba(70,50,100,.35);
+  animation:float 5s ease-in-out infinite;
+}
+.logo .star{ width:.32em; height:.32em; margin:-.06em -.06em 0; animation:twinkle 2.4s ease-in-out infinite; }
+.logo .star svg{ width:100%; height:100%; fill:#ffe9a8; filter:drop-shadow(0 0 .12em rgba(255,236,170,.9)); }
+@keyframes float{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-.05em) } }
+@keyframes twinkle{ 0%,100%{ transform:scale(1) rotate(0); opacity:1 } 50%{ transform:scale(.8) rotate(20deg); opacity:.75 } }
+
+/* Corner furniture: deliberately small and far out, so a waving hand can
+   never clip it. */
+.btn.corner{
+  position:absolute; top:var(--safe); right:var(--safe);
+  width:clamp(44px,7vh,80px); height:clamp(44px,7vh,80px); padding:0;
+  border-radius:50%; font-size:clamp(18px,3.2vh,38px); opacity:.55;
+}
+.btn.corner.hot{ opacity:1; }
+
+.camstatus{
+  position:absolute; top:var(--safe); left:var(--safe);
+  display:flex; align-items:center; gap:.6em;
+  font-size:clamp(12px,1.9vh,22px); font-weight:700; color:var(--dim);
+}
+.buildstamp{
+  position:absolute; bottom:var(--safe); left:var(--safe);
+  font-size:clamp(11px,1.6vh,18px); font-weight:700; color:#fff; opacity:.75;
+  text-shadow:0 1px 3px rgba(0,0,0,.6);
+  font-variant-numeric:tabular-nums;
+}
+.camstatus .dot{
+  width:clamp(10px,1.5vh,18px); height:clamp(10px,1.5vh,18px);
+  border-radius:50%; background:var(--gold);
+  box-shadow:0 0 0 clamp(3px,.5vh,6px) rgba(255,255,255,.10);
+}
+
+/* ---------- game picker ----------
+   Picture tiles on the same park as the title. Sized so the whole catalogue
+   is on screen at once: a child who has to scroll to find a game picks
+   whichever one is already visible. */
+.screen.picker{
+  justify-content:center; gap:clamp(8px,1.8vh,22px);
+  padding:clamp(60px,11vh,130px) var(--safe) var(--safe);
+}
+
+.logo.small{
+  position:absolute; top:var(--safe); left:var(--safe);
+  font-size:clamp(20px,4.2vh,48px); animation:none;   /* it floats on the title; here it is furniture */
+}
+
+.corners{
+  position:absolute; top:var(--safe); right:var(--safe);
+  display:flex; gap:clamp(8px,1.2vw,16px);
+}
+.corners .btn.corner{ position:static; }
+
+.warnstrip{
+  background:rgba(255,93,115,.16); border:2px solid rgba(255,93,115,.5);
+  color:#ffb3bd; font-weight:800; border-radius:999px;
+  padding:.35em 1em; font-size:clamp(11px,1.8vh,20px);
+}
+/* Big picture tiles: each a window onto its game, so it is chosen by look.
+   The accent colour frames it; the name is small, underneath. */
+.tiles{
+  /* As wide as the screen allows, but never so tall that a second row of
+     games falls off the bottom. */
+  --tile:min(760px, calc((90vw - (var(--cols,2) - 1) * 3vw) / var(--cols,2)),
+             calc((78vh / var(--rows,1) - 9vh) / 0.625));
+  display:grid; gap:clamp(14px,2.4vh,40px) clamp(14px,3vw,48px);
+  grid-template-columns:repeat(var(--cols,2),var(--tile));
+}
+@media (max-aspect-ratio:1/1){ .tiles{ grid-template-columns:1fr; width:min(80vw,560px); } }
+
+.btn.tile{
+  display:flex; flex-direction:column; align-items:stretch; padding:0;
+  border:clamp(4px,.7vh,8px) solid var(--accent); border-radius:clamp(20px,3.4vh,40px);
+  background:#151130;
+  box-shadow:0 clamp(8px,1.6vh,20px) clamp(18px,4vh,50px) rgba(10,8,30,.45),
+             0 0 clamp(16px,3vh,40px) color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.btn.tile .pic{ display:block; width:100%; aspect-ratio:16/10; }
+.btn.tile .fill{ z-index:1; background:#fff; opacity:.25; }
+.btn.tile .lbl{
+  /* Fills the rest of the tile, so a name on two lines doesn't leave a gap
+     under the one-line names beside it. */
+  flex:1; display:flex; align-items:center; justify-content:center; line-height:1.15;
+  position:relative; z-index:2; padding:.45em .6em .55em;
+  font-size:clamp(18px,3.8vh,44px); font-weight:600; color:#fff6e2;
+  background:color-mix(in srgb, var(--accent) 30%, #1a1534);
+}
+.btn.tile.hot{ transform:scale(1.04); border-color:var(--accent); }
+
+/* ---------- home: the console's front room ----------
+   Who's here along the top (drawn on the canvas); the picked game big and
+   alive across the top half, with its moves; and a grid of everything
+   across the bottom half - the games, and the console's places under. */
+.screen.home{ padding:0; animation:homein .45s ease-out both; }
+@keyframes homein{ from{ opacity:0; transform:scale(1.03) } to{ opacity:1; transform:none } }
+.screen.home .logo.small{ z-index:20; }
+.sysbar{
+  position:absolute; top:var(--safe); right:var(--safe); z-index:20;
+  display:flex; align-items:center; gap:.7em;
+  font-size:clamp(14px,2.6vh,30px); font-weight:600; color:#fff6e2;
+  text-shadow:0 1px 4px rgba(0,0,0,.5); font-variant-numeric:tabular-nums;
+}
+.camdot{ width:.6em; height:.6em; border-radius:50%; background:var(--gold); box-shadow:0 0 0 .18em rgba(255,255,255,.12); }
+.camdot.ok{ background:var(--good); } .camdot.off{ background:var(--bad); }
+.screen.home .warnstrip{ position:absolute; top:calc(var(--safe) + 7vh); left:50%; transform:translateX(-50%); z-index:20; }
+
+.grid{
+  display:grid;gap:clamp(10px,1.8vh,24px);
+  width:min(96vw,1700px);justify-content:center;
+  grid-template-columns:repeat(auto-fit,minmax(clamp(220px,19vw,330px),1fr));
+}
+@media (max-aspect-ratio:1/1){
+  .grid{grid-template-columns:repeat(auto-fit,minmax(clamp(150px,40vw,330px),1fr));}
+}
+.card{
+  display:flex;flex-direction:column;gap:.4em;align-items:flex-start;text-align:left;
+  min-height:clamp(96px,15vh,170px);justify-content:center;
+  border-top-width:9px;border-top-color:var(--accent,var(--p1));
+}
+.card .nm{font-size:clamp(17px,3.1vh,36px);font-weight:900;line-height:1.05;}
+.card .meta{display:flex;gap:.7em;align-items:baseline;font-size:clamp(11px,1.6vh,18px);
+  color:var(--dim);font-weight:700;}
+.stars{color:var(--gold);letter-spacing:.08em;}
+.best{color:var(--faint);}
+
+.topbar{
+  position:absolute;top:var(--safe);left:var(--safe);right:var(--safe);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.topbar .brand{font-size:clamp(18px,3.4vh,40px);font-weight:900;letter-spacing:-.02em;}
+.topbar .tools{display:flex;gap:clamp(6px,1vw,14px);}
+.topbar .btn{padding:clamp(8px,1.4vh,16px) clamp(12px,1.8vw,24px);font-size:clamp(12px,1.8vh,20px);}
+
+.row{display:flex;gap:clamp(10px,2vw,28px);flex-wrap:wrap;justify-content:center;}
+.bullets{display:flex;flex-direction:column;gap:.6em;font-size:clamp(14px,2.4vh,28px);
+  text-align:left;max-width:30ch;}
+.bullets li{list-style:none;display:flex;gap:.6em;align-items:baseline;}
+.bullets .ic{font-size:1.2em;}
+.dot{width:.8em;height:.8em;border-radius:50%;display:inline-block;}
+.hide{display:none!important;}
+label.slider{display:flex;align-items:center;gap:1em;font-size:clamp(13px,2.2vh,26px);font-weight:700;}
+input[type=range]{width:min(50vw,420px);height:2.2vh;}
+
+.warn{
+  display:inline-flex;align-items:center;
+  background:#3a1f12;color:#ffb37a;border:2px solid #7a3f1e;
+  border-radius:999px;padding:clamp(7px,1.3vh,14px) clamp(12px,1.7vw,22px);
+  font-size:clamp(11px,1.7vh,19px);font-weight:800;
+}
+
+
+/* ---------- title screen ----------
+   A ten-foot front door: the name, the park, and a friend to wave to. The
+   corners are kept clear, and the type is big enough that the name is the
+   first thing anyone sees from the sofa. */
+.screen.title{ justify-content:flex-start; padding-top:clamp(18px,5vh,70px); gap:clamp(8px,1.6vh,22px); }
+
+/* The name, soft and warm, with the evening star tucked between the words.
+   It floats a little, the way everything on this screen does. */
+.logo{
+  display:flex; align-items:flex-start; gap:.18em;
+  font-size:clamp(48px,14vh,180px); font-weight:600; line-height:1; letter-spacing:.005em;
+  color:#fff6e2;
+  text-shadow:0 0 .3em rgba(255,196,140,.55), 0 .05em 0 rgba(70,50,100,.35);
+  animation:float 5s ease-in-out infinite;
+}
+.logo .star{ width:.32em; height:.32em; margin:-.06em -.06em 0; animation:twinkle 2.4s ease-in-out infinite; }
+.logo .star svg{ width:100%; height:100%; fill:#ffe9a8; filter:drop-shadow(0 0 .12em rgba(255,236,170,.9)); }
+@keyframes float{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-.05em) } }
+@keyframes twinkle{ 0%,100%{ transform:scale(1) rotate(0); opacity:1 } 50%{ transform:scale(.8) rotate(20deg); opacity:.75 } }
+
+/* Corner furniture: deliberately small and far out, so a waving hand can
+   never clip it. */
+.btn.corner{
+  position:absolute; top:var(--safe); right:var(--safe);
+  width:clamp(44px,7vh,80px); height:clamp(44px,7vh,80px); padding:0;
+  border-radius:50%; font-size:clamp(18px,3.2vh,38px); opacity:.55;
+}
+.btn.corner.hot{ opacity:1; }
+
+.camstatus{
+  position:absolute; top:var(--safe); left:var(--safe);
+  display:flex; align-items:center; gap:.6em;
+  font-size:clamp(12px,1.9vh,22px); font-weight:700; color:var(--dim);
+}
+.buildstamp{
+  position:absolute; bottom:var(--safe); left:var(--safe);
+  font-size:clamp(11px,1.6vh,18px); font-weight:700; color:#fff; opacity:.75;
+  text-shadow:0 1px 3px rgba(0,0,0,.6);
+  font-variant-numeric:tabular-nums;
+}
+.camstatus .dot{
+  width:clamp(10px,1.5vh,18px); height:clamp(10px,1.5vh,18px);
+  border-radius:50%; background:var(--gold);
+  box-shadow:0 0 0 clamp(3px,.5vh,6px) rgba(255,255,255,.10);
+}
+
+/* ---------- game picker ----------
+   Picture tiles on the same park as the title. Sized so the whole catalogue
+   is on screen at once: a child who has to scroll to find a game picks
+   whichever one is already visible. */
+.screen.picker{
+  justify-content:center; gap:clamp(8px,1.8vh,22px);
+  padding:clamp(60px,11vh,130px) var(--safe) var(--safe);
+}
+
+.logo.small{
+  position:absolute; top:var(--safe); left:var(--safe);
+  font-size:clamp(20px,4.2vh,48px); animation:none;   /* it floats on the title; here it is furniture */
+}
+
+.corners{
+  position:absolute; top:var(--safe); right:var(--safe);
+  display:flex; gap:clamp(8px,1.2vw,16px);
+}
+.corners .btn.corner{ position:static; }
+
+.warnstrip{
+  background:rgba(255,93,115,.16); border:2px solid rgba(255,93,115,.5);
+  color:#ffb3bd; font-weight:800; border-radius:999px;
+  padding:.35em 1em; font-size:clamp(11px,1.8vh,20px);
+}
+/* Big picture tiles: each a window onto its game, so it is chosen by look.
+   The accent colour frames it; the name is small, underneath. */
+.tiles{
+  /* As wide as the screen allows, but never so tall that a second row of
+     games falls off the bottom. */
+  --tile:min(760px, calc((90vw - (var(--cols,2) - 1) * 3vw) / var(--cols,2)),
+             calc((78vh / var(--rows,1) - 9vh) / 0.625));
+  display:grid; gap:clamp(14px,2.4vh,40px) clamp(14px,3vw,48px);
+  grid-template-columns:repeat(var(--cols,2),var(--tile));
+}
+@media (max-aspect-ratio:1/1){ .tiles{ grid-template-columns:1fr; width:min(80vw,560px); } }
+
+.btn.tile{
+  display:flex; flex-direction:column; align-items:stretch; padding:0;
+  border:clamp(4px,.7vh,8px) solid var(--accent); border-radius:clamp(20px,3.4vh,40px);
+  background:#151130;
+  box-shadow:0 clamp(8px,1.6vh,20px) clamp(18px,4vh,50px) rgba(10,8,30,.45),
+             0 0 clamp(16px,3vh,40px) color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.btn.tile .pic{ display:block; width:100%; aspect-ratio:16/10; }
+.btn.tile .fill{ z-index:1; background:#fff; opacity:.25; }
+.btn.tile .lbl{
+  /* Fills the rest of the tile, so a name on two lines doesn't leave a gap
+     under the one-line names beside it. */
+  flex:1; display:flex; align-items:center; justify-content:center; line-height:1.15;
+  position:relative; z-index:2; padding:.45em .6em .55em;
+  font-size:clamp(18px,3.8vh,44px); font-weight:600; color:#fff6e2;
+  background:color-mix(in srgb, var(--accent) 30%, #1a1534);
+}
+.btn.tile.hot{ transform:scale(1.04); border-color:var(--accent); }
+
+/* ---------- home: the console's front room ----------
+   Who's here along the top (drawn on the canvas); the picked game big and
+   alive across the top half, with its moves; and a grid of everything
+   across the bottom half - the games, and the console's places under. */
+.screen.home{ padding:0; animation:homein .45s ease-out both; }
+@keyframes homein{ from{ opacity:0; transform:scale(1.03) } to{ opacity:1; transform:none } }
+.screen.home .logo.small{ z-index:20; }
+.sysbar{
+  position:absolute; top:var(--safe); right:var(--safe); z-index:20;
+  display:flex; align-items:center; gap:.7em;
+  font-size:clamp(14px,2.6vh,30px); font-weight:600; color:#fff6e2;
+  text-shadow:0 1px 4px rgba(0,0,0,.5); font-variant-numeric:tabular-nums;
+}
+.camdot{ width:.6em; height:.6em; border-radius:50%; background:var(--gold); box-shadow:0 0 0 .18em rgba(255,255,255,.12); }
+.camdot.ok{ background:var(--good); } .camdot.off{ background:var(--bad); }
+.screen.home .warnstrip{ position:absolute; top:calc(var(--safe) + 7vh); left:50%; transform:translateX(-50%); z-index:20; }
+
+.preview{
+  position:absolute; top:12vh; height:40vh; left:5vw; right:5vw;
+  display:flex; align-items:center; gap:3vw;
+}
+.preview .bigpic{
+  height:100%; aspect-ratio:16/10; flex:none; display:block;
+  border:clamp(4px,.7vh,8px) solid var(--accent); border-radius:clamp(20px,3.4vh,40px);
+  box-shadow:0 clamp(10px,2vh,26px) clamp(24px,6vh,70px) rgba(10,8,30,.55),
+             0 0 clamp(30px,7vh,90px) color-mix(in srgb, var(--accent) 55%, transparent);
+  transition:border-color .3s, box-shadow .3s, transform .5s;
+}
+.preview.launch .bigpic{ transform:scale(1.06); }
+.about{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2.2vh; text-align:left; color:#fff6e2; }
+.pname{ font-size:clamp(28px,7.5vh,96px); font-weight:600; line-height:1; text-shadow:0 0 .3em rgba(0,0,0,.4); }
+.moves{ display:flex; flex-wrap:wrap; gap:clamp(6px,.9vh,14px); font-size:clamp(13px,2.3vh,28px); font-weight:600; }
+.move{ display:flex; align-items:center; gap:.35em; background:rgba(20,16,44,.55); border-radius:999px; padding:.25em .75em .25em .45em; }
+.move .mi{ font-size:1.35em; line-height:1; }
+.meta{ display:flex; gap:1.2em; align-items:center; font-size:clamp(13px,2.4vh,28px); font-weight:600; }
+.who{ letter-spacing:.1em; opacity:.85; }
+.best{ background:rgba(255,210,74,.18); border-radius:999px; padding:.25em .8em; }
+
+.grid{
+  position:absolute; top:13vh; bottom:3vh; left:3vw; right:3vw;
+  display:flex; flex-direction:column; align-items:center; justify-content:space-between; gap:2.4vh;
+}
+/* Wide picture tiles, three to a row, the last row centred. */
+.gamegrid{
+  --gw:min(29vw, 36vh);
+  display:flex; flex-wrap:wrap; justify-content:center; gap:2.2vh 2vw; width:calc(var(--gw) * 3 + 4.5vw);
+}
+.gamegrid .btn.tile{ width:var(--gw); }
+.gamegrid .btn.tile .pic{ aspect-ratio:16/10; flex:none; }
+.placerow{ display:flex; justify-content:center; gap:1.6vw; width:100%; height:13vh; }
+.grid .placerow .btn.tile{ flex:1; max-width:17vw; flex-direction:row; }
+.grid .placerow .btn.tile .pic{ width:38%; height:100%; flex:none; aspect-ratio:auto; }
+.grid .placerow .btn.tile .lbl{ flex:1; height:100%; padding:0 .5em; }
+.grid .placerow .btn.tile .soon{ top:auto; bottom:8%; right:5%; font-size:clamp(10px,1.5vh,18px); }
+.tilemoves{ display:flex; justify-content:center; gap:.2em; padding:0 .4em .5em; font-size:clamp(14px,2.6vh,30px); background:color-mix(in srgb, var(--accent) 30%, #1a1534); position:relative; z-index:2; }
+.screen.home .moves, .screen.home .meta{ display:none; }
+.grid .btn.tile{
+  display:flex; flex-direction:column; min-height:0; padding:0; overflow:hidden;
+  border:clamp(3px,.5vh,6px) solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius:clamp(14px,2.4vh,28px);
+  background:#151130; box-shadow:0 1vh 2.4vh rgba(10,8,30,.4);
+  transition:transform .25s ease, border-color .25s, box-shadow .25s;
+}
+.grid .btn.tile .pic{ min-height:0; width:100%; display:block; }
+.grid .btn.tile .lbl{ flex:none; font-size:clamp(14px,3vh,36px); padding:.35em .4em .2em; }
+.grid .btn.tile.place .lbl{ font-size:clamp(12px,2.2vh,26px); }
+.grid .btn.tile.focus{
+  transform:translateY(-1vh) scale(1.05); z-index:2; border-color:var(--accent);
+  box-shadow:0 1.4vh 3vh rgba(10,8,30,.5), 0 0 3vh color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.grid .btn.tile.launch{ animation:pulse .5s ease both; }
+@keyframes pulse{ 50%{ transform:translateY(-.8vh) scale(1.12) } }
+.grid .btn.tile.nope{ animation:nope .45s ease; }
+@keyframes nope{ 20%{ transform:translateX(-.8vw) rotate(-2deg) } 40%{ transform:translateX(.7vw) rotate(1.5deg) } 60%{ transform:translateX(-.4vw) } 80%{ transform:translateX(.2vw) } }
+.btn.tile .soon{
+  position:absolute; top:6%; right:6%; z-index:3;
+  background:rgba(20,16,44,.75); color:#fff6e2; border-radius:999px;
+  padding:.2em .45em; font-size:clamp(11px,1.8vh,22px);
+}
+.screen.dim.family{ background:rgba(9,7,20,.35); }
+.familyspace{ width:80vw; height:30vh; }
+
+/* ---------- boot ----------
+   The front door's own name, in its own place, blooming in over the park
+   as it comes up out of the night - so the boot show becomes the title
+   screen without a seam. The title's corner furniture fades in after. */
+.logo.bloom{ animation:bloom .7s 1.15s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes bloom{ from{ opacity:0; transform:scale(.7); filter:blur(8px) } to{ opacity:1; transform:none; filter:none } }
+.bootwait{ position:absolute; bottom:8vh; left:0; right:0; opacity:0; transition:opacity .6s; color:#fff6e2; }
+.bootwait.show{ opacity:.8; }
+.screen.title:not(.boot) .camstatus, .screen.title:not(.boot) .btn.corner, .screen.title:not(.boot) .buildstamp{ animation:fadein .8s ease both; }
+@keyframes fadein{ from{ opacity:0 } }
