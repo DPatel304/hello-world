@@ -450,10 +450,9 @@ class LastKnownPosition {
         }
         if (!rn.down) rn.told = false;
       }
-      const hurt = up.find(i => this.crew[i].hp < this.crew[i].max * 0.35 && !f._inReach(this.crew[i]).length);
-      if (hurt != null) cap.say(`${NAMES[hurt]}, you're hurt! Hug yourself to heal, before they reach you.`, 'HUG TO HEAL', { once: 'hug' });
     }
     if (this.treasure && !seg.told){ seg.told = true; cap.say('Treasure! Grab all the coins you can, with your hands!', 'GRAB THE COINS!'); }
+    if (this.treasure && this.treasure.pool > 0 && !seg.toldPool){ seg.toldPool = true; cap.say('Healing water! Hug yourselves to heal faster!', 'HUG TO HEAL!'); }
     const tr = this.trap;
     if (tr && !seg.told){
       seg.told = true;

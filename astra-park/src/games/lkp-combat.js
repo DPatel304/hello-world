@@ -19,11 +19,8 @@
    robots are still walking up, a hop fires a shot up the corridor at the
    nearest one coming.
 
-   While robots are still walking up to you - none in your reach yet -
-   you can hug yourself to heal: HUG_HEAL health a second back, right
-   where you stand, your own hits paused while you do. Once one's in
-   reach, though, there's no time for that: you're fighting, hug or no
-   hug.
+   There's no healing in a fight: health comes back from the springs in
+   the corridors, and the healing water at the end of a treasure room.
 
    Run out of health and you fall asleep where you stand - only ever in a
    fight; corridors and trap rooms leave you at 1 at worst. A teammate
@@ -43,7 +40,7 @@
 import { RUN, P } from './lkp-art.js';
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
-import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';
+import { ClapWatch, CrankWatch } from '../tracking/gestures.js';
 import { XP } from './lkp-levelup.js';
 import { arms, armored, teamBonus, STANDARD, TEAM } from './lkp-weapons.js';
 
@@ -64,8 +61,6 @@ export const BUDDY = 0.32;
 export { TEAM };
 /* The wheels on the bus: an extra hit, this hard, every turn. */
 export const CRANK_HIT = 6;
-/* Hugging yourself: health back a second, out of reach, not hitting. */
-export const HUG_HEAL = 6;
 /* A hop while robots are walking up: a shot at the nearest one coming
    (within SHOT_ACROSS lanes of you), this hard. */
 export const SHOT_HIT = 12, SHOT_ACROSS = 0.35;
@@ -88,7 +83,7 @@ export const FIGHT_MAX = 120;
 /* How hard robots and bosses hit, by how many are playing: alone there's
    nobody to clap you awake, so gentler; a full crew can wake each other,
    so harder. */
-export const FURY = [0.6, 0.6, 1, 1.8, 2.3];
+export const FURY = [0.42, 0.42, 0.8, 1.6, 2.2];
 export const crewPower = (n) => Math.max(1, n) * (1 + TEAM * (Math.max(1, n) - 1));
 export const waveSize = (n, w, waves = WAVE) => Math.max(1, n) * waves[w];
 /* The elite - behind the skull door, always: one big one (its health
@@ -114,8 +109,7 @@ export class Fight {
     this.heat = waves ? 1 + HEAT * Math.max(0, (game.rooms || []).filter(r => r === 'combat' || r === 'elite').length - 1) : 1;
     this.claps = pose.players.map(() => new ClapWatch());
     this.cranks = pose.players.map(() => new CrankWatch());
-    this.hugs = pose.players.map(() => new HugWatch());
-    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; rn.healing = false; }
+    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; }
     if (waves) this._wave();
   }
 
@@ -165,18 +159,7 @@ export class Fight {
       this.bots.push(this._bot(Math.random() * 1.8 - 0.9, 0.95 + Math.random() * 0.08));
     }
 
-    /* Who's hugging to heal - where they stand - with no robot in reach yet. */
-    for (const i of g.here){
-      const rn = g.crew[i];
-      rn.healing = this.hugs[i].step(pose.players[i], dt) && !rn.down && !this._inReach(rn).length;
-      if (rn.healing && rn.hp < rn.max){
-        rn.hp = Math.min(rn.max, rn.hp + HUG_HEAL * dt);
-        if (Math.random() < dt * 5){ const p = P(rn.x, RUN, W, H); g.bits.push({ kind: 'heart', x: (p.x + (Math.random() - 0.5) * H * 0.06) / W, y: (p.y - H * 0.2) / H, vy: -0.08, age: 0, life: 0.9 }); }
-      }
-    }
-    /* Robots come for everyone awake, healing or not; the healers' own
-       hits wait. */
-    const up = this.up, front = up.filter(i => !g.crew[i].healing);
+    const up = this.up, front = up;
     this._aim(up);
     /* Front first, so those behind queue up behind them. */
     this.bots.sort((a, b) => a.d - b.d);
@@ -260,7 +243,7 @@ export class Fight {
      a turn of the arms, an extra hit; a hop, a shot. */
   _fight(i, dt, W, H, hopped){
     const g = this.g, rn = g.crew[i], p = pose.players[i];
-    rn.buddies = this.up.filter(j => j !== i && !g.crew[j].healing && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
+    rn.buddies = this.up.filter(j => j !== i && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
     /* Standing together; their weapons, upgrades and all (lkp-weapons.js). */
     const power = 1 + teamBonus(rn) * rn.buddies, w = arms(rn);
     const near = this._inReach(rn);

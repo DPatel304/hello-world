@@ -4,8 +4,8 @@
 
    It's a fight like the others (a Fight, without the waves, underneath):
    the crew hit whatever's in reach on their own, harder standing
-   together, an extra hit every turn of the arms; hugging heals while
-   nothing's in reach; asleep, a teammate's claps wake you; everyone
+   together, an extra hit every turn of the arms; no healing; asleep, a
+   teammate's claps wake you; everyone
    asleep ends the run. A hop's shot reaches the core from anywhere.
 
    Three phases:

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story, GOLD_COINS } from '../src/games/lkp-game.js';
-import { TREASURE_TIME, COINS, HEAL } from '../src/games/lkp-treasure.js';
-import { pose } from '../src/tracking/pose.js';
+import { TREASURE_TIME, COINS, POOL, POOL_HEAL } from '../src/games/lkp-treasure.js';
+import { pose, L } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
 story.on = false;
 
@@ -25,14 +25,38 @@ function treasure(n = 2){
   return inst;
 }
 
-test('a treasure room is full of floating coins, and everyone\'s healed as they come in', () => {
+test('a treasure room is full of floating coins - and no healing while they\'re grabbed', () => {
   const inst = treasure();
   inst.crew[0].hp = 30;
-  inst.treasure.from[0] = 30;
-  run(inst, HEAL + 0.1);
+  run(inst, 2);
   assert.equal(inst.treasure.coins.length, COINS);
-  assert.equal(inst.crew[0].hp, inst.crew[0].max);
+  assert.equal(inst.crew[0].hp, 30);
   assert.ok(inst.speed < 0.02);
+});
+
+/* Player i hugging themselves (or not). */
+function hugging(i, on = true){
+  const lm = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, v: 0.9 }));
+  lm[L.L_SHOULDER] = { x: 0.55, y: 0.4, v: 0.9 }; lm[L.R_SHOULDER] = { x: 0.45, y: 0.4, v: 0.9 };
+  lm[L.L_WRIST] = on ? { x: 0.455, y: 0.41, v: 0.9 } : { x: 0.6, y: 0.7, v: 0.9 };
+  lm[L.R_WRIST] = on ? { x: 0.545, y: 0.41, v: 0.9 } : { x: 0.4, y: 0.7, v: 0.9 };
+  pose.players[i].lm = lm;
+}
+
+test('the coins done, POOL seconds of healing water for the whole team - hugging heals faster - then on', () => {
+  const inst = treasure(2);
+  inst.crew[0].hp = 20; inst.crew[1].hp = 20;
+  hugging(1);
+  run(inst, TREASURE_TIME + 0.05);
+  assert.ok(inst.treasure.pool > 0, 'the water');
+  assert.equal(inst.phase, 'room');
+  run(inst, POOL);
+  const [a, b] = inst.crew.map(rn => rn.hp - 20);
+  assert.ok(Math.abs(a - POOL_HEAL * POOL) < 2, `standing: +${a}`);
+  assert.ok(b > a * 2.5, `hugging: +${b}`);
+  pose.players[1].lm = null;
+  run(inst, 1.5);
+  assert.notEqual(inst.phase, 'room');
 });
 
 test('a hand touching a coin grabs it, for the team - and another soon takes its place', () => {
@@ -53,7 +77,7 @@ test('after its time, the room is over and the run goes on', () => {
   const inst = treasure();
   run(inst, TREASURE_TIME - 1);
   assert.equal(inst.phase, 'room');
-  run(inst, 2.5);
+  run(inst, POOL + 2.5);
   assert.notEqual(inst.phase, 'room');
 });
 

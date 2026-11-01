@@ -4,7 +4,7 @@ import game, { MAX_HP, FIGHT_APART, PLAYTEST, story } from '../src/games/lkp-gam
 /* The play itself, without the captain's scenes. */
 story.on = false;
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
-         REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, WAVE, FURY, ELITE_WAVE, BIG_HP, ELITE_COINS, waveSize } from '../src/games/lkp-combat.js';
+         REVIVE_CLAPS, WAKE_HP, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, WAVE, FURY, ELITE_WAVE, BIG_HP, ELITE_COINS, waveSize } from '../src/games/lkp-combat.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
@@ -179,28 +179,15 @@ function hugging(i, on = true){
   pose.players[i].lm = lm;
 }
 
-test('while robots are still walking up, hugging yourself heals - right where you stand, not hitting', () => {
+test('no healing in a fight - hugging or not', () => {
   const inst = fight();
   run(inst, 0.5);
-  const x = inst.crew[0].x, bots = only(inst, [bot(x, 0.95)]);
+  const x = inst.crew[0].x;
+  only(inst, [bot(x, 0.95)]);
   inst.crew[0].hp = 50;
   hugging(0);
   run(inst, 2);
-  assert.ok(inst.crew[0].healing);
-  assert.ok(Math.abs(inst.crew[0].hp - (50 + HUG_HEAL * (2 - 0.3))) < 2, `hp ${inst.crew[0].hp}`);
-  pose.players[0].lm = null;
-});
-
-test('once a robot is in reach, no more hugging: you fight', () => {
-  const inst = fight();
-  run(inst, 0.5);
-  const x = inst.crew[0].x, bots = only(inst, [bot(x)]);
-  inst.crew[0].hp = 50;
-  hugging(0);
-  run(inst, SWING + 0.5);
-  assert.equal(inst.crew[0].healing, false);
-  assert.ok(inst.crew[0].hp <= 50, 'no healing');
-  assert.ok(bots[0].hp < 999, 'hitting');
+  assert.equal(inst.crew[0].hp, 50);
   pose.players[0].lm = null;
 });
 

@@ -5,7 +5,7 @@
 
    It's a fight like the others underneath (a Fight without waves, the
    Scout a `part` the crew hit like anything else in reach): standing
-   together hits harder, the arm-roll, hugging while it's away, clapping
+   together hits harder, the arm-roll, clapping
    the sleepy awake, everyone asleep ends the run. A hop's shot reaches it
    wherever it is.
 
