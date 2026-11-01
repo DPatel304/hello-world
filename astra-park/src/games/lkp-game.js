@@ -56,6 +56,9 @@ const FULL = [50, 45, 45];                      /* seconds of each corridor, in 
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
 /* The score: every coin, 10 for each knocked out, 500 for each boss beaten. */
+/* Every GOLD_COINS coins the team grabs fills the gold bar: a gold pick.
+   (The coins aren't spent - they're still the score.) */
+export const GOLD_COINS = 100;
 export const SCORE = { kill: 10, boss: 500 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
@@ -133,7 +136,7 @@ class LastKnownPosition {
     this.t = 0; this.over = false; this.lost = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.zoom = 0;                  /* how far the view has closed in, 0..1 */
-    this.coins = 0; this.kills = 0; this.bosses = 0;
+    this.coins = 0; this.kills = 0; this.bosses = 0; this.coinGolds = 0;
     /* The team's XP and level (lkp-levelup.js); level-ups still to pick,
        and the picking, while it's on. */
     this.xp = 0; this.lvl = 1; this.pending = 0; this.golds = 0; this.levelup = null;
@@ -292,7 +295,14 @@ class LastKnownPosition {
       this._stepBits(dt);
       return;
     }
-    /* A gold pick earned (the treasure room, a boss): before any level up. */
+    /* The gold bar full: a gold pick on the way. */
+    while (this.coins >= (this.coinGolds + 1) * GOLD_COINS){
+      this.coinGolds++; this.golds++;
+      sfx.gold();
+      this.bits.push({ kind: 'num', x: 0.88, y: 0.16, vy: -0.03, age: 0, life: 1.6, text: 'GOLD PICK!', col: '#ffd24a' });
+    }
+    /* A gold pick earned (the treasure room, a boss, the gold bar): before
+       any level up. */
     if (this.golds > 0 && (this.calm || this.bossBeaten)){
       this.levelup = goldPick(this, PLAYTEST || PICK_TIME);
       this.captain.say('A gold pick! Every card counts twice.', 'GOLD PICK', { once: 'goldpick' });
@@ -819,6 +829,10 @@ class LastKnownPosition {
     drawCoin(c, x - H * 0.19, y, H * 0.022, this.t);
     c.fillStyle = '#ffe9a8'; c.font = `700 ${Math.round(H * 0.05)}px Fredoka, sans-serif`; c.textAlign = 'right'; c.textBaseline = 'middle';
     c.fillText(String(this.coins), x, y + H * 0.003);
+    /* Under it, the gold bar filling: full, a gold pick. */
+    const fill = (this.coins - this.coinGolds * GOLD_COINS) / GOLD_COINS, bw = H * 0.23, bx = x - H * 0.22, by = y + H * 0.055;
+    c.fillStyle = 'rgba(5,6,15,.75)'; c.beginPath(); c.roundRect(bx - H * 0.006, by - H * 0.006, bw + H * 0.012, H * 0.024, H * 0.012); c.fill();
+    c.fillStyle = '#ffd24a'; c.beginPath(); c.roundRect(bx, by, Math.max(H * 0.012, bw * Math.min(1, fill)), H * 0.012, H * 0.006); c.fill();
     c.restore();
     /* The floor, as a row of pips along the top: where the crew are. */
     const plan = this.level.plan, n = plan.length - 1, w = H * 0.034;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { story } from '../src/games/lkp-game.js';
+import game, { story, GOLD_COINS } from '../src/games/lkp-game.js';
 import { TREASURE_TIME, COINS, HEAL } from '../src/games/lkp-treasure.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
@@ -88,4 +88,17 @@ test('the music follows the run: hushed under a red light, loud for a fight', ()
   assert.equal(inst.mood, 0);
   inst.trap = null; inst.fight = { done: false };
   assert.ok(inst.mood >= 0.8);
+});
+
+test('every GOLD_COINS coins fills the gold bar: a gold pick - and the coins stay the score', () => {
+  crew(1);
+  const inst = game.create(1);
+  inst.step(DT, W, H);
+  inst.coins = GOLD_COINS - 1; inst.step(DT, W, H);
+  assert.equal(inst.golds, 0);
+  inst.coins = GOLD_COINS * 2 + 5; inst.step(DT, W, H);
+  assert.equal(inst.golds, 2);
+  assert.equal(inst.coins, GOLD_COINS * 2 + 5);
+  inst.step(DT, W, H);
+  assert.equal(inst.golds, 2, 'once each');
 });
