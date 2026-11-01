@@ -226,11 +226,22 @@ export function drawCrew(c, x, base, h, t, col, st, face){
 /* A crew member hitting out: a ring bursting along the floor round them,
    rx across (screen px), in their colour - brighter when they're
    standing with a teammate. k runs 1 to 0 as it fades. */
-export function drawPulse(c, x, y, rx, k, col, team){
+export function drawPulse(c, x, y, rx, k, col, team, style = 'ring', t = 0){
   c.save(); c.globalAlpha = k * (team ? 0.9 : 0.6);
   c.strokeStyle = team ? '#7ff3ff' : col; c.lineWidth = rx * 0.06 * (team ? 1.5 : 1);
   const u = 0.5 + 0.5 * (1 - k);
-  c.beginPath(); c.ellipse(x, y, rx * u, rx * u * 0.22, 0, 0, 6.2832); c.stroke();
+  if (style === 'slam'){
+    /* A hammer: a heavy double ring, thumping out. */
+    c.lineWidth *= 1.8;
+    c.beginPath(); c.ellipse(x, y, rx * u, rx * u * 0.22, 0, 0, 6.2832); c.stroke();
+    c.beginPath(); c.ellipse(x, y, rx * u * 0.6, rx * u * 0.13, 0, 0, 6.2832); c.stroke();
+  } else if (style === 'spin'){
+    /* Blades: arcs whirling round. */
+    for (let s = 0; s < 3; s++){
+      const a = t * 12 + s * 2.09;
+      c.beginPath(); c.ellipse(x, y, rx * 0.9, rx * 0.2, 0, a, a + 1.2); c.stroke();
+    }
+  } else { c.beginPath(); c.ellipse(x, y, rx * u, rx * u * 0.22, 0, 0, 6.2832); c.stroke(); }
   c.restore();
 }
 

@@ -10,9 +10,10 @@
    close enough keeps hitting whoever's nearest - each hit only a nibble,
    but they never stop. There's no wind-up to watch for.
 
-   The crew hit back on their own, every SWING seconds, every robot within
-   RANGE of them - wider than a robot's reach, so the front row and the one
-   behind. They hit harder standing together: each teammate close by
+   The crew hit back on their own, with their weapons (lkp-weapons.js):
+   every robot within reach of their melee weapon - wider than a robot's
+   reach, so the front row and the one behind - or, with nothing in reach,
+   their ranged one at the robots still walking up. They hit harder standing together: each teammate close by
    (BUDDY) adds TEAM to their hits. Rolling their arms - the wheels on the
    bus - lands an extra hit on all of them with every turn. And while
    robots are still walking up, a hop fires a shot up the corridor at the
@@ -43,6 +44,7 @@ import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';
 import { XP } from './lkp-levelup.js';
+import { arms, STANDARD } from './lkp-weapons.js';
 
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
    it reaches. */
@@ -51,7 +53,7 @@ export const BOT_HP = 20, BOT_HIT = 2, BOT_EVERY = 1.2, BOT_REACH = 0.18;
 const BIG = 5;
 /* The crew's own hits: how often, how hard, how far across (lanes) and
    how deep (corridor depth) they reach. */
-export const SWING = 1.5, SWING_HIT = 6, RANGE = 0.32, RANGE_D = 0.14;
+export const SWING = STANDARD.every, SWING_HIT = STANDARD.dmg, RANGE = STANDARD.reach, RANGE_D = 0.14;
 /* Standing together: teammates this close (lanes) each add TEAM to your
    hits (0.5 is half as much again). */
 export const BUDDY = 0.32, TEAM = 0.5;
@@ -228,13 +230,24 @@ export class Fight {
   _fight(i, dt, W, H, hopped){
     const g = this.g, rn = g.crew[i], p = pose.players[i];
     rn.buddies = this.up.filter(j => j !== i && !g.crew[j].healing && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
-    /* Standing together, and their upgrades (lkp-levelup.js). */
-    const power = 1 + TEAM * rn.buddies, fists = power * (rn.fists || 1), wheels = power * (rn.wheels || 1);
+    /* Standing together; their weapons, upgrades and all (lkp-weapons.js). */
+    const power = 1 + TEAM * rn.buddies, w = arms(rn), wheels = power * (rn.wheels || 1);
     const near = this._inReach(rn);
     rn.swingT = (rn.swingT || 0) + dt;
-    if (rn.swingT >= SWING && near.length){
-      rn.swingT = 0; rn.swing = 1;
-      for (const b of near) this._hit(b, SWING_HIT * fists, W, H);
+    rn.fireT = (rn.fireT || 0) + dt;
+    if (near.length){
+      /* Melee: everything in reach. */
+      if (rn.swingT >= w.melee.every){
+        rn.swingT = 0; rn.swing = 1;
+        for (const b of near) this._hit(b, w.melee.dmg * power, W, H);
+      }
+    } else if (w.ranged && rn.fireT >= w.ranged.every){
+      /* Ranged, with nothing in reach: the nearest robots still coming. */
+      const coming = this.bots.filter(b => b.hp > 0 && b.d > FRONT + 0.03).sort((a, b) => a.d - b.d).slice(0, w.ranged.bolts);
+      if (coming.length){
+        rn.fireT = 0;
+        for (const b of coming){ this._bolt(rn, b, W, H); this._hit(b, w.ranged.dmg * power, W, H); }
+      }
     }
     if (this.cranks[i].step(p, dt) && near.length){
       rn.swing = 1;
@@ -246,17 +259,22 @@ export class Fight {
         if (b.hp <= 0 || b.d <= FRONT + 0.03 || Math.abs(b.x - rn.x) > SHOT_ACROSS + (b.wide || 0)) continue;
         if (!shot || b.d < shot.d) shot = b;
       }
-      if (shot){
-        const a = P(rn.x, RUN, W, H), z = P(shot.x, shot.d, W, H);
-        g.bits.push({ kind: 'shot', x: a.x / W, y: (a.y - H * 0.12) / H, x2: z.x / W, y2: (z.y - H * 0.08 * z.k) / H, age: 0, life: 0.3 });
-        sfx.zap();
-        this._hit(shot, SHOT_HIT * fists, W, H);
-      }
+      if (shot){ this._bolt(rn, shot, W, H); this._hit(shot, SHOT_HIT * power, W, H); }
     }
   }
 
-  /* The robots within a crew member's reach. */
-  _inReach(rn){ return this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < RANGE + (b.wide || 0)); }
+  /* The robots within a crew member's reach - their melee weapon's. */
+  _inReach(rn){
+    const reach = arms(rn).melee.reach;
+    return this.bots.filter(b => b.hp > 0 && b.d <= FRONT + RANGE_D && Math.abs(b.x - rn.x) < reach + (b.wide || 0));
+  }
+
+  /* A shot, from a crew member to a robot: a zap across. */
+  _bolt(rn, b, W, H){
+    const a = P(rn.x, RUN, W, H), z = P(b.x, b.d, W, H);
+    this.g.bits.push({ kind: 'shot', x: a.x / W, y: (a.y - H * 0.12) / H, x2: z.x / W, y2: (z.y - H * 0.08 * z.k) / H, age: 0, life: 0.3 });
+    sfx.zap();
+  }
 
   _hit(b, dmg, W, H){
     const g = this.g, p = P(b.x, b.d, W, H);

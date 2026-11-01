@@ -5,39 +5,35 @@
    level for each one waiting), but they're picked between rooms: as the
    next corridor starts, or at the doors before they're chosen, the game
    stops and, for each level waiting, every player gets three cards to
-   pick from, of UPGRADES: lean to choose - left, middle, right - and
-   wave to take it. Once everyone has (or after `len` seconds, whatever
+   pick from - upgrades for their weapons and themselves (lkp-weapons.js):
+   lean to choose - left, middle, right - and wave to take it. Once everyone has (or after `len` seconds, whatever
    they're leaning towards), the upgrades are theirs, and on they go.
    Picking the same one again stacks it. */
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
+import { CARDS, cardsFor, cardIcon, take, MELEE } from './lkp-weapons.js';
 
 /* The XP from one level to the next: FIRST to level 2, then STEP more
    each level after - often at first, and steadily less often. */
 export const FIRST = 30, STEP = 15;
 /* What each thing's worth. */
 export const XP = { kill: 10, fight: 50, trap: 75, trapTimeout: 25, treasure: 25, boss: 300 };
-/* The upgrades: what it's called (a word or two), a picture, and what it
-   does to a crew member. */
-export const UPGRADES = {
-  fists: { name: 'STRONGER', icon: '\u{1F44A}', apply: (rn) => { rn.fists = (rn.fists || 1) + 0.25; } },
-  wheels: { name: 'ARM ROLL', icon: '\u{1F504}', apply: (rn) => { rn.wheels = (rn.wheels || 1) + 0.3; } },
-  vitality: { name: 'HEALTH', icon: '\u{2764}\u{FE0F}', apply: (rn) => { rn.max += 20; rn.hp = Math.min(rn.max, rn.hp + 20); } },
-  swift: { name: 'SPEED', icon: '\u{1F45F}', apply: (rn) => { rn.swift = (rn.swift || 1) + 0.2; } }
-};
 export const PICK_TIME = 30;
 
 /* The XP needed to go from level lvl to the next. */
 export const needFor = (lvl) => FIRST + STEP * (lvl - 1);
 
-export class LevelUp {
-  constructor(game, len = PICK_TIME){
-    this.g = game; this.len = len; this.t = 0; this.done = false;
-    const keys = Object.keys(UPGRADES);
-    /* Three of the four for each player, in a random order. */
-    this.cards = pose.players.map(() => keys.slice().sort(() => Math.random() - 0.5).slice(0, 3));
-    this.at = pose.players.map(() => 1);
+/* Choosing, everyone at once: a title, and for each player a row of two
+   or three cards ({ name, icon, take(rn) }) - lean to choose (left,
+   middle, right; or left, right) and wave to take it. Once everyone has
+   (or after len seconds, whatever they're leaning to), each card's
+   taken. For a level up, and for picking a weapon. */
+export class Pick {
+  constructor(game, len, title, offer){
+    this.g = game; this.len = len; this.t = 0; this.done = false; this.title = title;
+    this.cards = pose.players.map((_, i) => offer(i, game.crew[i]));
+    this.at = this.cards.map(c => (c.length === 3 ? 1 : 0));
     this.took = pose.players.map(() => null);
     this.waves = pose.players.map(() => new WaveWatch());
     sfx.learnt();
@@ -49,7 +45,7 @@ export class LevelUp {
     for (const i of g.here){
       if (this.took[i] != null) continue;
       const lean = g.leanOf(i) ?? 0;
-      this.at[i] = lean < -0.33 ? 0 : lean > 0.33 ? 2 : 1;
+      this.at[i] = this.cards[i].length === 3 ? (lean < -0.33 ? 0 : lean > 0.33 ? 2 : 1) : (lean < 0 ? 0 : 1);
       this.waves[i].step(dt, handsFrom(pose, g.players).filter(h => h.who === i));
       if (this.waves[i].done){ this.took[i] = this.at[i]; sfx.pick(); }
     }
@@ -60,12 +56,12 @@ export class LevelUp {
     const g = this.g;
     for (const i of g.here){
       const k = this.took[i] ?? this.at[i];
-      UPGRADES[this.cards[i][k]].apply(g.crew[i]);
+      this.cards[i][k].take(g.crew[i]);
     }
     this.done = true; sfx.select();
   }
 
-  /* Over the game, dimmed: LEVEL UP, and a row of three cards for each
+  /* Over the game, dimmed: the title, and a row of cards for each
      player, in their colour - the one they're leaning to lifted, the one
      they've taken lit with a tick. */
   draw(c, W, H){
@@ -74,14 +70,15 @@ export class LevelUp {
     c.fillStyle = 'rgba(5,6,15,.72)'; c.fillRect(0, 0, W, H);
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = `700 ${Math.round(H * 0.08)}px Fredoka, sans-serif`;
-    c.lineWidth = H * 0.012; c.strokeStyle = '#05060f'; c.strokeText(`LEVEL ${g.lvl}!`, W / 2, H * 0.1);
-    c.fillStyle = '#ffd24a'; c.fillText(`LEVEL ${g.lvl}!`, W / 2, H * 0.1);
+    c.lineWidth = H * 0.012; c.strokeStyle = '#05060f'; c.strokeText(this.title, W / 2, H * 0.1);
+    c.fillStyle = '#ffd24a'; c.fillText(this.title, W / 2, H * 0.1);
     const rowH = Math.min(H * 0.2, H * 0.78 / Math.max(1, here.length)), cw = rowH * 1.25, gap = cw * 0.25;
     here.forEach((i, r) => {
       const y = H * 0.2 + r * rowH + rowH * 0.05, col = PLAYER_COLORS[i];
-      c.fillStyle = col; c.beginPath(); c.arc(W / 2 - (cw * 1.5 + gap) - rowH * 0.5, y + rowH * 0.42, rowH * 0.22, 0, 6.2832); c.fill();
-      for (let k = 0; k < 3; k++){
-        const up = UPGRADES[this.cards[i][k]], x = W / 2 + (k - 1) * (cw + gap), took = this.took[i] === k, on = this.took[i] == null ? this.at[i] === k : took;
+      const n = this.cards[i].length;
+      c.fillStyle = col; c.beginPath(); c.arc(W / 2 - (cw * n / 2 + gap) - rowH * 0.5, y + rowH * 0.42, rowH * 0.22, 0, 6.2832); c.fill();
+      for (let k = 0; k < n; k++){
+        const up = this.cards[i][k], x = W / 2 + (k - (n - 1) / 2) * (cw + gap), took = this.took[i] === k, on = this.took[i] == null ? this.at[i] === k : took;
         const lift = on ? -rowH * 0.06 : 0, dim = this.took[i] != null && !took;
         c.globalAlpha = dim ? 0.35 : 1;
         c.fillStyle = took ? col : on ? '#2a3350' : '#151a2c'; c.strokeStyle = on ? col : 'rgba(255,255,255,.2)'; c.lineWidth = on ? H * 0.008 : 2;
@@ -100,4 +97,18 @@ export class LevelUp {
     c.fillStyle = '#ffd24a'; c.fillRect(W / 2 - w / 2, H * 0.965, w * u, H * 0.012);
     c.restore();
   }
+}
+
+/* A level up: three cards each, from what their weapons and they could
+   get better at (lkp-weapons.js). */
+export function levelUp(game, len){
+  return new Pick(game, len, `LEVEL ${game.lvl}!`, (i, rn) => cardsFor(rn).sort(() => Math.random() - 0.5).slice(0, 3)
+    .map(key => ({ name: CARDS[key].name, icon: cardIcon(key, rn), take: (r) => take(key, r) })));
+}
+
+/* Picking a melee weapon, at the depot: one of MELEE each, theirs for
+   good. */
+export function meleePick(game, len){
+  return new Pick(game, len, 'PICK YOUR WEAPON', () => Object.values(MELEE)
+    .map(w => ({ name: w.name, icon: w.icon, take: (r) => { r.melee = w; } })));
 }

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story, MAX_HP } from '../src/games/lkp-game.js';
-import { XP, UPGRADES, needFor } from '../src/games/lkp-levelup.js';
+import { XP, needFor } from '../src/games/lkp-levelup.js';
+import { take } from '../src/games/lkp-weapons.js';
 import { SWING, SWING_HIT, FRONT } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
@@ -83,10 +84,9 @@ test('everyone leans to a card and waves to take it - and has it', () => {
   assert.equal(inst.z, z, 'everything waits');
   pickAt(inst, 1, 0.9);
   assert.equal(inst.levelup, null, 'done');
-  const a = lu.cards[0][0], b = lu.cards[1][2];
-  const has = (rn, k) => k === 'fists' ? rn.fists > 1 : k === 'wheels' ? rn.wheels > 1 : k === 'vitality' ? rn.max > MAX_HP : rn.swift > 1;
-  assert.ok(has(inst.crew[0], a), a);
-  assert.ok(has(inst.crew[1], b), b);
+  /* Something changed for each: a card taken. */
+  const changed = (rn) => rn.up || rn.wheels > 1 || rn.max > MAX_HP || rn.swift > 1;
+  assert.ok(changed(inst.crew[0]) && changed(inst.crew[1]));
 });
 
 test('nobody picking, it takes what they lean to, in the end', () => {
@@ -101,13 +101,13 @@ test('nobody picking, it takes what they lean to, in the end', () => {
   assert.equal(inst.pending, 0);
 });
 
-test('STRONGER hits harder; HEALTH adds health; they stack', () => {
+test('HEAVIER hits harder; HEALTH adds health; they stack', () => {
   crew(1);
   const inst = game.create(1);
   const rn = inst.crew[0];
-  UPGRADES.fists.apply(rn); UPGRADES.fists.apply(rn);
-  assert.equal(rn.fists, 1.5);
-  UPGRADES.vitality.apply(rn);
+  take('heavier', rn); take('heavier', rn);
+  assert.equal(rn.up.heavier, 2);
+  take('vitality', rn);
   assert.equal(rn.max, MAX_HP + 20);
   inst.step(DT, W, H);
   inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();

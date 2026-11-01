@@ -6,13 +6,14 @@ import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette } from './lkp-art.js';
-import { Fight, RANGE, BUDDY } from './lkp-combat.js';
+import { Fight, BUDDY } from './lkp-combat.js';
+import { arms } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
-import { LevelUp, XP, needFor, PICK_TIME } from './lkp-levelup.js';
+import { levelUp, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
 import { LEVELS } from './lkp-levels.js';
 import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
 
@@ -278,13 +279,17 @@ class LastKnownPosition {
     /* Levelled up: picking upgrades, nothing else moving, till they're
        picked. Only once things are calm - never mid-fight. */
     if (this.levelup){
+      if (this.levelup.weapon && !this.levelup.told){
+        this.levelup.told = true;
+        this.captain.say('The ship\'s armoury is open! Pick a weapon. Lean to choose, then wave to take it.', 'PICK A WEAPON');
+      }
       this.levelup.step(dt);
-      if (this.levelup.done){ this.levelup = null; this.pending--; }
+      if (this.levelup.done){ if (!this.levelup.weapon) this.pending--; this.levelup = null; }
       this._stepBits(dt);
       return;
     }
     if (this.pending > 0 && this.calm){
-      this.levelup = new LevelUp(this, PLAYTEST || PICK_TIME);
+      this.levelup = levelUp(this, PLAYTEST || PICK_TIME);
       this.captain.say('Level up! Lean to pick a card, then wave to take it!', 'LEAN, THEN WAVE', { once: 'levelup' });
       return;
     }
@@ -317,8 +322,12 @@ class LastKnownPosition {
     else if (this.treasure){ this.treasure.step(dt, W, H); if (this.treasure.done && this.treasure.clearT > 1) this._next(); }
     else if (this.depot){
       this.depot.step(dt, W, H);
-      /* Woken: the robots speak, and on. */
-      if (this.depot.done){ this._next(); if (story.on) this.scene = new Scene('waking', this); }
+      /* Woken: the robots speak - and then, everyone picks their weapon. */
+      if (this.depot.done){
+        this._next();
+        if (story.on) this.scene = new Scene('waking', this);
+        this.levelup = meleePick(this, PLAYTEST || PICK_TIME); this.levelup.weapon = true;
+      }
     }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d - this.z > -0.15);
@@ -737,8 +746,8 @@ class LastKnownPosition {
       });
     /* Hitting out: a ring bursting along the floor, as far as they reach. */
     if (this.fight && rn.swing > 0){
-      const l = P(rn.x - RANGE, RUN, W, H), r = P(rn.x + RANGE, RUN, W, H);
-      drawPulse(c, p.x, p.y, (r.x - l.x) / 2, rn.swing, PLAYER_COLORS[i], rn.buddies > 0);
+      const m = arms(rn).melee, l = P(rn.x - m.reach, RUN, W, H), r = P(rn.x + m.reach, RUN, W, H);
+      drawPulse(c, p.x, p.y, (r.x - l.x) / 2, rn.swing, PLAYER_COLORS[i], rn.buddies > 0, m.style, this.t);
     }
     if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */

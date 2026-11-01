@@ -186,3 +186,22 @@ test('the Scout draws', () => {
   inst.boss.blasts = [{ d: 0.3 }];
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
 });
+
+test('at the depot, once the robots wake, everyone picks a melee weapon - theirs for good', () => {
+  const inst = at('depot', 2);
+  for (let k = 0; k < (AUTO + SURGE + 3) / DT && inst.phase === 'depot'; k++) inst.step(DT, W, H);
+  const pick = inst.levelup;
+  assert.ok(pick && pick.weapon, 'a weapon to pick');
+  assert.equal(pick.cards[0].length, 2);
+  /* Blue leans left and waves; green waits it out. */
+  for (let k = 0; k < 2 / DT; k++){
+    pose.players[0].hands.right = { x: 0.5 - 0.36 + (Math.floor(k / 9) % 2 ? 0.04 : -0.04), y: 0.3, vx: 0, vy: 0, speed: 0 };
+    inst.step(DT, W, H);
+  }
+  assert.equal(pick.took[0], 0);
+  inst.levelup.len = 0; inst.step(DT, W, H);
+  assert.equal(inst.levelup, null);
+  assert.equal(inst.crew[0].melee.id, 'hammer');
+  assert.ok(inst.crew[1].melee, 'everyone has one');
+  assert.equal(inst.pending, 0, 'not a level up');
+});
