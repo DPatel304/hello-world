@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
-import { MELEE, RANGED, STANDARD, arms, cardsFor, take } from '../src/games/lkp-weapons.js';
+import { MELEE, RANGED, STANDARD, CARDS, MAX_LEVEL, SPEED_UP, WIDE_UP, TEAM, TEAM_UP, arms, draw, take } from '../src/games/lkp-weapons.js';
 import { FRONT } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 story.on = false;
@@ -58,15 +58,62 @@ test('ranged fires only with nothing in reach - at the nearest robots still comi
   assert.equal(coming.hp, 999, 'no shots with a robot in front');
 });
 
-test('the level-up cards are for their own weapons, and anyone\'s', () => {
-  const rn = { max: 100, hp: 100 };
-  assert.ok(!cardsFor(rn).includes('wider') && cardsFor(rn).includes('heavier'));
-  rn.melee = MELEE.blades;
-  assert.ok(cardsFor(rn).includes('wider') && !cardsFor(rn).includes('bolts'));
-  rn.ranged = RANGED.zapper;
-  assert.ok(cardsFor(rn).includes('bolts'));
-  take('wider', rn); take('bolts', rn); take('quicker', rn);
+test('six cards; each level up draws three different ones, never one everyone\'s maxed', () => {
+  assert.deepEqual(Object.keys(CARDS), ['damage', 'speed', 'armor', 'teamwork', 'wider', 'maxhp']);
+  const crew = [{ up: {} }, { up: {} }];
+  const seen = new Set();
+  for (let k = 0; k < 200; k++){
+    const d = draw(crew);
+    assert.equal(new Set(d.map(c => c.key)).size, 3);
+    d.forEach(c => seen.add(c.key));
+  }
+  assert.equal(seen.size, 6, 'all six turn up');
+  crew[0].up.armor = MAX_LEVEL; crew[1].up.armor = MAX_LEVEL;
+  crew[0].up.speed = MAX_LEVEL;
+  for (let k = 0; k < 200; k++){
+    const d = draw(crew).map(c => c.key);
+    assert.ok(!d.includes('armor'), 'maxed by everyone');
+    seen.add('x');
+  }
+  assert.ok([...Array(400)].some(() => draw(crew).some(c => c.key === 'speed')), 'maxed by one: still offered');
+});
+
+test('gold turns up now and then - about one card in eight', () => {
+  let gold = 0, all = 0;
+  for (let k = 0; k < 4000; k++) for (const c of draw([{}])){ all++; gold += c.gold ? 1 : 0; }
+  assert.ok(gold / all > 0.09 && gold / all < 0.16, `${gold}/${all}`);
+});
+
+test('every card makes both weapons better at once', () => {
+  const rn = { max: 100, hp: 100, melee: MELEE.blades, ranged: RANGED.zapper };
+  take('speed', rn); take('wider', rn);
   const a = arms(rn);
-  assert.ok(a.melee.reach > MELEE.blades.reach && a.melee.every < MELEE.blades.every);
-  assert.equal(a.ranged.bolts, 2);
+  assert.ok(Math.abs(a.melee.every - MELEE.blades.every * (1 - SPEED_UP)) < 1e-9);
+  assert.ok(Math.abs(a.ranged.every - RANGED.zapper.every * (1 - SPEED_UP)) < 1e-9);
+  assert.ok(Math.abs(a.melee.reach - MELEE.blades.reach * (1 + WIDE_UP)) < 1e-9);
+  assert.ok(a.ranged.splash > 0);
+});
+
+test('WIDER: a bolt bursts, catching robots close by for half', () => {
+  const inst = fight(), rn = inst.crew[0];
+  rn.ranged = RANGED.zapper;
+  const aim = bot(0, 0.6), by = bot(0.03, 0.62), far = bot(0.8, 0.9);
+  only(inst, [aim, by, far]);
+  rn.fireT = 99; inst.fight.step(DT, W, H, []);
+  assert.equal(999 - by.hp, 0, 'not without WIDER');
+  for (let k = 0; k < 3; k++) take('wider', rn);
+  rn.fireT = 99; inst.fight.step(DT, W, H, []);
+  assert.equal(999 - by.hp, Math.round(RANGED.zapper.dmg * 0.5));
+  assert.equal(far.hp, 999);
+});
+
+test('TEAMWORK: each teammate close by adds more', () => {
+  const inst = fight(2), [a, b] = inst.crew;
+  a.x = 0; b.x = 0.1;
+  const t = bot(0);
+  only(inst, [t]);
+  a.swingT = 99; b.swingT = 0;
+  for (let k = 0; k < 4; k++) take('teamwork', a);
+  inst.fight.step(DT, W, H, []);
+  assert.equal(999 - t.hp, Math.round(STANDARD.dmg * (1 + TEAM + 4 * TEAM_UP)));
 });

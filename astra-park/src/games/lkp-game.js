@@ -7,7 +7,7 @@ import { JumpWatch } from '../tracking/jump.js';
 import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
-import { arms } from './lkp-weapons.js';
+import { arms, armored } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
@@ -290,6 +290,8 @@ class LastKnownPosition {
     }
     if (this.pending > 0 && this.calm){
       this.levelup = levelUp(this, PLAYTEST || PICK_TIME);
+      /* The pick's own title says it now. */
+      this.bits = this.bits.filter(b => b.text !== 'LEVEL UP!');
       this.captain.say('Level up! Lean to pick a card, then wave to take it!', 'LEAN, THEN WAVE', { once: 'levelup' });
       return;
     }
@@ -466,7 +468,7 @@ class LastKnownPosition {
       : this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
       : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
       : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
-    rn.x += (want - rn.x) * Math.min(1, dt * 6 * (rn.swift || 1));
+    rn.x += (want - rn.x) * Math.min(1, dt * 6);
     if (this.t - rn.lastDuck < UNDUCK) jumped = false;
     if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
     if (rn.air > 0 || rn.airV > 0){
@@ -518,7 +520,7 @@ class LastKnownPosition {
      way: see lkp-combat.js.) */
   _hurt(i, dmg, W, H){
     const rn = this.crew[i];
-    rn.hp = Math.max(1, rn.hp - dmg);
+    rn.hp = Math.max(1, rn.hp - armored(rn, dmg));
     rn.safe = SAFE; rn.hit = 1;
     this.slow = SLOW_FOR; this.shake = Math.min(1, this.shake + 0.5);
     sfx.thud();

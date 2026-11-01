@@ -4,15 +4,17 @@
    come at any time, mid-fight too ("LEVEL UP!" and a star beside the
    level for each one waiting), but they're picked between rooms: as the
    next corridor starts, or at the doors before they're chosen, the game
-   stops and, for each level waiting, every player gets three cards to
-   pick from - upgrades for their weapons and themselves (lkp-weapons.js):
-   lean to choose - left, middle, right - and wave to take it. Once everyone has (or after `len` seconds, whatever
-   they're leaning towards), the upgrades are theirs, and on they go.
-   Picking the same one again stacks it. */
+   stops and, for each level waiting, three cards are drawn at random from
+   the six (lkp-weapons.js) - the same three for everyone, now and then one
+   gold, worth two levels. Each player takes their own: lean to choose -
+   left, middle, right - and wave to take it. Under each card, a row of
+   pips for each player shows how far they've taken it (MAX_LEVEL at
+   most; a card they've maxed can't be taken). Once everyone has (or after
+   `len` seconds, whatever they're leaning towards), on they go. */
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
-import { CARDS, cardsFor, cardIcon, take, MELEE } from './lkp-weapons.js';
+import { CARDS, MAX_LEVEL, draw, level, take, MELEE } from './lkp-weapons.js';
 
 /* The XP from one level to the next: FIRST to level 2, then STEP more
    each level after - often at first, and steadily less often. */
@@ -25,10 +27,12 @@ export const PICK_TIME = 30;
 export const needFor = (lvl) => FIRST + STEP * (lvl - 1);
 
 /* Choosing, everyone at once: a title, and for each player a row of two
-   or three cards ({ name, icon, take(rn) }) - lean to choose (left,
-   middle, right; or left, right) and wave to take it. Once everyone has
-   (or after len seconds, whatever they're leaning to), each card's
-   taken. For a level up, and for picking a weapon. */
+   or three cards ({ name, icon, take(rn) } - and, if it's one that can
+   be maxed, can(rn)) - lean to choose (left, middle, right; or left,
+   right) and wave to take it. Once everyone has (or after len seconds,
+   whatever they're leaning to - or, if they can't have that one, the
+   first they can), each card's taken. For a level up, and for picking a
+   weapon. */
 export class Pick {
   constructor(game, len, title, offer){
     this.g = game; this.len = len; this.t = 0; this.done = false; this.title = title;
@@ -47,16 +51,26 @@ export class Pick {
       const lean = g.leanOf(i) ?? 0;
       this.at[i] = this.cards[i].length === 3 ? (lean < -0.33 ? 0 : lean > 0.33 ? 2 : 1) : (lean < 0 ? 0 : 1);
       this.waves[i].step(dt, handsFrom(pose, g.players).filter(h => h.who === i));
-      if (this.waves[i].done){ this.took[i] = this.at[i]; sfx.pick(); }
+      if (this.waves[i].done){
+        if (this._can(i, this.at[i])){ this.took[i] = this.at[i]; sfx.pick(); }
+        else this.waves[i] = new WaveWatch();
+      }
     }
     if ((g.here.length && g.here.every(i => this.took[i] != null)) || this.t >= this.len) this._finish();
+  }
+
+  /* Whether player i can take card k (not if they've maxed it). */
+  _can(i, k){
+    const card = this.cards[i][k];
+    return !!card && (!card.can || card.can(this.g.crew[i]));
   }
 
   _finish(){
     const g = this.g;
     for (const i of g.here){
-      const k = this.took[i] ?? this.at[i];
-      this.cards[i][k].take(g.crew[i]);
+      let k = this.took[i] ?? this.at[i];
+      if (!this._can(i, k)) k = this.cards[i].findIndex((_, m) => this._can(i, m));
+      if (k >= 0) this.cards[i][k].take(g.crew[i]);
     }
     this.done = true; sfx.select();
   }
@@ -65,24 +79,60 @@ export class Pick {
      player, in their colour - the one they're leaning to lifted, the one
      they've taken lit with a tick. */
   /* Everyone choosing between the same cards: just those, big, side by
-     side - and under each, a dot in the colour of everyone leaning to it,
-     with a tick once they've taken it. */
+     side (a gold one, gold, "x2"). Under each, a dot in the colour of
+     everyone leaning to it, with a tick once they've taken it - or, for
+     cards that level up, a row for each player: their dot (lit under the
+     card they're leaning to), and pips for how far they've taken it. */
   _drawShared(c, W, H){
-    const g = this.g, cards = this.cards[g.here[0] ?? 0], n = cards.length, cw = H * 0.42, ch = H * 0.5, gap = H * 0.12;
+    const g = this.g, cards = this.cards[g.here[0] ?? 0], n = cards.length, pips = cards.some(cd => cd.key);
+    const cw = H * (pips ? 0.4 : 0.42), ch = H * (pips ? 0.4 : 0.5), gap = H * (pips ? 0.08 : 0.12), y = H * 0.18;
+    const tick = (dx, dy, r) => {
+      c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.27; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(dx - r * 0.43, dy); c.lineTo(dx - r * 0.1, dy + r * 0.37); c.lineTo(dx + r * 0.5, dy - r * 0.37); c.stroke();
+    };
     cards.forEach((card, k) => {
-      const x = W / 2 + (k - (n - 1) / 2) * (cw + gap), y = H * 0.2;
+      const x = W / 2 + (k - (n - 1) / 2) * (cw + gap);
       const who = g.here.filter(i => (this.took[i] ?? this.at[i]) === k);
-      c.fillStyle = who.length ? '#2a3350' : '#151a2c'; c.strokeStyle = who.length ? '#ffd24a' : 'rgba(255,255,255,.2)'; c.lineWidth = who.length ? H * 0.008 : 2;
+      c.fillStyle = card.gold ? '#5a4512' : who.length ? '#2a3350' : '#151a2c';
+      c.strokeStyle = card.gold ? '#ffd24a' : who.length ? '#ffffff' : 'rgba(255,255,255,.2)';
+      c.lineWidth = card.gold || who.length ? H * 0.008 : 2;
       c.beginPath(); c.roundRect(x - cw / 2, y, cw, ch, H * 0.04); c.fill(); c.stroke();
       c.fillStyle = '#ffffff';
-      c.font = `${Math.round(ch * 0.4)}px sans-serif`; c.fillText(card.icon, x, y + ch * 0.4);
-      c.font = `700 ${Math.round(ch * 0.12)}px Fredoka, sans-serif`; c.fillText(card.name, x, y + ch * 0.82);
-      who.forEach((i, m) => {
-        const dx = x + (m - (who.length - 1) / 2) * H * 0.075, dy = y + ch + H * 0.07;
-        c.fillStyle = PLAYER_COLORS[i]; c.beginPath(); c.arc(dx, dy, H * 0.03, 0, 6.2832); c.fill();
-        if (this.took[i] != null){
-          c.strokeStyle = '#ffffff'; c.lineWidth = H * 0.008; c.lineCap = 'round';
-          c.beginPath(); c.moveTo(dx - H * 0.013, dy); c.lineTo(dx - H * 0.003, dy + H * 0.011); c.lineTo(dx + H * 0.015, dy - H * 0.011); c.stroke();
+      c.font = `${Math.round(ch * 0.4)}px sans-serif`; c.fillText(card.icon, x, y + ch * 0.42);
+      c.font = `700 ${Math.round(ch * 0.12)}px Fredoka, sans-serif`; c.fillStyle = card.gold ? '#ffd24a' : '#ffffff';
+      c.fillText(card.name, x, y + ch * 0.84);
+      if (card.gold){
+        c.font = `700 ${Math.round(ch * 0.11)}px Fredoka, sans-serif`; c.fillStyle = '#ffd24a';
+        c.fillText('\u00D72', x + cw * 0.36, y + ch * 0.1);
+      }
+      if (!pips){
+        who.forEach((i, m) => {
+          const dx = x + (m - (who.length - 1) / 2) * H * 0.075, dy = y + ch + H * 0.07;
+          c.fillStyle = PLAYER_COLORS[i]; c.beginPath(); c.arc(dx, dy, H * 0.03, 0, 6.2832); c.fill();
+          if (this.took[i] != null) tick(dx, dy, H * 0.03);
+        });
+        return;
+      }
+      /* A row for each player: their dot, their pips. */
+      const rowH = H * 0.065, pw = cw * 0.068, left = x - cw / 2 + cw * 0.2;
+      g.here.forEach((i, r) => {
+        const ry = y + ch + H * 0.06 + r * rowH, lv = level(g.crew[i], card.key), on = (this.took[i] ?? this.at[i]) === k;
+        const maxed = lv >= MAX_LEVEL;
+        c.globalAlpha = on ? 1 : 0.3;
+        c.fillStyle = PLAYER_COLORS[i]; c.beginPath(); c.arc(x - cw / 2 + cw * 0.08, ry, rowH * (on ? 0.38 : 0.28), 0, 6.2832); c.fill();
+        if (on && this.took[i] != null) tick(x - cw / 2 + cw * 0.08, ry, rowH * 0.38);
+        c.globalAlpha = 1;
+        if (maxed){
+          c.font = `700 ${Math.round(rowH * 0.55)}px Fredoka, sans-serif`; c.fillStyle = 'rgba(255,255,255,.5)';
+          c.fillText('MAX', left + pw * MAX_LEVEL / 2, ry);
+          return;
+        }
+        /* What taking it now would add, shown as hollow pips. */
+        const adds = on ? Math.min(MAX_LEVEL, lv + (card.gold ? 2 : 1)) : lv;
+        for (let p = 0; p < MAX_LEVEL; p++){
+          const px = left + p * pw + pw / 2;
+          c.fillStyle = p < lv ? PLAYER_COLORS[i] : p < adds ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.15)';
+          c.beginPath(); c.roundRect(px - pw * 0.35, ry - rowH * 0.25, pw * 0.7, rowH * 0.5, pw * 0.15); c.fill();
         }
       });
     });
@@ -127,11 +177,16 @@ export class Pick {
   }
 }
 
-/* A level up: three cards each, from what their weapons and they could
-   get better at (lkp-weapons.js). */
-export function levelUp(game, len){
-  return new Pick(game, len, `LEVEL ${game.lvl}!`, (i, rn) => cardsFor(rn).sort(() => Math.random() - 0.5).slice(0, 3)
-    .map(key => ({ name: CARDS[key].name, icon: cardIcon(key, rn), take: (r) => take(key, r) })));
+/* A level up: three of the six cards, drawn at random - the same three
+   for everyone, each picking their own (lkp-weapons.js). */
+export function levelUp(game, len, rand = Math.random){
+  const cards = draw(game.here.map(i => game.crew[i]), rand).map(({ key, gold }) => ({
+    key, gold, name: CARDS[key].name, icon: CARDS[key].icon,
+    can: (r) => level(r, key) < MAX_LEVEL, take: (r) => take(key, r, gold)
+  }));
+  const pick = new Pick(game, len, `LEVEL ${game.lvl}!`, () => cards);
+  pick.shared = true;
+  return pick;
 }
 
 /* Picking a melee weapon, at the depot: one of MELEE each, theirs for

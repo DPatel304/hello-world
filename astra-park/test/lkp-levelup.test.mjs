@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story, MAX_HP } from '../src/games/lkp-game.js';
 import { XP, needFor } from '../src/games/lkp-levelup.js';
-import { take } from '../src/games/lkp-weapons.js';
+import { take, MAX_LEVEL, HP_UP, DAMAGE_UP, ARMOR_UP } from '../src/games/lkp-weapons.js';
 import { SWING, SWING_HIT, FRONT } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
@@ -85,7 +85,7 @@ test('everyone leans to a card and waves to take it - and has it', () => {
   pickAt(inst, 1, 0.9);
   assert.equal(inst.levelup, null, 'done');
   /* Something changed for each: a card taken. */
-  const changed = (rn) => rn.up || rn.wheels > 1 || rn.max > MAX_HP || rn.swift > 1;
+  const changed = (rn) => Object.values(rn.up || {}).some(v => v > 0);
   assert.ok(changed(inst.crew[0]) && changed(inst.crew[1]));
 });
 
@@ -101,14 +101,14 @@ test('nobody picking, it takes what they lean to, in the end', () => {
   assert.equal(inst.pending, 0);
 });
 
-test('HEAVIER hits harder; HEALTH adds health; they stack', () => {
+test('DAMAGE hits harder, both weapons; MAX HP adds health; they stack', () => {
   crew(1);
   const inst = game.create(1);
   const rn = inst.crew[0];
-  take('heavier', rn); take('heavier', rn);
-  assert.equal(rn.up.heavier, 2);
-  take('vitality', rn);
-  assert.equal(rn.max, MAX_HP + 20);
+  take('damage', rn); take('damage', rn);
+  assert.equal(rn.up.damage, 2);
+  take('maxhp', rn);
+  assert.equal(rn.max, MAX_HP + HP_UP);
   inst.step(DT, W, H);
   inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
   run(inst, 0.3);
@@ -116,7 +116,63 @@ test('HEAVIER hits harder; HEALTH adds health; they stack', () => {
   inst.fight.bots = [b]; inst.fight.queue = 0; inst.fight.wave = 1;
   rn.swingT = SWING;
   inst.fight.step(DT, W, H, []);
-  assert.equal(999 - b.hp, Math.round(SWING_HIT * 1.5));
+  assert.equal(999 - b.hp, Math.round(SWING_HIT * (1 + 2 * DAMAGE_UP)));
+});
+
+test('max HP is a card now: levelling up alone adds none', () => {
+  crew(1);
+  const inst = game.create(1);
+  inst.step(DT, W, H);
+  inst.addXp(needFor(1) + needFor(2));
+  assert.equal(inst.crew[0].max, MAX_HP);
+});
+
+test('ARMOR takes some off every hit - never all of it', () => {
+  crew(1);
+  const inst = game.create(1);
+  const rn = inst.crew[0];
+  inst.step(DT, W, H);
+  inst._hurt(0, 20, W, H);
+  const plain = MAX_HP - rn.hp;
+  rn.hp = MAX_HP; for (let k = 0; k < MAX_LEVEL; k++) take('armor', rn);
+  inst._hurt(0, 20, W, H);
+  assert.equal(MAX_HP - rn.hp, Math.round(plain * (1 - MAX_LEVEL * ARMOR_UP)));
+  rn.hp = MAX_HP; inst._hurt(0, 1, W, H);
+  assert.equal(MAX_HP - rn.hp, 1);
+});
+
+test('a gold card counts twice; no card goes past MAX_LEVEL', () => {
+  const rn = { max: 100, hp: 100 };
+  take('speed', rn, true);
+  assert.equal(rn.up.speed, 2);
+  for (let k = 0; k < 20; k++) take('speed', rn, true);
+  assert.equal(rn.up.speed, MAX_LEVEL);
+  for (let k = 0; k < 9; k++) take('maxhp', rn);
+  take('maxhp', rn, true);
+  assert.equal(rn.max, 100 + HP_UP * MAX_LEVEL, 'gold at 9: just the one more');
+});
+
+test('everyone gets the same three cards - and a card you\'ve maxed can\'t be taken', () => {
+  crew(2);
+  const inst = game.create(2);
+  inst.step(DT, W, H);
+  inst.addXp(needFor(1)); inst.step(DT, W, H);
+  const lu = inst.levelup;
+  assert.ok(lu.shared);
+  assert.equal(lu.cards[0].length, 3);
+  assert.equal(lu.cards[0], lu.cards[1]);
+  assert.equal(new Set(lu.cards[0].map(c => c.key)).size, 3);
+  /* Player 1's maxed the left card: leaning to it, they still end up with
+     another; player 2 gets it. */
+  const left = lu.cards[0][0].key, r0 = inst.crew[0], r1 = inst.crew[1];
+  r0.up = { [left]: MAX_LEVEL };
+  const was = { ...r0.up };
+  pose.players[0].centre.x = 0.5;
+  lu.at = [0, 0, 0, 0]; lu.took = [null, null, null, null];
+  lu._finish();
+  assert.equal(r0.up[left], MAX_LEVEL);
+  assert.ok(Object.keys(r0.up).some(k => (r0.up[k] || 0) > (was[k] || 0)), 'took another');
+  assert.ok((r1.up[left] || 0) > 0);
 });
 
 test('the level up draws', () => {

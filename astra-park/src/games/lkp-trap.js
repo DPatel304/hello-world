@@ -26,6 +26,7 @@ import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
 import { drawCoin, PAL } from './lkp-art.js';
 import { XP } from './lkp-levelup.js';
+import { armored } from './lkp-weapons.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
    red to start, before the first green. */
@@ -95,7 +96,7 @@ export class Lights {
 
   _zap(i, W, H){
     const g = this.g, rn = g.crew[i];
-    rn.hp = Math.max(1, rn.hp - ZAP); rn.hit = 1; rn.zapped = 1; rn.safe = ZAP_SAFE;
+    rn.hp = Math.max(1, rn.hp - armored(rn, ZAP)); rn.hit = 1; rn.zapped = 1; rn.safe = ZAP_SAFE;
     rn.along = Math.max(0, rn.along - KNOCK);
     const p = Q(rn.x, rn.along, W, H);
     g._sparkle(p.x / W, (p.y - H * 0.08) / H, 14, 55);

@@ -44,7 +44,7 @@ import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { ClapWatch, CrankWatch, HugWatch } from '../tracking/gestures.js';
 import { XP } from './lkp-levelup.js';
-import { arms, STANDARD } from './lkp-weapons.js';
+import { arms, armored, teamBonus, STANDARD, TEAM } from './lkp-weapons.js';
 
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
    it reaches. */
@@ -55,8 +55,9 @@ const BIG = 5;
    how deep (corridor depth) they reach. */
 export const SWING = STANDARD.every, SWING_HIT = STANDARD.dmg, RANGE = STANDARD.reach, RANGE_D = 0.14;
 /* Standing together: teammates this close (lanes) each add TEAM to your
-   hits (0.5 is half as much again). */
-export const BUDDY = 0.32, TEAM = 0.5;
+   hits (0.5 is half as much again) - more with the TEAMWORK card. */
+export const BUDDY = 0.32;
+export { TEAM };
 /* The wheels on the bus: an extra hit, this hard, every turn. */
 export const CRANK_HIT = 6;
 /* Hugging yourself: health back a second, out of reach, not hitting. */
@@ -210,6 +211,7 @@ export class Fight {
      BIG) a jolt and a number. Out of health, asleep. */
   hurt(i, dmg, W, H){
     const g = this.g, rn = g.crew[i];
+    dmg = armored(rn, dmg);
     rn.hp = Math.max(0, rn.hp - dmg); rn.hit = Math.max(rn.hit, dmg > BIG ? 1 : 0.5);
     if (dmg > BIG){
       g.shake = Math.min(1, g.shake + 0.5); sfx.thud();
@@ -231,7 +233,7 @@ export class Fight {
     const g = this.g, rn = g.crew[i], p = pose.players[i];
     rn.buddies = this.up.filter(j => j !== i && !g.crew[j].healing && Math.abs(g.crew[j].x - rn.x) < BUDDY).length;
     /* Standing together; their weapons, upgrades and all (lkp-weapons.js). */
-    const power = 1 + TEAM * rn.buddies, w = arms(rn), wheels = power * (rn.wheels || 1);
+    const power = 1 + teamBonus(rn) * rn.buddies, w = arms(rn);
     const near = this._inReach(rn);
     rn.swingT = (rn.swingT || 0) + dt;
     rn.fireT = (rn.fireT || 0) + dt;
@@ -246,12 +248,16 @@ export class Fight {
       const coming = this.bots.filter(b => b.hp > 0 && b.d > FRONT + 0.03).sort((a, b) => a.d - b.d).slice(0, w.ranged.bolts);
       if (coming.length){
         rn.fireT = 0;
-        for (const b of coming){ this._bolt(rn, b, W, H); this._hit(b, w.ranged.dmg * power, W, H); }
+        for (const b of coming){
+          this._bolt(rn, b, W, H); this._hit(b, w.ranged.dmg * power, W, H);
+          /* WIDER: the bolt bursts, catching robots close by for half. */
+          if (w.ranged.splash) for (const o of this.bots) if (o !== b && o.hp > 0 && Math.hypot(o.x - b.x, o.d - b.d) < w.ranged.splash) this._hit(o, w.ranged.dmg * power * 0.5, W, H);
+        }
       }
     }
     if (this.cranks[i].step(p, dt) && near.length){
       rn.swing = 1;
-      for (const b of near) this._hit(b, CRANK_HIT * wheels, W, H);
+      for (const b of near) this._hit(b, CRANK_HIT * power, W, H);
     }
     if (hopped){
       let shot = null;

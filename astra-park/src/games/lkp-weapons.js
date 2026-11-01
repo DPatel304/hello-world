@@ -26,54 +26,56 @@ export const RANGED = {
   zapper: { id: 'zapper', name: 'ZAPPER', icon: '⚡', every: 1.2, dmg: 6, bolts: 1 }
 };
 
+/* The level-up cards - the same six for everyone, each one a crew
+   member's own to take up to MAX_LEVEL times. Every level up, three are
+   drawn at random and offered to everyone; now and then (GOLD_CHANCE) one
+   comes up gold, and counts twice. What each does, a level at a time: */
+export const MAX_LEVEL = 10, GOLD_CHANCE = 1 / 8;
+export const CARDS = {
+  damage: { name: 'DAMAGE', icon: '\u{1F4A5}' },        /* both weapons hit DAMAGE_UP harder */
+  speed: { name: 'SPEED', icon: '⚡' },             /* both swing and fire SPEED_UP sooner */
+  armor: { name: 'ARMOR', icon: '\u{1F6E1}\u{FE0F}' },  /* ARMOR_UP less from every hit */
+  teamwork: { name: 'TEAMWORK', icon: '\u{1F91D}' },    /* TEAM_UP more from each teammate close by */
+  wider: { name: 'WIDER', icon: '↔\u{FE0F}' },     /* melee reaches WIDE_UP wider; ranged bolts burst SPLASH across */
+  maxhp: { name: 'MAX HP', icon: '❤\u{FE0F}' }     /* HP_UP more health - and that much back, now */
+};
+export const DAMAGE_UP = 0.15, SPEED_UP = 0.08, ARMOR_UP = 0.05, TEAM_UP = 0.1, WIDE_UP = 0.1, SPLASH = 0.07, HP_UP = 15;
+/* Standing together, before any TEAMWORK: each teammate close by adds
+   half again to your hits. */
+export const TEAM = 0.5;
+
+/* How many times a crew member has taken a card. */
+export const level = (rn, key) => (rn.up && rn.up[key]) || 0;
+
 /* What a crew member's carrying, upgrades and all: their melee weapon
    (the standard punch till they pick one) and ranged (none, till they
-   get one), each with how much better it's got. */
+   get one). Every card makes both better at once. */
 export function arms(rn){
-  const m = rn.melee || STANDARD, r = rn.ranged || null, up = rn.up || {};
+  const m = rn.melee || STANDARD, r = rn.ranged || null;
+  const hard = 1 + DAMAGE_UP * level(rn, 'damage'), quick = Math.pow(1 - SPEED_UP, level(rn, 'speed')), wide = level(rn, 'wider');
   return {
-    melee: { ...m, every: m.every * Math.pow(0.88, up.quicker || 0), dmg: m.dmg * (1 + 0.25 * (up.heavier || 0)), reach: m.reach * (1 + 0.15 * (up.wider || 0)) },
-    ranged: r && { ...r, every: r.every * Math.pow(0.85, up.faster || 0), dmg: r.dmg * (1 + 0.25 * (up.charged || 0)), bolts: r.bolts + (up.bolts || 0) }
+    melee: { ...m, every: m.every * quick, dmg: m.dmg * hard, reach: m.reach * (1 + WIDE_UP * wide) },
+    ranged: r && { ...r, every: r.every * quick, dmg: r.dmg * hard, splash: SPLASH * wide }
   };
 }
 
-/* The level-up cards: what each one's for (melee, ranged, or anyone),
-   its name, and what it does. A weapon card shows that weapon's
-   picture. */
-export const CARDS = {
-  heavier: { for: 'melee', name: 'HEAVIER' },
-  wider: { for: 'melee', name: 'WIDER' },
-  quicker: { for: 'melee', name: 'QUICKER' },
-  faster: { for: 'ranged', name: 'FASTER' },
-  bolts: { for: 'ranged', name: 'MORE BOLTS' },
-  charged: { for: 'ranged', name: 'STRONGER' },
-  wheels: { for: 'any', name: 'ARM ROLL', icon: '\u{1F504}' },
-  vitality: { for: 'any', name: 'HEALTH', icon: '\u{2764}\u{FE0F}' },
-  swift: { for: 'any', name: 'SPEED', icon: '\u{1F45F}' }
-};
+/* What's left of a hit after armor (at least 1). */
+export const armored = (rn, dmg) => Math.max(1, Math.round(dmg * (1 - ARMOR_UP * level(rn, 'armor'))));
+/* What each teammate close by adds to a crew member's hits. */
+export const teamBonus = (rn) => TEAM + TEAM_UP * level(rn, 'teamwork');
 
-/* The cards a crew member could be offered: their melee weapon's (the
-   punch's, just HEAVIER, before they've picked one), their ranged
-   weapon's once they have one, and the ones for anyone. */
-export function cardsFor(rn){
-  const out = rn.melee ? ['heavier', 'wider', 'quicker'] : ['heavier'];
-  if (rn.ranged) out.push('faster', 'bolts', 'charged');
-  return out.concat('wheels', 'vitality', 'swift');
-}
-
-/* A card's picture, for this crew member. */
-export function cardIcon(key, rn){
-  const c = CARDS[key];
-  if (c.for === 'melee') return (rn.melee || STANDARD).icon;
-  if (c.for === 'ranged') return rn.ranged ? rn.ranged.icon : '⚡';
-  return c.icon;
-}
-
-/* Taking a card. */
-export function take(key, rn){
-  if (key === 'vitality'){ rn.max += 20; rn.hp = Math.min(rn.max, rn.hp + 20); return; }
-  if (key === 'wheels'){ rn.wheels = (rn.wheels || 1) + 0.3; return; }
-  if (key === 'swift'){ rn.swift = (rn.swift || 1) + 0.2; return; }
+/* Taking a card - twice over if it's gold - as far as MAX_LEVEL. */
+export function take(key, rn, gold = false){
   rn.up = rn.up || {};
-  rn.up[key] = (rn.up[key] || 0) + 1;
+  const was = level(rn, key), now = Math.min(MAX_LEVEL, was + (gold ? 2 : 1));
+  rn.up[key] = now;
+  if (key === 'maxhp'){ const more = HP_UP * (now - was); rn.max += more; rn.hp = Math.min(rn.max, rn.hp + more); }
+}
+
+/* Three of the cards, drawn at random - leaving out any that everyone
+   here has maxed - each maybe gold. */
+export function draw(crew, rand = Math.random){
+  const open = Object.keys(CARDS).filter(k => !crew.length || crew.some(rn => level(rn, k) < MAX_LEVEL));
+  for (let k = open.length - 1; k > 0; k--){ const j = Math.floor(rand() * (k + 1)); [open[k], open[j]] = [open[j], open[k]]; }
+  return open.slice(0, 3).map(key => ({ key, gold: rand() < GOLD_CHANCE }));
 }
