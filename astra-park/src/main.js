@@ -209,8 +209,10 @@ function tick(now){
        until everything - up a key - for the last ten seconds. An endless
        game builds over `secs` and stays there. */
     const done = played;
-    /* A dance party wants its music up from the first beat. */
-    music.intensity(game.loud ? (roundLeft <= 10 ? 1 : 0.85)
+    /* A game can set the music's size itself, moment to moment; a dance
+       party wants its music up from the first beat. */
+    if (inst.mood != null) music.intensity(inst.mood);
+    else music.intensity(game.loud ? (roundLeft <= 10 ? 1 : 0.85)
       : roundLeft <= 10 ? 1
       : done < 30 ? 0.15
       : 0.2 + 0.72 * Math.min(1, (done - 30) / Math.max(1, game.secs - 40)));

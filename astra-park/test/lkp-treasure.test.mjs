@@ -62,3 +62,30 @@ test('a treasure room draws', () => {
   run(inst, 1);
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
 });
+
+test('the treasure room gives a gold pick - taken as the next corridor starts', () => {
+  crew(2);
+  const inst = game.create(2);
+  inst.step(DT, W, H);
+  /* The second room: a corridor after it. */
+  inst.things = []; inst.rooms.push('treasure'); inst.step_ = inst.level.plan.lastIndexOf('room') - 1; inst._next();
+  run(inst, TREASURE_TIME + 1.5);
+  assert.equal(inst.golds, 1);
+  for (let k = 0; k < 600 && !inst.levelup; k++) inst.step(DT, W, H);
+  assert.equal(inst.phase, 'corridor');
+  assert.equal(inst.levelup.title, 'GOLD PICK!');
+  assert.ok(inst.levelup.cards[0].every(c => c.gold));
+  inst.levelup.t = 1e9; inst.step(DT, W, H); inst.step(DT, W, H);
+  assert.equal(inst.golds, 0);
+  /* Every card twice over: two levels of something. */
+  assert.ok(Object.values(inst.crew[0].up).some(v => v === 2));
+});
+
+test('the music follows the run: hushed under a red light, loud for a fight', () => {
+  const inst = treasure();
+  assert.ok(inst.mood > 0.5);
+  inst.treasure = null; inst.trap = { light: 'red', done: false };
+  assert.equal(inst.mood, 0);
+  inst.trap = null; inst.fight = { done: false };
+  assert.ok(inst.mood >= 0.8);
+});

@@ -179,13 +179,23 @@ export class Pick {
 
 /* A level up: three of the six cards, drawn at random - the same three
    for everyone, each picking their own (lkp-weapons.js). */
-export function levelUp(game, len, rand = Math.random){
-  const cards = draw(game.here.map(i => game.crew[i]), rand).map(({ key, gold }) => ({
-    key, gold, name: CARDS[key].name, icon: CARDS[key].icon,
-    can: (r) => level(r, key) < MAX_LEVEL, take: (r) => take(key, r, gold)
-  }));
-  const pick = new Pick(game, len, `LEVEL ${game.lvl}!`, () => cards);
+export function levelUp(game, len, rand = Math.random, title = `LEVEL ${game.lvl}!`, allGold = false){
+  const cards = draw(game.here.map(i => game.crew[i]), rand).map(({ key, gold }) => {
+    gold = gold || allGold;
+    return { key, gold, name: CARDS[key].name, icon: CARDS[key].icon, can: (r) => level(r, key) < MAX_LEVEL, take: (r) => take(key, r, gold) };
+  });
+  const pick = new Pick(game, len, title, () => cards);
   pick.shared = true;
+  /* A gold card turning up: you hear it. */
+  if (cards.some(c => c.gold)) sfx.gold();
+  return pick;
+}
+
+/* A gold pick - from the treasure room, or for beating a boss: three
+   cards like a level up's, every one gold. Not a level of its own. */
+export function goldPick(game, len, rand = Math.random){
+  const pick = levelUp(game, len, rand, 'GOLD PICK!', true);
+  pick.goldPick = true;
   return pick;
 }
 

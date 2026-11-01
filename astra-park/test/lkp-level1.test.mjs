@@ -11,6 +11,8 @@ import { pose } from '../src/tracking/pose.js';
 story.on = false;
 
 const W = 1920, H = 1080, DT = 1 / 60;
+/* Picks (the gold pick a boss gives, level ups) taken at once. */
+const hurry = (inst) => { if (inst.levelup) inst.levelup.t = 1e9; };
 const run = (inst, secs) => { for (let k = 0; k < Math.round(secs / DT); k++) inst.step(DT, W, H); };
 function crew(n = 1){
   pose.mouse.active = true;
@@ -156,9 +158,13 @@ test('phase 3: sometimes it overshoots, and is stuck longer', () => {
 test('the Scout beaten: the level is won', () => {
   const inst = scout(2);
   inst.boss.body.hp = 0;
-  run(inst, 4);
+  run(inst, 2);
+  assert.equal(inst.levelup?.title, 'GOLD PICK!', 'beating it: a gold pick');
+  assert.ok(inst.levelup.cards[0].every(c => c.gold));
+  for (let k = 0; k < 300 && !inst.over; k++){ hurry(inst); inst.step(DT, W, H); }
   assert.ok(inst.over);
   assert.equal(inst.lost, false);
+  assert.equal(inst.golds, 0);
 });
 
 test('a playtest Scout is beaten in time by a crew that dodges and hits it when it stops', () => {
@@ -174,7 +180,7 @@ test('a playtest Scout is beaten in time by a crew that dodges and hits it when 
       if (bs.state === 'tell') lean(Math.abs(x - bs.lane) < CHARGE_W + 0.15 ? (bs.lane > 0 ? -0.9 : 0.9) : x, i);
       else if (bs.state === 'rest') lean(bs.lane + (i ? 0.1 : -0.1), i);
     }
-    inst.step(DT, W, H); t += DT;
+    hurry(inst); inst.step(DT, W, H); t += DT;
   }
   assert.ok(inst.over && !inst.lost, `at ${t.toFixed(0)}s`);
   assert.ok(t < 40, `won in ${t.toFixed(0)}s, not by time`);

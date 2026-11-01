@@ -13,7 +13,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
-import { levelUp, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
+import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
 import { LEVELS } from './lkp-levels.js';
 import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
 
@@ -136,7 +136,7 @@ class LastKnownPosition {
     this.coins = 0; this.kills = 0; this.bosses = 0;
     /* The team's XP and level (lkp-levelup.js); level-ups still to pick,
        and the picking, while it's on. */
-    this.xp = 0; this.lvl = 1; this.pending = 0; this.levelup = null;
+    this.xp = 0; this.lvl = 1; this.pending = 0; this.golds = 0; this.levelup = null;
     this.fight = null;              /* the fight, in a combat room */
     this.trap = null;               /* the trap, in a trap room */
     this.boss = null;               /* the level's boss, at the end */
@@ -284,11 +284,21 @@ class LastKnownPosition {
         this.captain.say('The ship\'s armoury is open! Pick a weapon. Lean to choose, then wave to take it.', 'PICK A WEAPON');
       }
       this.levelup.step(dt);
-      if (this.levelup.done){ if (!this.levelup.weapon) this.pending--; this.levelup = null; }
+      if (this.levelup.done){
+        if (this.levelup.goldPick) this.golds--;
+        else if (!this.levelup.weapon) this.pending--;
+        this.levelup = null;
+      }
       this._stepBits(dt);
       return;
     }
-    if (this.pending > 0 && this.calm){
+    /* A gold pick earned (the treasure room, a boss): before any level up. */
+    if (this.golds > 0 && (this.calm || this.bossBeaten)){
+      this.levelup = goldPick(this, PLAYTEST || PICK_TIME);
+      this.captain.say('A gold pick! Every card counts twice.', 'GOLD PICK', { once: 'goldpick' });
+      return;
+    }
+    if (this.pending > 0 && (this.calm || this.bossBeaten)){
       this.levelup = levelUp(this, PLAYTEST || PICK_TIME);
       /* The pick's own title says it now. */
       this.bits = this.bits.filter(b => b.text !== 'LEVEL UP!');
@@ -348,6 +358,21 @@ class LastKnownPosition {
   }
   /* Calm enough to stop for level ups - between rooms: a corridor just
      starting, or the doors before they're chosen. */
+  /* The boss down, a moment after: time for what it gave them. */
+  get bossBeaten(){ return !this.over && !!this.boss && this.boss.done && this.boss.clearT > 1.2; }
+  /* How big the music is: hushed while sneaking, the corridor's walk,
+     fights louder, the boss loudest. (The shell reads it.) */
+  get mood(){
+    if (this.scene || this.levelup) return 0.2;
+    const seg = this.seg;
+    if (this.boss) return this.boss.done ? 0.5 : 1;
+    if (this.fight) return this.fight.done ? 0.4 : 0.8;
+    if (this.trap) return this.trap.done ? 0.35 : this.trap.light === 'green' ? 0.3 : 0;
+    if (this.treasure) return 0.65;
+    if (this.depot) return 0.5;
+    if (seg.kind === 'cross') return 0.25;
+    return 0.35;
+  }
   get calm(){ return !this.over && ((this.seg.kind === 'corridor' && this.seg.t < 1.5) || (this.seg.kind === 'cross' && this.seg.choice == null)); }
 
   /* What Nova calls what's behind a door - and the fights, here and now. */
@@ -841,8 +866,8 @@ class LastKnownPosition {
   }
 
   /* At the end, over the scene: the coins, the knockouts and the boss,
-     each counting up in turn, then the score - and a NEW BEST! if it is
-     one. */
+     each counting up in turn, then the score. (Bests are kept, not
+     announced - like the rest of the console.) */
   _drawTally(c, W, H){
     const o = this.out, lines = this.tallyLines(), x = W * 0.62, w = W * 0.32, lh = H * 0.085, y0 = H * 0.36;
     const up = (k) => clamp((o.t - k * TALLY_STEP) / TALLY_COUNT, 0, 1);

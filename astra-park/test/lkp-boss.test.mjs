@@ -9,6 +9,8 @@ import { RUN } from '../src/games/lkp-art.js';
 import { pose } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
+/* Picks (the gold pick a boss gives, level ups) taken at once. */
+const hurry = (inst) => { if (inst.levelup) inst.levelup.t = 1e9; };
 const run = (inst, secs, each) => { for (let i = 0; i < Math.round(secs / DT); i++){ if (each) each(); inst.step(DT, W, H); } };
 function crew(n = 1){
   pose.mouse.active = true;
@@ -134,7 +136,7 @@ test('the Warden beaten: a shower of coins, and the run is won', () => {
   const inst = boss(2);
   const coins = inst.coins;
   inst.boss.core.hp = 0;
-  run(inst, 3);
+  run(inst, 3, () => hurry(inst));
   assert.ok(inst.over);
   assert.equal(inst.lost, false);
   assert.ok(inst.coins - coins >= BOSS_COINS);
@@ -150,7 +152,7 @@ test('a playtest Warden can be beaten in time by a crew that just stands there a
   while (!inst.over && t < 120){
     const a = tell(inst);
     for (const i of [0, 1]) lean(a && Math.abs(inst.crew[i].x - a.x) < 0.35 ? (a.x > 0 ? -0.8 : 0.8) : (i ? 0.1 : -0.1), i);
-    inst.step(DT, W, H); t += DT;
+    hurry(inst); inst.step(DT, W, H); t += DT;
   }
   assert.ok(inst.over && !inst.lost, `over ${inst.over}, lost ${inst.lost} at ${t.toFixed(0)}s`);
 });

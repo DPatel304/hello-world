@@ -79,7 +79,7 @@ test('the boss shows itself before its fight, and the ending names the crew', ()
   const won = script('won', inst).map(l => l[1]).join(' ');
   assert.ok(won.includes(NAMES[0]) && won.includes(NAMES[1]));
   inst.boss.fight.bots.forEach(b => { if (b.part) b.hp = 0; }); inst.scene = null;
-  for (let k = 0; k < 200 && !inst.over; k++) inst.step(DT, W, H);
+  for (let k = 0; k < 400 && !inst.over; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   assert.ok(inst.over);
   let k = 0; while (!inst.outro(DT, W, H) && k++ < 2000) if (k % 50 === 0) inst.draw(fake(), W, H);
   assert.ok(k < 2000);

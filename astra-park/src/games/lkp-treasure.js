@@ -71,7 +71,7 @@ export class Treasure {
     /* New ones fade in to replace them. */
     for (const r of this.refill) r.t -= dt;
     while (this.refill.length && this.refill[0].t <= 0){ this.refill.shift(); this.coins.push(this._coin()); }
-    if (this.t >= this.len){ this.done = true; g.addXp?.(XP.treasure); sfx.select(); }
+    if (this.t >= this.len){ this.done = true; g.addXp?.(XP.treasure); g.golds = (g.golds || 0) + 1; sfx.select(); }
   }
 
   _grab(cn, i, W, H){
