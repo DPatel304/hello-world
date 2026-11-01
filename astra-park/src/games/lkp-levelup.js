@@ -64,6 +64,33 @@ export class Pick {
   /* Over the game, dimmed: the title, and a row of cards for each
      player, in their colour - the one they're leaning to lifted, the one
      they've taken lit with a tick. */
+  /* Everyone choosing between the same cards: just those, big, side by
+     side - and under each, a dot in the colour of everyone leaning to it,
+     with a tick once they've taken it. */
+  _drawShared(c, W, H){
+    const g = this.g, cards = this.cards[g.here[0] ?? 0], n = cards.length, cw = H * 0.42, ch = H * 0.5, gap = H * 0.12;
+    cards.forEach((card, k) => {
+      const x = W / 2 + (k - (n - 1) / 2) * (cw + gap), y = H * 0.2;
+      const who = g.here.filter(i => (this.took[i] ?? this.at[i]) === k);
+      c.fillStyle = who.length ? '#2a3350' : '#151a2c'; c.strokeStyle = who.length ? '#ffd24a' : 'rgba(255,255,255,.2)'; c.lineWidth = who.length ? H * 0.008 : 2;
+      c.beginPath(); c.roundRect(x - cw / 2, y, cw, ch, H * 0.04); c.fill(); c.stroke();
+      c.fillStyle = '#ffffff';
+      c.font = `${Math.round(ch * 0.4)}px sans-serif`; c.fillText(card.icon, x, y + ch * 0.4);
+      c.font = `700 ${Math.round(ch * 0.12)}px Fredoka, sans-serif`; c.fillText(card.name, x, y + ch * 0.82);
+      who.forEach((i, m) => {
+        const dx = x + (m - (who.length - 1) / 2) * H * 0.075, dy = y + ch + H * 0.07;
+        c.fillStyle = PLAYER_COLORS[i]; c.beginPath(); c.arc(dx, dy, H * 0.03, 0, 6.2832); c.fill();
+        if (this.took[i] != null){
+          c.strokeStyle = '#ffffff'; c.lineWidth = H * 0.008; c.lineCap = 'round';
+          c.beginPath(); c.moveTo(dx - H * 0.013, dy); c.lineTo(dx - H * 0.003, dy + H * 0.011); c.lineTo(dx + H * 0.015, dy - H * 0.011); c.stroke();
+        }
+      });
+    });
+    const u = Math.max(0, 1 - this.t / this.len), w = W * 0.3;
+    c.fillStyle = 'rgba(255,255,255,.15)'; c.fillRect(W / 2 - w / 2, H * 0.965, w, H * 0.012);
+    c.fillStyle = '#ffd24a'; c.fillRect(W / 2 - w / 2, H * 0.965, w * u, H * 0.012);
+  }
+
   draw(c, W, H){
     const g = this.g, here = g.here;
     c.save();
@@ -72,6 +99,7 @@ export class Pick {
     c.font = `700 ${Math.round(H * 0.08)}px Fredoka, sans-serif`;
     c.lineWidth = H * 0.012; c.strokeStyle = '#05060f'; c.strokeText(this.title, W / 2, H * 0.1);
     c.fillStyle = '#ffd24a'; c.fillText(this.title, W / 2, H * 0.1);
+    if (this.shared){ this._drawShared(c, W, H); c.restore(); return; }
     const rowH = Math.min(H * 0.2, H * 0.78 / Math.max(1, here.length)), cw = rowH * 1.25, gap = cw * 0.25;
     here.forEach((i, r) => {
       const y = H * 0.2 + r * rowH + rowH * 0.05, col = PLAYER_COLORS[i];
@@ -109,6 +137,9 @@ export function levelUp(game, len){
 /* Picking a melee weapon, at the depot: one of MELEE each, theirs for
    good. */
 export function meleePick(game, len){
-  return new Pick(game, len, 'PICK YOUR WEAPON', () => Object.values(MELEE)
+  const pick = new Pick(game, len, 'PICK YOUR WEAPON', () => Object.values(MELEE)
     .map(w => ({ name: w.name, icon: w.icon, take: (r) => { r.melee = w; } })));
+  /* The same two for everyone: shown once, big. */
+  pick.shared = true;
+  return pick;
 }
