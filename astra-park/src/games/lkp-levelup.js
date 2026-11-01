@@ -18,7 +18,7 @@ import { CARDS, MAX_LEVEL, draw, level, take, MELEE } from './lkp-weapons.js';
 
 /* The XP from one level to the next: FIRST to level 2, then STEP more
    each level after - often at first, and steadily less often. */
-export const FIRST = 30, STEP = 15;
+export const FIRST = 75, STEP = 40;
 /* What each thing's worth. */
 export const XP = { kill: 10, fight: 50, trap: 75, trapTimeout: 25, treasure: 25, boss: 300 };
 export const PICK_TIME = 30;
@@ -114,7 +114,7 @@ export class Pick {
         return;
       }
       /* A row for each player: their dot, their pips. */
-      const rowH = H * 0.065, pw = cw * 0.068, left = x - cw / 2 + cw * 0.2;
+      const rowH = H * 0.065, pw = cw * 0.68 / MAX_LEVEL, left = x - cw / 2 + cw * 0.2;
       g.here.forEach((i, r) => {
         const ry = y + ch + H * 0.06 + r * rowH, lv = level(g.crew[i], card.key), on = (this.took[i] ?? this.at[i]) === k;
         const maxed = lv >= MAX_LEVEL;

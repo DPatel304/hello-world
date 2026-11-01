@@ -147,9 +147,9 @@ test('a gold card counts twice; no card goes past MAX_LEVEL', () => {
   assert.equal(rn.up.speed, 2);
   for (let k = 0; k < 20; k++) take('speed', rn, true);
   assert.equal(rn.up.speed, MAX_LEVEL);
-  for (let k = 0; k < 9; k++) take('maxhp', rn);
+  for (let k = 0; k < MAX_LEVEL - 1; k++) take('maxhp', rn);
   take('maxhp', rn, true);
-  assert.equal(rn.max, 100 + HP_UP * MAX_LEVEL, 'gold at 9: just the one more');
+  assert.equal(rn.max, 100 + HP_UP * MAX_LEVEL, 'gold one short of max: just the one more');
 });
 
 test('everyone gets the same three cards - and a card you\'ve maxed can\'t be taken', () => {

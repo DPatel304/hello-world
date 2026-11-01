@@ -61,7 +61,7 @@ export const BOSS_MAX = 180;
 /* The score: every coin, 10 for each knocked out, 500 for each boss beaten. */
 /* Every GOLD_COINS coins the team grabs fills the gold bar: a gold pick.
    (The coins aren't spent - they're still the score.) */
-export const GOLD_COINS = 100;
+export const GOLD_COINS = 150;
 export const SCORE = { kill: 10, boss: 500 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;

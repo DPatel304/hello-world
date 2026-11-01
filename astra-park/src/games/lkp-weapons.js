@@ -30,7 +30,7 @@ export const RANGED = {
    member's own to take up to MAX_LEVEL times. Every level up, three are
    drawn at random and offered to everyone; now and then (GOLD_CHANCE) one
    comes up gold, and counts twice. What each does, a level at a time: */
-export const MAX_LEVEL = 10, GOLD_CHANCE = 1 / 8;
+export const MAX_LEVEL = 5, GOLD_CHANCE = 1 / 8;
 export const CARDS = {
   damage: { name: 'DAMAGE', icon: '\u{1F4A5}' },        /* both weapons hit DAMAGE_UP harder */
   speed: { name: 'SPEED', icon: '⚡' },             /* both swing and fire SPEED_UP sooner */
@@ -39,7 +39,7 @@ export const CARDS = {
   wider: { name: 'WIDER', icon: '↔\u{FE0F}' },     /* melee reaches WIDE_UP wider; ranged bolts burst SPLASH across */
   maxhp: { name: 'MAX HP', icon: '❤\u{FE0F}' }     /* HP_UP more health - and that much back, now */
 };
-export const DAMAGE_UP = 0.15, SPEED_UP = 0.08, ARMOR_UP = 0.05, TEAM_UP = 0.06, WIDE_UP = 0.1, SPLASH = 0.07, HP_UP = 15;
+export const DAMAGE_UP = 0.3, SPEED_UP = 0.15, ARMOR_UP = 0.1, TEAM_UP = 0.12, WIDE_UP = 0.2, SPLASH = 0.14, HP_UP = 30;
 /* Standing together, before any TEAMWORK: each teammate close by adds
    TEAM more to your hits. */
 export const TEAM = 0.3;
