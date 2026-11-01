@@ -63,14 +63,15 @@ test('a treasure room draws', () => {
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
 });
 
-test('the treasure room gives a gold pick - taken as the next corridor starts', () => {
+test('the gold pick: three cards, every one gold - taken as the next corridor starts', () => {
   crew(2);
   const inst = game.create(2);
   inst.step(DT, W, H);
   /* The second room: a corridor after it. */
   inst.things = []; inst.rooms.push('treasure'); inst.step_ = inst.level.plan.lastIndexOf('room') - 1; inst._next();
-  run(inst, TREASURE_TIME + 1.5);
-  assert.equal(inst.golds, 1);
+  run(inst, TREASURE_TIME + 0.5);
+  assert.equal(inst.golds, 0, 'the treasure room gives none of its own');
+  inst.coins = GOLD_COINS;
   for (let k = 0; k < 600 && !inst.levelup; k++) inst.step(DT, W, H);
   assert.equal(inst.phase, 'corridor');
   assert.equal(inst.levelup.title, 'GOLD PICK!');

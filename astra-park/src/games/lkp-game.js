@@ -301,8 +301,8 @@ class LastKnownPosition {
       sfx.gold();
       this.bits.push({ kind: 'num', x: 0.88, y: 0.16, vy: -0.03, age: 0, life: 1.6, text: 'GOLD PICK!', col: '#ffd24a' });
     }
-    /* A gold pick earned (the treasure room, a boss, the gold bar): before
-       any level up. */
+    /* A gold pick earned (the gold bar - the only way to one): before any
+       level up. */
     if (this.golds > 0 && (this.calm || this.bossBeaten)){
       this.levelup = goldPick(this, PLAYTEST || PICK_TIME);
       this.captain.say('A gold pick! Every card counts twice.', 'GOLD PICK', { once: 'goldpick' });

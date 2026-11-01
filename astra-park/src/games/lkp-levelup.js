@@ -191,7 +191,7 @@ export function levelUp(game, len, rand = Math.random, title = `LEVEL ${game.lvl
   return pick;
 }
 
-/* A gold pick - from the treasure room, or for beating a boss: three
+/* A gold pick - every GOLD_COINS coins the team grabs (lkp-game.js): three
    cards like a level up's, every one gold. Not a level of its own. */
 export function goldPick(game, len, rand = Math.random){
   const pick = levelUp(game, len, rand, 'GOLD PICK!', true);

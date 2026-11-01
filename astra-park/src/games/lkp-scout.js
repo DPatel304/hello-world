@@ -153,7 +153,7 @@ export class Scout {
   _win(W, H){
     this.g.addXp?.(XP.boss);
     /* Beaten - not just given up on. */
-    if (this.core ? this.core.hp <= 0 : this.body.hp <= 0){ this.g.bosses++; this.g.golds = (this.g.golds || 0) + 1; }
+    if (this.core ? this.core.hp <= 0 : this.body.hp <= 0) this.g.bosses++;
     const g = this.g, f = this.fight, b = this.body;
     this.done = true; this.blasts = []; b.burn = 1;
     const p = P(b.x, b.d, W, H);

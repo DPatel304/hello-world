@@ -158,13 +158,9 @@ test('phase 3: sometimes it overshoots, and is stuck longer', () => {
 test('the Scout beaten: the level is won', () => {
   const inst = scout(2);
   inst.boss.body.hp = 0;
-  run(inst, 2);
-  assert.equal(inst.levelup?.title, 'GOLD PICK!', 'beating it: a gold pick');
-  assert.ok(inst.levelup.cards[0].every(c => c.gold));
   for (let k = 0; k < 300 && !inst.over; k++){ hurry(inst); inst.step(DT, W, H); }
   assert.ok(inst.over);
   assert.equal(inst.lost, false);
-  assert.equal(inst.golds, 0);
 });
 
 test('a playtest Scout is beaten in time by a crew that dodges and hits it when it stops', () => {
