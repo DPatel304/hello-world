@@ -136,7 +136,7 @@ export function drawFountain(c, W, H, rel, lane, t, used){
 
 export const DOORS = [-0.72, 0.72];
 /* Each kind of door: its colour and its sign. */
-const DOOR_LOOK = { combat: ['#e5484d', 'skull'], traps: ['#f59e0b', 'spikes'], mystery: ['#a855f7', 'mystery'] };
+const DOOR_LOOK = { elite: ['#e5484d', 'skull'], combat: ['#e5484d', 'skull'], traps: ['#f59e0b', 'spikes'], mystery: ['#a855f7', 'mystery'] };
 /* Two doors in a wall across the floor - kinds says which is which - each
    with its sign over it, the votes in front as dots in the voters'
    colours, and the chosen one opening. */

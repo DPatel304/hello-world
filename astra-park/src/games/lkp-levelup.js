@@ -20,7 +20,7 @@ import { CARDS, MAX_LEVEL, draw, level, take, MELEE } from './lkp-weapons.js';
    each level after - often at first, and steadily less often. */
 export const FIRST = 75, STEP = 40;
 /* What each thing's worth. */
-export const XP = { kill: 10, fight: 50, trap: 75, trapTimeout: 25, treasure: 25, boss: 300 };
+export const XP = { kill: 10, fight: 50, elite: 120, trap: 75, trapTimeout: 25, treasure: 25, boss: 300 };
 export const PICK_TIME = 30;
 
 /* The XP needed to go from level lvl to the next. */

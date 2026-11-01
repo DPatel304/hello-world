@@ -179,16 +179,19 @@ test('the guide crown passes on at each crossroads', () => {
   assert.notEqual(inst.guide, first);
 });
 
-test('each crossroads is two different doors of fight, traps and ?', () => {
-  const seen = new Set();
+test('each crossroads is two different doors of the elite, traps and ? - never the elite at the first', () => {
+  const first = new Set(), later = new Set();
   for (let k = 0; k < 40; k++){
     const inst = quiet(); inst.seg.t = inst.seg.len; run(inst, 0.1);
     const [a, b] = inst.seg.kinds;
     assert.notEqual(a, b);
     assert.ok(DOOR_KINDS.includes(a) && DOOR_KINDS.includes(b));
-    seen.add(a); seen.add(b);
+    first.add(a); first.add(b);
+    inst.step_ = inst.level.plan.lastIndexOf('cross') - 1; inst._next();
+    inst.seg.kinds.forEach(d => later.add(d));
   }
-  assert.equal(seen.size, 3);
+  assert.ok(!first.has('elite'), 'not at the first');
+  assert.equal(later.size, 3);
 });
 
 test('the ? door is monsters, traps or treasure - treasure most often', () => {

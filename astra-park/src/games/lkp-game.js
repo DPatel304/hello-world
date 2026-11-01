@@ -68,7 +68,9 @@ const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10 };   /* ledge: a breach across part of the floor */
 export const SAFE = 1;                          /* seconds of safety after a hit */
 export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment */
-export const HEAL = 30;                         /* a repair station */
+export const HEAL = 30;
+/* Springs in each corridor after the first (one more before the boss). */
+export const SPRINGS = 2;                         /* a repair station */
 export const VOTE = 10;                         /* seconds to vote - always the whole time, to think it over */
 /* How far past the line between two doors (of the corridor's half-width)
    someone has to go to count as at the next door - so a wobble on the
@@ -109,11 +111,13 @@ export const FIGHT_APART = 0.7;
 /* A sentence starting with a capital. */
 const cap1 = (s) => s[0].toUpperCase() + s.slice(1);
 const BODY = 0.1, COIN_REACH = 0.18, FOUNTAIN_REACH = 0.3;
-/* What a door can be: a fight, traps, or anything (?). Each crossroads
-   has two of them, different, either way round. */
-export const DOOR_KINDS = ['combat', 'traps', 'mystery'];
-const twoDoors = () => {
-  const k = DOOR_KINDS.slice().sort(() => Math.random() - 0.5);
+/* What a door can be: the elite (the skull - always a big fight, for a
+   pile of coins), traps, or anything (?, which can be an ordinary fight).
+   Each crossroads has two of them, different, either way round - but
+   never the elite at a level's first, before anyone's levelled up. */
+export const DOOR_KINDS = ['elite', 'traps', 'mystery'];
+const twoDoors = (first = false) => {
+  const k = DOOR_KINDS.filter(d => !(first && d === 'elite')).sort(() => Math.random() - 0.5);
   return [k[0], k[1]];
 };
 
@@ -184,7 +188,7 @@ class LastKnownPosition {
       /* The doors, coming up the corridor; the crew stop in front of them. */
       this.seg.wall = this.z + 0.9;
       this.seg.votes = [[], []];
-      this.seg.kinds = twoDoors();
+      this.seg.kinds = twoDoors(!this.level.plan.slice(0, this.step_).includes('cross'));
       this.seg.choice = null; this.seg.opening = 0;
       for (const rn of this.crew) rn.door = null;
       this.seg.vote = VOTE;
@@ -192,7 +196,10 @@ class LastKnownPosition {
     } else if (kind === 'room'){
       this.seg.room = this.rooms[this.rooms.length - 1];
       this.seg.len = ROOM_STUB;
-      if (this.seg.room === 'combat') this.fight = PLAYTEST ? new Fight(this, PLAYTEST) : new Fight(this);
+      if (this.seg.room === 'combat' || this.seg.room === 'elite'){
+        const elite = this.seg.room === 'elite';
+        this.fight = new Fight(this, PLAYTEST || undefined, { elite });
+      }
       /* A longer hall: twice the playtest time to get up it. */
       if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
       if (this.seg.room === 'treasure') this.treasure = new Treasure(this);
@@ -258,14 +265,20 @@ class LastKnownPosition {
         if (r < 0.4) blocker(s); else if (r < 0.65) beam(s); else if (r < 0.85) gap(s, false); else gap(s);
         s += 2.6 * hard + Math.random() * 1.2;
       }
-      /* The middle: a coin rush, or a repair station. */
+      /* The middle: a coin rush, or a spring. */
       if (n === 1){ for (let k = 0; k < 4; k++) coinLine(s + k * 0.9, Math.sin(k) * 0.7, 3); s += 4.5; }
       else { fountain(s, side() * 0.45); s += 2.5; }
-      for (let k = 0; k < 8 && s < (FULL[n] || 45) - 3; k++){
+      /* Springs to run into on the way: SPRINGS in the corridor, more in
+         the last one before the boss - off to one side, so it's a lean. */
+      const last = n === FULL.length - 1, end = (FULL[n] || 45) - 3;
+      const springs = Array.from({ length: last ? SPRINGS + 1 : SPRINGS }, (_, k) => s + 2 + (end - s - 2) * (k + 0.5) / (last ? SPRINGS + 1 : SPRINGS));
+      for (let k = 0; k < 8 && s < end; k++){
+        if (springs.length && s >= springs[0]){ fountain(s, side() * (0.4 + Math.random() * 0.3)); springs.shift(); s += 2; continue; }
         const r = Math.random();
         if (r < 0.35) blocker(s, side(), 1.1); else if (r < 0.6) beam(s); else if (r < 0.8) gap(s, false); else gap(s);
         s += 2.2 * hard + Math.random();
       }
+      for (const at of springs) if (at < end) fountain(at, side() * 0.5);
     }
   }
 
@@ -389,7 +402,7 @@ class LastKnownPosition {
   get calm(){ return !this.over && ((this.seg.kind === 'corridor' && this.seg.t < 1.5) || (this.seg.kind === 'cross' && this.seg.choice == null)); }
 
   /* What Nova calls what's behind a door - and the fights, here and now. */
-  behind(kind){ return kind === 'combat' ? this.foes : kind === 'traps' ? 'traps' : 'who knows what'; }
+  behind(kind){ return kind === 'elite' ? `the biggest of the ${this.foes}` : kind === 'combat' ? this.foes : kind === 'traps' ? 'traps' : 'who knows what'; }
   get foes(){ const e = this.level.enemies; return this.awake ? e.awakeName : e.wildName; }
   /* Who's in a fight here and now: the level's wildlife, or its robots. */
   get enemy(){ const e = this.level.enemies; return this.awake ? e.awake : e.wild; }
@@ -414,6 +427,10 @@ class LastKnownPosition {
       if (!cap.say('Two doors! Lean to the one you want, and stay there till time\'s up.', 'PICK A DOOR', { once: 'doors' }))
         cap.say(`${cap1(this.behind(a))} on the left, ${this.behind(b)} on the right. Your call!`, '');
     }
+    if (f && !bs && !seg.told && f.elite){
+      seg.told = true;
+      cap.say('That\'s a big one! Stick together and keep hitting it. Beat it for a pile of coins!', 'A BIG ONE!');
+    }
     if (f && !bs && !seg.told){
       seg.told = true;
       if (!cap.say(`${cap1(this.foes)}! You'll hit them on your own. Stand close together to hit harder!`, 'STAND TOGETHER', { once: 'fight' }))
@@ -421,7 +438,7 @@ class LastKnownPosition {
     }
     if (f && !f.done && !bs){
       if (f.t > 4 && f.bots.some(b => b.d > 0.2)) cap.say('Jump to zap them while they\'re still coming!', 'JUMP!', { once: 'zap', polite: true });
-      if (f.t > 8 && this.rooms.filter(r => r === 'combat').length > 1) cap.say('Roll your arms, like the wheels on the bus, to hit even harder!', 'ROLL YOUR ARMS', { once: 'crank', polite: true });
+      if (f.t > 8 && this.rooms.filter(r => r === 'combat' || r === 'elite').length > 1) cap.say('Roll your arms, like the wheels on the bus, to hit even harder!', 'ROLL YOUR ARMS', { once: 'crank', polite: true });
     }
     if (f && f.done && !seg.cleared && !bs){ seg.cleared = true; cap.say(['Room clear! Nice work, crew.', 'That\'s all of them. Great job!'][Math.floor(Math.random() * 2)], ''); }
     if (f && !f.done){
@@ -750,7 +767,7 @@ class LastKnownPosition {
 
   _drawBot(c, b, W, H){
     const p = P(b.x, b.d, W, H);
-    (b.kind === 'beast' ? drawBeast : drawRustbot)(c, p.x, p.y, H * 0.14 * p.k, this.t + b.seed, { swing: b.swing, flash: b.flash, hp: b.hp / b.max });
+    (b.kind === 'beast' ? drawBeast : drawRustbot)(c, p.x, p.y, H * 0.14 * p.k * (b.size || 1), this.t + b.seed, { swing: b.swing, flash: b.flash, hp: b.hp / b.max });
   }
 
   /* In a fight, teammates standing together are joined along the floor:
@@ -803,7 +820,7 @@ class LastKnownPosition {
     /* A fight shows its sign as each wave starts. */
     const u = this.fight ? clamp(this.fight.banner / 0.4, 0, 1) * clamp((1.6 - this.fight.banner) / 0.3, 0, 1)
       : clamp(this.seg.t / 0.4, 0, 1) * clamp((this.seg.len - this.seg.t) / 0.4, 0, 1);
-    const s = { combat: ['skull', '#ff5b5b'], traps: ['spikes', '#ffc531'], treasure: ['mystery', '#ffd24a'] }[kind] || ['mystery', '#c46bff'];
+    const s = { combat: ['skull', '#ff5b5b'], elite: ['skull', '#ff5b5b'], traps: ['spikes', '#ffc531'], treasure: ['mystery', '#ffd24a'] }[kind] || ['mystery', '#c46bff'];
     c.save(); c.globalAlpha = u;
     sign(c, s[0], W / 2, H * 0.36, H * 0.1 * (0.8 + 0.2 * u), s[1], this.t);
     c.restore();

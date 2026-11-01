@@ -89,11 +89,17 @@ export const FIGHT_MAX = 120;
    so harder. */
 export const FURY = [0.6, 0.6, 1, 1.8, 2.3];
 export const crewPower = (n) => Math.max(1, n) * (1 + TEAM * (Math.max(1, n) - 1));
-export const waveSize = (n, w) => Math.max(1, n) * WAVE[w];
+export const waveSize = (n, w, waves = WAVE) => Math.max(1, n) * waves[w];
+/* The elite - behind the skull door, always: one big one (its health
+   BIG_HP times a robot's, hitting BIG_HIT times as hard, BIG_EVERY
+   seconds apart, BIG_SIZE times as big) leading its escorts (ELITE_WAVE,
+   per player), and a pile of ELITE_COINS for beating it. */
+export const ELITE_WAVE = [2, 3], BIG_HP = 10, BIG_HIT = 2.5, BIG_EVERY = 2, BIG_SIZE = 1.8, ELITE_COINS = 60;
 
 export class Fight {
-  constructor(game, len = FIGHT_MAX, { waves = true } = {}){
-    this.g = game; this.len = len; this.waves = waves;
+  constructor(game, len = FIGHT_MAX, { waves = true, elite = false } = {}){
+    this.g = game; this.len = len; this.waves = waves; this.elite = elite;
+    this.waveList = elite ? ELITE_WAVE : WAVE;
     this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.streamT = 0;
     this.done = false; this.lost = false; this.clearT = 0; this.allAsleep = 0; this.banner = 0;
     /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
@@ -104,7 +110,7 @@ export class Fight {
     this.might = Math.max(0.15, crewPower(game.here.length) / crewPower(4));
     this.fury = FURY[Math.min(4, game.here.length)];
     /* Hotter with every fight before this one, this level. */
-    this.heat = waves ? 1 + HEAT * Math.max(0, (game.rooms || []).filter(r => r === 'combat').length - 1) : 1;
+    this.heat = waves ? 1 + HEAT * Math.max(0, (game.rooms || []).filter(r => r === 'combat' || r === 'elite').length - 1) : 1;
     this.claps = pose.players.map(() => new ClapWatch());
     this.cranks = pose.players.map(() => new CrankWatch());
     this.hugs = pose.players.map(() => new HugWatch());
@@ -121,8 +127,14 @@ export class Fight {
 
   _wave(){
     this.wave++;
-    const n = waveSize(this.g.here.length, this.wave);
-    if (this.wave === 0){
+    const n = waveSize(this.g.here.length, this.wave, this.waveList);
+    if (this.wave === 0 && this.elite){
+      /* The big one, in the middle; its escorts either side. */
+      const big = this._bot(0, 0.55);
+      big.hp = big.max = big.hp * BIG_HP; big.big = true; big.size = BIG_SIZE; big.wide = 0.12;
+      this.bots.push(big);
+      for (let k = 0; k < n; k++) this.bots.push(this._bot((k % 2 ? 1 : -1) * (0.45 + 0.4 * Math.random()), 0.35 + 0.5 * Math.random()));
+    } else if (this.wave === 0){
       /* The whole corridor ahead, full of them: rows across, a little
          jumbled. */
       const across = Math.min(7, Math.max(3, Math.ceil(n / 4))), rows = Math.ceil(n / across);
@@ -172,7 +184,7 @@ export class Fight {
     this.bots = this.bots.filter(b => b.hp > 0);
 
     if (!this.waves){ if (this.t > this.len) this._clear(W, H); }
-    else if (!this.queue && !this.bots.length){ if (this.wave + 1 < WAVE.length) this._wave(); else this._clear(W, H); }
+    else if (!this.queue && !this.bots.length){ if (this.wave + 1 < this.waveList.length) this._wave(); else this._clear(W, H); }
     else if (this.t > this.len){
       for (const b of this.bots) this._scrap(b, W, H);
       this.bots = []; this.queue = 0; this._clear(W, H);
@@ -212,15 +224,15 @@ export class Fight {
     b.x = Math.max(-1.05, Math.min(1.05, b.x));
     /* Its nibble: whoever's in reach, if it's at the front. */
     b.hitT += dt;
-    if (b.d > FRONT + 0.01 || b.hitT < BOT_EVERY) return;
+    if (b.d > FRONT + 0.01 || b.hitT < (b.big ? BIG_EVERY : BOT_EVERY)) return;
     let near = -1;
     for (const i of up) if (g.crew[i].safe <= 0 && Math.abs(g.crew[i].x - b.x) < BOT_REACH && (near < 0 || Math.abs(g.crew[i].x - b.x) < Math.abs(g.crew[near].x - b.x))) near = i;
     if (near < 0) return;
     b.hitT = 0; b.swing = 1;
-    this._nibble(near, W, H);
+    this._nibble(near, W, H, b);
   }
 
-  _nibble(i, W, H){ this.hurt(i, Math.round(BOT_HIT * this.heat * this.fury), W, H); }
+  _nibble(i, W, H, b){ this.hurt(i, Math.round(BOT_HIT * this.heat * this.fury * (b && b.big ? BIG_HIT : 1)), W, H); }
 
   /* Damage to a crew member: a nibble's a little flash; a big hit (over
      BIG) a jolt and a number. Out of health, asleep. */
@@ -355,7 +367,8 @@ export class Fight {
     this.done = true;
     for (const i of g.here) this._rise(i, W, H);
     g.coins += CLEAR_COINS;
-    if (this.waves) g.addXp?.(XP.fight);
+    if (this.waves) g.addXp?.(this.elite ? XP.elite : XP.fight);
+    if (this.elite) g.coins += ELITE_COINS;
     sfx.gold();
     for (let k = 0; k < 6; k++) g._sparkle(0.2 + k * 0.12, 0.4, 8, 50);
   }

@@ -4,7 +4,7 @@ import game, { MAX_HP, FIGHT_APART, PLAYTEST, story } from '../src/games/lkp-gam
 /* The play itself, without the captain's scenes. */
 story.on = false;
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
-         REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, WAVE, FURY, waveSize } from '../src/games/lkp-combat.js';
+         REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, WAVE, FURY, ELITE_WAVE, BIG_HP, ELITE_COINS, waveSize } from '../src/games/lkp-combat.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
@@ -254,4 +254,24 @@ test('a fight draws', () => {
   inst.fight._sleep(1); inst.crew[0].swing = 0.5; inst.crew[0].buddies = 1;
   inst.bits.push({ kind: 'shot', x: 0.5, y: 0.8, x2: 0.5, y2: 0.5, age: 0, life: 0.3 });
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
+});
+
+test('behind the skull, always the elite: one big one and its escorts - beaten, a pile of coins', () => {
+  crew(2);
+  const inst = game.create(2);
+  run(inst, 0.2);
+  inst.things = [];
+  inst.step_ = 1; inst.rooms.push('elite'); inst._next();
+  const f = inst.fight;
+  assert.ok(f && f.elite);
+  const big = f.bots.filter(b => b.big);
+  assert.equal(big.length, 1);
+  assert.equal(f.bots.length, 1 + waveSize(2, 0, ELITE_WAVE));
+  assert.ok(big[0].max >= BOT_HP * BIG_HP * f.toughness);
+  /* Too tough to fall asleep: just how it ends. */
+  for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
+  const coins = inst.coins;
+  through(inst);
+  assert.notEqual(inst.phase, 'room');
+  assert.ok(inst.coins - coins >= ELITE_COINS + CLEAR_COINS);
 });
