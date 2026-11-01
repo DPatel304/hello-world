@@ -30,7 +30,7 @@ export const LEVELS = [
       blocker: '#7a5230', beam: '#6b4423', post: '#3d2a17', gap: '#0b0e09', fountain: '#38bdf8',
       wall: '#22402a', hall: '#14261b', hallFloor: '#2d4b2b', hallRed: '#45282a'
     },
-    plan: ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
+    plan: ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
     boss: 'scout', bossName: 'Scout',
     tips: {

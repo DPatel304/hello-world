@@ -71,7 +71,7 @@ export class Warden {
     this.g = game; this.len = len;
     /* The fight underneath never ends by itself: the Warden says when. */
     this.fight = new Fight(game, Infinity, { waves: false });
-    const s = this.fight.toughness * toughness;
+    const s = this.fight.might * toughness;
     this.t = 0; this.phase = 'arms'; this.done = false; this.clearT = 0;
     this.arms = [-1, 1].map(side => ({ side, part: 'arm', x: side * 0.55, d: FRONT, hp: Math.round(ARM_HP * s), max: Math.round(ARM_HP * s),
       state: 'up', t: 0, flash: 0, swing: 0, hitT: 0 }));

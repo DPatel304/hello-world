@@ -48,14 +48,17 @@ import { arms, armored, teamBonus, STANDARD, TEAM } from './lkp-weapons.js';
 
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
    it reaches. */
-export const BOT_HP = 20, BOT_HIT = 2, BOT_EVERY = 1.2, BOT_REACH = 0.18;
+export const BOT_HP = 30, BOT_HIT = 4, BOT_EVERY = 1.2, BOT_REACH = 0.18;
+/* Each fight in a level is tougher than the last: its robots' health and
+   hits, HEAT more for each fight before it. */
+export const HEAT = 0.4;
 /* A hit bigger than this is a big one: a jolt, and its number shown. */
 const BIG = 5;
 /* The crew's own hits: how often, how hard, how far across (lanes) and
    how deep (corridor depth) they reach. */
 export const SWING = STANDARD.every, SWING_HIT = STANDARD.dmg, RANGE = STANDARD.reach, RANGE_D = 0.14;
 /* Standing together: teammates this close (lanes) each add TEAM to your
-   hits (0.5 is half as much again) - more with the TEAMWORK card. */
+   hits - more with the TEAMWORK card. */
 export const BUDDY = 0.32;
 export { TEAM };
 /* The wheels on the bus: an extra hit, this hard, every turn. */
@@ -70,7 +73,7 @@ export const SHOT_HIT = 12, SHOT_ACROSS = 0.35;
 export const FRONT = RUN + 0.09, ROW = 0.08, BOT_GAP = 0.16, WALK = 0.14, SIDE = 0.3;
 /* Robots in each wave, per player. The first fills the corridor; the
    second comes in from the far end, one every STREAM seconds. */
-export const WAVE = [5, 3], STREAM = 0.5;
+export const WAVE = [4, 3, 4, 5], STREAM = 0.5;
 export const KILL_COINS = 1, CLEAR_COINS = 10;
 /* Asleep: claps to wake, how close (lanes) a clapper has to be, and how
    long claps last when they stop. Waking: at this share of health. All
@@ -81,6 +84,11 @@ export const REVIVE_CLAPS = 10, REVIVE_R = 0.35, CLAP_FADE = 6, WAKE_HP = 0.5, L
    cleared. */
 export const FIGHT_MAX = 120;
 /* How many robots in wave w (from 0) for n players. */
+/* How hard robots and bosses hit, by how many are playing: alone there's
+   nobody to clap you awake, so gentler; a full crew can wake each other,
+   so harder. */
+export const FURY = [0.6, 0.6, 1, 1.8, 2.3];
+export const crewPower = (n) => Math.max(1, n) * (1 + TEAM * (Math.max(1, n) - 1));
 export const waveSize = (n, w) => Math.max(1, n) * WAVE[w];
 
 export class Fight {
@@ -90,6 +98,13 @@ export class Fight {
     this.done = false; this.lost = false; this.clearT = 0; this.allAsleep = 0; this.banner = 0;
     /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
     this.toughness = Math.max(0.5, Math.max(1, game.here.length) / 4);
+    /* A boss, alone against the crew, is as tough as the crew is strong
+       together: n players, each hitting harder for the others close by
+       (crewPower) - a full crew of four meeting its full health. */
+    this.might = Math.max(0.15, crewPower(game.here.length) / crewPower(4));
+    this.fury = FURY[Math.min(4, game.here.length)];
+    /* Hotter with every fight before this one, this level. */
+    this.heat = waves ? 1 + HEAT * Math.max(0, (game.rooms || []).filter(r => r === 'combat').length - 1) : 1;
     this.claps = pose.players.map(() => new ClapWatch());
     this.cranks = pose.players.map(() => new CrankWatch());
     this.hugs = pose.players.map(() => new HugWatch());
@@ -98,7 +113,7 @@ export class Fight {
   }
 
   _bot(x, d){
-    const hp = Math.round(BOT_HP * this.toughness);
+    const hp = Math.round(BOT_HP * this.toughness * this.heat);
     /* What it is - the level's wildlife or its robots - is only how it
        looks: they fight the same. */
     return { kind: this.g.enemy || 'rustbot', x, d, hp, max: hp, hitT: Math.random() * BOT_EVERY, target: -1, flash: 0, swing: 0, seed: Math.random() * 6 };
@@ -205,7 +220,7 @@ export class Fight {
     this._nibble(near, W, H);
   }
 
-  _nibble(i, W, H){ this.hurt(i, BOT_HIT, W, H); }
+  _nibble(i, W, H){ this.hurt(i, Math.round(BOT_HIT * this.heat * this.fury), W, H); }
 
   /* Damage to a crew member: a nibble's a little flash; a big hit (over
      BIG) a jolt and a number. Out of health, asleep. */
@@ -289,7 +304,7 @@ export class Fight {
     b.hp -= dmg; b.flash = 1;
     sfx.clank();
     g.bits.push({ kind: 'num', x: (p.x + (Math.random() - 0.5) * H * 0.03) / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.6, text: `${dmg}`, col: '#ffffff', small: true });
-    if (b.hp <= 0 && !b.part){ g.coins += KILL_COINS; g.kills++; g.addXp?.(XP.kill); this._scrap(b, W, H); }
+    if (b.hp <= 0 && !b.part){ g.coins += KILL_COINS; g.kills++; g.addXp?.(XP.kill / Math.max(1, g.here.length)); this._scrap(b, W, H); }
   }
 
   /* A robot popping into scrap and sparks. */

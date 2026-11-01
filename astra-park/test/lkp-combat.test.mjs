@@ -4,7 +4,7 @@ import game, { MAX_HP, FIGHT_APART, PLAYTEST, story } from '../src/games/lkp-gam
 /* The play itself, without the captain's scenes. */
 story.on = false;
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
-         REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, waveSize } from '../src/games/lkp-combat.js';
+         REVIVE_CLAPS, WAKE_HP, HUG_HEAL, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, WAVE, FURY, waveSize } from '../src/games/lkp-combat.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
@@ -41,24 +41,25 @@ const bot = (x, d = FRONT, hp = 999) => ({ x, d, hp, max: hp, hitT: 0, target: -
 /* Just these robots, nothing more to come. */
 function only(inst, bots){ inst.fight.bots = bots; inst.fight.queue = 0; inst.fight.wave = 1; return bots; }
 
-test('the room starts full of robots - five for each player - filling the corridor ahead', () => {
+test('the room starts full of robots - four for each player - filling the corridor ahead', () => {
   for (const n of [1, 2, 4]){
     const inst = fight(n);
     const bots = inst.fight.bots;
     assert.equal(bots.length, waveSize(n, 0));
-    assert.ok(bots.length >= n * 5);
+    assert.ok(bots.length >= n * 4);
     const xs = bots.map(b => b.x), ds = bots.map(b => b.d);
     assert.ok(Math.min(...xs) < -0.5 && Math.max(...xs) > 0.5, 'across the width');
     assert.ok(Math.min(...ds) < 0.45 && Math.max(...ds) > 0.8, 'down the length');
   }
 });
 
-test('standing still, the crew clear both waves on their own, and the run goes on', () => {
+test('standing still (and too tough to fall asleep), the crew clear every wave on their own, and the run goes on', () => {
   const inst = fight(2);
+  for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
   const coins = inst.coins;
   through(inst);
   assert.notEqual(inst.phase, 'room', 'and on');
-  const killed = waveSize(2, 0) + waveSize(2, 1);
+  const killed = WAVE.reduce((s, _, w) => s + waveSize(2, w), 0);
   assert.equal(inst.kills, killed);
   assert.equal(inst.coins - coins, killed * KILL_COINS + CLEAR_COINS);
 });
@@ -68,8 +69,9 @@ test('while playtesting, a fight is over in PLAYTEST seconds, whatever is left',
   const inst = game.create(2);
   run(inst, 0.2);
   inst.step_ = 1; inst.rooms.push('combat'); inst._next();
+  for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
   let t = 0;
-  while (inst.fight && t < 60){ inst.step(DT, W, H); t += DT; }
+  while (inst.fight && t < FIGHT_MAX + 5){ inst.step(DT, W, H); t += DT; }
   if (PLAYTEST) assert.ok(t <= PLAYTEST + 2, `${t.toFixed(1)}s`);
   assert.notEqual(inst.phase, 'room', 'and on');
 });
@@ -80,7 +82,7 @@ test('robots nibble constantly, a little at a time - and only those close by', (
   const x = inst.crew[0].x;
   only(inst, [bot(x), bot(x, 0.95)]);
   run(inst, BOT_EVERY * 3 + 0.05);
-  assert.equal(inst.crew[0].hp, MAX_HP - 3 * BOT_HIT, 'one robot, three nibbles');
+  assert.equal(inst.crew[0].hp, MAX_HP - 3 * Math.round(BOT_HIT * FURY[1]), 'one robot, three nibbles');
 });
 
 test('the crew hit every robot in range at once - wider than a robot reaches', () => {

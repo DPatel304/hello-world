@@ -51,10 +51,13 @@ export const story = { on: true };
 /* While we playtest the mechanics, every part of the run is PLAYTEST
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
-export const PLAYTEST = 20;
-const FULL = [50, 45, 45];                      /* seconds of each corridor, in full */
+export const PLAYTEST = 0;
+const FULL = [45, 35, 35, 30];                      /* seconds of each corridor, in full */
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
+/* However a boss fight is going, after this long the boss gives up (the
+   level's won, but the boss isn't counted as beaten). */
+export const BOSS_MAX = 180;
 /* The score: every coin, 10 for each knocked out, 500 for each boss beaten. */
 /* Every GOLD_COINS coins the team grabs fills the gold bar: a gold pick.
    (The coins aren't spent - they're still the score.) */
@@ -202,7 +205,7 @@ class LastKnownPosition {
       if (story.on) this.scene = new Scene('boss', this);
       /* While playtesting, a boss you can beat in a playtest's time. */
       const Boss = BOSSES[this.level.boss];
-      this.boss = PLAYTEST ? new Boss(this, PLAYTEST * 2, 0.35) : new Boss(this);
+      this.boss = PLAYTEST ? new Boss(this, PLAYTEST * 2, 0.35) : new Boss(this, BOSS_MAX);
       this.fight = this.boss.fight;
       this.things = [];
     } else if (kind === 'end'){

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import game, { story, MAX_HP } from '../src/games/lkp-game.js';
 import { XP, needFor } from '../src/games/lkp-levelup.js';
 import { take, MAX_LEVEL, HP_UP, DAMAGE_UP, ARMOR_UP } from '../src/games/lkp-weapons.js';
-import { SWING, SWING_HIT, FRONT } from '../src/games/lkp-combat.js';
+import { SWING, SWING_HIT, FRONT, WAVE } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
 story.on = false;
@@ -51,7 +51,7 @@ test('knocking things out, clearing a fight and beating the boss all give XP', (
   const before = xp();
   f._hit(f.bots[0], 9999, W, H);
   assert.equal(xp() - before, XP.kill);
-  f.bots = []; f.queue = 0; f.wave = 1;
+  f.bots = []; f.queue = 0; f.wave = WAVE.length - 1;
   inst.fight.step(DT, W, H, []);
   assert.equal(xp() - before, XP.kill + XP.fight);
 });
@@ -64,7 +64,7 @@ test('levelling up mid-fight is fine - but the picking waits till the room is ov
   inst.addXp(needFor(1));
   run(inst, 1);
   assert.equal(inst.levelup, null, 'not in a fight');
-  inst.fight.bots = []; inst.fight.queue = 0; inst.fight.wave = 1;
+  inst.fight.bots = []; inst.fight.queue = 0; inst.fight.wave = WAVE.length - 1;
   for (let k = 0; k < 600 && !inst.levelup; k++) inst.step(DT, W, H);
   assert.ok(inst.levelup, 'after it');
   assert.ok(inst.calm);

@@ -39,10 +39,10 @@ export const CARDS = {
   wider: { name: 'WIDER', icon: '↔\u{FE0F}' },     /* melee reaches WIDE_UP wider; ranged bolts burst SPLASH across */
   maxhp: { name: 'MAX HP', icon: '❤\u{FE0F}' }     /* HP_UP more health - and that much back, now */
 };
-export const DAMAGE_UP = 0.15, SPEED_UP = 0.08, ARMOR_UP = 0.05, TEAM_UP = 0.1, WIDE_UP = 0.1, SPLASH = 0.07, HP_UP = 15;
+export const DAMAGE_UP = 0.15, SPEED_UP = 0.08, ARMOR_UP = 0.05, TEAM_UP = 0.06, WIDE_UP = 0.1, SPLASH = 0.07, HP_UP = 15;
 /* Standing together, before any TEAMWORK: each teammate close by adds
-   half again to your hits. */
-export const TEAM = 0.5;
+   TEAM more to your hits. */
+export const TEAM = 0.3;
 
 /* How many times a crew member has taken a card. */
 export const level = (rn, key) => (rn.up && rn.up[key]) || 0;

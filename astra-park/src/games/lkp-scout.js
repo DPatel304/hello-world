@@ -33,17 +33,17 @@ import { XP } from './lkp-levelup.js';
 import { healthBar, stripe } from './lkp-boss.js';
 
 /* For a crew of four (fewer, less: as a fight's robots). */
-export const SCOUT_HP = 240;
+export const SCOUT_HP = 3500;
 /* Its charge: the warning, the charge itself, how wide (lanes) it hits,
    and how hard; then standing at the front, and the trot back. */
-export const TELL = 1.2, DASH = [0.5, 0.38, 0.3], CHARGE_W = 0.24, CHARGE = 8, REST = [2.6, 2.2, 2], BACK = 0.8, WAIT = [1.2, 0.9, 0.7];
+export const TELL = 1.2, DASH = [0.5, 0.38, 0.3], CHARGE_W = 0.24, CHARGE = 25, REST = [2.6, 2.2, 2], BACK = 0.8, WAIT = [1.2, 0.9, 0.7];
 /* Phase 2 on: a sweep at head height every SWEEP seconds, rolling up at
    ROLL (depth a second). Missed: SWEPT. */
-export const SWEEP = 5.5, ROLL = 0.5, SWEPT = 8;
+export const SWEEP = 5.5, ROLL = 0.5, SWEPT = 18;
 /* Phase 3: how often a charge overshoots. */
 export const OVERSHOOT = 0.35;
 /* Staggered: how long, and how much harder it's hit. */
-export const STAGGER = 4, BURN = 2;
+export const STAGGER = 3, BURN = 1.5;
 export const PHASES = [0.66, 0.33];
 /* Where it stands, away from the crew; how wide it is to hit. */
 const HOME = 0.55, WIDE = 0.12;
@@ -55,7 +55,7 @@ export class Scout {
   constructor(game, len = FIGHT_MAX, toughness = 1){
     this.g = game; this.len = len;
     this.fight = new Fight(game, Infinity, { waves: false });
-    const hp = Math.round(SCOUT_HP * this.fight.toughness * toughness);
+    const hp = Math.round(SCOUT_HP * this.fight.might * toughness);
     this.body = { part: 'scout', x: 0, d: HOME, wide: WIDE, hp, max: hp, flash: 0, swing: 0, hitT: 0 };
     this.fight.bots.push(this.body);
     this.t = 0; this.phase = 0; this.done = false; this.clearT = 0;
@@ -76,10 +76,14 @@ export class Scout {
     if (this.done){ this.clearT += dt; f.step(dt, W, H, []); return; }
     f.step(dt, W, H, jumped);
     if (f.lost) return;
+    /* Never more than one phase line at a time - and staggered, burned
+       down to the next line, no further: each phase is fought for. */
+    const line = PHASES[this.staggered > 0 ? this.phase : this.phase + 1];
+    if (line != null && b.hp > 0) b.hp = Math.max(b.hp, Math.ceil(line * b.max) + 1);
 
     /* A phase crossed: it staggers. */
     const frac = b.hp / b.max;
-    if (this.phase < PHASES.length && frac <= PHASES[this.phase]){ this.phase++; this._stagger(); }
+    if (this.staggered <= 0 && this.phase < PHASES.length && frac <= PHASES[this.phase]){ this.phase++; this._stagger(); }
     if (this.staggered > 0){
       this.staggered -= dt;
       if (this.staggered <= 0){ b.burn = 1; b.wide = WIDE; this._go('back'); }
@@ -114,7 +118,7 @@ export class Scout {
       b.x = this.lane; b.d = HOME + (FRONT - HOME) * u;
       if (u >= 1){
         g.shake = Math.min(1, g.shake + 0.5); sfx.thud();
-        for (const i of f.up) if (Math.abs(g.crew[i].x - this.lane) < CHARGE_W && g.crew[i].safe <= 0) f.hurt(i, CHARGE, W, H);
+        for (const i of f.up) if (Math.abs(g.crew[i].x - this.lane) < CHARGE_W && g.crew[i].safe <= 0) f.hurt(i, Math.round(CHARGE * f.fury), W, H);
         this._go('rest');
       }
     } else if (this.state === 'rest'){
@@ -145,7 +149,7 @@ export class Scout {
     for (const s of this.blasts){
       const was = s.d;
       s.d -= ROLL * dt;
-      if (was >= RUN && s.d < RUN) for (const i of f.up) if (g.crew[i].duck < DUCKED && g.crew[i].safe <= 0) f.hurt(i, SWEPT, W, H);
+      if (was >= RUN && s.d < RUN) for (const i of f.up) if (g.crew[i].duck < DUCKED && g.crew[i].safe <= 0) f.hurt(i, Math.round(SWEPT * f.fury), W, H);
     }
     this.blasts = this.blasts.filter(s => s.d > -0.1);
   }

@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { MAX_HP, story } from '../src/games/lkp-game.js';
+import game, { MAX_HP, BOSS_MAX, story } from '../src/games/lkp-game.js';
+import { MELEE } from '../src/games/lkp-weapons.js';
 import { LEVELS } from '../src/games/lkp-levels.js';
 import { PAL } from '../src/games/lkp-art.js';
 import { AUTO, POWER, SURGE } from '../src/games/lkp-depot.js';
 import { TELL, CHARGE, CHARGE_W, REST, STAGGER, BURN, PHASES, SWEPT, OVERSHOOT, DASH } from '../src/games/lkp-scout.js';
-import { FRONT, SWING, SWING_HIT } from '../src/games/lkp-combat.js';
+import { FRONT, SWING, SWING_HIT, FURY, FIGHT_MAX } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
 story.on = false;
@@ -94,7 +95,7 @@ test('the Scout: crouches over someone first - a long warning - then charges dow
   run(a, TELL * 0.8);
   assert.equal(a.crew[0].hp, MAX_HP, 'a warning first');
   run(a, TELL * 0.2 + DASH[0] + 0.1);
-  assert.equal(a.crew[0].hp, MAX_HP - CHARGE, 'stayed: hit');
+  assert.equal(a.crew[0].hp, MAX_HP - Math.round(CHARGE * FURY[1]), 'stayed: hit');
   const b = scout();
   until(b, 'tell');
   lean(b.boss.lane > 0 ? -0.9 : 0.9); run(b, TELL + DASH[0] + 0.2);
@@ -141,10 +142,10 @@ test('phase 2 on: a sweep at head height - duck it', () => {
   inst.boss.blasts = [{ d: 0.04 }];
   inst.boss.state = 'wait'; inst.boss.st = -99;
   run(inst, 0.1);
-  assert.equal(rn.hp, MAX_HP - SWEPT, 'stood: hit');
+  assert.equal(rn.hp, MAX_HP - Math.round(SWEPT * FURY[1]), 'stood: hit');
   rn.safe = 0; rn.duck = 1; inst.boss.blasts = [{ d: 0.035 }];
   inst.boss.step(DT, W, H, []);
-  assert.equal(rn.hp, MAX_HP - SWEPT, 'ducked');
+  assert.equal(rn.hp, MAX_HP - Math.round(SWEPT * FURY[1]), 'ducked');
 });
 
 test('phase 3: sometimes it overshoots, and is stuck longer', () => {
@@ -163,23 +164,26 @@ test('the Scout beaten: the level is won', () => {
   assert.equal(inst.lost, false);
 });
 
-test('a playtest Scout is beaten in time by a crew that dodges and hits it when it stops', () => {
+test('a crew levelled up as by the end of the level, dodging and hitting it when it stops, beats the Scout before it gives up', () => {
   crew(2);
   const inst = game.create(2);
   run(inst, 0.1);
+  for (const rn of inst.crew){ rn.up = { damage: 3, speed: 2, maxhp: 2 }; rn.max = rn.hp = MAX_HP + 30; rn.melee = MELEE.hammer; }
   inst.step_ = inst.level.plan.indexOf('boss') - 1; inst._next();
   const bs = inst.boss;
   let t = 0;
-  while (!inst.over && t < 60){
+  while (!inst.over && t < BOSS_MAX + 10){
     for (const i of [0, 1]){
       const x = inst.crew[i].x;
       if (bs.state === 'tell') lean(Math.abs(x - bs.lane) < CHARGE_W + 0.15 ? (bs.lane > 0 ? -0.9 : 0.9) : x, i);
       else if (bs.state === 'rest') lean(bs.lane + (i ? 0.1 : -0.1), i);
+      /* A sweep coming: duck. */
+      if (bs.blasts.some(s => s.d < 0.3)) pose.players[i].hands.right.y = 0.9;
     }
     hurry(inst); inst.step(DT, W, H); t += DT;
   }
   assert.ok(inst.over && !inst.lost, `at ${t.toFixed(0)}s`);
-  assert.ok(t < 40, `won in ${t.toFixed(0)}s, not by time`);
+  assert.ok(t < BOSS_MAX, `won in ${t.toFixed(0)}s, not by time`);
 });
 
 test('the Scout draws', () => {
