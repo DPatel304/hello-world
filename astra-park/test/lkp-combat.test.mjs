@@ -179,7 +179,7 @@ function hugging(i, on = true){
   pose.players[i].lm = lm;
 }
 
-test('while robots are still walking up, hugging yourself heals - not hitting, stepped back', () => {
+test('while robots are still walking up, hugging yourself heals - right where you stand, not hitting', () => {
   const inst = fight();
   run(inst, 0.5);
   const x = inst.crew[0].x, bots = only(inst, [bot(x, 0.95)]);

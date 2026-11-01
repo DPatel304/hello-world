@@ -788,9 +788,8 @@ class LastKnownPosition {
   /* at: { x, y, h, bob } to draw them somewhere else - a trap room's own
      view - instead of at their place in the corridor. */
   _drawCrew(c, i, W, H, at = null){
-    /* Healing in a fight, they've stepped back a little. */
     const rn = this.crew[i], here = pose.players[i].present;
-    const p = at || P(rn.x, RUN - (rn.back || 0) * 0.025, W, H), h = at ? at.h : H * CREW_SIZE;
+    const p = at || P(rn.x, RUN, W, H), h = at ? at.h : H * CREW_SIZE;
     /* Walking through a door; running round the Warden's ring. */
     const round = this.boss && this.boss.move && this.boss.move.t >= 0.8;
     const walking = this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06

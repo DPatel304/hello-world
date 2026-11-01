@@ -20,9 +20,10 @@
    nearest one coming.
 
    While robots are still walking up to you - none in your reach yet -
-   you can hug yourself to heal: you step back and get HUG_HEAL health a
-   second back. Once one's in reach, though, there's no time for that:
-   you're fighting, hug or no hug.
+   you can hug yourself to heal: HUG_HEAL health a second back, right
+   where you stand, your own hits paused while you do. Once one's in
+   reach, though, there's no time for that: you're fighting, hug or no
+   hug.
 
    Run out of health and you fall asleep where you stand - only ever in a
    fight; corridors and trap rooms leave you at 1 at worst. A teammate
@@ -114,7 +115,7 @@ export class Fight {
     this.claps = pose.players.map(() => new ClapWatch());
     this.cranks = pose.players.map(() => new CrankWatch());
     this.hugs = pose.players.map(() => new HugWatch());
-    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; rn.healing = false; rn.back = 0; }
+    for (const rn of game.crew){ rn.swingT = 0; rn.swing = 0; rn.claps = 0; rn.clapAgo = 0; rn.buddies = 0; rn.healing = false; }
     if (waves) this._wave();
   }
 
@@ -164,21 +165,22 @@ export class Fight {
       this.bots.push(this._bot(Math.random() * 1.8 - 0.9, 0.95 + Math.random() * 0.08));
     }
 
-    /* Who's hugging - stepped back to heal - with no robot in reach yet. */
+    /* Who's hugging to heal - where they stand - with no robot in reach yet. */
     for (const i of g.here){
       const rn = g.crew[i];
       rn.healing = this.hugs[i].step(pose.players[i], dt) && !rn.down && !this._inReach(rn).length;
-      rn.back += ((rn.healing ? 1 : 0) - rn.back) * Math.min(1, dt * 6);
       if (rn.healing && rn.hp < rn.max){
         rn.hp = Math.min(rn.max, rn.hp + HUG_HEAL * dt);
         if (Math.random() < dt * 5){ const p = P(rn.x, RUN, W, H); g.bits.push({ kind: 'heart', x: (p.x + (Math.random() - 0.5) * H * 0.06) / W, y: (p.y - H * 0.2) / H, vy: -0.08, age: 0, life: 0.9 }); }
       }
     }
+    /* Robots come for everyone awake, healing or not; the healers' own
+       hits wait. */
     const up = this.up, front = up.filter(i => !g.crew[i].healing);
-    this._aim(front);
+    this._aim(up);
     /* Front first, so those behind queue up behind them. */
     this.bots.sort((a, b) => a.d - b.d);
-    for (const b of this.bots) this._walk(b, front, dt, W, H);
+    for (const b of this.bots) this._walk(b, up, dt, W, H);
     for (const i of front) this._fight(i, dt, W, H, jumped.includes(i));
     this._wake(dt, W, H);
     this.bots = this.bots.filter(b => b.hp > 0);
