@@ -12,7 +12,10 @@
      0.6+   the snare on 2 and 4, tom hits
      0.7+   brass stabs on each bar
      0.85+  snare rolls into each phrase, the clock in sixteenths
-     0.95+  the boss theme over the top */
+     0.95+  the boss theme over the top
+   And below 0, before any of that: the opening's mood (the crash, waking
+   up) - no beat at all, just a low drone, wind, slow dark chords, the
+   wreck creaking and now and then a far-off bell. */
 export const BPM = 140;
 const S16 = 60 / BPM / 4, BAR = S16 * 16;
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -79,8 +82,34 @@ export function createAction(ac, dest){
   /* The clock: a sharp, bright tick. */
   const tick = (t, g = 0.05) => { hit(t, { hp: 8000, dur: 0.025, gain: g }); note(96, t, 0.02, { type: 'square', gain: g * 0.25, cut: 9000, attack: 0.001, rel: 0.015 }); };
 
+  /* The opening's mood, on the same grid: a long drone, wind rising and
+     falling, slow dark chords, a creak, a bell far off. */
+  const MOOD = [[50, 57, 64, 65], [46, 53, 62, 65], [48, 55, 62, 64], [45, 52, 61, 64]];
+  function mood(p, t){
+    const s = p % 16, bar = Math.floor(p / 16) % 8;
+    if (s === 0 && bar === 0) for (const [m, g] of [[26, 0.09], [38, 0.04]]) note(m, t, BAR * 8.1, { type: 'sine', gain: g, cut: 400, attack: 2.5, rel: 2 });
+    if (s === 0 && bar % 2 === 0) for (const m of MOOD[bar / 2]) note(m, t, BAR * 2.2, { type: 'sawtooth', gain: 0.012, cut: 700, attack: 1.4, rel: 1.2, detune: (m % 3 - 1) * 9 });
+    if (s === 0 && bar % 4 === 0){
+      const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(), len = BAR * 4.2;
+      src.buffer = noiseBuf(); src.loop = true; f.type = 'bandpass'; f.Q.value = 1.2;
+      f.frequency.setValueAtTime(280, t); f.frequency.linearRampToValueAtTime(900, t + len * 0.5); f.frequency.linearRampToValueAtTime(320, t + len);
+      g.gain.setValueAtTime(0.0008, t); g.gain.linearRampToValueAtTime(0.045, t + len * 0.5); g.gain.linearRampToValueAtTime(0.0008, t + len);
+      src.connect(f); f.connect(g); g.connect(out); src.start(t); src.stop(t + len + 0.05);
+    }
+    /* the wreck creaking: a slow metal groan */
+    if (s === 8 && bar % 4 === 3){
+      const o = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(115, t + 1.3);
+      f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 6;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.2); g.gain.linearRampToValueAtTime(0, t + 1.4);
+      o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + 1.5);
+    }
+    if (s === 4 && (bar === 2 || bar === 6)) note(bar === 2 ? 81 : 84, t, 2.4, { type: 'sine', gain: 0.025, cut: 6000, attack: 0.005, rel: 2.2, wetK: 0.8 });
+  }
+
   /* Books the sixteenths from step p at time t. */
   function step(p, t, I){
+    if (I < 0) return mood(p, t);
     const s = p % 16, bar = Math.floor(p / 16) % 8, phrase = Math.floor(p / 128);
     const root = ROOTS[bar], ch = CHORDS[bar];
     /* The pad: the chord held through each bar, dark, always there. */

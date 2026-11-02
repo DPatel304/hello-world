@@ -715,7 +715,7 @@ const band = {
    tense track (action.js), booked a little ahead like the band, played
    whatever's in the music folder. */
 const OWN = { action: createAction };
-let own = null, ownTimer = null, ownGain = null, ownI = 0.2;
+let own = null, ownTimer = null, ownGain = null, ownI = -1;
 const ownBand = {
   start(kind){
     if (ownTimer) return;
@@ -725,16 +725,17 @@ const ownBand = {
       own = OWN[kind](AC, ownGain); own.kind = kind;
     }
     own.reset();
-    ownGain.gain.setValueAtTime(0.5 * (0.6 + 0.4 * ownI), AC.currentTime);
+    ownGain.gain.setValueAtTime(0.5 * (0.6 + 0.4 * Math.max(0, ownI)), AC.currentTime);
     ownTimer = setInterval(() => own.book(AC.currentTime + 0.12, ownI), 25);
   },
   stop(){
     clearInterval(ownTimer); ownTimer = null;
     if (ownGain && AC){ const t = AC.currentTime; ownGain.gain.cancelScheduledValues(t); ownGain.gain.setValueAtTime(ownGain.gain.value, t); ownGain.gain.linearRampToValueAtTime(0, t + 0.6); }
   },
+  /* Below 0: the opening's mood, no beat (action.js). */
   intensity(v){
-    ownI = Math.max(0, Math.min(1, v));
-    if (AC && ownGain && ownTimer) ownGain.gain.setTargetAtTime(0.5 * (0.6 + 0.4 * ownI), AC.currentTime, 0.8);
+    ownI = Math.max(-1, Math.min(1, v));
+    if (AC && ownGain && ownTimer) ownGain.gain.setTargetAtTime(0.5 * (0.6 + 0.4 * Math.max(0, ownI)), AC.currentTime, 0.8);
   },
   get on(){ return !!ownTimer; }
 };

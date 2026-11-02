@@ -278,10 +278,9 @@ class LastKnownPosition {
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
     if (n === 0){
       /* The crash site, where they start: the ship down on its side off to
-         the left, wreckage scattered about. */
+         the left, a piece of it thrown clear on the right. */
       this.things.push({ d: this.z + 0.3, kind: 'ship', lane: -3.2, s: 1.4 });
-      for (const [lane, rel, s, k] of [[1.9, 0.22, 1, 1], [1.6, 0.5, 0.9, 2], [-1.8, 0.12, 0.7, 3], [2.5, 0.38, 1.2, 4], [-2, 0.62, 0.9, 5]])
-        this.things.push({ d: this.z + rel, kind: 'wreck', lane, s, n: k });
+      this.things.push({ d: this.z + 0.38, kind: 'wreck', lane: 2.3, s: 1.1, n: 1 });
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
       crystalLine(14, 0.4, 5);
@@ -450,6 +449,8 @@ class LastKnownPosition {
   /* How big the music is: hushed while sneaking, the corridor's walk,
      fights louder, the boss loudest. (The shell reads it.) */
   get mood(){
+    /* The opening: no beat yet - its own quiet, uneasy mood (below 0). */
+    if (this.scene && this.scene.kind === 'intro') return -1;
     if (this.scene || this.levelup) return 0.2;
     const seg = this.seg;
     if (this.boss) return this.boss.done ? 0.5 : 1;
