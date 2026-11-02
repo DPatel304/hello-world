@@ -76,6 +76,10 @@ export const SAFE = 1;                          /* seconds of safety after a hit
 export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment */
 /* A spring: a long pool along the path, SPRING_SECS to run through,
    healing as you go - SPRING_HEAL in all, for running the whole length. */
+/* Below LOW of their health, a heartbeat. */
+export const LOW = 0.3;
+/* The door vote's last BEEPS seconds beep - every second, then quicker. */
+export const BEEPS = 4;
 export const SPRING_SECS = 1.5, SPRING_HEAL = 18;
 export const SPRING_LEN = SPEED * SPRING_SECS;
 /* Springs in each corridor after the first (one more before the boss). */
@@ -340,6 +344,7 @@ class LastKnownPosition {
       return;
     }
     this._cues();
+    this._urgency(dt);
     this.shake = Math.max(0, this.shake - dt * 3);
     const seg = this.seg;
     seg.t += dt;
@@ -378,6 +383,21 @@ class LastKnownPosition {
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d + (th.len || 0) - this.z > -0.15);
     this._stepBits(dt);
+  }
+
+  /* A hit taken: the screen's edges flash red, and a crunch. */
+  ouch(k = 1){ this.redFlash = Math.max(this.redFlash || 0, k); sfx.crunch(); }
+
+  /* The urgency: a heartbeat while anyone's nearly out (quicker the
+     lower), and the edges glowing red with it. */
+  _urgency(dt){
+    this.redFlash = Math.max(0, (this.redFlash || 0) - dt * 3);
+    const low = this.here.map(i => this.crew[i]).filter(rn => !rn.down && rn.played).reduce((m, rn) => Math.min(m, rn.hp / rn.max), 1);
+    this.low = low < LOW ? 1 - low / LOW : 0;
+    if (this.low > 0 && !this.scene && !this.levelup && !this.over){
+      this.beatT = (this.beatT ?? 0) - dt;
+      if (this.beatT <= 0){ sfx.heartbeat(); this.beatT = 1.1 - 0.5 * this.low; this.beatAt = this.t; }
+    } else this.beatT = 0;
   }
 
   /* XP for the team: past the next level's mark, a level up (picked
@@ -610,7 +630,7 @@ class LastKnownPosition {
     rn.hp = Math.max(1, rn.hp - armored(rn, dmg));
     rn.safe = SAFE; rn.hit = 1;
     this.slow = SLOW_FOR; this.shake = Math.min(1, this.shake + 0.5);
-    sfx.thud();
+    this.ouch(); sfx.thud();
     const p = P(rn.x, RUN, W, H);
     this.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.42) / H, vy: -0.08, age: 0, life: 0.9, text: `-${dmg}` });
     this._sparkle(p.x / W, (p.y - H * 0.2) / H, 10, 10);
@@ -630,7 +650,13 @@ class LastKnownPosition {
       return;
     }
     if (seg.wall - this.z > DOOR_STOP + 0.02) return;     /* still coming up to the doors */
+    const was = seg.vote;
     seg.vote -= dt;
+    /* The last seconds beep: each second, then four a second for the last one. */
+    if (seg.vote > 0 && seg.vote < BEEPS){
+      const every = seg.vote < 1 ? 0.25 : 1;
+      if (Math.floor(was / every) !== Math.floor(seg.vote / every)) sfx.beep(seg.vote < 1);
+    }
     const votes = [[], []], who = [[], []];
     for (const i of this.here){
       const rn = this.crew[i];
@@ -653,6 +679,7 @@ class LastKnownPosition {
     seg.choice = door; this.doors.push(door);
     seg.room = seg.kinds[door] === 'mystery' ? this.mystery() : seg.kinds[door];
     sfx.thud(); sfx.whoosh();
+    if (seg.kinds[door] === 'elite'){ sfx.stinger(); this.shake = Math.max(this.shake, 0.6); }
   }
   /* What's behind the ? door. Treasure is only ever found this way. */
   mystery(r = Math.random()){
@@ -892,6 +919,17 @@ class LastKnownPosition {
   _xpAt(W, H){ return { x: W - H * 0.42, y: H * 0.07 }; }
 
   _drawHud(c, W, H){
+    /* Danger at the edges: a red flash on a hit, a red glow pulsing with
+       the heartbeat while anyone's nearly out. */
+    {
+      const beat = this.low > 0 ? Math.exp(-(this.t - (this.beatAt ?? -9)) * 5) : 0;
+      const a = Math.max(this.redFlash || 0, this.low * (0.25 + 0.35 * beat));
+      if (a > 0.01){
+        const g = c.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.62);
+        g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, `rgba(255,30,30,${Math.min(0.6, a * 0.6)})`);
+        c.fillStyle = g; c.fillRect(0, 0, W, H);
+      }
+    }
     /* The boss's health, big across the top. */
     if (this.boss && !this.boss.done) this.boss.hud(c, W, H);
     /* The team's level and XP, top right: a crystal, the level, the bar

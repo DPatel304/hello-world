@@ -121,6 +121,22 @@ function verbHit(amount){
 }
 
 export const sfx = {
+  /* ---- urgency (Last Known Position) ---- */
+  /* A countdown beep: a short, clean electronic pip - higher for the last ones. */
+  beep(hi = false){ blip({ freq: hi ? 1760 : 1320, dur: hi ? 0.09 : 0.07, type: 'square', gain: 0.07 }); blip({ freq: hi ? 1760 : 1320, dur: 0.05, type: 'sine', gain: 0.08 }); },
+  /* An alarm pip that climbs as k goes 0..1: something's about to happen. */
+  alarm(k = 0){ blip({ freq: 700 + 900 * k, to: 760 + 1000 * k, dur: 0.1, type: 'sawtooth', gain: 0.05 }); },
+  /* A klaxon: two low honks. */
+  klaxon(){ for (const d of [0, 0.32]){ blip({ freq: 220, to: 180, dur: 0.28, type: 'sawtooth', gain: 0.12, delay: d }); blip({ freq: 277, to: 230, dur: 0.28, type: 'square', gain: 0.05, delay: d }); } },
+  /* A heartbeat: lub-dub, low and soft. */
+  heartbeat(){ blip({ freq: 70, to: 45, dur: 0.16, type: 'sine', gain: 0.35 }); blip({ freq: 62, to: 40, dur: 0.14, type: 'sine', gain: 0.25, delay: 0.22 }); },
+  /* Incoming: a sharp double beep. */
+  alert(){ for (const d of [0, 0.14]) blip({ freq: 1180, dur: 0.09, type: 'square', gain: 0.08, delay: d }); },
+  /* A hit taken: a crunch and a thump. */
+  crunch(){ hiss({ dur: 0.14, gain: 0.22, hp: 600, sweep: -300, type: 'bandpass', q: 0.9 }); blip({ freq: 140, to: 50, dur: 0.18, type: 'sine', gain: 0.35 }); },
+  /* The skull path: a big low drum hit and a dark chord. */
+  stinger(){ blip({ freq: 90, to: 38, dur: 0.6, type: 'sine', gain: 0.5 }); hiss({ dur: 0.5, gain: 0.15, hp: 200, sweep: -100 });
+    for (const f of [146.8, 174.6, 207.7]) blip({ freq: f, dur: 0.9, type: 'sawtooth', gain: 0.03, delay: 0.02 }); },
   tick(){ blip({ freq: 1500, dur: 0.05, type: 'square', gain: 0.10 }); },
   /* A gentle, rounded bloop with the faintest click and a touch of room.
      size 0 is the smallest balloon, 1 the biggest - bigger is lower and

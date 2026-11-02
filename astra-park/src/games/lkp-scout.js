@@ -87,6 +87,11 @@ export class Scout {
       this.staggered -= dt;
       if (this.staggered <= 0){ b.burn = 1; b.wide = WIDE; this._go('back'); }
     } else this._move(dt, W, H);
+    /* Winding up to charge: an alarm climbing, quicker and higher. */
+    if (this.state === 'tell'){
+      this.beepT = (this.beepT || 0) - dt;
+      if (this.beepT <= 0){ const k = Math.min(1, this.st / TELL); sfx.alarm(k); this.beepT = 0.24 - 0.14 * k; }
+    }
     if (this.phase >= 1) this._sweeps(dt, W, H);
     if (this.phase >= 1 && Math.random() < dt * 6) this.dust.push({ x: Math.random() * 2.4 - 1.2, d: Math.random() * 0.9, age: 0 });
     for (const d of this.dust) d.age += dt;
@@ -94,7 +99,7 @@ export class Scout {
     if (b.hp <= 0 || this.t > this.len) this._win(W, H);
   }
 
-  _go(state){ this.state = state; this.st = 0; }
+  _go(state){ this.state = state; this.st = 0; this.beepT = 0; }
 
   /* Charge, stand, trot back, wait - round and round. */
   _move(dt, W, H){
@@ -134,7 +139,7 @@ export class Scout {
     this.staggered = STAGGER; this.state = 'stagger'; b.burn = BURN; b.wide = 0.6;
     b.x = 0; b.d = FRONT; this.blasts = [];
     this.banner = 1.6; this.g.shake = 1;
-    sfx.boom(); sfx.siren(true);
+    sfx.boom(); sfx.klaxon();
   }
 
   /* From phase 2: a sweep of its arm, rolling up at head height. */

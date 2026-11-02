@@ -142,7 +142,7 @@ export class Fight {
       }
     } else { this.queue = n; this.streamT = 1; }
     this.banner = 1.6;
-    sfx.siren(this.wave > 0);
+    sfx.alert();
   }
 
   get up(){ return this.g.here.filter(i => !this.g.crew[i].down); }
@@ -228,7 +228,7 @@ export class Fight {
     dmg = armored(rn, dmg);
     rn.hp = Math.max(0, rn.hp - dmg); rn.hit = Math.max(rn.hit, dmg > BIG ? 1 : 0.5);
     if (dmg > BIG){
-      g.shake = Math.min(1, g.shake + 0.5); sfx.thud();
+      g.shake = Math.min(1, g.shake + 0.5); sfx.thud(); g.ouch?.();
       const p = P(rn.x, RUN, W, H);
       g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.25) / H, vy: -0.08, age: 0, life: 0.9, text: `-${dmg}` });
     } else if (Math.random() < 0.35) sfx.tick();

@@ -263,3 +263,38 @@ test('a door chosen, the whole crew walk over to it and through together', () =>
   assert.ok(inst.crew.slice(0, 3).every(rn => Math.abs(rn.x - DOORS[d]) < 0.25), inst.crew.slice(0, 3).map(r => r.x.toFixed(2)).join());
   assert.ok(inst.speed > 0, 'walking');
 });
+
+/* ---------- the urgency ---------- */
+
+test('the door vote beeps its last seconds - each second, then quicker - and the skull path lands with a drum hit', async () => {
+  const { sfx } = await import('../src/audio/sound.js');
+  const { BEEPS } = await import('../src/games/lkp-game.js');
+  const was = { beep: sfx.beep, stinger: sfx.stinger };
+  let beeps = 0, fast = 0, stung = 0;
+  sfx.beep = (hi) => { beeps++; if (hi) fast++; }; sfx.stinger = () => { stung++; };
+  try {
+    const inst = atDoors([0], ['elite', 'mystery']);
+    run(inst, VOTE);
+    assert.ok(beeps >= BEEPS + 2, `beeps: ${beeps}`);
+    assert.ok(fast >= 3, `quick ones at the end: ${fast}`);
+    assert.equal(inst.seg.choice, 0);
+    assert.equal(stung, 1);
+  } finally { Object.assign(sfx, was); }
+});
+
+test('nearly out of health: a heartbeat, and the edges glow red; a hit flashes them', async () => {
+  const { sfx } = await import('../src/audio/sound.js');
+  const was = sfx.heartbeat; let beats = 0;
+  sfx.heartbeat = () => { beats++; };
+  try {
+    const inst = quiet();
+    run(inst, 2);
+    assert.equal(beats, 0, 'not while healthy');
+    inst.crew[0].hp = 10;
+    run(inst, 3);
+    assert.ok(beats >= 3, `beats: ${beats}`);
+    assert.ok(inst.low > 0.5);
+    inst.ouch();
+    assert.equal(inst.redFlash, 1);
+  } finally { sfx.heartbeat = was; }
+});

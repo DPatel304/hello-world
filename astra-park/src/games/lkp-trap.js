@@ -106,6 +106,7 @@ export class Lights {
   _zap(i, W, H){
     const g = this.g, rn = g.crew[i];
     rn.hp = Math.max(1, rn.hp - armored(rn, ZAP)); rn.hit = 1; rn.zapped = 1; rn.safe = ZAP_SAFE;
+    g.ouch?.(0.8);
     rn.along = Math.max(0, rn.along - KNOCK);
     const p = Q(rn.x, rn.along, W, H);
     g._sparkle(p.x / W, (p.y - H * 0.08) / H, 14, 55);
