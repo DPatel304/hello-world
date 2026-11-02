@@ -12,6 +12,7 @@ import { arms, armored } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
+import { Intro } from './lkp-intro.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -169,7 +170,8 @@ class LastKnownPosition {
     this.boss = null;               /* the level's boss, at the end */
     this.faces = new FaceCam();
     this.captain = new Captain();
-    this.scene = story.on ? new Scene('opening', this) : null;
+    /* The opening: a title, the crash, waking up, Nova's call (lkp-intro.js). */
+    this.scene = story.on ? new Intro(this) : null;
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
     this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
@@ -760,6 +762,7 @@ class LastKnownPosition {
     /* The scenes: the opening, the ending, each its own picture; the
        others over the play, darkened. */
     const sc = this.scene || (this.out && this.out.scene);
+    if (sc && sc.kind === 'intro'){ sc.draw(c, W, H); return; }
     if (sc && (sc.kind === 'opening' || sc.kind === 'won' || sc.kind === 'lost')){
       if (sc.kind === 'opening') drawOpening(c, W, H, sc.t);
       else drawEnding(c, W, H, this.out.t, sc.kind === 'won');
@@ -901,7 +904,7 @@ class LastKnownPosition {
     const rn = this.crew[i], here = pose.players[i].present;
     const p = at || P(rn.x, RUN, W, H), h = at ? at.h : H * CREW_SIZE;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -914,7 +917,7 @@ class LastKnownPosition {
     if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */
     const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
-    drawHealth(c, p.x, top - H * 0.03, h * 0.53, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
+    if (!(at && at.noBar)) drawHealth(c, p.x, top - H * 0.03, h * 0.53, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 

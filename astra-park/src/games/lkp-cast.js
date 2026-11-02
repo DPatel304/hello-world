@@ -36,7 +36,9 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
     circ(c, x + d * (30 + 30 * k) * u, base - (6 + 22 * k) * u, (10 + 22 * k) * u);
   }
   c.translate(x, base - st.air - bounce); c.rotate(st.lean * 0.2 + run * Math.sin(ph) * 0.05);
-  if (st.down){ c.translate(h * 0.4, -h * 0.16); c.rotate(-Math.PI / 2); c.globalAlpha = 0.6; }
+  /* Down (lying on the floor) - or, a number 0..1, part of the way: getting up. */
+  const dn = st.down === true ? 1 : +st.down || 0;
+  if (dn > 0){ c.translate(h * 0.4 * dn, -h * 0.16 * dn); c.rotate(-Math.PI / 2 * dn); if (st.down === true) c.globalAlpha = 0.6; }
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   const trim = col, trimD = mix(col, '#101030', 0.35);

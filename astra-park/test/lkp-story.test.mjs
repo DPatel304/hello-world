@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
-import { Captain, script, NAMES } from '../src/games/lkp-captain.js';
+import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
+import { TITLE, DARK, WAKE, WIGGLE, UP, CRASH_MAX, RING_MAX } from '../src/games/lkp-intro.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -17,25 +18,56 @@ function crew(n = 1){
 }
 const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true });
 
-test('the run opens with the captain\'s scene - nothing moves till it is done', () => {
+test('the run opens on its title, the crash - wiggle to wake up, a hand to your ear to answer Nova - then off they go', () => {
   story.on = true; crew(2);
   const inst = game.create(2);
-  assert.equal(inst.scene.kind, 'opening');
+  const intro = inst.scene;
+  assert.equal(intro.kind, 'intro');
   const z = inst.z;
-  run(inst, 3);
-  assert.equal(inst.z, z, 'still');
+  run(inst, TITLE + DARK + WAKE + 0.2);
+  assert.equal(intro.stage, 'crash');
   inst.draw(fake(), W, H);
+  /* Lying there till they wiggle - player 0 wiggles and gets up; player 1 doesn't. */
+  run(inst, 2);
+  assert.equal(intro.stage, 'crash');
+  for (let k = 0; k < (WIGGLE + UP + 0.3) / DT; k++){ pose.players[0].hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 2 }; inst.step(DT, W, H); }
+  assert.equal(intro.up[0], 1, 'up');
+  assert.equal(intro.up[1], 0, 'still down');
+  for (let k = 0; k < (WIGGLE + UP + 1.5) / DT; k++){ pose.players[1].hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 2 }; inst.step(DT, W, H); }
+  pose.players[1].hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 0 };
+  assert.equal(intro.stage, 'ring');
+  inst.draw(fake(), W, H);
+  /* Nova calling: one of them answers. */
+  run(inst, 1);
+  assert.equal(intro.stage, 'ring');
+  pose.players[1].hands.right = { x: 0.5, y: 0.1, vx: 0, vy: 0, speed: 0 };
+  run(inst, 0.6);
+  assert.equal(intro.answered, 1);
+  pose.players[1].hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 0 };
+  run(inst, 1.2);
+  assert.equal(intro.stage, 'talk');
+  inst.draw(fake(), W, H);
+  assert.equal(inst.z, z, 'nothing moves');
   const len = script('opening', inst).reduce((s, [who, text]) => s + lineTime(text, who) + 0.5, 0);
-  run(inst, len);
+  run(inst, len + 0.5);
   assert.equal(inst.scene, null);
   run(inst, 1);
   assert.ok(inst.z > z, 'and off they go');
   story.on = false;
 });
 
+test('nobody waking or answering never holds it up for ever', () => {
+  story.on = true; crew(1);
+  const inst = game.create(1);
+  run(inst, TITLE + DARK + WAKE + CRASH_MAX + UP + 2 + RING_MAX + 2);
+  assert.equal(inst.scene.stage, 'talk');
+  story.on = false;
+});
+
 test('a wave skips a scene', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
+  inst.scene = new Scene('opening', inst);
   for (let k = 0; k < 120 && inst.scene; k++){
     pose.players[0].hands.right = { x: 0.5 + (Math.floor(k / 4) % 2 ? 0.08 : -0.08), y: 0.3, vx: 0, vy: 0, speed: 0 };
     inst.step(DT, W, H);

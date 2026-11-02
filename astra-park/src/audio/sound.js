@@ -124,6 +124,10 @@ export const sfx = {
   /* A footstep: a soft boot on dirt - a low thud and a little scuff; k
      varies it so a run of them isn't one sound over and over. */
   step(k = 0, gain = 1){ blip({ freq: 95 + k * 12, to: 55, dur: 0.07, type: 'sine', gain: 0.16 * gain }); hiss({ dur: 0.05, gain: 0.05 * gain, hp: 900 + k * 300, type: 'bandpass', q: 0.8 }); },
+  /* Ears ringing after a knock: a thin high tone fading away. */
+  ringing(){ blip({ freq: 3400, dur: 2.4, type: 'sine', gain: 0.025 }); blip({ freq: 3460, dur: 2.2, type: 'sine', gain: 0.015 }); },
+  /* The radio ringing: a quick two-tone trill. */
+  trill(){ for (let k = 0; k < 6; k++) blip({ freq: k % 2 ? 1320 : 1760, dur: 0.06, type: 'square', gain: 0.05, delay: k * 0.07 }); },
   /* ---- urgency (Last Known Position) ---- */
   /* A countdown beep: a short, clean electronic pip - higher for the last ones. */
   beep(hi = false){ blip({ freq: hi ? 1760 : 1320, dur: hi ? 0.09 : 0.07, type: 'square', gain: 0.07 }); blip({ freq: hi ? 1760 : 1320, dur: 0.05, type: 'sine', gain: 0.08 }); },

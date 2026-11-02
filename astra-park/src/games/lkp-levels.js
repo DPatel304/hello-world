@@ -53,7 +53,7 @@ export const LEVELS = [
     },
     lines: {
       opening: [
-        ['nova', 'Crew, wake up. This is Commander Nova.', ''],
+        ['nova', 'Crew, do you read me? This is Commander Nova. Good - you\'re all up.', ''],
         ['nova', 'We crash-landed. I\'m hurt, stuck in the wreck - and you were thrown clear, a long way from the ship.', ''],
         ['nova', 'The engine\'s missing a piece. My scans say there\'s one in an old depot, through this forest.', 'FIND THE ENGINE PIECE'],
         ['nova', 'Head that way. I\'ll guide you. Let\'s go!', 'GO!']
