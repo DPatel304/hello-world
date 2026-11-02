@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import game, { MAX_HP, PLAYTEST, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
-import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_CRYSTALS } from '../src/games/lkp-trap.js';
+import { GRACE, CAUGHT, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_CRYSTALS } from '../src/games/lkp-trap.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 30;
@@ -67,15 +67,37 @@ test('marching on green walks you up the hall; standing still, you stay put', ()
   assert.ok(inst.crew[0].along - a > STRIDE * 0.5, `marched: ${inst.crew[0].along - a}`);
 });
 
+test('any movement on green walks you up - waving your arms will do - and stopping stops you', () => {
+  const inst = room();
+  lightIs(inst, 'green');
+  const a = inst.crew[0].along, left = inst.trap.left;
+  run(inst, Math.min(1.2, left - 0.3), () => 'wriggle');
+  const b = inst.crew[0].along;
+  assert.ok(b - a > STRIDE * 0.5, `waved: ${b - a}`);
+  run(inst, 0.3, () => 'still');
+  const c = inst.crew[0].along;
+  run(inst, 0.4, () => 'still');
+  assert.ok(inst.crew[0].along - c < 0.002, 'stopped');
+});
+
+test('a quick fidget on red is forgiven', () => {
+  const inst = room();
+  lightIs(inst, 'red');
+  run(inst, GRACE + 0.1, () => 'still');
+  run(inst, CAUGHT * 0.5, () => 'wriggle');
+  run(inst, 0.6, () => 'still');
+  assert.equal(inst.crew[0].hp, MAX_HP);
+});
+
 test('moving on red gets you zapped - after a moment to stop - but never below 1', () => {
   const inst = room();
   lightIs(inst, 'red');
-  run(inst, GRACE * 0.7, () => 'wriggle');
-  assert.equal(inst.crew[0].hp, MAX_HP, 'a moment to stop');
+  run(inst, GRACE + CAUGHT * 0.6, () => 'wriggle');
+  assert.equal(inst.crew[0].hp, MAX_HP, 'a moment to stop - and a moment more');
   run(inst, 0.5, () => 'wriggle');
   assert.equal(inst.crew[0].hp, MAX_HP - ZAP, 'zapped');
   inst.crew[0].hp = 3;
-  for (let k = 0; k < 3; k++){ lightIs(inst, "red"); run(inst, 1, () => "wriggle"); }
+  for (let k = 0; k < 3; k++){ lightIs(inst, "red"); run(inst, GRACE + CAUGHT + 0.2, () => "wriggle"); }
   assert.equal(inst.crew[0].hp, 1);
   assert.equal(inst.crew[0].down, false);
 });

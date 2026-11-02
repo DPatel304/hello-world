@@ -440,17 +440,30 @@ export function worldCrystal(c, x, y, s, t = 0){
   c.restore();
 }
 
-/* A spring: a pool of glowing healing water, bubbles rising. Run through it. */
-export function worldFountain(c, W, H, rel, lane, t, used, L){
-  const p = P(lane, rel, W, H), s = H * 0.0011 * p.k;
-  c.globalAlpha = used ? 0.4 : 1;
-  c.fillStyle = L.rock[1]; c.beginPath(); c.ellipse(p.x, p.y + 4 * s, 175 * s, 56 * s, 0, 0, 6.2832); c.fill();
-  const g = c.createRadialGradient(p.x - 40 * s, p.y - 10 * s, 2, p.x, p.y, 160 * s); g.addColorStop(0, '#d9ffff'); g.addColorStop(0.4, L.water); g.addColorStop(1, '#1b7f9e');
-  c.fillStyle = g; c.beginPath(); c.ellipse(p.x, p.y, 160 * s, 46 * s, 0, 0, 6.2832); c.fill();
-  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = Math.max(1, 2 * p.k);
-  const ring = (t * 0.6) % 1; c.beginPath(); c.ellipse(p.x + 20 * s, p.y, 140 * s * ring, 40 * s * ring, 0, 0, 6.2832); c.stroke();
-  glow(c, p.x, p.y - 30 * s, 190 * s, L.water, 0.5);
+/* A spring: a long pool of glowing healing water along the path, len
+   deep - rocks round its edge, ripples, bubbles rising. Run along it. */
+export function worldFountain(c, W, H, rel, lane, t, len, L){
+  const n = 14, half = 0.32, from = Math.max(-0.08, rel), to = rel + len;
+  if (to < -0.08 || from > 1.05) return;
+  const edge = (side, out = 0) => { const pts = []; for (let i = 0; i <= n; i++){ const r = from + (to - from) * i / n, e = Math.sin(Math.PI * Math.min(1, Math.max(0, (r - rel) / len))) ** 0.35; pts.push(P(lane + side * (half * e + out), r, W, H)); } return pts; };
+  const shape = (out) => { const a = edge(-1, out), b = edge(1, out); c.beginPath(); a.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); for (let i = b.length - 1; i >= 0; i--) c.lineTo(b[i].x, b[i].y); c.closePath(); };
+  const near = P(lane, from, W, H), farP = P(lane, to, W, H);
+  c.fillStyle = L.rock[1]; shape(0.06); c.fill();
+  const g = c.createLinearGradient(0, farP.y, 0, near.y); g.addColorStop(0, mix(L.water, L.haze, 0.3)); g.addColorStop(0.5, L.water); g.addColorStop(1, '#1b7f9e');
+  c.fillStyle = g; shape(0); c.fill();
+  /* light on the water, rippling down its length */
+  c.strokeStyle = 'rgba(255,255,255,.45)';
+  for (let k = 0; k < 5; k++){
+    const u = ((t * 0.35 + k / 5) % 1), r = rel + len * u; if (r < from) continue;
+    const q = P(lane, r, W, H), w = (P(lane + half * 0.7, r, W, H).x - q.x);
+    c.lineWidth = Math.max(1, 2 * q.k); c.beginPath(); c.ellipse(q.x, q.y, Math.abs(w), Math.abs(w) * 0.12, 0, 0, 6.2832); c.stroke();
+  }
+  glow(c, (near.x + farP.x) / 2, (near.y + farP.y) / 2, Math.abs(near.y - farP.y) * 0.8 + H * 0.05 * near.k, L.water, 0.45);
+  /* bubbles rising all along it */
   c.fillStyle = 'rgba(210,255,255,.9)';
-  for (let k = 0; k < 9; k++){ const u = (t * 0.5 + k / 9) % 1; circ(c, p.x - 110 * s + k * 27 * s, p.y - (20 + u * 160) * s, (5 - u * 3) * s + 0.6); }
-  c.globalAlpha = 1;
+  for (let k = 0; k < 14; k++){
+    const r = rel + len * ((k * 0.37) % 1); if (r < from || r > 1) continue;
+    const q = P(lane + (((k * 0.61) % 1) - 0.5) * half, r, W, H), u = (t * 0.6 + k / 14) % 1;
+    circ(c, q.x, q.y - u * H * 0.12 * q.k, (H * 0.004 * (1 - u * 0.6)) * q.k + 0.5);
+  }
 }

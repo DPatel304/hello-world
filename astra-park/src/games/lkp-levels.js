@@ -49,7 +49,7 @@ export const LEVELS = [
       blocker: ['Fallen tree! Lean to go around it.', 'LEAN!'],
       beam: ['Low branch! Duck under it!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
-      fountain: ['Spring water! Run through it to heal up.', 'HEAL']
+      fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
     lines: {
       opening: [

@@ -74,7 +74,10 @@ const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10 };   /* ledge: a breach across part of the floor */
 export const SAFE = 1;                          /* seconds of safety after a hit */
 export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment */
-export const HEAL = 30;
+/* A spring: a long pool along the path, SPRING_SECS to run through,
+   healing as you go - SPRING_HEAL in all, for running the whole length. */
+export const SPRING_SECS = 1.5, SPRING_HEAL = 18;
+export const SPRING_LEN = SPEED * SPRING_SECS;
 /* Springs in each corridor after the first (one more before the boss). */
 export const SPRINGS = 2;                         /* a repair station */
 export const VOTE = 10;                         /* seconds to vote - always the whole time, to think it over */
@@ -258,7 +261,7 @@ class LastKnownPosition {
       if (full){ add(secs, { kind: 'gap', a: -1.05, b: 1.05 }); [-0.5, 0, 0.5].forEach(l => add(secs, { kind: 'crystal', lane: l, high: true })); }
       else { const a = s < 0 ? -1.05 : 0.05, b = a + 1; add(secs, { kind: 'ledge', a, b }); crystalLine(secs - 0.5, s < 0 ? 0.6 : -0.6, 3); }
     };
-    const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set() });
+    const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
     if (n === 0){
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
@@ -373,7 +376,7 @@ class LastKnownPosition {
       }
     }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
-    this.things = this.things.filter(th => th.d - this.z > -0.15);
+    this.things = this.things.filter(th => th.d + (th.len || 0) - this.z > -0.15);
     this._stepBits(dt);
   }
 
@@ -557,6 +560,22 @@ class LastKnownPosition {
      to run through, things to dodge. */
   _pass(before, W, H){
     for (const th of this.things){
+      /* A spring heals all the way along it: for the stretch run through
+         this step. */
+      if (th.kind === 'fountain'){
+        const len = th.len || SPRING_LEN, a = Math.max(before + RUN, th.d), b = Math.min(this.z + RUN, th.d + len);
+        if (b <= a) continue;
+        for (const i of this.here){
+          const rn = this.crew[i];
+          if (Math.abs(rn.x - th.lane) > FOUNTAIN_REACH) continue;
+          if (!th.used.has(i)){ th.used.add(i); sfx.twinkle(); }
+          if (rn.hp < rn.max){
+            rn.hp = Math.min(rn.max, rn.hp + SPRING_HEAL * (b - a) / len);
+            if (Math.random() < 0.3){ const p = P(rn.x, RUN, W, H); this._sparkle(p.x / W, (p.y - H * 0.15) / H, 3, 140); }
+          }
+        }
+        continue;
+      }
       const now = th.d - this.z, was = th.d - before;
       if (!(was >= RUN && now < RUN)) continue;
       for (const i of this.here){
@@ -568,14 +587,6 @@ class LastKnownPosition {
           this.gain(1, p.x / W, y);
           sfx.jar(1 + (this.crystals % 8));
           this._sparkle(p.x / W, y, 6, 185);
-          continue;
-        }
-        if (th.kind === 'fountain'){
-          if (th.used.has(i) || Math.abs(rn.x - th.lane) > FOUNTAIN_REACH) continue;
-          th.used.add(i);
-          if (rn.hp < rn.max){ rn.hp = Math.min(rn.max, rn.hp + HEAL); sfx.twinkle(); }
-          const p = P(rn.x, RUN, W, H);
-          this._sparkle(p.x / W, (p.y - H * 0.2) / H, 14, 140);
           continue;
         }
         if (rn.safe > 0) continue;
@@ -793,7 +804,7 @@ class LastKnownPosition {
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': drawCrystal(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
-      case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.used.size >= this.here.length); break;
+      case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.len || SPRING_LEN); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;

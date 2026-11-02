@@ -5,13 +5,14 @@
    along the near end, and across the far end is the finish line, with a
    great cleaning robot slumped beyond it. Before the robots have woken
    (the depot) it's asleep - snoring, Z z z; after, it's a sentry,
-   recharging. While it is (the light on it green), walk or run on the
-   spot to go up the hall - walking gets you there, running gets you
-   there quicker (lean to go left and right, as ever). When it stirs
-   (yellow), its eye flickering, it's about to look; when its eye opens
-   (red) it's looking - and anyone it sees really moving (after a
-   moment's GRACE to stop - and a wobble, a sway or a fidget is fine) gets
-   zapped: ZAP health, knocked back a bit, a second's safety. A trap room
+   recharging. While it is (the light on it green), any movement at all
+   - marching, dancing, waving your arms - walks your astronaut up the
+   hall, and more of it goes quicker; stop, and they stop (lean to go left
+   and right, as ever). When it stirs (yellow), its eye flickering, it's
+   about to look; when its eye opens (red) it's looking - and it's
+   forgiving: a GRACE to stop, and after that only someone who keeps
+   really moving for CAUGHT seconds gets zapped (a wobble, a sway or a
+   fidget is fine): ZAP health, knocked back a bit, a second's safety. A trap room
    never puts anyone to sleep - 1 health at worst.
 
    A pile of crystals waits past the finish line. The first over the line
@@ -23,7 +24,7 @@
    corridor's P. */
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
-import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
+import { MoveWatch } from '../tracking/gestures.js';
 import { drawCrystal, PAL } from './lkp-art.js';
 import { worldHall, worldSleeper } from './lkp-places.js';
 import { armored } from './lkp-weapons.js';
@@ -31,9 +32,13 @@ import { armored } from './lkp-weapons.js';
 /* How long each light lasts (seconds: shortest, longest), and a moment's
    red to start, before the first green. */
 export const GREEN = [2, 4], YELLOW = 0.8, RED = [1.5, 3], READY = 1.5;
+/* Going: moving (body sizes a second) less than GO_MIN is standing still;
+   GO_FULL or more is full speed. */
+export const GO_MIN = 0.3, GO_FULL = 1.2;
 /* Stopping: this long after red to keep still; moving less than STILL
-   (body sizes a second) counts as still. */
-export const GRACE = 0.6, STILL = 0.8;
+   counts as still; and it takes CAUGHT seconds of moving more than that,
+   while it's looking, to be zapped. */
+export const GRACE = 0.9, STILL = 1.0, CAUGHT = 0.4;
 /* Up the hall (0 to 1) a second, running all-out (walking is about half). */
 export const STRIDE = 0.09;
 export const ZAP = 10, KNOCK = 0.08, ZAP_SAFE = 1.2;
@@ -58,9 +63,8 @@ export class Lights {
     this.g = game; this.len = len;
     this.t = 0; this.light = 'red'; this.left = READY; this.redT = Infinity;   /* the first red's only to get ready: nobody's zapped */
     this.done = false; this.clearT = 0; this.fade = 0;
-    this.marches = pose.players.map(() => new MarchWatch());
     this.moves = pose.players.map(() => new MoveWatch());
-    for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; }
+    for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; rn.caught = 0; }
     /* The pile: two heaps past the finish line, either side of the robot. */
     this.pile = Array.from({ length: CLEAR_CRYSTALS }, (_, k) => ({ lane: (k % 2 ? 1 : -1) * (0.55 + Math.random() * 0.3), up: Math.random() * 0.05, z: k / 2 }));
   }
@@ -82,11 +86,15 @@ export class Lights {
 
     for (const i of g.here){
       const rn = g.crew[i], p = pose.players[i], mouse = pose.mouse.active;
-      const march = this.marches[i].step(p, dt, mouse), moving = this.moves[i].step(p, dt, mouse);
-      rn.marching = march;
+      const moving = this.moves[i].step(p, dt, mouse);
+      const go = Math.max(0, Math.min(1, (moving - GO_MIN) / (GO_FULL - GO_MIN)));
+      rn.marching = go;
       if (rn.over) continue;
-      if (this.light !== 'red') rn.along = Math.min(1, rn.along + STRIDE * march * dt);
-      else if (looking && rn.safe <= 0 && moving > STILL) this._zap(i, W, H);
+      if (this.light !== 'red'){ rn.along = Math.min(1, rn.along + STRIDE * go * dt); rn.caught = 0; }
+      else if (looking && rn.safe <= 0){
+        rn.caught = moving > STILL ? rn.caught + dt : Math.max(0, rn.caught - dt * 2);
+        if (rn.caught >= CAUGHT){ rn.caught = 0; this._zap(i, W, H); }
+      }
       if (rn.along >= 1 && !rn.over){ rn.over = true; sfx.twinkle(); }
     }
 
@@ -158,7 +166,7 @@ export class Lights {
     for (const i of order){
       const rn = g.crew[i], q = Q(rn.x, rn.along, W, H);
       /* Walking, a steady bob; running, a quicker, bigger one. */
-      const going = this.light !== 'red' && !this.done ? rn.marching : 0;
+      const going = this.light !== 'red' && !this.done ? rn.marching : 0;   /* frozen the moment they stop */
       drawCrew(i, q.x, q.y, H * 0.2 * q.k, going > 0.1 ? Math.abs(Math.sin(this.t * (6 + 8 * going) + i)) * H * (0.006 + 0.016 * going) : 0);
     }
     /* In from the door: a quick fade up from black. */

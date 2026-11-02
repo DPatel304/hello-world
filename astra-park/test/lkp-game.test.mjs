@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, HEAL, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS, ZOOM_IN, story } from '../src/games/lkp-game.js';
+import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, SPRING_SECS, SPRING_HEAL, SPRING_LEN, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS, ZOOM_IN, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
 import { RUN, DOORS } from '../src/games/lkp-art.js';
@@ -119,12 +119,14 @@ test('crystals are picked up by running through them, for the whole team', () =>
   assert.equal(inst.crystals, 5);
 });
 
-test('a repair station heals whoever runs through it', () => {
+test('a spring heals whoever runs along it - a little at a time, SPRING_HEAL for the whole length', () => {
   const inst = quiet();
   inst.crew[0].hp = 50;
-  ahead(inst, 'fountain', 0.5, { lane: inst.crew[0].x, used: new Set() });
-  run(inst, 1);
-  assert.equal(hp(inst), 50 + HEAL);
+  ahead(inst, 'fountain', 0.5, { lane: inst.crew[0].x, used: new Set(), len: SPRING_LEN });
+  run(inst, 0.5 + SPRING_SECS * 0.5);
+  assert.ok(hp(inst) > 50 && hp(inst) < 50 + SPRING_HEAL, `halfway along: ${hp(inst)}`);
+  run(inst, SPRING_SECS);
+  assert.ok(Math.abs(hp(inst) - 50 - SPRING_HEAL) < 0.5, `all along: ${hp(inst)}`);
 });
 
 /* ---------- the crossroads ---------- */

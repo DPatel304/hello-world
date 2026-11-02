@@ -146,15 +146,17 @@ export function drawCrystal(c, x, y, s, t){
 }
 
 /* A repair station: a green ring with a plus, standing on the floor. */
-export function drawFountain(c, W, H, rel, lane, t, used){
-  if (PAL.world) return worldFountain(c, W, H, rel, lane, t, used, PAL.world);
-  const p = P(lane, rel, W, H), r = H * 0.09 * p.k, y = p.y - r * 1.15;
-  c.globalAlpha = used ? 0.35 : 1;
-  c.strokeStyle = PAL.fountain; c.lineWidth = Math.max(2, r * 0.22);
-  c.beginPath(); c.arc(p.x, y, r, 0, 6.2832); c.stroke();
+export function drawFountain(c, W, H, rel, lane, t, len = 0.45){
+  if (PAL.world) return worldFountain(c, W, H, rel, lane, t, len, PAL.world);
+  /* A long green strip along the floor, a plus at its near end. */
+  const n = 8, half = 0.3;
+  c.fillStyle = 'rgba(34,197,94,.35)'; c.beginPath();
+  for (let i = 0; i <= n; i++){ const q = P(lane - half, rel + len * i / n, W, H); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); }
+  for (let i = n; i >= 0; i--){ const q = P(lane + half, rel + len * i / n, W, H); c.lineTo(q.x, q.y); }
+  c.fill();
+  const p = P(lane, rel, W, H), r = H * 0.05 * p.k, y = p.y - r * 1.2;
   c.fillStyle = PAL.fountain;
   c.fillRect(p.x - r * 0.15, y - r * 0.55, r * 0.3, r * 1.1); c.fillRect(p.x - r * 0.55, y - r * 0.15, r * 1.1, r * 0.3);
-  c.globalAlpha = 1;
 }
 
 /* ---------- the crossroads ---------- */
