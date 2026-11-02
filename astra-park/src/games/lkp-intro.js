@@ -1,22 +1,23 @@
 /* Last Known Position's opening: picked from the console, it doesn't throw
    you straight in - it tells you where you are, and lets your body do it.
-   A camera of its own moves over the very place the run starts - the
-   game draws it (its crash site: the ship down on its side, wreckage) -
-   and comes to rest on the game's own view, so play just carries on.
+   A camera of its own: a staged crash site - the crew lying about the
+   downed ship - then a whip pan round onto the game's own view, and play
+   just carries on.
 
      title    the game's name over the planet
      dark     black: ears ringing, a heartbeat - knocked out
      pov      through your own eyes, lying there: blinking awake, the world
               swimming into focus, looking round - the sky, the ship
-     zoom     the camera pulls back and out: the whole crash site, the
-              ship toppled but in one piece, smoking, the crew lying there
+     zoom     the camera pulls back into a low, letterboxed shot of the
+              crash site - the ship down behind, toppled but in one piece,
+              smoking; the crew lying about it, not in a line
      crash    WIGGLE TO WAKE UP: each astronaut sits up and stands when
               their own player moves
      ring     the radio ringing - CMDR NOVA. A hand to your ear answers
-     talk     a closer, lower, letterboxed shot of the crew by the ship
-              while she talks (her opening lines - a wave skips them)
-     pan      the camera swings round onto the path behind them - the
-              game's view - and they're off; she carries on with the
+     talk     the same shot while she talks (her opening lines - a wave
+              skips them)
+     pan      the camera whips round onto the path - the game's view -
+              and they're off; she carries on with the
               briefing on the radio as they run (lkp-game.js)
 
    The waking and the answering wait for the players - but never forever
@@ -26,6 +27,7 @@ import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { P, drawCorridor, drawGloom } from './lkp-art.js';
 import { glow } from './lkp-world.js';
+import { worldShip, worldWreck } from './lkp-places.js';
 import { Scene } from './lkp-captain.js';
 
 /* How long each of the first three lasts. */
@@ -100,7 +102,7 @@ export class Intro {
       }
       case 'connect':
         if (Math.random() < dt * 20) sfx.spray();
-        if (this.st >= STATIC){ this._go('talk'); this.talk = new Scene('opening', g); this.talk.title = null; }
+        if (this.st >= STATIC){ this._go('talk'); this.talk = new Scene('opening', g); this.talk.title = null; this.talk.corner = 'top-right'; }
         break;
       case 'talk':
         this.talk.step(dt);
@@ -128,54 +130,92 @@ export class Intro {
 
   /* ---------- drawing ---------- */
 
+  /* The cinematic shot: where each of them is - not in a line. The first
+     close to the camera and a little to the right, the second further
+     back and well over to the left, the third and fourth further back
+     still - and the ship behind them all, front and centre. [lane, depth] */
+  _at(i, W, H){
+    const k = Math.max(0, this.g.here.indexOf(i));
+    const [lane, rel] = SLOTS[k % SLOTS.length], p = P(lane, rel, W, H);
+    return { x: p.x, y: p.y, h: H * 0.19 * p.k * CLOSE, rel };
+  }
+
   /* Where the camera is: looking at (cx, cy), s times closer, tilted r. */
   _cam(W, H){
-    const id = { cx: W / 2, cy: H / 2, s: 1, r: 0 };
+    /* low to the ground, the horizon low in the frame, drifting slowly */
+    const cine = { cx: W * (0.5 + 0.015 * Math.sin(this.t * 0.25)), cy: H * 0.5, s: 1.12 + (this.stage === 'talk' ? 0.006 * Math.min(10, this.talk.t) : 0), r: 0.012 * Math.sin(this.t * 0.2) };
     const pov = (u) => {
-      /* lying there, looking round: up at the sky, over to the ship, back */
-      const look = u < 0.35 ? 0 : u < 0.7 ? -Math.sin((u - 0.35) / 0.35 * Math.PI / 2) : -1 + 1.4 * smooth((u - 0.7) / 0.3);
-      return { cx: W * (0.5 + 0.3 * look), cy: H * (0.3 + 0.08 * smooth(Math.min(1, u * 2))), s: 2.3, r: Math.sin(this.t * 0.9) * 0.03 + 0.05 * (1 - Math.min(1, u * 1.5)) };
+      /* lying there: up at the sky, down to the ship, a look left, a look right */
+      const down = smooth((u - 0.25) / 0.25), look = u < 0.55 ? 0 : u < 0.78 ? -Math.sin((u - 0.55) / 0.23 * Math.PI / 2) : -1 + 1.6 * smooth((u - 0.78) / 0.22);
+      return { cx: W * (0.5 + 0.22 * look), cy: H * (0.16 + 0.24 * down), s: 2.3, r: Math.sin(this.t * 0.9) * 0.03 + 0.06 * (1 - Math.min(1, u * 1.5)) };
     };
-    const cine = () => ({ cx: W * (0.34 + 0.012 * Math.min(8, this.talk ? this.talk.t : 0)), cy: H * 0.72, s: 1.45, r: -0.025 });
     const mix = (a, b, k) => ({ cx: a.cx + (b.cx - a.cx) * k, cy: a.cy + (b.cy - a.cy) * k, s: a.s + (b.s - a.s) * k, r: a.r + (b.r - a.r) * k });
-    switch (this.stage){
-      case 'pov': return pov(this.st / POV);
-      case 'zoom': return mix(pov(1), id, smooth(this.st / ZOOM));
-      case 'talk': return mix(id, cine(), smooth(Math.min(1, this.talk.t / 0.8)));
-      case 'pan': return mix(cine(), id, smooth(this.st / PAN));
-      default: return id;
+    if (this.stage === 'pov') return pov(this.st / POV);
+    if (this.stage === 'zoom') return mix(pov(1), cine, smooth(this.st / ZOOM));
+    return cine;
+  }
+
+  /* The staged crash site: the land, the ship down behind them, a piece of
+     it thrown clear, and the crew where they lie (or stand). */
+  _scene(c, W, H, crew){
+    const g = this.g;
+    drawCorridor(c, W, H, 0, this.t);
+    const list = [{ rel: SHIP[1], draw: () => worldShip(c, W, H, SHIP[1], SHIP[0], this.t, SHIP[2]) },
+      { rel: 0.34, draw: () => worldWreck(c, W, H, 0.34, 2.7, this.t, 1.1, 1) }];
+    if (crew) for (const i of g.here){
+      const a = this._at(i, W, H);
+      list.push({ rel: a.rel, draw: () => g._drawCrew(c, i, W, H, { x: a.x, y: a.y, h: a.h, bob: 0, down: 1 - easeOut(this.up[i]), noBar: true }) });
     }
+    list.sort((a, b) => b.rel - a.rel).forEach(it => it.draw());
+    drawGloom(c, W, H);
   }
 
   draw(c, W, H){
     const g = this.g, s = this.stage;
     if (s === 'title'){ this._title(c, W, H); return; }
     if (s === 'dark'){ c.fillStyle = '#000'; c.fillRect(0, 0, W, H); return; }
-    /* The game's own view of the crash site, through the camera - blurred
-       as they come round (cheaply: drawn small, then stretched). */
+    g.inIntro = true;
+    if (s === 'pan'){
+      /* Swinging round onto the path: the crash site sweeping off to the
+         left as the game's own view comes in from the right. */
+      const k = smooth(this.st / PAN);
+      c.save(); c.translate(-W * k, 0); this._cine(c, W, H); c.restore();
+      c.save(); c.translate(W * (1 - k), 0); g._drawPlay(c, W, H); c.restore();
+      g.inIntro = false;
+      const bars = 1 - k;
+      if (bars > 0){ c.fillStyle = '#000'; c.fillRect(0, 0, W, H * 0.11 * bars); c.fillRect(0, H * (1 - 0.11 * bars), W, H * 0.11 * bars); }
+      return;
+    }
+    /* Blurred as they come round (cheaply: drawn small, then stretched). */
     const blur = s === 'pov' ? Math.max(0, 14 * (1 - this.st / (POV * 0.6))) : 0;
     const k = blur > 0.5 ? Math.min(10, 1 + blur * 0.6) : 1;
     const off = k > 1 ? buffer(Math.ceil(W / k), Math.ceil(H / k)) : null;
     const into = off ? off.getContext('2d') : c;
-    const cam = this._cam(W, H);
-    g.inIntro = true;
-    g.lying = g.crew.map((_, i) => 1 - easeOut(this.up[i]));
     into.save();
     if (off){ into.setTransform(1, 0, 0, 1, 0, 0); into.clearRect(0, 0, off.width, off.height); into.scale(off.width / W, off.height / H); }
-    into.translate(W / 2, H / 2); into.rotate(cam.r); into.scale(cam.s, cam.s); into.translate(-cam.cx, -cam.cy);
-    g._drawPlay(into, W, H);
-    if (s !== 'pov') this._dizzy(into, W, H);
+    this._cine(into, W, H);
     into.restore();
     if (off){ c.imageSmoothingEnabled = true; c.drawImage(off, 0, 0, W, H); }
-    g.inIntro = false; g.lying = null;
+    g.inIntro = false;
     if (s === 'pov') this._lids(c, W, H);
-    /* Letterbox for the cinematic shot, sliding away as it pans round. */
-    const bars = s === 'talk' ? smooth(Math.min(1, this.talk.t / 0.8)) : s === 'pan' ? 1 - smooth(this.st / PAN) : 0;
+    /* Letterboxed from the moment the camera pulls back. */
+    const bars = s === 'zoom' ? smooth(this.st / ZOOM) : s === 'pov' ? 0 : 1;
     if (bars > 0){ c.fillStyle = '#000'; c.fillRect(0, 0, W, H * 0.11 * bars); c.fillRect(0, H * (1 - 0.11 * bars), W, H * 0.11 * bars); }
-    if (s === 'crash') this._wiggle(c, W, H, cam);
+    if (s === 'crash') this._wiggleBanner(c, W, H);
     if (s === 'ring') this._ring(c, W, H);
     if (s === 'connect') this._static(c, W, H, 1 - this.st / STATIC);
     if (s === 'talk'){ this.talk.draw(c, W, H); if (this.talk.t < 0.4) this._static(c, W, H, 1 - this.talk.t / 0.4); }
+  }
+
+  /* The crash site through the camera - the crew in it once it's pulled
+     back, dizzy stars and how far each has wiggled. */
+  _cine(c, W, H){
+    const cam = this._cam(W, H), s = this.stage;
+    c.save();
+    c.translate(W / 2, H / 2); c.rotate(cam.r); c.scale(cam.s, cam.s); c.translate(-cam.cx, -cam.cy);
+    this._scene(c, W, H, s !== 'pov');
+    if (s !== 'pov'){ this._dizzy(c, W, H); if (s === 'crash') this._wiggle(c, W, H); }
+    c.restore();
   }
 
   /* The title: the planet, the name. */
@@ -199,14 +239,13 @@ export class Intro {
 
   /* Dizzy: stars going round the helmet of anyone not up yet. */
   _dizzy(c, W, H){
-    const g = this.g;
-    for (const i of g.here){
-      const k = this.up[i]; if (k >= 1 || !g.crew[i].played) continue;
-      const p = P(g.crew[i].x, 0.03, W, H), h = H * 0.19, lie = 1 - easeOut(k);
-      const hx = p.x + h * 0.45 * lie, hy = p.y - h * (1.05 - 0.6 * lie);
+    for (const i of this.g.here){
+      const k = this.up[i]; if (k >= 1) continue;
+      const a = this._at(i, W, H), lie = 1 - easeOut(k);
+      const hx = a.x + a.h * 0.45 * lie, hy = a.y - a.h * (1.05 - 0.6 * lie);
       for (let j = 0; j < 3; j++){
-        const a = this.t * 3 + j * 2.09 + i;
-        star(c, hx + Math.cos(a) * h * 0.22, hy + Math.sin(a) * h * 0.06, h * 0.035, '#ffe066');
+        const t = this.t * 3 + j * 2.09 + i;
+        star(c, hx + Math.cos(t) * a.h * 0.22, hy + Math.sin(t) * a.h * 0.06, a.h * 0.035, '#ffe066');
       }
     }
   }
@@ -222,13 +261,15 @@ export class Intro {
     c.beginPath(); c.moveTo(0, H); c.lineTo(W, H); c.lineTo(W, H - lid); c.quadraticCurveTo(W / 2, H - lid - H * 0.12 * open, 0, H - lid); c.fill();
   }
 
-  /* WIGGLE TO WAKE UP! - and over each one still down, how far they've got. */
+  /* WIGGLE TO WAKE UP!, big - */
+  _wiggleBanner(c, W, H){
+    if (this.g.here.some(i => this.woke[i] < WIGGLE)) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.04 * Math.sin(this.t * 8));
+  }
+  /* - and over each one still down, how far they've got. */
   _wiggle(c, W, H){
-    const g = this.g, up = g.here.every(i => this.woke[i] >= WIGGLE);
-    if (!up) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.04 * Math.sin(this.t * 8));
-    for (const i of g.here){
+    for (const i of this.g.here){
       if (this.woke[i] >= WIGGLE) continue;
-      const p = P(g.crew[i].x, 0.03, W, H), r = H * 0.035, x = p.x + H * 0.05, y = p.y - H * 0.13;
+      const a = this._at(i, W, H), r = Math.max(H * 0.022, a.h * 0.17), x = a.x + a.h * 0.3, y = a.y - a.h * 0.75;
       c.save();
       c.fillStyle = 'rgba(5,6,15,.6)'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
       c.strokeStyle = PLAYER_COLORS[i]; c.lineWidth = r * 0.3; c.lineCap = 'round';
@@ -284,6 +325,12 @@ function buffer(w, h){
   } catch (e){ BUF = false; return null; }
 }
 
+/* The cinematic shot: the ship [lane, depth, size], and where the crew
+   are, near to far. */
+const SHIP = [0.1, 0.72, 0.95];
+const SLOTS = [[0.5, 0.04], [-1.5, 0.12], [-0.45, 0.2], [1.1, 0.25]];
+/* Low and close: the crew loom larger than in play. */
+const CLOSE = 1.3;
 const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 

@@ -63,20 +63,16 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   /* arms at their sides (unless posed) */
   for (const d of [-1, 1]){
     if (pose === 'hug' || pose === 'stretch' || (pose === 'reach' && d < 0)) continue;
-    /* Running: elbows bent, the arms pumping against the legs - the hand
-       driving forward and up (away from us: higher, tucked in), then the
-       elbow swinging back (towards us: lower, out wide). */
+    /* Running, tucked: elbows bent and held in close, the upper arm out
+       of sight behind the body - just the forearm and fist pumping up and
+       down beside the waist, against the legs, like a sprinter's. */
     if (run > 0.3){
       const pump = Math.sin(ph + (d < 0 ? Math.PI : 0));
-      const sx = d * 70 * u, sy = -160 * u;
-      const ex = d * (92 + 10 * pump) * u, ey = (-112 + 16 * pump) * u;
-      const hx = d * (58 + 6 * pump) * u, hy = (-118 - 34 * pump) * u;
-      c.lineCap = 'round'; c.lineJoin = 'round';
-      for (const [w, sc] of [[46, '#5a5040'], [36, pump < 0 ? '#f3e7cf' : '#d8c9ab']]){
-        c.strokeStyle = sc; c.lineWidth = w * u; c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
-      }
-      c.strokeStyle = trim; c.lineWidth = 9 * u; c.beginPath(); c.moveTo(ex - 14 * u, ey + 3 * u); c.lineTo(ex + 14 * u, ey - 3 * u); c.stroke();
-      c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, hx, hy, 18 * u);
+      const fx = d * 80 * u, fy = (-98 - 30 * pump) * u;
+      c.lineCap = 'round';
+      for (const [w, sc] of [[38, '#5a5040'], [30, '#ddd0b6']]){ c.strokeStyle = sc; c.lineWidth = w * u; c.beginPath(); c.moveTo(d * 60 * u, -150 * u); c.lineTo(fx, fy); c.stroke(); }
+      c.fillStyle = trim; circ(c, d * 72 * u + (fx - d * 72 * u) * 0.5, -124 * u + (fy + 124 * u) * 0.5, 6 * u);
+      c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, fx, fy, 18 * u);
       continue;
     }
     /* swinging against the legs as they run */

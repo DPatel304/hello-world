@@ -13,7 +13,6 @@ import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
-import { worldShip, worldWreck } from './lkp-places.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -277,10 +276,6 @@ class LastKnownPosition {
     };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
     if (n === 0){
-      /* The crash site, where they start: the ship down on its side off to
-         the left, a piece of it thrown clear on the right. */
-      this.things.push({ d: this.z + 0.3, kind: 'ship', lane: -3.2, s: 1.4 });
-      this.things.push({ d: this.z + 0.38, kind: 'wreck', lane: 2.3, s: 1.1, n: 1 });
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
       crystalLine(14, 0.4, 5);
@@ -871,8 +866,6 @@ class LastKnownPosition {
     const p = P(it.lane || 0, it.rel, W, H);
     switch (it.kind){
       case 'blocker': drawBlocker(c, W, H, it.rel, it.a, it.b, this.t, it.seed); break;
-      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
-      case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': drawCrystal(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
