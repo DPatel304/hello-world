@@ -7,7 +7,7 @@
      debris           a red block across part of the floor   - slide round
      low bulkhead     an orange bar at head height            - duck
      floor breach     a black gap with a white edge           - hop
-     coin             a yellow circle
+     crystal             a yellow circle
      repair station   a green ring with a plus
      crew             a capsule in their colour, face on top
      doors            two tall rectangles: red (fight), yellow (traps), purple (?)
@@ -17,7 +17,7 @@
    heights are screen heights at the crew, scaled by P's k with distance. */
 
 import { worldCrew, worldBeast, worldRobot } from './lkp-cast.js';
-import { drawWorld, finish, worldBlocker, worldBeam, worldGap, worldCoin, worldFountain } from './lkp-world.js';
+import { drawWorld, finish, worldBlocker, worldBeam, worldGap, worldCrystal, worldFountain } from './lkp-world.js';
 import { worldFork, worldDepot, worldPiece, worldSweeper, worldSweepBar } from './lkp-places.js';
 
 export const RUN = 0.03;              /* the crew's own depth */
@@ -138,9 +138,9 @@ export function drawGap(c, W, H, rel, a, b){
   c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(1.5, 4 * l1.k); c.stroke();
 }
 
-/* A coin: a yellow circle. */
-export function drawCoin(c, x, y, s, t){
-  if (PAL.world) return worldCoin(c, x, y, s, t);
+/* A crystal: a yellow circle. */
+export function drawCrystal(c, x, y, s, t){
+  if (PAL.world) return worldCrystal(c, x, y, s, t);
   c.fillStyle = '#facc15'; c.beginPath(); c.arc(x, y, s, 0, 6.2832); c.fill();
   c.strokeStyle = INK; c.lineWidth = Math.max(1, s * 0.15); c.stroke();
 }
@@ -370,7 +370,7 @@ export function drawDepot(c, W, H, rel, t, what, charge = 0){
 }
 
 /* A treasure chest at depth rel: a wooden box with gold bands, its lid
-   lifting (open 0..1) - and once it's open, coins heaped inside and a
+   lifting (open 0..1) - and once it's open, crystals heaped inside and a
    glow. */
 export function drawChest(c, W, H, rel, t, open, full){
   const p = P(0, rel, W, H), s = H * 0.16 * p.k, x = p.x, y = p.y;

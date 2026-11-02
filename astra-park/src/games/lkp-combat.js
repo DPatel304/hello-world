@@ -29,7 +29,7 @@
    Clearing the room wakes everyone at half health too. But if the whole
    crew is asleep at once, that's the end of the run.
 
-   Each robot drops coins; clearing the room drops more, and the run goes
+   Each robot drops crystals; clearing the room drops more, and the run goes
    on.
 
    The boss fight (lkp-boss.js) runs on a Fight too, without the
@@ -41,7 +41,6 @@ import { RUN, P } from './lkp-art.js';
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { ClapWatch, CrankWatch } from '../tracking/gestures.js';
-import { XP } from './lkp-levelup.js';
 import { arms, armored, teamBonus, STANDARD, TEAM } from './lkp-weapons.js';
 
 /* A rustbot: its health, its nibble, how often, and how far across (lanes)
@@ -70,7 +69,10 @@ export const FRONT = RUN + 0.09, ROW = 0.08, BOT_GAP = 0.16, WALK = 0.14, SIDE =
 /* Robots in each wave, per player. The first fills the corridor; the
    second comes in from the far end, one every STREAM seconds. */
 export const WAVE = [4, 3, 4, 5], STREAM = 0.5;
-export const KILL_COINS = 1, CLEAR_COINS = 10;
+export const KILL_CRYSTALS = 3, CLEAR_CRYSTALS = 25;
+/* A knockout's crystals are worth KILL_XP between them, shared out by
+   how many are playing (more players, more knockouts). */
+export const KILL_XP = 10;
 /* Asleep: claps to wake, how close (lanes) a clapper has to be, and how
    long claps last when they stop. Waking: at this share of health. All
    asleep: the run ends, this long after the last falls asleep. */
@@ -89,8 +91,8 @@ export const waveSize = (n, w, waves = WAVE) => Math.max(1, n) * waves[w];
 /* The elite - behind the skull door, always: one big one (its health
    BIG_HP times a robot's, hitting BIG_HIT times as hard, BIG_EVERY
    seconds apart, BIG_SIZE times as big) leading its escorts (ELITE_WAVE,
-   per player), and a pile of ELITE_COINS for beating it. */
-export const ELITE_WAVE = [2, 3], BIG_HP = 10, BIG_HIT = 2.5, BIG_EVERY = 2, BIG_SIZE = 1.8, ELITE_COINS = 60;
+   per player), and a pile of ELITE_CRYSTALS for beating it. */
+export const ELITE_WAVE = [2, 3], BIG_HP = 10, BIG_HIT = 2.5, BIG_EVERY = 2, BIG_SIZE = 1.8, ELITE_CRYSTALS = 35;
 
 export class Fight {
   constructor(game, len = FIGHT_MAX, { waves = true, elite = false } = {}){
@@ -301,7 +303,7 @@ export class Fight {
     b.hp -= dmg; b.flash = 1;
     sfx.clank();
     g.bits.push({ kind: 'num', x: (p.x + (Math.random() - 0.5) * H * 0.03) / W, y: (p.y - H * 0.2 * p.k) / H, vy: -0.08, age: 0, life: 0.6, text: `${dmg}`, col: '#ffffff', small: true });
-    if (b.hp <= 0 && !b.part){ g.coins += KILL_COINS; g.kills++; g.addXp?.(XP.kill / Math.max(1, g.here.length)); this._scrap(b, W, H); }
+    if (b.hp <= 0 && !b.part){ g.kills++; g.gain(KILL_CRYSTALS, p.x / W, (p.y - H * 0.12 * p.k) / H, KILL_XP / KILL_CRYSTALS / Math.max(1, g.here.length)); this._scrap(b, W, H); }
   }
 
   /* A robot popping into scrap and sparks. */
@@ -351,9 +353,7 @@ export class Fight {
     const g = this.g;
     this.done = true;
     for (const i of g.here) this._rise(i, W, H);
-    g.coins += CLEAR_COINS;
-    if (this.waves) g.addXp?.(this.elite ? XP.elite : XP.fight);
-    if (this.elite) g.coins += ELITE_COINS;
+    g.gain(CLEAR_CRYSTALS + (this.elite ? ELITE_CRYSTALS : 0), 0.5, 0.45);
     sfx.gold();
     for (let k = 0; k < 6; k++) g._sparkle(0.2 + k * 0.12, 0.4, 8, 50);
   }

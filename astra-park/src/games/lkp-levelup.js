@@ -1,6 +1,7 @@
 /* Levelling up, the Vampire Survivors way: the team shares its XP and
-   levels together, and levels up often - from the things they knock out,
-   the rooms they get through, the treasure, the boss (XP). Level ups can
+   levels together, and levels up often - from the energy crystals they
+   pick up (lkp-game.js gain(): in the corridors, dropped by what they
+   knock out, piled up for each room got through, the boss). Level ups can
    come at any time, mid-fight too ("LEVEL UP!" and a star beside the
    level for each one waiting), but they're picked between rooms: as the
    next corridor starts, or at the doors before they're chosen, the game
@@ -18,9 +19,7 @@ import { CARDS, MAX_LEVEL, draw, level, take, MELEE } from './lkp-weapons.js';
 
 /* The XP from one level to the next: FIRST to level 2, then STEP more
    each level after - often at first, and steadily less often. */
-export const FIRST = 75, STEP = 40;
-/* What each thing's worth. */
-export const XP = { kill: 10, fight: 50, elite: 120, trap: 75, trapTimeout: 25, treasure: 25, boss: 300 };
+export const FIRST = 75, STEP = 45;
 export const PICK_TIME = 30;
 
 /* The XP needed to go from level lvl to the next. */
@@ -191,8 +190,8 @@ export function levelUp(game, len, rand = Math.random, title = `LEVEL ${game.lvl
   return pick;
 }
 
-/* A gold pick - every GOLD_COINS coins the team grabs (lkp-game.js): three
-   cards like a level up's, every one gold. Not a level of its own. */
+/* A gold pick - every GOLD_EVERY-th level up (lkp-game.js): three cards
+   like a level up's, every one gold. */
 export function goldPick(game, len, rand = Math.random){
   const pick = levelUp(game, len, rand, 'GOLD PICK!', true);
   pick.goldPick = true;

@@ -4,7 +4,7 @@ import game, { MAX_HP, FIGHT_APART, PLAYTEST, story } from '../src/games/lkp-gam
 /* The play itself, without the captain's scenes. */
 story.on = false;
 import { BOT_HIT, BOT_EVERY, BOT_HP, FRONT, RANGE, BOT_REACH, SWING, SWING_HIT, TEAM, BUDDY, SHOT_HIT, CRANK_HIT,
-         REVIVE_CLAPS, WAKE_HP, LAST_SLEEP, FIGHT_MAX, KILL_COINS, CLEAR_COINS, WAVE, FURY, ELITE_WAVE, BIG_HP, ELITE_COINS, waveSize } from '../src/games/lkp-combat.js';
+         REVIVE_CLAPS, WAKE_HP, LAST_SLEEP, FIGHT_MAX, KILL_CRYSTALS, CLEAR_CRYSTALS, WAVE, FURY, ELITE_WAVE, BIG_HP, ELITE_CRYSTALS, waveSize } from '../src/games/lkp-combat.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
@@ -56,12 +56,12 @@ test('the room starts full of robots - four for each player - filling the corrid
 test('standing still (and too tough to fall asleep), the crew clear every wave on their own, and the run goes on', () => {
   const inst = fight(2);
   for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
-  const coins = inst.coins;
+  const crystals = inst.crystals;
   through(inst);
   assert.notEqual(inst.phase, 'room', 'and on');
   const killed = WAVE.reduce((s, _, w) => s + waveSize(2, w), 0);
   assert.equal(inst.kills, killed);
-  assert.equal(inst.coins - coins, killed * KILL_COINS + CLEAR_COINS);
+  assert.equal(inst.crystals - crystals, killed * KILL_CRYSTALS + CLEAR_CRYSTALS);
 });
 
 test('while playtesting, a fight is over in PLAYTEST seconds, whatever is left', () => {
@@ -243,7 +243,7 @@ test('a fight draws', () => {
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
 });
 
-test('behind the skull, always the elite: one big one and its escorts - beaten, a pile of coins', () => {
+test('behind the skull, always the elite: one big one and its escorts - beaten, a pile of crystals', () => {
   crew(2);
   const inst = game.create(2);
   run(inst, 0.2);
@@ -257,8 +257,8 @@ test('behind the skull, always the elite: one big one and its escorts - beaten, 
   assert.ok(big[0].max >= BOT_HP * BIG_HP * f.toughness);
   /* Too tough to fall asleep: just how it ends. */
   for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
-  const coins = inst.coins;
+  const crystals = inst.crystals;
   through(inst);
   assert.notEqual(inst.phase, 'room');
-  assert.ok(inst.coins - coins >= ELITE_COINS + CLEAR_COINS);
+  assert.ok(inst.crystals - crystals >= ELITE_CRYSTALS + CLEAR_CRYSTALS);
 });

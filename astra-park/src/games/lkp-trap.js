@@ -14,19 +14,18 @@
    zapped: ZAP health, knocked back a bit, a second's safety. A trap room
    never puts anyone to sleep - 1 health at worst.
 
-   A pile of coins waits past the finish line. The first over the line
-   wins it - and the coins - for everyone, and the door opens.
+   A pile of crystals waits past the finish line. The first over the line
+   wins it - and the crystals - for everyone, and the door opens.
    However it's going, after len seconds the door opens anyway - but
-   nobody won the coins.
+   nobody won the crystals.
 
    Its own view: the hall is drawn by Q(lane, along) here, not the
    corridor's P. */
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
-import { drawCoin, PAL } from './lkp-art.js';
+import { drawCrystal, PAL } from './lkp-art.js';
 import { worldHall, worldSleeper } from './lkp-places.js';
-import { XP } from './lkp-levelup.js';
 import { armored } from './lkp-weapons.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
@@ -38,8 +37,8 @@ export const GRACE = 0.6, STILL = 0.8;
 /* Up the hall (0 to 1) a second, running all-out (walking is about half). */
 export const STRIDE = 0.09;
 export const ZAP = 10, KNOCK = 0.08, ZAP_SAFE = 1.2;
-/* The pile of coins at the end, everyone's when the first is over. */
-export const CLEAR_COINS = 25;
+/* The pile of crystals at the end, everyone's when the first is over. */
+export const CLEAR_CRYSTALS = 35;
 export const TRAP_MAX = 90;
 
 /* The hall, from up high: the near end low on the screen and wide, the
@@ -63,7 +62,7 @@ export class Lights {
     this.moves = pose.players.map(() => new MoveWatch());
     for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; }
     /* The pile: two heaps past the finish line, either side of the robot. */
-    this.pile = Array.from({ length: CLEAR_COINS }, (_, k) => ({ lane: (k % 2 ? 1 : -1) * (0.55 + Math.random() * 0.3), up: Math.random() * 0.05, z: k / 2 }));
+    this.pile = Array.from({ length: CLEAR_CRYSTALS }, (_, k) => ({ lane: (k % 2 ? 1 : -1) * (0.55 + Math.random() * 0.3), up: Math.random() * 0.05, z: k / 2 }));
   }
 
   step(dt, W, H){
@@ -108,9 +107,8 @@ export class Lights {
   _clear(W, H, won){
     const g = this.g;
     this.done = true;
-    g.addXp?.(won ? XP.trap : XP.trapTimeout);
     if (!won){ sfx.whoosh(); return; }
-    g.coins += CLEAR_COINS;
+    g.gain(CLEAR_CRYSTALS, 0.5, 0.3);
     sfx.gold();
     /* The pile bursts. */
     for (const cn of this.pile){ const q = Q(cn.lane, 1.06 + cn.up, W, H); g._sparkle(q.x / W, q.y / H, 2, 50); }
@@ -153,7 +151,7 @@ export class Lights {
     }
     for (const cn of this.pile){
       const q = Q(cn.lane, 1.06 + cn.up, W, H);
-      drawCoin(c, q.x, q.y - H * 0.015 * q.k - cn.z * H * 0.0015, H * 0.02 * q.k, this.t + cn.z);
+      drawCrystal(c, q.x, q.y - H * 0.015 * q.k - cn.z * H * 0.0015, H * 0.02 * q.k, this.t + cn.z);
     }
     /* The crew, far ones first. */
     const order = g.here.slice().sort((a, b) => g.crew[b].along - g.crew[a].along);

@@ -29,7 +29,6 @@
 import { RUN, P, drawCorridor, drawSweep, drawScout } from './lkp-art.js';
 import { sfx } from '../audio/sound.js';
 import { Fight, FRONT, FIGHT_MAX } from './lkp-combat.js';
-import { XP } from './lkp-levelup.js';
 import { healthBar, stripe } from './lkp-boss.js';
 
 /* For a crew of four (fewer, less: as a fight's robots). */
@@ -49,7 +48,7 @@ export const PHASES = [0.66, 0.33];
 const HOME = 0.55, WIDE = 0.12;
 /* Under a sweep: ducked this far (as under a low branch). */
 const DUCKED = 0.5;
-export const BOSS_COINS = 30;
+export const BOSS_CRYSTALS = 150;
 
 export class Scout {
   constructor(game, len = FIGHT_MAX, toughness = 1){
@@ -155,7 +154,6 @@ export class Scout {
   }
 
   _win(W, H){
-    this.g.addXp?.(XP.boss);
     /* Beaten - not just given up on. */
     if (this.core ? this.core.hp <= 0 : this.body.hp <= 0) this.g.bosses++;
     const g = this.g, f = this.fight, b = this.body;
@@ -163,7 +161,7 @@ export class Scout {
     const p = P(b.x, b.d, W, H);
     for (let k = 0; k < 3; k++) g._sparkle(p.x / W, (p.y - H * 0.1 * k) / H, 16, 40);
     f.bots = []; f._clear(W, H);
-    g.coins += BOSS_COINS;
+    g.gain(BOSS_CRYSTALS, p.x / W, (p.y - H * 0.15 * p.k) / H);
     g.shake = 1; sfx.scrap(); sfx.fanfare();
   }
 

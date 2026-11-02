@@ -109,14 +109,14 @@ test('corridors wound but never down anyone', () => {
   assert.equal(hp(inst), 1);
 });
 
-test('coins are picked up by running through them, for the whole team', () => {
+test('crystals are picked up by running through them, for the whole team', () => {
   const inst = quiet(2);
   hand(0.5, 0.5, 0); hand(0.5, 0.5, 1); run(inst, 1);
   const lane = inst.crew[0].x;
-  for (let k = 0; k < 4; k++) ahead(inst, 'coin', 0.4 + k * 0.1, { lane });
-  ahead(inst, 'coin', 0.5, { lane: inst.crew[1].x });
+  for (let k = 0; k < 4; k++) ahead(inst, 'crystal', 0.4 + k * 0.1, { lane });
+  ahead(inst, 'crystal', 0.5, { lane: inst.crew[1].x });
   run(inst, 1.5);
-  assert.equal(inst.coins, 5);
+  assert.equal(inst.crystals, 5);
 });
 
 test('a repair station heals whoever runs through it', () => {
@@ -224,7 +224,7 @@ test('the first corridor teaches one thing at a time: debris, then a bulkhead, t
   assert.ok(firsts[0] < firsts[1] && firsts[1] < firsts[2]);
   /* Nothing to dodge in the first few seconds (fewer, squeezed into a
      playtest's shorter corridor). */
-  const early = inst.things.filter(th => th.kind !== 'coin' && th.d < inst.z + RUN + SPEED * 6 * CORRIDOR[0] / 50 + 0.9);
+  const early = inst.things.filter(th => th.kind !== 'crystal' && th.d < inst.z + RUN + SPEED * 6 * CORRIDOR[0] / 50 + 0.9);
   assert.equal(early.length, 0);
 });
 

@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story, MAX_HP } from '../src/games/lkp-game.js';
-import { XP, needFor } from '../src/games/lkp-levelup.js';
+import { needFor } from '../src/games/lkp-levelup.js';
+import { CRYSTAL_XP, GOLD_EVERY } from '../src/games/lkp-game.js';
 import { take, MAX_LEVEL, HP_UP, DAMAGE_UP, ARMOR_UP } from '../src/games/lkp-weapons.js';
-import { SWING, SWING_HIT, FRONT, WAVE } from '../src/games/lkp-combat.js';
+import { SWING, SWING_HIT, FRONT, WAVE, KILL_XP, CLEAR_CRYSTALS } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
 story.on = false;
@@ -36,12 +37,15 @@ test('the team levels up at each threshold of shared XP', () => {
   assert.equal(inst.lvl, 2);
   inst.addXp(needFor(2) + needFor(3));
   assert.equal(inst.lvl, 4);
-  assert.equal(inst.pending, 3);
+  /* Every GOLD_EVERY-th level up is a gold pick. */
+  assert.equal(GOLD_EVERY, 3);
+  assert.equal(inst.pending, 2);
+  assert.equal(inst.golds, 1);
   /* Often at first, then steadily less often. */
   assert.ok(needFor(1) < needFor(5) && needFor(5) < needFor(10));
 });
 
-test('knocking things out, clearing a fight and beating the boss all give XP', () => {
+test('XP is energy crystals: a knockout drops some, clearing a fight a pile - each zooming to the bar first', () => {
   crew(1);
   const inst = game.create(1);
   inst.step(DT, W, H);
@@ -49,11 +53,18 @@ test('knocking things out, clearing a fight and beating the boss all give XP', (
   const f = inst.fight; f.len = 999;
   const xp = () => inst.xp + Array.from({ length: inst.lvl - 1 }, (_, k) => needFor(k + 1)).reduce((s, n) => s + n, 0);
   const before = xp();
+  const crystals = inst.crystals;
   f._hit(f.bots[0], 9999, W, H);
-  assert.equal(xp() - before, XP.kill);
+  assert.ok(inst.crystals > crystals, 'it drops crystals');
+  assert.equal(xp(), before, 'not in yet: flying to the bar');
+  assert.equal(inst.flyers.length, 1);
+  inst._stepBits(1);
+  assert.equal(inst.flyers.length, 0);
+  assert.ok(Math.abs(xp() - before - KILL_XP) < 1e-9);
   f.bots = []; f.queue = 0; f.wave = WAVE.length - 1;
   inst.fight.step(DT, W, H, []);
-  assert.equal(xp() - before, XP.kill + XP.fight);
+  inst._stepBits(1);
+  assert.ok(Math.abs(xp() - before - KILL_XP - CLEAR_CRYSTALS * CRYSTAL_XP) < 1e-9);
 });
 
 test('levelling up mid-fight is fine - but the picking waits till the room is over', () => {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import game, { MAX_HP, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
-import { TELL, SLAM, SLAM_W, DOWN, OVERLOAD, ROLL, BLAST, BOSS_COINS, CORE_NEAR, ROAR, MOVE, RUN_BOOST } from '../src/games/lkp-boss.js';
+import { TELL, SLAM, SLAM_W, DOWN, OVERLOAD, ROLL, BLAST, BOSS_CRYSTALS, CORE_NEAR, ROAR, MOVE, RUN_BOOST } from '../src/games/lkp-boss.js';
 import { FRONT } from '../src/games/lkp-combat.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { pose } from '../src/tracking/pose.js';
@@ -132,14 +132,14 @@ test('between phases the crew run round the ring by themselves - quicker running
   assert.equal(a.crew[0].hp, hp, 'nothing happens on the way');
 });
 
-test('the Warden beaten: a shower of coins, and the run is won', () => {
+test('the Warden beaten: a shower of crystals, and the run is won', () => {
   const inst = boss(2);
-  const coins = inst.coins;
+  const crystals = inst.crystals;
   inst.boss.core.hp = 0;
   run(inst, 3, () => hurry(inst));
   assert.ok(inst.over);
   assert.equal(inst.lost, false);
-  assert.ok(inst.coins - coins >= BOSS_COINS);
+  assert.ok(inst.crystals - crystals >= BOSS_CRYSTALS);
 });
 
 test('a playtest Warden can be beaten in time by a crew that just stands there and dodges a little', () => {

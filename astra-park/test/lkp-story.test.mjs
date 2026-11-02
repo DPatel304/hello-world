@@ -51,7 +51,7 @@ test('the captain gives each tip once, as it comes', () => {
   const say = inst.captain.say.bind(inst.captain);
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
   for (let k = 0; k < 70 / DT && inst.phase === 'corridor'; k++) inst.step(DT, W, H);
-  for (const w of ['COINS!', 'LEAN!', 'DUCK!', 'HOP!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
+  for (const w of ['CRYSTALS!', 'LEAN!', 'DUCK!', 'HOP!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
   assert.ok(said.indexOf('LEAN!') < said.indexOf('DUCK!') && said.indexOf('DUCK!') < said.indexOf('HOP!'));
   /* And at the doors. */
   for (let k = 0; k < 8 / DT && inst.phase === 'cross'; k++) inst.step(DT, W, H);

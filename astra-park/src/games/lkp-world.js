@@ -428,15 +428,15 @@ export function worldGap(c, W, H, rel, a, b, L){
   c.strokeStyle = rgba(L.rim, 0.9); c.lineWidth = Math.max(1.5, 4 * l1.k); c.beginPath(); c.moveTo(l1.x, l1.y); c.lineTo(r1.x, r1.y); c.stroke();
 }
 
-/* A coin: a gold hexagonal gem, glowing, turning. */
-export function worldCoin(c, x, y, s, t = 0){
+/* An energy crystal: a glowing cyan hex gem, turning. */
+export function worldCrystal(c, x, y, s, t = 0){
   const spin = 0.55 + 0.45 * Math.abs(Math.cos(t * 2.5));
   c.save(); c.translate(x, y); c.scale(spin, 1);
-  glow(c, 0, 0, s * 2.4, '#ffc86e', 0.7);
+  glow(c, 0, 0, s * 2.4, '#5ff3ff', 0.75);
   const hx = (rad) => { c.beginPath(); for (let k = 0; k < 6; k++){ const a = k * Math.PI / 3 + Math.PI / 6; c.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); } c.closePath(); };
-  c.fillStyle = '#d99a3a'; hx(s * 1.1); c.fill();
-  c.fillStyle = '#ffd77a'; c.beginPath(); c.moveTo(0, -s * 1.1); c.lineTo(-s * 0.95, -s * 0.55); c.lineTo(-s * 0.95, s * 0.55); c.lineTo(0, 0); c.fill();
-  c.fillStyle = '#fff1c4'; c.beginPath(); c.moveTo(0, -s * 1.1); c.lineTo(s * 0.95, -s * 0.55); c.lineTo(0, 0); c.lineTo(-s * 0.95, -s * 0.55); c.fill();
+  c.fillStyle = '#1fa3c2'; hx(s * 1.1); c.fill();
+  c.fillStyle = '#6fe9ff'; c.beginPath(); c.moveTo(0, -s * 1.1); c.lineTo(-s * 0.95, -s * 0.55); c.lineTo(-s * 0.95, s * 0.55); c.lineTo(0, 0); c.fill();
+  c.fillStyle = '#e4fcff'; c.beginPath(); c.moveTo(0, -s * 1.1); c.lineTo(s * 0.95, -s * 0.55); c.lineTo(0, 0); c.lineTo(-s * 0.95, -s * 0.55); c.fill();
   c.restore();
 }
 

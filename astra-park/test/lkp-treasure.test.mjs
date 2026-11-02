@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { story, GOLD_COINS } from '../src/games/lkp-game.js';
-import { TREASURE_TIME, COINS, POOL, POOL_HEAL } from '../src/games/lkp-treasure.js';
+import game, { story, GOLD_EVERY, FLYING } from '../src/games/lkp-game.js';
+import { needFor } from '../src/games/lkp-levelup.js';
+import { TREASURE_TIME, CRYSTALS, POOL, POOL_HEAL } from '../src/games/lkp-treasure.js';
 import { pose, L } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
 story.on = false;
@@ -25,11 +26,11 @@ function treasure(n = 2){
   return inst;
 }
 
-test('a treasure room is full of floating coins - and no healing while they\'re grabbed', () => {
+test('a treasure room is full of floating crystals - and no healing while they\'re grabbed', () => {
   const inst = treasure();
   inst.crew[0].hp = 30;
   run(inst, 2);
-  assert.equal(inst.treasure.coins.length, COINS);
+  assert.equal(inst.treasure.crystals.length, CRYSTALS);
   assert.equal(inst.crew[0].hp, 30);
   assert.ok(inst.speed < 0.02);
 });
@@ -43,7 +44,7 @@ function hugging(i, on = true){
   pose.players[i].lm = lm;
 }
 
-test('the coins done, POOL seconds of healing water for the whole team - hugging heals faster - then on', () => {
+test('the crystals done, POOL seconds of healing water for the whole team - hugging heals faster - then on', () => {
   const inst = treasure(2);
   inst.crew[0].hp = 20; inst.crew[1].hp = 20;
   hugging(1);
@@ -59,18 +60,18 @@ test('the coins done, POOL seconds of healing water for the whole team - hugging
   assert.notEqual(inst.phase, 'room');
 });
 
-test('a hand touching a coin grabs it, for the team - and another soon takes its place', () => {
+test('a hand touching a crystal grabs it, for the team - and another soon takes its place', () => {
   const inst = treasure();
   run(inst, 0.5);
-  const cn = inst.treasure.coins[0], coins = inst.coins;
+  const cn = inst.treasure.crystals[0], crystals = inst.crystals;
   cn.vx = cn.vy = 0;
   pose.players[1].hands.right = { x: cn.x, y: cn.y, vx: 0, vy: 0, speed: 0 };
   inst.step(DT, W, H);
-  assert.ok(inst.coins - coins >= cn.worth);
+  assert.ok(inst.crystals - crystals >= cn.worth);
   assert.equal(inst.treasure.got[1] >= cn.worth, true);
   pose.players[1].hands.right = { x: 0.5, y: 0.05, vx: 0, vy: 0, speed: 0 };
   run(inst, 1);
-  assert.equal(inst.treasure.coins.length, COINS, 'replaced');
+  assert.equal(inst.treasure.crystals.length, CRYSTALS, 'replaced');
 });
 
 test('after its time, the room is over and the run goes on', () => {
@@ -95,7 +96,7 @@ test('the gold pick: three cards, every one gold - taken as the next corridor st
   inst.things = []; inst.rooms.push('treasure'); inst.step_ = inst.level.plan.lastIndexOf('room') - 1; inst._next();
   run(inst, TREASURE_TIME + 0.5);
   assert.equal(inst.golds, 0, 'the treasure room gives none of its own');
-  inst.coins = GOLD_COINS;
+  inst.pending = 0; inst.addXp(Array.from({ length: GOLD_EVERY }, (_, k) => needFor(inst.lvl + k)).reduce((a, b) => a + b, 0)); inst.pending = 0;
   for (let k = 0; k < 600 && !inst.levelup; k++) inst.step(DT, W, H);
   assert.equal(inst.phase, 'corridor');
   assert.equal(inst.levelup.title, 'GOLD PICK!');
@@ -115,15 +116,14 @@ test('the music follows the run: hushed under a red light, loud for a fight', ()
   assert.ok(inst.mood >= 0.8);
 });
 
-test('every GOLD_COINS coins fills the gold bar: a gold pick - and the coins stay the score', () => {
+test('every GOLD_EVERY-th level up is a gold pick; the crystals stay the score, and never too many fly at once', () => {
   crew(1);
   const inst = game.create(1);
   inst.step(DT, W, H);
-  inst.coins = GOLD_COINS - 1; inst.step(DT, W, H);
-  assert.equal(inst.golds, 0);
-  inst.coins = GOLD_COINS * 2 + 5; inst.step(DT, W, H);
+  for (let k = 0; k < GOLD_EVERY * 2; k++) inst.addXp(needFor(inst.lvl));
   assert.equal(inst.golds, 2);
-  assert.equal(inst.coins, GOLD_COINS * 2 + 5);
-  inst.step(DT, W, H);
-  assert.equal(inst.golds, 2, 'once each');
+  assert.equal(inst.pending, GOLD_EVERY * 2 - 2);
+  for (let k = 0; k < 20; k++) inst.gain(1, 0.5, 0.5);
+  assert.equal(inst.crystals, 20);
+  assert.ok(inst.flyers.length <= FLYING);
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import game, { MAX_HP, PLAYTEST, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
-import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_COINS } from '../src/games/lkp-trap.js';
+import { GRACE, STRIDE, ZAP, READY, YELLOW, TRAP_MAX, CLEAR_CRYSTALS } from '../src/games/lkp-trap.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 30;
@@ -95,7 +95,7 @@ test('standing still on red is safe', () => {
 
 test('the first one over the line opens the door for everyone, and the run goes on', () => {
   const inst = room(2);
-  const coins = inst.coins;
+  const crystals = inst.crystals;
   inst.crew[0].along = 0.95;
   lightIs(inst, 'green');
   for (let k = 0; k < 10 / DT && inst.trap && !inst.trap.done; k++){
@@ -106,7 +106,7 @@ test('the first one over the line opens the door for everyone, and the run goes 
   assert.ok(inst.crew[1].along < 0.1, 'the other never moved');
   run(inst, 2);
   assert.notEqual(inst.phase, 'room', 'and on');
-  assert.equal(inst.coins - coins, CLEAR_COINS);
+  assert.equal(inst.crystals - crystals, CLEAR_CRYSTALS);
 });
 
 test('a little sway on red is fine', () => {
@@ -126,7 +126,7 @@ test('while playtesting, a trap room is over in twice PLAYTEST seconds', () => {
   let t = 0;
   while (inst.trap && t < 200){ run(inst, DT); t += DT; }
   assert.ok(t <= (PLAYTEST * 2 || TRAP_MAX) + 3, `${t}s`);
-  assert.equal(inst.coins, 0, 'nobody over the line: no coins');
+  assert.equal(inst.crystals, 0, 'nobody over the line: no crystals');
   assert.notEqual(inst.phase, 'room', 'and on');
 });
 

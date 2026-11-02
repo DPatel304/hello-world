@@ -15,10 +15,10 @@ function crew(n){
 }
 const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true });
 
-test('the score is every coin, 10 a knockout and 500 a boss', () => {
+test('the score is every crystal, 10 a knockout and 500 a boss', () => {
   story.on = false; crew(2);
   const inst = game.create(2);
-  inst.coins = 37; inst.kills = 12; inst.bosses = 1;
+  inst.crystals = 37; inst.kills = 12; inst.bosses = 1;
   assert.equal(inst.value(), 37 + 12 * SCORE.kill + SCORE.boss);
   assert.equal(inst.tally()[0].value, inst.value());
 });
@@ -35,10 +35,10 @@ test('beating the boss counts; it giving up on its own does not', () => {
   assert.equal(b.bosses, 0);
 });
 
-test('at the end, the tally counts up - coins, knockouts, the boss, the score - before the results', () => {
+test('at the end, the tally counts up - crystals, knockouts, the boss, the score - before the results', () => {
   story.on = true; crew(2);
   const inst = game.create(2);
-  inst.scene = null; inst.coins = 20; inst.kills = 5; inst.bosses = 1;
+  inst.scene = null; inst.crystals = 20; inst.kills = 5; inst.bosses = 1;
   inst.over = true;
   let k = 0;
   while (!inst.outro(DT, W, H) && k++ < 3000) if (k % 20 === 0) inst.draw(fake(), W, H);

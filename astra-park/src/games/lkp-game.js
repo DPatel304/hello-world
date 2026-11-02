@@ -5,7 +5,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { turn, resetView } from './lkp-world.js';
-import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
+import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
 import { arms, armored } from './lkp-weapons.js';
@@ -26,13 +26,13 @@ const BOSSES = { scout: Scout, warden: Warden };
 /* Last Known Position. A salvage crew of up to four boards a derelict starship and
    runs its corridors for real: lean to slide across round the debris, duck
    under the low bulkheads, hop the breaches in the floor, run through the
-   coins and the green repair stations. At each crossroads the crew votes
+   crystals and the green repair stations. At each crossroads the crew votes
    with their feet - two doors, each a fight, traps or anything (?): lean
    left for the left door, right for the right, and whichever door has the
    most of them in front of it when the time's up is the way they go.
 
    It teaches by showing: the first corridor is gentle, one new thing at a
-   time, with coins to show the way.
+   time, with crystals to show the way.
 
    Corridors wound but never kill: nobody's knocked below a sliver of
    health by them. (That's for the rooms, to come.)
@@ -42,7 +42,7 @@ const BOSSES = { scout: Scout, warden: Warden };
 
    The fight door is a combat room (lkp-combat.js); the traps door, a
    trap room - red light, green light (lkp-trap.js); and treasure, only
-   ever behind the ? door, a coin grab (lkp-treasure.js). */
+   ever behind the ? door, a crystal grab (lkp-treasure.js). */
 
 export const SPEED = 0.3;                       /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
@@ -59,10 +59,15 @@ export const MAX_HP = 100;
 /* However a boss fight is going, after this long the boss gives up (the
    level's won, but the boss isn't counted as beaten). */
 export const BOSS_MAX = 180;
-/* The score: every coin, 10 for each knocked out, 500 for each boss beaten. */
-/* Every GOLD_COINS coins the team grabs fills the gold bar: a gold pick.
-   (The coins aren't spent - they're still the score.) */
-export const GOLD_COINS = 150;
+/* The score: every crystal, 10 for each knocked out, 500 for each boss beaten. */
+/* Energy crystals: the XP. Each one the crew picks up is worth CRYSTAL_XP
+   to the team; every GOLD_EVERY-th level up is a gold pick. (The crystals
+   are counted too - they're the score.) */
+export const CRYSTAL_XP = 2, GOLD_EVERY = 3;
+/* A crystal picked up zooms to the XP bar: FLY seconds - slower and bigger
+   for the first SHOW of a run, so it's seen - and at most FLYING in the air
+   at once (any more go straight in). */
+export const FLY = 0.35, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
 export const SCORE = { kill: 10, boss: 500 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
@@ -111,9 +116,9 @@ const REACH = { 1: 1, 2: 0.55, 3: 0.5, 4: 0.45 };
 export const FIGHT_APART = 0.7;
 /* A sentence starting with a capital. */
 const cap1 = (s) => s[0].toUpperCase() + s.slice(1);
-const BODY = 0.1, COIN_REACH = 0.18, FOUNTAIN_REACH = 0.3;
+const BODY = 0.1, CRYSTAL_REACH = 0.18, FOUNTAIN_REACH = 0.3;
 /* What a door can be: the elite (the skull - always a big fight, for a
-   pile of coins), traps, or anything (?, which can be an ordinary fight).
+   pile of crystals), traps, or anything (?, which can be an ordinary fight).
    Each crossroads has two of them, different, either way round - but
    never the elite at a level's first, before anyone's levelled up. */
 export const DOOR_KINDS = ['elite', 'traps', 'mystery'];
@@ -144,7 +149,7 @@ class LastKnownPosition {
     this.t = 0; this.over = false; this.lost = false; this.out = null;
     this.z = 0; this.speed = SPEED; this.slow = 0; this.shake = 0;
     this.zoom = 0;                  /* how far the view has closed in, 0..1 */
-    this.coins = 0; this.kills = 0; this.bosses = 0; this.coinGolds = 0;
+    this.crystals = 0; this.kills = 0; this.bosses = 0; this.flyers = []; this.flown = 0; this.xpPulse = 0;
     /* The team's XP and level (lkp-levelup.js); level-ups still to pick,
        and the picking, while it's on. */
     this.xp = 0; this.lvl = 1; this.pending = 0; this.golds = 0; this.levelup = null;
@@ -229,7 +234,7 @@ class LastKnownPosition {
 
   /* What's in corridor n, by the second: the first is gentle, one new thing
      at a time - a bit of debris, then a bulkhead to duck, then a breach to
-     hop, each alone, with coins to show the way - and the later ones mix
+     hop, each alone, with crystals to show the way - and the later ones mix
      them up, faster and closer. */
   _layout(n){
     /* Laid out for the full length, and squeezed to fit a shorter one. */
@@ -239,38 +244,38 @@ class LastKnownPosition {
        look: it's automatic). */
     if (n > 0) this.seg.corner = { d: at((FULL[n] || 45) * 0.5), dir: Math.random() < 0.5 ? -1 : 1, at: null };
     const add = (secs, th) => this.things.push({ d: at(secs), ...th });
-    const coinLine = (secs, lane, k = 5, high = false) => { for (let i = 0; i < k; i++) add(secs + i * 0.3 / squeeze, { kind: 'coin', lane, high }); };
+    const crystalLine = (secs, lane, k = 5, high = false) => { for (let i = 0; i < k; i++) add(secs + i * 0.3 / squeeze, { kind: 'crystal', lane, high }); };
     const side = () => (Math.random() < 0.5 ? -1 : 1);
     const blocker = (secs, s = side(), width = 0.9) => {
       const a = s < 0 ? -1.05 : 1.05 - width, b = a + width;
       add(secs, { kind: 'blocker', a, b, seed: Math.floor(Math.random() * 100) });
-      coinLine(secs - 0.6, s < 0 ? 0.6 : -0.6, 4);
+      crystalLine(secs - 0.6, s < 0 ? 0.6 : -0.6, 4);
     };
     const beam = (secs) => add(secs, { kind: 'beam' });
     const gap = (secs, full = true, s = side()) => {
-      if (full){ add(secs, { kind: 'gap', a: -1.05, b: 1.05 }); [-0.5, 0, 0.5].forEach(l => add(secs, { kind: 'coin', lane: l, high: true })); }
-      else { const a = s < 0 ? -1.05 : 0.05, b = a + 1; add(secs, { kind: 'ledge', a, b }); coinLine(secs - 0.5, s < 0 ? 0.6 : -0.6, 3); }
+      if (full){ add(secs, { kind: 'gap', a: -1.05, b: 1.05 }); [-0.5, 0, 0.5].forEach(l => add(secs, { kind: 'crystal', lane: l, high: true })); }
+      else { const a = s < 0 ? -1.05 : 0.05, b = a + 1; add(secs, { kind: 'ledge', a, b }); crystalLine(secs - 0.5, s < 0 ? 0.6 : -0.6, 3); }
     };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set() });
     if (n === 0){
-      coinLine(3, 0, 6); coinLine(6, -0.5, 5);
+      crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
-      coinLine(14, 0.4, 5);
-      beam(19); coinLine(20, 0, 4);
-      gap(26); coinLine(29, -0.4, 5);
+      crystalLine(14, 0.4, 5);
+      beam(19); crystalLine(20, 0, 4);
+      gap(26); crystalLine(29, -0.4, 5);
       blocker(32, -1); fountain(36, 0.5);
       beam(40); gap(43, false); blocker(46);
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
-      coinLine(3, 0, 5); blocker(6); blocker(8.5);
+      crystalLine(3, 0, 5); blocker(6); blocker(8.5);
       let s = 11;
       for (let k = 0; k < 6; k++){
         const r = Math.random();
         if (r < 0.4) blocker(s); else if (r < 0.65) beam(s); else if (r < 0.85) gap(s, false); else gap(s);
         s += 2.6 * hard + Math.random() * 1.2;
       }
-      /* The middle: a coin rush, or a spring. */
-      if (n === 1){ for (let k = 0; k < 4; k++) coinLine(s + k * 0.9, Math.sin(k) * 0.7, 3); s += 4.5; }
+      /* The middle: a crystal rush, or a spring. */
+      if (n === 1){ for (let k = 0; k < 4; k++) crystalLine(s + k * 0.9, Math.sin(k) * 0.7, 3); s += 4.5; }
       else { fountain(s, side() * 0.45); s += 2.5; }
       /* Springs to run into on the way: SPRINGS in the corridor, more in
          the last one before the boss - off to one side, so it's a lean. */
@@ -315,13 +320,7 @@ class LastKnownPosition {
       this._stepBits(dt);
       return;
     }
-    /* The gold bar full: a gold pick on the way. */
-    while (this.coins >= (this.coinGolds + 1) * GOLD_COINS){
-      this.coinGolds++; this.golds++;
-      sfx.gold();
-      this.bits.push({ kind: 'num', x: 0.88, y: 0.16, vy: -0.03, age: 0, life: 1.6, text: 'GOLD PICK!', col: '#ffd24a' });
-    }
-    /* A gold pick earned (the gold bar - the only way to one): before any
+    /* A gold pick earned (every GOLD_EVERY-th level up): before any other
        level up. */
     if (this.golds > 0 && (this.calm || this.bossBeaten)){
       this.levelup = goldPick(this, PLAYTEST || PICK_TIME);
@@ -381,10 +380,24 @@ class LastKnownPosition {
   addXp(n){
     this.xp += n;
     while (this.xp >= needFor(this.lvl)){
-      this.xp -= needFor(this.lvl); this.lvl++; this.pending++;
-      sfx.learnt();
-      this.bits.push({ kind: 'num', x: 0.5, y: 0.2, vy: -0.04, age: 0, life: 1.6, text: 'LEVEL UP!', col: '#ffd24a' });
+      this.xp -= needFor(this.lvl); this.lvl++;
+      const gold = (this.lvl - 1) % GOLD_EVERY === 0;
+      if (gold) this.golds++; else this.pending++;
+      sfx.learnt(); if (gold) sfx.gold();
+      this.bits.push({ kind: 'num', x: 0.5, y: 0.2, vy: -0.04, age: 0, life: 1.6, text: gold ? 'GOLD PICK!' : 'LEVEL UP!', col: '#ffd24a' });
     }
+  }
+  /* n energy crystals for the team, picked up at (x, y) on the screen
+     (0..1): counted, and each worth `each` XP - zooming up to the XP bar
+     first, the XP going in as it lands. */
+  gain(n, x = 0.5, y = 0.5, each = CRYSTAL_XP){
+    if (!(n > 0)) return;
+    this.crystals += n;
+    const xp = n * each;
+    if (this.flyers.length >= FLYING){ this.addXp(xp); this.xpPulse = 1; return; }
+    const first = this.flown < SHOW; this.flown++;
+    if (this.flown === 1) this.captain?.say('Grab the energy crystals, crew! Your suits run on them.', 'CRYSTALS POWER YOU UP', { once: 'crystals', polite: true });
+    this.flyers.push({ x, y, t: 0, dur: first ? FLY_FIRST : FLY, xp, n: Math.min(n, 4), big: first, bend: Math.random() < 0.5 ? -1 : 1 });
   }
   /* Calm enough to stop for level ups - between rooms: a corridor just
      starting, or the doors before they're chosen. */
@@ -433,7 +446,7 @@ class LastKnownPosition {
     }
     if (f && !bs && !seg.told && f.elite){
       seg.told = true;
-      cap.say('That\'s a big one! Stick together and keep hitting it. Beat it for a pile of coins!', 'A BIG ONE!');
+      cap.say('That\'s a big one! Stick together and keep hitting it. Beat it for a pile of crystals!', 'A BIG ONE!');
     }
     if (f && !bs && !seg.told){
       seg.told = true;
@@ -455,7 +468,7 @@ class LastKnownPosition {
         if (!rn.down) rn.told = false;
       }
     }
-    if (this.treasure && !seg.told){ seg.told = true; cap.say('Treasure! Grab all the coins you can, with your hands!', 'GRAB THE COINS!'); }
+    if (this.treasure && !seg.told){ seg.told = true; cap.say('Treasure! Grab all the crystals you can, with your hands!', 'GRAB THE CRYSTALS!'); }
     if (this.treasure && this.treasure.pool > 0 && !seg.toldPool){ seg.toldPool = true; cap.say('Healing water! Hug yourselves to heal faster!', 'HUG TO HEAL!'); }
     const tr = this.trap;
     if (tr && !seg.told){
@@ -465,7 +478,7 @@ class LastKnownPosition {
       if (!cap.say(first, this.awake ? 'RUN, THEN FREEZE' : 'SHH! RUN, THEN FREEZE', { once: 'lights' })) cap.say(this.awake ? 'Another sentry. Careful now.' : 'Another sleeper. Quietly now!', '');
     }
     if (tr && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
-    if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The coins are yours.', ''); }
+    if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The crystals are yours.', ''); }
     if (bs && !bs.done) bs.cues(cap);
   }
 
@@ -538,7 +551,7 @@ class LastKnownPosition {
     rn.duck += ((ducking ? 1 : 0) - rn.duck) * Math.min(1, dt * 12);
   }
 
-  /* Everything that reaches the crew this step: coins to pick up, repairs
+  /* Everything that reaches the crew this step: crystals to pick up, repairs
      to run through, things to dodge. */
   _pass(before, W, H){
     for (const th of this.things){
@@ -546,12 +559,13 @@ class LastKnownPosition {
       if (!(was >= RUN && now < RUN)) continue;
       for (const i of this.here){
         const rn = this.crew[i];
-        if (th.kind === 'coin'){
-          if (th.got || Math.abs(rn.x - th.lane) > COIN_REACH || (th.high && rn.air < CLEAR * 2)) continue;
-          th.got = true; this.coins++;
-          sfx.jar(1 + (this.coins % 8));
-          const p = P(th.lane, RUN, W, H);
-          this._sparkle(p.x / W, (p.y - H * (th.high ? 0.3 : 0.12)) / H, 6, 45);
+        if (th.kind === 'crystal'){
+          if (th.got || Math.abs(rn.x - th.lane) > CRYSTAL_REACH || (th.high && rn.air < CLEAR * 2)) continue;
+          th.got = true;
+          const p = P(th.lane, RUN, W, H), y = (p.y - H * (th.high ? 0.3 : 0.12)) / H;
+          this.gain(1, p.x / W, y);
+          sfx.jar(1 + (this.crystals % 8));
+          this._sparkle(p.x / W, y, 6, 185);
           continue;
         }
         if (th.kind === 'fountain'){
@@ -641,6 +655,12 @@ class LastKnownPosition {
     if (this.bits.length > 300) this.bits.splice(0, this.bits.length - 300);
   }
   _stepBits(dt){
+    this.xpPulse = Math.max(0, this.xpPulse - dt * 4);
+    for (const f of this.flyers){
+      f.t += dt;
+      if (f.t >= f.dur && !f.in){ f.in = true; this.addXp(f.xp); this.xpPulse = 1; sfx.nibble(); }
+    }
+    this.flyers = this.flyers.filter(f => !f.in);
     for (const b of this.bits){ b.age += dt; if (b.vx != null) b.x += b.vx * dt; if (b.vy != null) b.y += b.vy * dt; }
     this.bits = this.bits.filter(b => b.age < b.life);
   }
@@ -770,7 +790,7 @@ class LastKnownPosition {
       case 'blocker': drawBlocker(c, W, H, it.rel, it.a, it.b, this.t, it.seed); break;
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
-      case 'coin': drawCoin(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
+      case 'crystal': drawCrystal(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
       case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.used.size >= this.here.length); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
@@ -852,34 +872,33 @@ class LastKnownPosition {
     c.restore();
   }
 
+  /* Where the XP bar's crystal sits, top right: where picked-up crystals
+     fly to. */
+  _xpAt(W, H){ return { x: W - H * 0.42, y: H * 0.07 }; }
+
   _drawHud(c, W, H){
-    /* The team's level and XP: a thin bar under the floor's pips. */
-    {
-      const w = W * 0.22, x0 = W / 2 - w / 2, y0 = H * 0.085;
-      c.save();
-      c.fillStyle = 'rgba(5,6,15,.7)'; c.fillRect(x0 - 2, y0 - 2, w + 4, H * 0.012 + 4);
-      c.fillStyle = '#a78bfa'; c.fillRect(x0, y0, w * Math.min(1, this.xp / needFor(this.lvl)), H * 0.012);
-      c.font = `700 ${Math.round(H * 0.026)}px Fredoka, sans-serif`; c.textAlign = 'right'; c.textBaseline = 'middle';
-      c.fillStyle = '#e9e3ff'; c.fillText(`LV ${this.lvl}`, x0 - H * 0.012, y0 + H * 0.006);
-      /* A star for each level up waiting to be picked. */
-      c.textAlign = 'left'; c.fillStyle = '#ffd24a';
-      if (this.pending > 0) c.fillText('\u2605'.repeat(Math.min(5, this.pending)), x0 + w + H * 0.012, y0 + H * 0.006);
-      c.restore();
-    }
     /* The boss's health, big across the top. */
     if (this.boss && !this.boss.done) this.boss.hud(c, W, H);
-    /* The team's coins, top right. */
-    const x = W - H * 0.06, y = H * 0.07;
-    c.save();
-    c.fillStyle = 'rgba(5,6,15,.75)'; c.beginPath(); c.roundRect(x - H * 0.24, y - H * 0.04, H * 0.27, H * 0.08, H * 0.04); c.fill();
-    drawCoin(c, x - H * 0.19, y, H * 0.022, this.t);
-    c.fillStyle = '#ffe9a8'; c.font = `700 ${Math.round(H * 0.05)}px Fredoka, sans-serif`; c.textAlign = 'right'; c.textBaseline = 'middle';
-    c.fillText(String(this.coins), x, y + H * 0.003);
-    /* Under it, the gold bar filling: full, a gold pick. */
-    const fill = (this.coins - this.coinGolds * GOLD_COINS) / GOLD_COINS, bw = H * 0.23, bx = x - H * 0.22, by = y + H * 0.055;
-    c.fillStyle = 'rgba(5,6,15,.75)'; c.beginPath(); c.roundRect(bx - H * 0.006, by - H * 0.006, bw + H * 0.012, H * 0.024, H * 0.012); c.fill();
-    c.fillStyle = '#ffd24a'; c.beginPath(); c.roundRect(bx, by, Math.max(H * 0.012, bw * Math.min(1, fill)), H * 0.012, H * 0.006); c.fill();
-    c.restore();
+    /* The team's level and XP, top right: a crystal, the level, the bar
+       filling - flashing as crystals land in it. */
+    {
+      const at = this._xpAt(W, H), x0 = at.x - H * 0.045, x1 = W - H * 0.04, y = at.y, pulse = this.xpPulse;
+      const bx = at.x + H * 0.13, bw = x1 - H * 0.025 - bx, bh = H * 0.02;
+      c.save();
+      c.fillStyle = 'rgba(5,6,15,.75)'; c.beginPath(); c.roundRect(x0, y - H * 0.04, x1 - x0, H * 0.08, H * 0.04); c.fill();
+      drawCrystal(c, at.x, y, H * 0.022 * (1 + 0.35 * pulse), this.t);
+      c.font = `700 ${Math.round(H * 0.038)}px Fredoka, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
+      c.fillStyle = '#e9e3ff'; c.fillText(`LV ${this.lvl}`, at.x + H * 0.035, y + H * 0.003);
+      c.fillStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.roundRect(bx, y - bh / 2, bw, bh, bh / 2); c.fill();
+      c.fillStyle = pulse > 0 ? `rgb(${Math.round(127 + 128 * pulse)},${Math.round(243 + 12 * pulse)},255)` : '#7ff3ff';
+      c.beginPath(); c.roundRect(bx, y - bh / 2, Math.max(bh, bw * Math.min(1, this.xp / needFor(this.lvl))), bh, bh / 2); c.fill();
+      /* Under it, a star for each level up waiting to be picked - gold for a gold pick. */
+      const stars = '\u2605'.repeat(Math.min(5, this.golds));
+      c.textAlign = 'right'; c.font = `700 ${Math.round(H * 0.03)}px Fredoka, sans-serif`;
+      if (this.pending > 0){ c.fillStyle = '#e9e3ff'; c.fillText('\u2605'.repeat(Math.min(5, this.pending)), x1 - H * 0.02, y + H * 0.065); }
+      if (this.golds > 0){ c.fillStyle = '#ffd24a'; c.fillText(stars, x1 - H * 0.02 - (this.pending > 0 ? H * 0.03 * Math.min(5, this.pending) : 0), y + H * 0.065); }
+      c.restore();
+    }
     /* The floor, as a row of pips along the top: where the crew are. */
     const plan = this.level.plan, n = plan.length - 1, w = H * 0.034;
     for (let k = 0; k < n; k++){
@@ -890,6 +909,30 @@ class LastKnownPosition {
       else if (kind === 'boss') c.arc(px, H * 0.055, w * (now ? 0.55 : 0.45), 0, 6.2832);
       else c.arc(px, H * 0.055, w * (now ? 0.36 : 0.28), 0, 6.2832);
       c.fill();
+    }
+    this._drawFlyers(c, W, H);
+  }
+
+  /* Crystals zooming to the XP bar: a curve up and across, quickening,
+     shrinking, a faint trail behind. */
+  _drawFlyers(c, W, H){
+    if (!this.flyers.length) return;
+    const to = this._xpAt(W, H);
+    const at = (f, u) => {
+      const x0 = f.x * W, y0 = f.y * H, cx = (x0 + to.x) / 2 + f.bend * H * 0.12, cy = Math.min(y0, to.y) - H * 0.08;
+      const v = u * u * (3 - 2 * u), a = (1 - v) * (1 - v), b = 2 * (1 - v) * v, d = v * v;
+      return [a * x0 + b * cx + d * to.x, a * y0 + b * cy + d * to.y];
+    };
+    for (const f of this.flyers){
+      const u = Math.min(1, f.t / f.dur), s = H * (f.big ? 0.03 : 0.018) * (1 - 0.45 * u);
+      for (let k = 3; k >= 1; k--){
+        const [tx, ty] = at(f, Math.max(0, u - k * 0.06));
+        c.fillStyle = `rgba(127,243,255,${0.18 * (4 - k) / 3})`; c.beginPath(); c.arc(tx, ty, s * (1 - k * 0.2), 0, 6.2832); c.fill();
+      }
+      for (let j = 0; j < f.n; j++){
+        const [x, y] = at(f, Math.max(0, u - j * 0.04));
+        drawCrystal(c, x + (j % 2 ? 1 : -1) * j * s * 0.5, y, s * (j ? 0.7 : 1), this.t + j);
+      }
     }
   }
 
@@ -919,13 +962,13 @@ class LastKnownPosition {
     }
   }
 
-  hud(){ return { score: pose.players.map(() => this.coins), showLives: false, hideScore: true, hideClock: true }; }
+  hud(){ return { score: pose.players.map(() => this.crystals), showLives: false, hideScore: true, hideClock: true }; }
   /* The tally: what the score's made of - each [picture, count, worth]. */
   tallyLines(){
-    return [['\u{1FA99}', this.coins, this.coins], ['\u{1F916}', this.kills, this.kills * SCORE.kill], ['\u{1F451}', this.bosses, this.bosses * SCORE.boss]];
+    return [['\u{1F48E}', this.crystals, this.crystals], ['\u{1F916}', this.kills, this.kills * SCORE.kill], ['\u{1F451}', this.bosses, this.bosses * SCORE.boss]];
   }
 
-  /* At the end, over the scene: the coins, the knockouts and the boss,
+  /* At the end, over the scene: the crystals, the knockouts and the boss,
      each counting up in turn, then the score. (Bests are kept, not
      announced - like the rest of the console.) */
   _drawTally(c, W, H){
@@ -961,6 +1004,6 @@ class LastKnownPosition {
     return rows;
   }
   winner(){ return this.crew.filter(r => r.played).length < 2 ? null : -1; }
-  /* The score: coins, plus knockouts and bosses (SCORE). */
-  value(){ return this.coins + this.kills * SCORE.kill + this.bosses * SCORE.boss; }
+  /* The score: crystals, plus knockouts and bosses (SCORE). */
+  value(){ return this.crystals + this.kills * SCORE.kill + this.bosses * SCORE.boss; }
 }

@@ -45,7 +45,7 @@ export const LEVELS = [
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
     boss: 'scout', bossName: 'Sweeper',
     tips: {
-      coin: ['Grab those coins!', 'COINS!'],
+      crystal: ['Grab those crystals!', 'CRYSTALS!'],
       blocker: ['Fallen tree! Lean to go around it.', 'LEAN!'],
       beam: ['Low branch! Duck under it!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],

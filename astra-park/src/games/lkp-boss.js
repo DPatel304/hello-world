@@ -32,12 +32,11 @@
    again, looking at it from another side: each phase its own side.
    Nothing happens on the way round; any robots left go back to it.
 
-   Down to nothing, it bursts in a shower of coins, and the run is won.
+   Down to nothing, it bursts in a shower of crystals, and the run is won.
    (However it's going, after len seconds it gives up and bursts anyway.) */
 import { RUN, P, PIT_NEAR, drawCore, drawArm, drawShockwave, drawSweep, drawArena, SIDES } from './lkp-art.js';
 import { sfx } from '../audio/sound.js';
 import { Fight, FRONT, FIGHT_MAX } from './lkp-combat.js';
-import { XP } from './lkp-levelup.js';
 import { pose } from '../tracking/pose.js';
 import { MarchWatch } from '../tracking/gestures.js';
 
@@ -60,7 +59,7 @@ export const OVERLOAD = 0.4, BLAST_EVERY = 2.8, ROLL = 0.55, BLAST = 12;
 /* Over a shockwave: this high in a hop (as clearing a breach). Under a
    sweep: ducked this far (as under a bulkhead). */
 const HOPPED = 0.15, DUCKED = 0.5;
-export const BOSS_COINS = 50;
+export const BOSS_CRYSTALS = 150;
 /* Round the ring between phases: the roar and the shaking first (ROAR
    seconds), then MOVE seconds of running - down to MOVE / RUN_BOOST
    if everyone's running all-out. */
@@ -210,7 +209,6 @@ export class Warden {
   }
 
   _win(W, H){
-    this.g.addXp?.(XP.boss);
     /* Beaten - not just given up on. */
     if (this.core ? this.core.hp <= 0 : this.body.hp <= 0) this.g.bosses++;
     const g = this.g, f = this.fight;
@@ -219,7 +217,7 @@ export class Warden {
     f.bots = [];
     this._burst(this.core, W, H);
     f._clear(W, H);
-    g.coins += BOSS_COINS;
+    g.gain(BOSS_CRYSTALS, 0.5, 0.35);
     for (let k = 0; k < 12; k++) g._sparkle(Math.random(), 0.2 + Math.random() * 0.4, 6, 50);
     sfx.fanfare();
   }
