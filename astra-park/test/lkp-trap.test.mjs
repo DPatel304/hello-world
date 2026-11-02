@@ -20,6 +20,11 @@ function body(i, t = 0, how = 'still'){
   put(L.L_ANKLE, 0.53, 0.9 - Math.max(0, step)); put(L.R_ANKLE, 0.47, 0.9 - Math.max(0, -step));
   const wave = how === 'wriggle' ? Math.sin(t * 12) * 0.08 : 0;
   put(L.L_WRIST, 0.6 + wave, 0.6); put(L.R_WRIST, 0.4 - wave, 0.6);
+  /* Leaning side to side: everything above the hips swaying across. */
+  if (how === 'lean'){
+    const dx = Math.sin(t * 3) * 0.05;
+    for (const j of [L.NOSE, L.L_SHOULDER, L.R_SHOULDER, L.L_WRIST, L.R_WRIST]) lm[j].x += dx;
+  }
   Object.assign(pose.players[i], { present: true, lm, scale: 0.3, centre: { x: 0.5, y: 0.6 } });
 }
 /* Straight into red light, green light. */
@@ -78,6 +83,18 @@ test('any movement on green walks you up - waving your arms will do - and stoppi
   const c = inst.crew[0].along;
   run(inst, 0.4, () => 'still');
   assert.ok(inst.crew[0].along - c < 0.002, 'stopped');
+});
+
+test('leaning side to side neither walks you up on green, nor moves you across, nor gets you zapped on red', () => {
+  const inst = room();
+  lightIs(inst, 'green');
+  const x = inst.crew[0].x, a = inst.crew[0].along;
+  run(inst, 1, () => 'lean');
+  assert.ok(inst.crew[0].along - a < 0.01, 'leaning is not walking');
+  assert.ok(Math.abs(inst.crew[0].x - x) < 0.01, 'and not moving across');
+  lightIs(inst, 'red');
+  run(inst, 2, () => 'lean');
+  assert.equal(inst.crew[0].hp, MAX_HP);
 });
 
 test('a quick fidget on red is forgiven', () => {

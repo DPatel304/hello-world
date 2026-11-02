@@ -117,12 +117,28 @@ export class MarchWatch {
 }
 
 const MOVERS = [L.NOSE, L.L_WRIST, L.R_WRIST, L.L_HIP, L.R_HIP, L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE];
+const HANDS = [L.L_WRIST, L.R_WRIST], LEGS = [L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE];
+const mid = (lm, a, b) => ({ x: (lm[a].x + lm[b].x) / 2, y: (lm[a].y + lm[b].y) / 2 });
 export class MoveWatch {
-  constructor(){ this.was = null; this.moving = 0; }
+  /* limbs: only what the arms and legs do themselves - hands against the
+     shoulders, knees and feet going up and down against the hips - so
+     leaning, swaying or bobbing the whole body doesn't count. */
+  constructor(limbs = false){ this.was = null; this.moving = 0; this.limbs = limbs; }
   /* How much they're moving: body sizes a second. */
   step(p, dt, mouse = false){
     let v = 0;
     if (mouse) v = p.hands.right.speed || 0;
+    else if (p && p.lm && this.limbs){
+      const lm = p.lm, was = this.was, sh = mid(lm, L.L_SHOULDER, L.R_SHOULDER), hp = mid(lm, L.L_HIP, L.R_HIP);
+      const now = {};
+      for (const j of HANDS) now[j] = { x: lm[j].x - sh.x, y: lm[j].y - sh.y };
+      for (const j of LEGS) now[j] = { x: 0, y: lm[j].y - hp.y };
+      if (was){
+        const fast = [...HANDS, ...LEGS].filter(j => (lm[j].v ?? 1) > 0.5 && was[j]).map(j => Math.hypot(now[j].x - was[j].x, now[j].y - was[j].y));
+        if (fast.length) v = fast.sort((a, b) => a - b)[Math.max(0, fast.length - 2)] / Math.max(dt, 1e-3) / (p.scale || 0.3);
+      }
+      this.was = now;
+    }
     else if (p && p.lm){
       const lm = p.lm, was = this.was;
       if (was){

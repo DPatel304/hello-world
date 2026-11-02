@@ -6,9 +6,10 @@
    great cleaning robot slumped beyond it. Before the robots have woken
    (the depot) it's asleep - snoring, Z z z; after, it's a sentry,
    recharging. While it is (the light on it green), any movement at all
-   - marching, dancing, waving your arms - walks your astronaut up the
-   hall, and more of it goes quicker; stop, and they stop (lean to go left
-   and right, as ever). When it stirs (yellow), its eye flickering, it's
+   - marching, dancing, waving your arms - walks your astronaut straight
+   up the hall, and more of it goes quicker; stop, and they stop. Each
+   keeps to their own lane: leaning tilts them a little but doesn't move
+   them across, and leaning or swaying never counts as moving. When it stirs (yellow), its eye flickering, it's
    about to look; when its eye opens (red) it's looking - and it's
    forgiving: a GRACE to stop, and after that only someone who keeps
    really moving for CAUGHT seconds gets zapped (a wobble, a sway or a
@@ -63,7 +64,7 @@ export class Lights {
     this.g = game; this.len = len;
     this.t = 0; this.light = 'red'; this.left = READY; this.redT = Infinity;   /* the first red's only to get ready: nobody's zapped */
     this.done = false; this.clearT = 0; this.fade = 0;
-    this.moves = pose.players.map(() => new MoveWatch());
+    this.moves = pose.players.map(() => new MoveWatch(true));
     for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; rn.caught = 0; }
     /* The pile: two heaps past the finish line, either side of the robot. */
     this.pile = Array.from({ length: CLEAR_CRYSTALS }, (_, k) => ({ lane: (k % 2 ? 1 : -1) * (0.55 + Math.random() * 0.3), up: Math.random() * 0.05, z: k / 2 }));

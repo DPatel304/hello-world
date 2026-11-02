@@ -540,7 +540,9 @@ class LastKnownPosition {
     /* In a fight, the whole width too, but standing apart unless they
        lean in to stand together. */
     /* A door chosen: all together, over to it and through. */
-    const want = this.seg.kind === 'cross' && this.seg.choice != null ? DOORS[this.seg.choice] + this._home(i) * 0.12
+    /* Red light, green light: straight up their own lane - leaning only tilts them. */
+    const want = this.trap ? this._home(i)
+      : this.seg.kind === 'cross' && this.seg.choice != null ? DOORS[this.seg.choice] + this._home(i) * 0.12
       : this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
       : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
       : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
