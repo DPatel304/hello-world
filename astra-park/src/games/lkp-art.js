@@ -16,6 +16,7 @@
    on the floor - lane -1 its left edge, 1 its right - into the screen;
    heights are screen heights at the crew, scaled by P's k with distance. */
 
+import { worldCrew, worldBeast, worldRobot } from './lkp-cast.js';
 import { drawWorld, finish, worldBlocker, worldBeam, worldGap, worldCoin, worldFountain } from './lkp-world.js';
 
 export const RUN = 0.03;              /* the crew's own depth */
@@ -221,6 +222,7 @@ export function drawCrown(c, x, y, s){
    face(x, y, r) paints the face: a picture as it is, anything else into
    a clipped circle. */
 export function drawCrew(c, x, base, h, t, col, st, face){
+  if (PAL.world) return worldCrew(c, x, base, h, t, col, st, face, st.pose);
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, h * 0.2, h * 0.04, 0, 0, 6.2832); c.fill();
   c.save();
   c.translate(x, base - st.air); c.rotate(st.lean * 0.2);
@@ -287,6 +289,7 @@ export function drawZzz(c, x, y, s, t){
    coming down on someone), flash 1..0 (just hit: white), hp 0..1 (its
    health bar) }. */
 export function drawRustbot(c, x, base, s, t, st){
+  if (PAL.world) return worldRobot(c, x, base, s * 1.15, t, st);
   const bob = Math.sin(t * 7) * s * 0.02, w = s * 0.55;
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.6, s * 0.06, 0, 0, 6.2832); c.fill();
   c.save(); c.translate(x, base + bob);
@@ -316,6 +319,7 @@ export function drawRustbot(c, x, base, s, t, st){
    a stocky four-legged thing, mossy green, with two short horns. Drawn
    like a rustbot (same st), as it plays like one. */
 export function drawBeast(c, x, base, s, t, st){
+  if (PAL.world) return worldBeast(c, x, base, s * 1.1, t, st);
   const bob = Math.abs(Math.sin(t * 7)) * s * 0.03, w = s * 0.75;
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.6, s * 0.06, 0, 0, 6.2832); c.fill();
   c.save(); c.translate(x, base - bob);

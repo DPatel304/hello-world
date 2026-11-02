@@ -1,5 +1,5 @@
-/* Last Known Position's voice in your ear: Nova, the crew's ship's
-   computer, talking them through it from the wreck over the radio -
+/* Last Known Position's voice in your ear: Commander Nova, hurt in the
+   crash, talking the crew through it from the wreck over the radio -
    their guide, their teacher and the story's narrator.
 
    In play she's a small window up in the top left: it slides in, her face
@@ -18,6 +18,7 @@ import { pose } from '../tracking/pose.js';
 import { PAL } from './lkp-art.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
 import { voice, lineTime } from '../audio/voice.js';
+import { commanderFace } from './lkp-cast.js';
 
 export const NOVA = 'Nova';
 /* Each player by their colour, as she'd call them. */
@@ -78,7 +79,7 @@ function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', label = 'RO
   c.beginPath(); c.roundRect(x, y, w, h, h * 0.08); c.fill();
   c.save(); c.clip();
   if (who === 'robot') robotFace(c, x + w / 2, y + h * 0.5, h * 0.42, t, talking);
-  else novaFace(c, x + w / 2, y + h * 0.56, h * 0.36, t, talking);
+  else { const bg = c.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, '#2a5a86'); bg.addColorStop(1, '#0f2240'); c.fillStyle = bg; c.fillRect(x, y, w, h); commanderFace(c, x + w / 2, y + h * 0.5, h * 0.3, t, talking); }
   /* Scan lines, and a fizz of static. */
   c.fillStyle = 'rgba(0,0,0,.18)';
   for (let k = 0; k < h; k += 4) c.fillRect(x, y + k, w, 1.5);
@@ -91,7 +92,7 @@ function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', label = 'RO
   /* Her name, small, on the frame. */
   c.font = `700 ${Math.round(h * 0.11)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = who === 'robot' ? '#ff3b3b' : '#3fd0ff';
-  c.fillText(who === 'robot' ? label : NOVA.toUpperCase(), x + w / 2, y + h * 0.92);
+  c.fillText(who === 'robot' ? label : 'CMDR ' + NOVA.toUpperCase(), x + w / 2, y + h * 0.92);
   c.restore();
 }
 
