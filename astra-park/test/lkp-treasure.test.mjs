@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story, GOLD_EVERY, FLYING } from '../src/games/lkp-game.js';
 import { needFor } from '../src/games/lkp-levelup.js';
-import { TREASURE_TIME, CRYSTALS, POOL, POOL_HEAL } from '../src/games/lkp-treasure.js';
+import { TREASURE_TIME as LEN, CALM, CRYSTALS, RAIN, POOL, POOL_HEAL } from '../src/games/lkp-treasure.js';
+/* The whole crystal grab: the calm start, then the crystals coming down. */
+const TREASURE_TIME = CALM + LEN;
 import { pose, L } from '../src/tracking/pose.js';
 /* The play itself, without the ship's computer's scenes. */
 story.on = false;
@@ -26,11 +28,17 @@ function treasure(n = 2){
   return inst;
 }
 
-test('a treasure room is full of floating crystals - and no healing while they\'re grabbed', () => {
+test('a treasure room starts empty, then crystals come down from the ceiling to the floor - and no healing while they\'re grabbed', () => {
   const inst = treasure();
   inst.crew[0].hp = 30;
+  run(inst, CALM - 0.2);
+  assert.equal(inst.treasure.crystals.length, 0, 'a moment to find your feet');
   run(inst, 2);
-  assert.equal(inst.treasure.crystals.length, CRYSTALS);
+  const tr = inst.treasure, n = tr.crystals.length;
+  assert.ok(n >= RAIN && n <= CRYSTALS);
+  assert.ok(tr.crystals.every(cn => cn.y < 0.3 && cn.vy > 0), 'from the top, coming down');
+  run(inst, 15);
+  assert.ok(tr.crystals.every(cn => cn.y < 1), 'gone at the floor');
   assert.equal(inst.crew[0].hp, 30);
   assert.ok(inst.speed < 0.02);
 });
@@ -60,18 +68,15 @@ test('the crystals done, POOL seconds of healing water for the whole team - hugg
   assert.notEqual(inst.phase, 'room');
 });
 
-test('a hand touching a crystal grabs it, for the team - and another soon takes its place', () => {
+test('a hand touching a crystal grabs it, for the team', () => {
   const inst = treasure();
-  run(inst, 0.5);
+  run(inst, CALM + 1);
   const cn = inst.treasure.crystals[0], crystals = inst.crystals;
   cn.vx = cn.vy = 0;
   pose.players[1].hands.right = { x: cn.x, y: cn.y, vx: 0, vy: 0, speed: 0 };
   inst.step(DT, W, H);
   assert.ok(inst.crystals - crystals >= cn.worth);
   assert.equal(inst.treasure.got[1] >= cn.worth, true);
-  pose.players[1].hands.right = { x: 0.5, y: 0.05, vx: 0, vy: 0, speed: 0 };
-  run(inst, 1);
-  assert.equal(inst.treasure.crystals.length, CRYSTALS, 'replaced');
 });
 
 test('after its time, the room is over and the run goes on', () => {

@@ -1,9 +1,10 @@
 /* The treasure room - only ever behind the ? door. A crystal grab, played
-   like Pop Party's balloons: the room is full of floating crystals, the
-   players see themselves in it (their silhouettes, their glowing hands),
-   and every crystal a hand touches is grabbed - for the team. Big gold ones
-   are worth BIG. Grabbed crystals are soon replaced, so there's always
-   plenty. After len seconds the crystals are done, and the room fills with
+   like Pop Party's balloons. The room starts empty - CALM seconds to find
+   your feet (each player a little astronaut along the bottom, arms
+   stretching to their hands) - then crystals drift slowly down from the
+   ceiling towards the floor, RAIN a second, and every one a hand touches
+   is grabbed - for the team. Big ones are worth BIG. Any that reach the
+   floor fade away. After len seconds of it the crystals are done, and the room fills with
    healing water: POOL seconds for the whole team to stand in it, healing
    POOL_HEAL a second - and HUG_HEAL a second hugging themselves. Then on
    they go. (The only healing besides the corridors' springs.) */
@@ -18,11 +19,14 @@ import { worldCrew } from './lkp-cast.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 
 export const TREASURE_TIME = 20;
-/* How many crystals float about at once; how often one's big, and its
-   worth; how long till a grabbed one's replaced. */
-export const CRYSTALS = 36, BIG_CHANCE = 0.1, BIG = 5, REFILL = 0.6;
+/* Empty at first, this long; then crystals coming down, RAIN a second
+   (no more than CRYSTALS in the room at once), falling FALL screens a
+   second; how often one's big, and its worth. */
+export const CALM = 2.5, RAIN = 3, CRYSTALS = 36, FALL = [0.05, 0.09], BIG_CHANCE = 0.1, BIG = 5;
 /* A crystal's size (screen heights); how near a hand has to come (at least). */
 const R = 0.032, REACH = 0.045;
+/* Where they reach the floor, and fade. */
+const FLOOR = 0.92;
 /* The healing water: how long, and how much health a second - standing
    in it, and hugging yourself in it. */
 export const POOL = 3, POOL_HEAL = 8, HUG_HEAL = 30;
@@ -31,21 +35,18 @@ export class Treasure {
   constructor(game, len = TREASURE_TIME){
     this.g = game; this.len = len; this.t = 0; this.done = false; this.clearT = 0;
     this.avatars = new Avatars();
-    this.crystals = [];
-    for (let k = 0; k < CRYSTALS; k++) this.crystals.push(this._crystal());
-    this.refill = [];
+    this.crystals = []; this.rain = 0;
     this.got = pose.players.map(() => 0);
     this.pool = 0; this.wet = 0;
     this.hugs = pose.players.map(() => new HugWatch());
     sfx.gold();
   }
 
-  /* A crystal somewhere in the room (not up under the top of the screen),
-     drifting. */
+  /* A crystal coming in at the ceiling, somewhere across, to drift down. */
   _crystal(){
     const big = Math.random() < BIG_CHANCE;
-    return { x: 0.05 + Math.random() * 0.9, y: 0.2 + Math.random() * 0.72, r: R * (big ? 1.5 : 1), worth: big ? BIG : 1,
-      vx: (Math.random() - 0.5) * 0.06, vy: (Math.random() - 0.5) * 0.05, ph: Math.random() * 6, born: 0 };
+    return { x: 0.05 + Math.random() * 0.9, y: -0.03, r: R * (big ? 1.5 : 1), worth: big ? BIG : 1,
+      vx: (Math.random() - 0.5) * 0.04, vy: FALL[0] + Math.random() * (FALL[1] - FALL[0]), ph: Math.random() * 6, born: 0 };
   }
 
   step(dt, W, H){
@@ -54,13 +55,18 @@ export class Treasure {
     this.avatars.step(dt, g.players);
     if (this.done){ this.clearT += dt; return; }
     if (this.pool > 0){ this._soak(dt, W, H); return; }
-    /* Drifting, bobbing, bouncing off the room's edges. */
+    /* After a calm moment, crystals coming down from the ceiling - drifting
+       side to side as they fall, fading away at the floor. */
+    if (this.t >= CALM){
+      this.rain += dt * RAIN;
+      while (this.rain >= 1){ this.rain--; if (this.crystals.length < CRYSTALS) this.crystals.push(this._crystal()); }
+    }
     for (const cn of this.crystals){
-      cn.born = Math.min(1, cn.born + dt * 3);
-      cn.x += cn.vx * dt; cn.y += (cn.vy + Math.sin(this.t * 1.6 + cn.ph) * 0.02) * dt;
+      cn.born = cn.y > FLOOR ? Math.max(0, cn.born - dt * 3) : Math.min(1, cn.born + dt * 3);
+      cn.x += (cn.vx + Math.sin(this.t * 1.3 + cn.ph) * 0.03) * dt; cn.y += cn.vy * dt;
       if (cn.x < 0.03 || cn.x > 0.97) cn.vx = -cn.vx;
-      if (cn.y < 0.18 || cn.y > 0.95) cn.vy = -cn.vy;
-      cn.x = Math.max(0.03, Math.min(0.97, cn.x)); cn.y = Math.max(0.18, Math.min(0.95, cn.y));
+      cn.x = Math.max(0.03, Math.min(0.97, cn.x));
+      if (cn.y > FLOOR && cn.born <= 0) cn.gone = true;
     }
     /* Hands grab what they touch. (The mouse is both hands at once.) */
     for (const i of g.here){
@@ -74,10 +80,7 @@ export class Treasure {
       }
     }
     this.crystals = this.crystals.filter(cn => !cn.gone);
-    /* New ones fade in to replace them. */
-    for (const r of this.refill) r.t -= dt;
-    while (this.refill.length && this.refill[0].t <= 0){ this.refill.shift(); this.crystals.push(this._crystal()); }
-    if (this.t >= this.len){ this.pool = POOL; sfx.select(); sfx.splash(); }
+    if (this.t >= CALM + this.len){ this.pool = POOL; sfx.select(); sfx.splash(); }
   }
 
   /* The healing water: everyone in it heals; hugging, faster. */
@@ -102,7 +105,6 @@ export class Treasure {
   _grab(cn, i, W, H){
     const g = this.g;
     cn.gone = true; g.gain(cn.worth, cn.x, cn.y, CRYSTAL_XP / Math.sqrt(Math.max(1, g.here.length))); this.got[i] += cn.worth;
-    this.refill.push({ t: REFILL });
     sfx.jar(1 + (g.crystals % 8));
     g._sparkle(cn.x, cn.y, cn.worth > 1 ? 14 : 6, 50);
   }
@@ -168,7 +170,7 @@ export class Treasure {
       c.restore();
       return;
     }
-    const u = Math.max(0, 1 - this.t / this.len), w = W * 0.4;
+    const u = Math.max(0, Math.min(1, 1 - (this.t - CALM) / this.len)), w = W * 0.4;
     c.fillStyle = 'rgba(5,6,15,.75)'; c.fillRect(W / 2 - w / 2, H * 0.145, w, H * 0.018);
     c.fillStyle = u < 0.25 ? '#ff5b5b' : '#ffd24a'; c.fillRect(W / 2 - w / 2, H * 0.145, w * u, H * 0.018);
   }
