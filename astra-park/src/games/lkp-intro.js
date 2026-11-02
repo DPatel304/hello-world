@@ -136,14 +136,14 @@ export class Intro {
      still - and the ship behind them all, front and centre. [lane, depth] */
   _at(i, W, H){
     const k = Math.max(0, this.g.here.indexOf(i));
-    const [lane, rel] = SLOTS[k % SLOTS.length], p = P(lane, rel, W, H);
-    return { x: p.x, y: p.y, h: H * 0.19 * p.k * CLOSE, rel };
+    const [lane, rel] = CINE.slots[k % CINE.slots.length], p = P(lane, rel, W, H);
+    return { x: p.x, y: p.y, h: H * 0.19 * p.k * CINE.close, rel };
   }
 
   /* Where the camera is: looking at (cx, cy), s times closer, tilted r. */
   _cam(W, H){
     /* low to the ground, the horizon low in the frame, drifting slowly */
-    const cine = { cx: W * (0.5 + 0.015 * Math.sin(this.t * 0.25)), cy: H * 0.5, s: 1.12 + (this.stage === 'talk' ? 0.006 * Math.min(10, this.talk.t) : 0), r: 0.012 * Math.sin(this.t * 0.2) };
+    const C = CINE.cam, cine = { cx: W * (C.x + 0.015 * Math.sin(this.t * 0.25)), cy: H * C.y, s: C.s + (this.stage === 'talk' ? 0.006 * Math.min(10, this.talk.t) : 0), r: C.r + 0.012 * Math.sin(this.t * 0.2) };
     const pov = (u) => {
       /* lying there: up at the sky, down to the ship, a look left, a look right */
       const down = smooth((u - 0.25) / 0.25), look = u < 0.55 ? 0 : u < 0.78 ? -Math.sin((u - 0.55) / 0.23 * Math.PI / 2) : -1 + 1.6 * smooth((u - 0.78) / 0.22);
@@ -160,7 +160,8 @@ export class Intro {
   _scene(c, W, H, crew){
     const g = this.g;
     drawCorridor(c, W, H, 0, this.t);
-    const list = [{ rel: SHIP[1], draw: () => worldShip(c, W, H, SHIP[1], SHIP[0], this.t, SHIP[2]) },
+    const [sl, sr, ss] = CINE.ship;
+    const list = [{ rel: sr, draw: () => worldShip(c, W, H, sr, sl, this.t, ss) },
       { rel: 0.34, draw: () => worldWreck(c, W, H, 0.34, 2.7, this.t, 1.1, 1) }];
     if (crew) for (const i of g.here){
       const a = this._at(i, W, H);
@@ -327,10 +328,14 @@ function buffer(w, h){
 
 /* The cinematic shot: the ship [lane, depth, size], and where the crew
    are, near to far. */
-const SHIP = [0.1, 0.72, 0.95];
-const SLOTS = [[0.5, 0.04], [-1.5, 0.12], [-0.45, 0.2], [1.1, 0.25]];
-/* Low and close: the crew loom larger than in play. */
-const CLOSE = 1.3;
+export const CINE = {
+  ship: [0.1, 0.72, 0.95],
+  slots: [[0.5, 0.04], [-1.5, 0.12], [-0.45, 0.2], [1.1, 0.25]],
+  /* low and close: the crew loom larger than in play */
+  close: 1.3,
+  /* the camera: looking at (x, y) (screens), s times closer, tilted r */
+  cam: { x: 0.5, y: 0.5, s: 1.12, r: 0 }
+};
 const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 
