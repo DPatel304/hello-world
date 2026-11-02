@@ -4,7 +4,8 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { P, RUN, DOORS, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
+import { turn, resetView } from './lkp-world.js';
+import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCoin, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
 import { arms, armored } from './lkp-weapons.js';
@@ -137,7 +138,7 @@ class LastKnownPosition {
     /* The level being played (only the first, for now), in its colours;
        its robots asleep till its depot wakes them. */
     this.level = LEVELS[0];
-    setPalette(this.level.palette);
+    setPalette(this.level.palette); resetView();
     this.awake = !this.level.plan.includes('depot');
     this.depot = null;
     this.t = 0; this.over = false; this.lost = false; this.out = null;
@@ -234,6 +235,9 @@ class LastKnownPosition {
     /* Laid out for the full length, and squeezed to fit a shorter one. */
     const squeeze = this.seg.len / (FULL[n] || 45);
     const at = (secs) => this.z + RUN + SPEED * secs * squeeze + 0.9;   /* reaching the crew `secs` in */
+    /* After the first, each corridor turns sharply once, halfway (for the
+       look: it's automatic). */
+    if (n > 0) this.seg.corner = { d: at((FULL[n] || 45) * 0.5), dir: Math.random() < 0.5 ? -1 : 1, at: null };
     const add = (secs, th) => this.things.push({ d: at(secs), ...th });
     const coinLine = (secs, lane, k = 5, high = false) => { for (let i = 0; i < k; i++) add(secs + i * 0.3 / squeeze, { kind: 'coin', lane, high }); };
     const side = () => (Math.random() < 0.5 ? -1 : 1);
@@ -716,6 +720,7 @@ class LastKnownPosition {
       c.translate(W / 2, py); c.scale(z, z); c.translate(-W / 2, -py);
     }
     const seg = this.seg;
+    this._bend();
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     const items = [];
@@ -734,6 +739,29 @@ class LastKnownPosition {
     if (this.depot) this.depot.draw(c, W, H);
     c.restore();
     this._drawHud(c, W, H);
+  }
+
+  /* The path's bends, for the look: gentle curves along a corridor, a
+     sharp turn swinging round once in a while; straight for the rooms. */
+  _bend(){
+    const seg = this.seg;
+    let curve = 0, corner = null, dir = 1;
+    if (!this.boss){
+      const want = seg.kind === 'corridor' ? 0.6 * Math.sin(this.z * 0.35) + 0.35 * Math.sin(this.z * 0.9 + 1) : 0;
+      this.curveNow = (this.curveNow || 0) + (want - (this.curveNow || 0)) * 0.05;
+      curve = this.curveNow;
+      const cn = seg.corner;
+      if (cn){
+        const rel = cn.d - this.z;
+        if (rel > RUN){ corner = rel; dir = cn.dir; }
+        else {
+          if (cn.at == null){ cn.at = this.t; turn(cn.dir); }
+          const f = 1 - (this.t - cn.at);
+          if (f > 0){ corner = RUN; dir = cn.dir * f * f; }
+        }
+      }
+    }
+    setBend(curve, corner, dir);
   }
 
   _drawItem(c, it, W, H){

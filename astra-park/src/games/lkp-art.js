@@ -16,6 +16,8 @@
    on the floor - lane -1 its left edge, 1 its right - into the screen;
    heights are screen heights at the crew, scaled by P's k with distance. */
 
+import { drawWorld, finish, worldBlocker, worldBeam, worldGap, worldCoin, worldFountain } from './lkp-world.js';
+
 export const RUN = 0.03;              /* the crew's own depth */
 export const HORIZON = 0.38;          /* screen heights */
 const BOTTOM = 0.97;                  /* where the crew's feet are */
@@ -23,7 +25,21 @@ const HALF = 0.36;                    /* half the floor's width at the crew, in 
 const WALL = 1.15;                    /* the walls, in lanes */
 const S = (z) => 1 / (1 + 6 * Math.max(-0.1, z));
 
+/* The path's bends, for the look only (lanes, and so the play, don't
+   change): `curve` bends it gently left (-) or right (+) into the
+   distance; a sharp turn, `corner` deep, swings it hard `dir` beyond.
+   Set each frame by the game (setBend). */
+export const BEND = { curve: 0, corner: null, dir: 1 };
+export function setBend(curve = 0, corner = null, dir = 1){ BEND.curve = curve; BEND.corner = corner; BEND.dir = dir; }
+const bendAt = (rel) => {
+  const r = Math.max(0, rel - RUN);
+  let b = BEND.curve * r * r * 4;
+  if (BEND.corner != null && rel > BEND.corner){ const d = rel - BEND.corner; b += BEND.dir * d * d * 70; }
+  return b;
+};
+
 export function P(lane, rel, W, H){
+  if (BEND.curve || BEND.corner != null) lane += bendAt(rel);
   const k = S(rel) / S(RUN);
   const y = HORIZON + (BOTTOM - HORIZON) * (S(rel) - S(1)) / (S(RUN) - S(1));
   return { x: W * (0.5 + lane * HALF * k), y: y * H, k };
@@ -37,7 +53,7 @@ const LINE = 'rgba(255,255,255,.18)';
    say. trees: trees along the sides of the way, in that colour. */
 export const METAL = {
   bg: '#1b1f2e', floor: '#2a3043', edge: 'rgba(255,255,255,.5)', blocker: '#e5484d', beam: '#f59e0b', post: '#8a8f9e',
-  gap: '#05060a', fountain: '#22c55e', wall: '#3a4057', hall: '#141826', hallFloor: '#232a3c', hallRed: '#2e1d26', trees: null
+  gap: '#05060a', fountain: '#22c55e', wall: '#3a4057', hall: '#141826', hallFloor: '#232a3c', hallRed: '#2e1d26', trees: null, world: null
 };
 export const PAL = { ...METAL };
 export function setPalette(p){ Object.assign(PAL, METAL, p || {}); }
@@ -47,6 +63,7 @@ export function setPalette(p){ Object.assign(PAL, METAL, p || {}); }
 /* The corridor: a flat floor, its edges, lane lines, and cross lines
    sliding past so you can feel the speed. `alarm` tints it red. */
 export function drawCorridor(c, W, H, z, t, alarm = 0){
+  if (PAL.world) return drawWorld(c, W, H, z, t, alarm, PAL.world);
   c.fillStyle = PAL.bg; c.fillRect(0, 0, W, H);
   const nl = P(-WALL, -0.08, W, H), nr = P(WALL, -0.08, W, H), fl = P(-WALL, 1, W, H), fr = P(WALL, 1, W, H);
   if (PAL.trees) trees(c, W, H, z, PAL.trees);
@@ -69,8 +86,9 @@ export function drawCorridor(c, W, H, z, t, alarm = 0){
   if (alarm > 0){ c.fillStyle = `rgba(255,60,60,${0.08 * alarm})`; c.fillRect(0, 0, W, H); }
 }
 
-/* No gloom in the greybox. */
-export function drawGloom(){}
+/* Over the path, before the HUD: the world's finish (bloom, grade,
+   vignette, grain). None in the greybox. */
+export function drawGloom(c, W, H){ if (PAL.world) finish(c, W, H, PAL.world); }
 
 /* Trees along both sides of the way, sliding past: greybox ones, a
    triangle on a trunk, in col. */
@@ -91,7 +109,8 @@ function trees(c, W, H, z, col){
 /* ---------- on the floor ---------- */
 
 /* Debris from lane a to b: a red block. Slide round it. */
-export function drawBlocker(c, W, H, rel, a, b){
+export function drawBlocker(c, W, H, rel, a, b, t, seed){
+  if (PAL.world) return worldBlocker(c, W, H, rel, a, b, PAL.world, seed);
   const l = P(a, rel, W, H), r = P(b, rel, W, H), h = H * 0.17 * l.k;
   box(c, l.x, l.y - h, r.x - l.x, h, PAL.blocker);
 }
@@ -99,6 +118,7 @@ export function drawBlocker(c, W, H, rel, a, b){
 /* A low bulkhead across the whole floor at head height: an orange bar,
    on two posts. Duck under it. */
 export function drawBeam(c, W, H, rel){
+  if (PAL.world) return worldBeam(c, W, H, rel, PAL.world);
   const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k;
   const top = l.y - H * 0.36 * k, bot = l.y - H * 0.2 * k;
   c.fillStyle = PAL.post; c.fillRect(l.x, top, 6 * k + 2, l.y - top); c.fillRect(r.x - 6 * k - 2, top, 6 * k + 2, l.y - top);
@@ -108,6 +128,7 @@ export function drawBeam(c, W, H, rel){
 /* A breach in the floor from lane a to b: a black gap with a white edge.
    Hop over it. */
 export function drawGap(c, W, H, rel, a, b){
+  if (PAL.world) return worldGap(c, W, H, rel, a, b, PAL.world);
   const d = 0.045;
   const l0 = P(a, rel + d, W, H), r0 = P(b, rel + d, W, H), l1 = P(a, rel - d * 0.4, W, H), r1 = P(b, rel - d * 0.4, W, H);
   c.fillStyle = PAL.gap;
@@ -116,13 +137,15 @@ export function drawGap(c, W, H, rel, a, b){
 }
 
 /* A coin: a yellow circle. */
-export function drawCoin(c, x, y, s){
+export function drawCoin(c, x, y, s, t){
+  if (PAL.world) return worldCoin(c, x, y, s, t);
   c.fillStyle = '#facc15'; c.beginPath(); c.arc(x, y, s, 0, 6.2832); c.fill();
   c.strokeStyle = INK; c.lineWidth = Math.max(1, s * 0.15); c.stroke();
 }
 
 /* A repair station: a green ring with a plus, standing on the floor. */
 export function drawFountain(c, W, H, rel, lane, t, used){
+  if (PAL.world) return worldFountain(c, W, H, rel, lane, t, used, PAL.world);
   const p = P(lane, rel, W, H), r = H * 0.09 * p.k, y = p.y - r * 1.15;
   c.globalAlpha = used ? 0.35 : 1;
   c.strokeStyle = PAL.fountain; c.lineWidth = Math.max(2, r * 0.22);

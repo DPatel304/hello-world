@@ -28,7 +28,18 @@ export const LEVELS = [
     palette: {
       bg: '#14261b', floor: '#2d4b2b', edge: 'rgba(255,255,255,.3)', trees: '#1f5a34',
       blocker: '#7a5230', beam: '#6b4423', post: '#3d2a17', gap: '#0b0e09', fountain: '#38bdf8',
-      wall: '#22402a', hall: '#14261b', hallFloor: '#2d4b2b', hallRed: '#45282a'
+      wall: '#22402a', hall: '#14261b', hallFloor: '#2d4b2b', hallRed: '#45282a',
+      /* The real look (lkp-world.js): a fresh morning on an alien planet. */
+      world: {
+        key: 'verdant-morning',
+        sky: ['#4f9be0', '#8cc4ec', '#cfe6f5', '#ffe6c8'], sun: '#fff1d6', haze: '#d6e6f2',
+        cloud: '#ffffff', cloudShade: '#b4c6e2', planet: ['#c9b6d9', '#8fa2c9'], planetAlpha: 0.6, smoke: '#6e6e82', ship: '#3a3f66',
+        hillLit: '#a7bfe2', hillDark: '#6d84b6', rim: '#fff0d7',
+        ground: ['#5aa391', '#3f8f78', '#2f7c66'], grass: ['#78c8a0', '#328c73'], path: ['#857a98', '#6c6083'],
+        rock: ['#a9a3cf', '#6d6894'], crystal: ['#c7b6ef', '#8f7cc4', '#5d4e8f'], trunk: ['#3f2f55', '#8a6aa0'], wood: '#c9a77a',
+        tree: ['#58c2b0', '#1f5a6c'], bulb: '#ff8cd8', glow: '#86f2dc', water: '#5fe0f0', flowers: ['#fff4c2', '#ffc2e6', '#c9f7ff'],
+        warm: '#ffbe8c', cool: '#1e3278'
+      }
     },
     plan: ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
