@@ -133,6 +133,8 @@ const def = {
   moves: ['lean', 'jump', 'duck', 'clap', 'hug'],
   /* Arms go up in every hop; holding them up a while is still a pause. */
   pauseHold: 2.5,
+  /* Its own music, tense and driving (audio/action.js). */
+  music: 'action',
   create(n){ return new LastKnownPosition(n); }
 };
 export default def;

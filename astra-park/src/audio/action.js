@@ -133,7 +133,9 @@ export function createAction(ac, dest){
     /* Book everything due before `until` (audio time); I, or a function of
        the time, for the intensity. */
     book(until, I){
-      if (nextT == null) nextT = ac.currentTime + 0.05;
+      /* First time, or after a long stall (a backgrounded tab): start from now
+         rather than firing a burst of overdue notes. */
+      if (nextT == null || nextT < ac.currentTime - 0.2) nextT = ac.currentTime + 0.05;
       while (nextT < until){
         step(pos, nextT, typeof I === 'function' ? I(nextT) : I);
         pos++; nextT += S16;

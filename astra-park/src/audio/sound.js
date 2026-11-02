@@ -1,6 +1,7 @@
 /* Every sound in Astra Park is made here. No files, no fetches: a handful of
    oscillators and a noise buffer, which also means the whole app works with
    the network unplugged. */
+import { createAction } from './action.js';
 import { createSoundtrack } from './soundtrack.js';
 
 let AC = null, master = null, musicGain = null;
@@ -687,6 +688,34 @@ const band = {
   parade(secs){ if (AC) paradeUntil = AC.currentTime + secs; }
 };
 
+/* A game's own music (a game says music: 'action'): Last Known Position's
+   tense track (action.js), booked a little ahead like the band, played
+   whatever's in the music folder. */
+const OWN = { action: createAction };
+let own = null, ownTimer = null, ownGain = null, ownI = 0.2;
+const ownBand = {
+  start(kind){
+    if (ownTimer) return;
+    ctx();
+    if (!own || own.kind !== kind){
+      ownGain = AC.createGain(); ownGain.connect(master);
+      own = OWN[kind](AC, ownGain); own.kind = kind;
+    }
+    own.reset();
+    ownGain.gain.setValueAtTime(0.5 * (0.6 + 0.4 * ownI), AC.currentTime);
+    ownTimer = setInterval(() => own.book(AC.currentTime + 0.12, ownI), 25);
+  },
+  stop(){
+    clearInterval(ownTimer); ownTimer = null;
+    if (ownGain && AC){ const t = AC.currentTime; ownGain.gain.cancelScheduledValues(t); ownGain.gain.setValueAtTime(ownGain.gain.value, t); ownGain.gain.linearRampToValueAtTime(0, t + 0.6); }
+  },
+  intensity(v){
+    ownI = Math.max(0, Math.min(1, v));
+    if (AC && ownGain && ownTimer) ownGain.gain.setTargetAtTime(0.5 * (0.6 + 0.4 * ownI), AC.currentTime, 0.8);
+  },
+  get on(){ return !!ownTimer; }
+};
+
 /* What the rest of the game talks to. With songs in the music folder it
    plays those - straight through, building in volume across a round, slowed
    like a tape for slow motion - and otherwise the generated band above. */
@@ -713,18 +742,21 @@ export const ambience = {
 };
 
 export const music = {
-  start(){
+  start(kind = null){
+    /* A game with music of its own plays that. */
+    if (kind && OWN[kind]){ ownBand.start(kind); return; }
     /* Quiet from the first note, rather than starting loud and sinking. */
     if (songs.available){ songs.setVolume(state.vol, state.muted); songs.level(0.3); songs.start(); }
     else band.start();
   },
   /* Fades the song out; the generated band just stops booking notes. */
-  stop(){ songs.stop(1.2); band.stop(); },
+  stop(){ songs.stop(1.2); band.stop(); ownBand.stop(); },
   /* A song starts a round quietly - about 40% - and swells with the round
      to full volume for the balloon storm, the same arc the generated band
      follows by adding instruments. */
   intensity(v){
-    if (songs.available) songs.level(0.3 + 0.7 * v);
+    if (ownBand.on) ownBand.intensity(v);
+    else if (songs.available) songs.level(0.3 + 0.7 * v);
     else band.intensity(v);
   },
   grid(div){ return band.grid(div); },

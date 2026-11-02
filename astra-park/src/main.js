@@ -77,7 +77,7 @@ function toGame(g){
   game = g;
   ambience.stop();
   players = MAX_PLAYERS;
-  music.start();
+  music.start(game.music);
   startRound();
 }
 
