@@ -329,12 +329,14 @@ function buffer(w, h){
 /* The cinematic shot: the ship [lane, depth, size], and where the crew
    are, near to far. */
 export const CINE = {
-  ship: [0.1, 0.72, 0.95],
-  slots: [[0.5, 0.04], [-1.5, 0.12], [-0.45, 0.2], [1.1, 0.25]],
-  /* low and close: the crew loom larger than in play */
-  close: 1.3,
+  /* the hero shot: the ship huge and close right behind them, the crew
+     small in front of it - how big the crash was */
+  ship: [0, 0.32, 1.7],
+  slots: [[0.4, 0.08], [-0.9, 0.1], [1.1, 0.13], [-0.3, 0.15]],
+  /* a little larger than in play */
+  close: 1.1,
   /* the camera: looking at (x, y) (screens), s times closer, tilted r */
-  cam: { x: 0.5, y: 0.5, s: 1.12, r: 0 }
+  cam: { x: 0.5, y: 0.48, s: 1.05, r: 0 }
 };
 const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
