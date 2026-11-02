@@ -23,50 +23,54 @@ const LOOK = { elite: ['#ff4d63', 'skull'], combat: ['#ff4d63', 'skull'], traps:
    the crew stand to vote. */
 export function worldFork(c, W, H, rel, t, kinds, votes, open, opening, L){
   const s0 = Math.max(RUN + 0.005, rel - 0.2), far = 1.05;
-  const way = (side) => (r) => { const d = Math.max(0, r - s0); return side * 4.2 * Math.pow(d, 1.1); };
-  const half = (r) => 0.7 + 0.45 * Math.max(0, 1 - (r - s0) / 0.08);
-  const steps = (a, b, n = 28) => { const out = []; for (let i = 0; i <= n; i++) out.push(a + (b - a) * Math.pow(i / n, 1.4)); return out; };
-  const HY = HORIZON * H;
-  /* Grass over the straight way on, past the split. */
-  const gg = c.createLinearGradient(0, HY, 0, H);
-  gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
-  c.fillStyle = gg; c.beginPath();
-  const rs = steps(s0 + 0.02, far);
-  rs.forEach((r, i) => { const q = P(-PATH_HALF - 0.15, r, W, H); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
-  for (let i = rs.length - 1; i >= 0; i--){ const q = P(PATH_HALF + 0.15, rs[i], W, H); c.lineTo(q.x, q.y); }
-  c.closePath(); c.fill();
-  /* The two ways. */
-  const pg = c.createLinearGradient(0, HY, 0, H); pg.addColorStop(0, mix(L.path[0], L.haze, 0.4)); pg.addColorStop(1, L.path[1]);
-  const band = (f) => {
-    const r2 = steps(s0 - 0.01, far);
+  /* Each way by its two edges, d past the split: the outer edge carries
+     straight on from the path's own edge and bends gently away; the inner
+     edges start together at a point in the middle and open out - so the
+     road you're on runs smoothly into both. (Both ways are centred on lane
+     0.72 by the time they reach the signs, d = 0.2.) */
+  const D = (r) => Math.max(0, r - s0);
+  const outer = (r) => PATH_HALF + 4.25 * D(r) * D(r);
+  const inner = (r) => 4.9 * Math.pow(D(r), 2.3);
+  const steps = (a, b, n = 32) => { const out = []; for (let i = 0; i <= n; i++) out.push(a + (b - a) * Math.pow(i / n, 1.5)); return out; };
+  const strip = (a, b, rs) => {
     c.beginPath();
-    r2.forEach((r, i) => { const q = P(f(r) - half(r), r, W, H); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
-    for (let i = r2.length - 1; i >= 0; i--){ const q = P(f(r2[i]) + half(r2[i]), r2[i], W, H); c.lineTo(q.x, q.y); }
+    rs.forEach((r, i) => { const q = P(a(r), r, W, H); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+    for (let i = rs.length - 1; i >= 0; i--){ const q = P(b(rs[i]), rs[i], W, H); c.lineTo(q.x, q.y); }
     c.closePath(); c.fill();
   };
-  const left = way(-1), right = way(1);
-  c.fillStyle = pg; band(left); band(right);
-  /* Where they part: from here there's grass between them. */
-  let zc = s0; while (left(zc) + half(zc) > right(zc) - half(zc) && zc < far) zc += 0.004;
-  const inner = steps(zc, far);
-  c.fillStyle = gg; c.beginPath();
-  inner.forEach((r, i) => { const q = P(left(r) + half(r), r, W, H); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
-  for (let i = inner.length - 1; i >= 0; i--){ const q = P(right(inner[i]) - half(inner[i]), inner[i], W, H); c.lineTo(q.x, q.y); }
-  c.closePath(); c.fill();
+  const HY = HORIZON * H, rs = steps(s0, far);
+  /* The two ways, the path's own colours, over the straight way on. */
+  const pg = c.createLinearGradient(0, HY, 0, H); pg.addColorStop(0, mix(L.path[0], L.haze, 0.4)); pg.addColorStop(1, L.path[1]);
+  c.fillStyle = pg;
+  strip((r) => -outer(r), (r) => -inner(r), rs);
+  strip((r) => inner(r), (r) => outer(r), rs);
+  /* Each way's worn track, carrying on from the path's. */
+  c.fillStyle = 'rgba(40,30,70,.12)';
+  for (const sd of [-1, 1]){
+    const at = (r, e) => sd * (inner(r) + (outer(r) - inner(r)) * 0.435) + e;
+    strip((r) => at(r, -0.18), (r) => at(r, 0.18), rs);
+  }
+  /* Grass between them, from the point where they part. */
+  const gg = c.createLinearGradient(0, HY, 0, H);
+  gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
+  c.fillStyle = gg; strip((r) => -inner(r), (r) => inner(r), rs);
   for (let n = 0; n < 160; n++){
-    const r = zc + Math.pow(hash(n + 900), 1.6) * (far - zc), a = left(r) + half(r) + 0.05, b = right(r) - half(r) - 0.05;
+    const r = s0 + 0.02 + Math.pow(hash(n + 900), 1.6) * (far - s0), a = -inner(r) + 0.06, b = inner(r) - 0.06;
     if (b <= a) continue;
     const q = P(a + (b - a) * hash(n + 901), r, W, H), h = H * (0.012 + hash(n + 902) * 0.02) * q.k;
     c.strokeStyle = rgba(L.grass[n % 2], 0.5 + 0.4 * Math.min(1, q.k)); c.lineWidth = Math.max(1, H * 0.003 * q.k);
     c.beginPath(); c.moveTo(q.x, q.y); c.quadraticCurveTo(q.x, q.y - h * 0.6, q.x - h * 0.2, q.y - h); c.stroke();
   }
-  /* Bright edges, so each way reads as a path of its own. */
-  c.strokeStyle = rgba(L.rim, 0.6); c.lineCap = 'round';
-  for (const [f, e, from] of [[left, -1, s0], [right, 1, s0], [left, 1, zc], [right, -1, zc]]){
-    const r3 = steps(from, Math.min(far, s0 + 0.6), 18);
-    c.beginPath();
-    r3.forEach((r, i) => { const q = P(f(r) + e * half(r), r, W, H); c.lineWidth = Math.max(1, H * 0.004 * q.k); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
-    c.stroke();
+  /* Stones along every edge, like the path's. */
+  for (let n = 0; n < 34; n++){
+    const r = s0 + 0.015 + n * 0.03; if (r > far) break;
+    for (const lane of [-outer(r) - 0.02, outer(r) + 0.02, ...(inner(r) > 0.08 ? [-inner(r) + 0.02, inner(r) - 0.02] : [])]){
+      const q = P(lane, r, W, H), rr = H * 0.012 * q.k + 0.5;
+      if (q.x < -40 || q.x > W + 40) continue;
+      c.fillStyle = 'rgba(30,25,60,.3)'; c.beginPath(); c.ellipse(q.x + rr * 0.6, q.y + rr * 0.2, rr * 1.1, rr * 0.4, 0, 0, 6.2832); c.fill();
+      c.fillStyle = L.rock[1]; c.beginPath(); c.ellipse(q.x, q.y - rr * 0.3, rr * 1.1, rr * 0.7, 0, 0, 6.2832); c.fill();
+      c.fillStyle = L.rock[0]; c.beginPath(); c.ellipse(q.x - rr * 0.35, q.y - rr * 0.55, rr * 0.6, rr * 0.35, 0, 0, 6.2832); c.fill();
+    }
   }
   /* Trees in the split, further back. */
   for (const [lane, d, n] of [[0, 0.55, 7], [-0.25, 0.75, 8], [0.3, 0.95, 9]]) if (s0 + d < far) tree(c, W, H, lane, s0 + d, L, n);

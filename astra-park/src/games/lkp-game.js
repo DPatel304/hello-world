@@ -67,7 +67,7 @@ export const CRYSTAL_XP = 2, GOLD_EVERY = 3;
 /* A crystal picked up zooms to the XP bar: FLY seconds - slower and bigger
    for the first SHOW of a run, so it's seen - and at most FLYING in the air
    at once (any more go straight in). */
-export const FLY = 0.35, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
+export const FLY = 0.2, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
 export const SCORE = { kill: 10, boss: 500 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
@@ -924,13 +924,15 @@ class LastKnownPosition {
       return [a * x0 + b * cx + d * to.x, a * y0 + b * cy + d * to.y];
     };
     for (const f of this.flyers){
-      const u = Math.min(1, f.t / f.dur), s = H * (f.big ? 0.03 : 0.018) * (1 - 0.45 * u);
-      for (let k = 3; k >= 1; k--){
+      const u = Math.min(1, f.t / f.dur), s = H * (f.big ? 0.03 : 0.009) * (1 - 0.45 * u);
+      /* Only the first few leave a trail; the rest are just a quick glint. */
+      if (f.big) for (let k = 3; k >= 1; k--){
         const [tx, ty] = at(f, Math.max(0, u - k * 0.06));
         c.fillStyle = `rgba(127,243,255,${0.18 * (4 - k) / 3})`; c.beginPath(); c.arc(tx, ty, s * (1 - k * 0.2), 0, 6.2832); c.fill();
       }
       for (let j = 0; j < f.n; j++){
         const [x, y] = at(f, Math.max(0, u - j * 0.04));
+        if (j && !f.big) break;
         drawCrystal(c, x + (j % 2 ? 1 : -1) * j * s * 0.5, y, s * (j ? 0.7 : 1), this.t + j);
       }
     }
