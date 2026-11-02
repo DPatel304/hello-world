@@ -551,7 +551,7 @@ class LastKnownPosition {
       const was = rn.runPh || 0;
       rn.runPh = was + dt * Math.PI * STEPS * (0.55 + 0.45 * rn.run);
       if (Math.floor(rn.runPh / Math.PI) !== Math.floor(was / Math.PI) && this.t - (this.stepT || 0) > 0.06){
-        this.stepT = this.t; sfx.step(i + (Math.floor(rn.runPh / Math.PI) % 2) * 0.5, this.trap ? 0.5 : 0.8);
+        this.stepT = this.t; sfx.step(i + (Math.floor(rn.runPh / Math.PI) % 2) * 0.5, this.trap ? 0.2 : 0.35);
       }
     }
     /* Over a breach on the ground: a hop now still makes it; too late and

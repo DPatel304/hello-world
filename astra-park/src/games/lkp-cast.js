@@ -26,6 +26,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
      high, the body bouncing, arms swinging against the legs. */
   const run = st.run || 0, ph = st.runPh || 0;
   const bounce = run * Math.abs(Math.sin(ph)) * 12 * u;
+  /* In healing water: a soft blue glow round them. */
+  if (st.heal > 0) glow(c, x, base - st.air - 150 * u, 210 * u, '#5fe3ff', 0.7 * st.heal);
   /* a puff of dust kicked up behind each foot as it pushes off */
   if (run > 0.2 && !st.air) for (const d of [-1, 1]){
     const k = (((ph + (d < 0 ? Math.PI : 0)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / Math.PI;
@@ -59,6 +61,22 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   /* arms at their sides (unless posed) */
   for (const d of [-1, 1]){
     if (pose === 'hug' || pose === 'stretch' || (pose === 'reach' && d < 0)) continue;
+    /* Running: elbows bent, the arms pumping against the legs - the hand
+       driving forward and up (away from us: higher, tucked in), then the
+       elbow swinging back (towards us: lower, out wide). */
+    if (run > 0.3){
+      const pump = Math.sin(ph + (d < 0 ? Math.PI : 0));
+      const sx = d * 70 * u, sy = -160 * u;
+      const ex = d * (92 + 10 * pump) * u, ey = (-112 + 16 * pump) * u;
+      const hx = d * (58 + 6 * pump) * u, hy = (-118 - 34 * pump) * u;
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      for (const [w, sc] of [[46, '#5a5040'], [36, pump < 0 ? '#f3e7cf' : '#d8c9ab']]){
+        c.strokeStyle = sc; c.lineWidth = w * u; c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
+      }
+      c.strokeStyle = trim; c.lineWidth = 9 * u; c.beginPath(); c.moveTo(ex - 14 * u, ey + 3 * u); c.lineTo(ex + 14 * u, ey - 3 * u); c.stroke();
+      c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, hx, hy, 18 * u);
+      continue;
+    }
     /* swinging against the legs as they run */
     const sw = run * Math.sin(ph + (d < 0 ? Math.PI : 0)) * 18 * u;
     c.fillStyle = suit(d * 82 - 22, d * 82 + 22); c.beginPath(); c.roundRect((d * 82 - 22) * u, -168 * u - Math.max(0, sw), 44 * u, 100 * u - Math.abs(sw) * 0.6, 20 * u); c.fill();
@@ -109,8 +127,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   c.strokeStyle = '#6f7598'; c.lineWidth = 4 * u; c.beginPath(); c.moveTo(70 * u, -175 * u * f); c.lineTo(92 * u, (-175 * f - 55) * u); c.stroke(); c.fillStyle = trim; circ(c, 92 * u, (-175 * f - 57) * u, 6 * u);
   if (st.lost){ c.setLineDash?.([6, 6]); c.strokeStyle = '#ffffff'; c.lineWidth = 3; circ0(c, 0, hy, r * 1.25); c.stroke(); c.setLineDash?.([]); }
   if (st.hit > 0){ c.globalAlpha = st.hit * 0.55; c.fillStyle = '#ff3b3b'; circ(c, 0, hy, r * 1.15); c.fillRect(-70 * u, -178 * u * f, 140 * u, 178 * u * f); }
-  /* In healing water: blue, the way a hit is red. */
-  if (st.heal > 0 && !(st.hit > 0.3)){ c.globalAlpha = st.heal * 0.45; c.fillStyle = '#38c8ff'; circ(c, 0, hy, r * 1.15); c.fillRect(-70 * u, -178 * u * f, 140 * u, 178 * u * f); }
+  /* In healing water: glowing blue, the way a hit is red. */
+  if (st.heal > 0 && !(st.hit > 0.3)) glow(c, 0, -150 * u, 170 * u, '#8ff0ff', 0.35 * st.heal);
   c.restore();
 }
 const circ0 = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); };
