@@ -169,7 +169,7 @@ export class Lights {
       const rn = g.crew[i], q = Q(rn.x, rn.along, W, H);
       /* Walking, a steady bob; running, a quicker, bigger one. */
       const going = this.light !== 'red' && !this.done ? rn.marching : 0;   /* frozen the moment they stop */
-      drawCrew(i, q.x, q.y, H * 0.2 * q.k, going > 0.1 ? Math.abs(Math.sin(this.t * (6 + 8 * going) + i)) * H * (0.006 + 0.016 * going) : 0);
+      drawCrew(i, q.x, q.y, H * 0.2 * q.k, 0);   /* the stride's drawn by the crew's own run */
     }
     /* In from the door: a quick fade up from black. */
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }

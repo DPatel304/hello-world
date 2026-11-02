@@ -22,7 +22,18 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const u = h / 300, f = 1 - (st.duck || 0) * 0.45;
   c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, base, 85 * u, 18 * u, 0, 0, 6.2832); c.fill();
   c.save();
-  c.translate(x, base - st.air); c.rotate(st.lean * 0.2);
+  /* Running (st.run 0..1, st.runPh the stride's phase): knees pumping
+     high, the body bouncing, arms swinging against the legs. */
+  const run = st.run || 0, ph = st.runPh || 0;
+  const bounce = run * Math.abs(Math.sin(ph)) * 12 * u;
+  /* a puff of dust kicked up behind each foot as it pushes off */
+  if (run > 0.2 && !st.air) for (const d of [-1, 1]){
+    const k = (((ph + (d < 0 ? Math.PI : 0)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / Math.PI;
+    if (k > 1) continue;
+    c.fillStyle = `rgba(225,215,235,${0.45 * (1 - k) * run})`;
+    circ(c, x + d * (30 + 30 * k) * u, base - (6 + 22 * k) * u, (10 + 22 * k) * u);
+  }
+  c.translate(x, base - st.air - bounce); c.rotate(st.lean * 0.2 + run * Math.sin(ph) * 0.05);
   if (st.down){ c.translate(h * 0.4, -h * 0.16); c.rotate(-Math.PI / 2); c.globalAlpha = 0.6; }
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
@@ -33,19 +44,26 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   /* backpack behind */
   c.fillStyle = '#6f7598'; c.beginPath(); c.roundRect(-82 * u, -175 * u, 164 * u, 105 * u, 26 * u); c.fill();
   c.fillStyle = '#9aa0c2'; c.beginPath(); c.roundRect(-82 * u, -175 * u, 30 * u, 105 * u, 14 * u); c.fill();
-  /* legs and boots, a little stride when they're moving */
-  const stride = Math.sin(t * 9) * 4 * u;
+  /* legs and boots: standing, a little shuffle; running, each knee
+     driving up in turn - seen from behind, the leg shortens and the boot
+     lifts, its sole showing. */
   for (const d of [-1, 1]){
-    c.fillStyle = suit(d * 30 - 26, d * 30 + 26); c.beginPath(); c.roundRect((d * 30 - 26) * u, -78 * u + d * stride, 52 * u, 66 * u, 18 * u); c.fill();
-    c.fillStyle = trim; c.fillRect((d * 30 - 26) * u, -58 * u + d * stride, 52 * u, 12 * u);
-    c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; c.beginPath(); c.roundRect((d * 32 - 30) * u, -22 * u, 60 * u, 24 * u, 10 * u); c.fill();
+    const lift = run * Math.max(0, Math.sin(ph + (d < 0 ? 0 : Math.PI))), shuffle = run ? 0 : Math.sin(t * 9) * 4 * u * d;
+    const top = -78 * u, len = (66 - 44 * lift) * u, y0 = top + shuffle - lift * 14 * u;
+    c.fillStyle = suit(d * 30 - 26, d * 30 + 26); c.beginPath(); c.roundRect((d * 30 - 26) * u, y0, 52 * u, len, 18 * u); c.fill();
+    c.fillStyle = trim; c.fillRect((d * 30 - 26) * u, y0 + 20 * u, 52 * u, 12 * u);
+    const by = y0 + len - 12 * u;
+    c.fillStyle = lift > 0.25 ? '#2b2e45' : d < 0 ? '#5b607f' : '#3d4160';
+    c.beginPath(); c.roundRect((d * 32 - 30) * u, by, 60 * u, (24 + 6 * lift) * u, 10 * u); c.fill();
   }
   /* arms at their sides (unless posed) */
   for (const d of [-1, 1]){
-    if (pose === 'hug' || (pose === 'reach' && d < 0)) continue;
-    c.fillStyle = suit(d * 82 - 22, d * 82 + 22); c.beginPath(); c.roundRect((d * 82 - 22) * u, -168 * u, 44 * u, 100 * u, 20 * u); c.fill();
-    c.fillStyle = trim; c.fillRect((d * 82 - 22) * u, -108 * u, 44 * u, 10 * u);
-    c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, d * 82 * u, -62 * u, 20 * u);
+    if (pose === 'hug' || pose === 'stretch' || (pose === 'reach' && d < 0)) continue;
+    /* swinging against the legs as they run */
+    const sw = run * Math.sin(ph + (d < 0 ? Math.PI : 0)) * 18 * u;
+    c.fillStyle = suit(d * 82 - 22, d * 82 + 22); c.beginPath(); c.roundRect((d * 82 - 22) * u, -168 * u - Math.max(0, sw), 44 * u, 100 * u - Math.abs(sw) * 0.6, 20 * u); c.fill();
+    c.fillStyle = trim; c.fillRect((d * 82 - 22) * u, -108 * u - sw * 0.8, 44 * u, 10 * u);
+    c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, d * 82 * u, -62 * u - sw * 1.3, 20 * u);
   }
   /* torso, belt, chest panel, straps */
   c.fillStyle = suit(-64, 64); c.beginPath(); c.roundRect(-64 * u, -178 * u, 128 * u, 118 * u, 34 * u); c.fill();
@@ -91,6 +109,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   c.strokeStyle = '#6f7598'; c.lineWidth = 4 * u; c.beginPath(); c.moveTo(70 * u, -175 * u * f); c.lineTo(92 * u, (-175 * f - 55) * u); c.stroke(); c.fillStyle = trim; circ(c, 92 * u, (-175 * f - 57) * u, 6 * u);
   if (st.lost){ c.setLineDash?.([6, 6]); c.strokeStyle = '#ffffff'; c.lineWidth = 3; circ0(c, 0, hy, r * 1.25); c.stroke(); c.setLineDash?.([]); }
   if (st.hit > 0){ c.globalAlpha = st.hit * 0.55; c.fillStyle = '#ff3b3b'; circ(c, 0, hy, r * 1.15); c.fillRect(-70 * u, -178 * u * f, 140 * u, 178 * u * f); }
+  /* In healing water: blue, the way a hit is red. */
+  if (st.heal > 0 && !(st.hit > 0.3)){ c.globalAlpha = st.heal * 0.45; c.fillStyle = '#38c8ff'; circ(c, 0, hy, r * 1.15); c.fillRect(-70 * u, -178 * u * f, 140 * u, 178 * u * f); }
   c.restore();
 }
 const circ0 = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); };

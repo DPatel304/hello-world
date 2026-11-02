@@ -5,7 +5,6 @@
    (lkp-art.js hands over to these); L is that world palette. */
 import { P, RUN, HORIZON, sign } from './lkp-art.js';
 import { mix, rgba, glow, cast, tree, PATH_HALF } from './lkp-world.js';
-import { L as LM } from '../tracking/pose.js';
 
 const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); c.fill(); };
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -398,69 +397,40 @@ export function worldSleeper(c, X, Y, s, light, awake, t, lamp){
 
 /* ---------- the treasure cave ---------- */
 
-/* The treasure room: a crystal cave, purple and teal crystals glowing in
-   the dark. */
+/* The treasure room: plain and calm - deep violet, a soft light in the
+   middle, a floor - so the crystals and the crew stand out. */
 export function worldVault(c, W, H, t){
-  const g = c.createRadialGradient(W / 2, H * 0.45, H * 0.05, W / 2, H * 0.5, W * 0.75);
-  g.addColorStop(0, '#6b5a8a'); g.addColorStop(0.6, '#2e2850'); g.addColorStop(1, '#14122a');
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1d1838'); g.addColorStop(0.75, '#3a2f63'); g.addColorStop(1, '#2a2348');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
-  for (let k = 0; k < 26; k++){
-    const x = hash(k + 700) * W, y = hash(k + 701) * H * 0.8, h = H * (0.04 + hash(k + 702) * 0.11), col = hash(k + 703) < 0.5 ? '#78f0e6' : '#c896ff';
-    const tw = 0.4 + 0.2 * Math.sin(t * 1.5 + k);
-    glow(c, x, y + h * 0.6, h * 0.9, col, tw);
-    c.fillStyle = rgba(col, 0.55); c.beginPath(); c.moveTo(x, y); c.lineTo(x + h * 0.25, y + h); c.lineTo(x - h * 0.25, y + h); c.closePath(); c.fill();
-    c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.moveTo(x, y); c.lineTo(x - h * 0.25, y + h); c.lineTo(x - h * 0.05, y + h); c.closePath(); c.fill();
-  }
-  c.fillStyle = '#1b1830'; c.fillRect(0, H * 0.9, W, H * 0.1);
+  glow(c, W / 2, H * 0.5, H * 0.75, '#8f7cff', 0.25 + 0.03 * Math.sin(t * 0.8));
+  c.fillStyle = '#16122b'; c.fillRect(0, H * 0.93, W, H * 0.07);
+  c.fillStyle = 'rgba(160,140,255,.25)'; c.fillRect(0, H * 0.93, W, H * 0.004);
 }
 
-/* Their suits, standing where the players stand and copying them: an
-   off-white spacesuit drawn over each body's landmarks (lm, 0..1), trim in
-   their colour, a glass helmet with their face in it (face(x, y, r)). */
-export function worldSuit(c, lm, W, H, col, face){
-  const at = (i) => [lm[i].x * W, lm[i].y * H];
-  const seen = (i) => (lm[i].v ?? 1) > 0.3;
-  const [lsx, lsy] = at(LM.L_SHOULDER), [rsx, rsy] = at(LM.R_SHOULDER);
-  const sw = Math.hypot(lsx - rsx, lsy - rsy);
-  if (sw < 4) return;
-  c.save(); c.lineCap = 'round'; c.lineJoin = 'round';
-  const suit = '#ece4d4', shade = '#b9ae99', trim = col;
-  const limb = (a, b, d, w, end) => {
-    if (!seen(a) || !seen(b)) return;
-    const pts = [at(a), at(b)]; if (seen(d)) pts.push(at(d));
-    c.strokeStyle = shade; c.lineWidth = w * 1.12; c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(...q) : c.moveTo(...q))); c.stroke();
-    c.strokeStyle = suit; c.lineWidth = w; c.beginPath(); pts.forEach((q, i) => (i ? c.lineTo(q[0] - w * 0.08, q[1]) : c.moveTo(q[0] - w * 0.08, q[1]))); c.stroke();
-    /* a trim band at the elbow or knee */
-    c.fillStyle = trim; circ(c, pts[1][0], pts[1][1], w * 0.42);
-    if (pts[2]){ c.fillStyle = end; circ(c, pts[2][0], pts[2][1], w * 0.62); }
-  };
-  /* legs, then the body, then arms in front */
-  limb(LM.L_HIP, LM.L_KNEE, LM.L_ANKLE, sw * 0.4, '#5a6078');
-  limb(LM.R_HIP, LM.R_KNEE, LM.R_ANKLE, sw * 0.4, '#5a6078');
-  const torso = [LM.L_SHOULDER, LM.R_SHOULDER, LM.R_HIP, LM.L_HIP].map(at);
-  const tg = c.createLinearGradient(Math.min(lsx, rsx), 0, Math.max(lsx, rsx), 0); tg.addColorStop(0, '#f6ecd9'); tg.addColorStop(1, shade);
-  c.fillStyle = tg; c.strokeStyle = tg; c.lineWidth = sw * 0.22;
-  c.beginPath(); torso.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.fill(); c.stroke();
-  /* chest stripe and badge in their colour */
-  const mx = (lsx + rsx) / 2, my = (lsy + rsy) / 2, hy = (torso[2][1] + torso[3][1]) / 2;
-  c.strokeStyle = trim; c.lineWidth = sw * 0.12; c.beginPath(); c.moveTo(lsx, lsy + (hy - my) * 0.3); c.lineTo(rsx, rsy + (hy - my) * 0.3); c.stroke();
-  c.fillStyle = '#3a3f58'; c.beginPath(); c.roundRect(mx - sw * 0.16, my + (hy - my) * 0.45, sw * 0.32, sw * 0.22, sw * 0.05); c.fill();
-  c.fillStyle = trim; circ(c, mx - sw * 0.06, my + (hy - my) * 0.45 + sw * 0.11, sw * 0.04);
-  limb(LM.L_SHOULDER, LM.L_ELBOW, LM.L_WRIST, sw * 0.32, '#f6ecd9');
-  limb(LM.R_SHOULDER, LM.R_ELBOW, LM.R_WRIST, sw * 0.32, '#f6ecd9');
-  /* the helmet: a glass bubble, their face inside */
-  if (seen(LM.NOSE)){
-    const [nx, ny] = at(LM.NOSE), r = sw * 0.5, hx = nx, hy2 = ny - sw * 0.05;
-    c.fillStyle = '#d8cfbd'; c.beginPath(); c.ellipse(mx, my - sw * 0.02, sw * 0.38, sw * 0.13, 0, 0, 6.2832); c.fill();
-    c.fillStyle = trim; c.fillRect(mx - sw * 0.3, my - sw * 0.06, sw * 0.6, sw * 0.06);
-    c.fillStyle = 'rgba(20,30,60,.55)'; circ(c, hx, hy2, r);
-    if (face){ c.save(); c.beginPath(); c.arc(hx, hy2, r * 0.94, 0, 6.2832); c.clip(); face(hx, hy2 + r * 0.05, r * 0.72); c.restore(); }
-    const gl = c.createRadialGradient(hx - r * 0.4, hy2 - r * 0.45, r * 0.05, hx, hy2, r);
-    gl.addColorStop(0, 'rgba(255,255,255,.5)'); gl.addColorStop(0.35, 'rgba(255,255,255,.06)'); gl.addColorStop(1, 'rgba(140,220,255,.28)');
-    c.fillStyle = gl; circ(c, hx, hy2, r);
-    c.strokeStyle = '#ece4d4'; c.lineWidth = sw * 0.07; c.beginPath(); c.arc(hx, hy2, r, 0, 6.2832); c.stroke();
-    c.strokeStyle = 'rgba(255,255,255,.85)'; c.lineWidth = sw * 0.035; c.beginPath(); c.arc(hx, hy2, r * 0.78, Math.PI * 1.1, Math.PI * 1.4); c.stroke();
+/* A comically long stretchy spacesuit arm, from the shoulder (sx, sy) all
+   the way to the hand (hx, hy): a padded tube sagging a little, rings of
+   their colour along it, a glove on the end. u: the suit's scale. */
+export function stretchArm(c, sx, sy, hx, hy, u, col, side){
+  const dx = hx - sx, dy = hy - sy, len = Math.hypot(dx, dy) || 1;
+  const mx = (sx + hx) / 2 - dy / len * len * 0.1 * side, my = (sy + hy) / 2 + dx / len * len * 0.1 * side;
+  const at = (k) => [(1 - k) * (1 - k) * sx + 2 * (1 - k) * k * mx + k * k * hx, (1 - k) * (1 - k) * sy + 2 * (1 - k) * k * my + k * k * hy];
+  c.save(); c.lineCap = 'round';
+  for (const [w, sc] of [[52, '#5a5040'], [40, '#ede1c8']]){
+    c.strokeStyle = sc; c.lineWidth = w * u;
+    c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo(mx, my, hx, hy); c.stroke();
   }
+  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 8 * u;
+  c.beginPath(); c.moveTo(sx - 10 * u, sy); c.quadraticCurveTo(mx - 10 * u, my, hx - 10 * u, hy); c.stroke();
+  const rings = Math.max(2, Math.floor(len / (70 * u)));
+  c.strokeStyle = col; c.lineWidth = 9 * u;
+  for (let k = 1; k < rings; k++){
+    const [x0, y0] = at(k / rings - 0.01), [x1, y1] = at(k / rings + 0.01), a = Math.atan2(y1 - y0, x1 - x0) + Math.PI / 2;
+    const [x, y] = at(k / rings);
+    c.beginPath(); c.moveTo(x - Math.cos(a) * 21 * u, y - Math.sin(a) * 21 * u); c.lineTo(x + Math.cos(a) * 21 * u, y + Math.sin(a) * 21 * u); c.stroke();
+  }
+  c.fillStyle = '#4b5070'; circ(c, hx, hy, 30 * u);
+  c.fillStyle = col; circ(c, hx, hy, 14 * u);
   c.restore();
 }
 

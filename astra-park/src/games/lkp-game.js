@@ -80,6 +80,8 @@ export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment
 export const LOW = 0.3;
 /* The door vote's last BEEPS seconds beep - every second, then quicker. */
 export const BEEPS = 4;
+/* Running: STEPS footsteps a second at full speed. */
+export const STEPS = 5.5;
 export const SPRING_SECS = 1.5, SPRING_HEAL = 18;
 export const SPRING_LEN = SPEED * SPRING_SECS;
 /* Springs in each corridor after the first (one more before the boss). */
@@ -539,6 +541,19 @@ class LastKnownPosition {
     const rn = this.crew[i];
     rn.safe = Math.max(0, rn.safe - dt);
     rn.hit = Math.max(0, rn.hit - dt * 2.5);
+    rn.heal = Math.max(0, (rn.heal || 0) - dt * 2.5);
+    /* The running stride: how hard (0..1) and where in it - a footstep at
+       each half. Walking in a trap room goes by how much they move. */
+    const run = this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
+      : this.fight || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
+    rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);
+    if (rn.run > 0.05 && rn.air <= 0){
+      const was = rn.runPh || 0;
+      rn.runPh = was + dt * Math.PI * STEPS * (0.55 + 0.45 * rn.run);
+      if (Math.floor(rn.runPh / Math.PI) !== Math.floor(was / Math.PI) && this.t - (this.stepT || 0) > 0.06){
+        this.stepT = this.t; sfx.step(i + (Math.floor(rn.runPh / Math.PI) % 2) * 0.5, this.trap ? 0.5 : 0.8);
+      }
+    }
     /* Over a breach on the ground: a hop now still makes it; too late and
        they've fallen in. */
     if (rn.falling > 0){
@@ -591,6 +606,7 @@ class LastKnownPosition {
           const rn = this.crew[i];
           if (Math.abs(rn.x - th.lane) > FOUNTAIN_REACH) continue;
           if (!th.used.has(i)){ th.used.add(i); sfx.twinkle(); }
+          rn.heal = 1;
           if (rn.hp < rn.max){
             rn.hp = Math.min(rn.max, rn.hp + SPRING_HEAL * (b - a) / len);
             if (Math.random() < 0.3){ const p = P(rn.x, RUN, W, H); this._sparkle(p.x / W, (p.y - H * 0.15) / H, 3, 140); }
@@ -785,8 +801,14 @@ class LastKnownPosition {
     this._bend();
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
+    /* Springs are part of the floor: under everything, there all the way
+       along until the last of them has gone by. */
+    for (const th of this.things) if (th.kind === 'fountain'){
+      const rel = th.d - this.z, len = th.len || SPRING_LEN;
+      if (rel < 1 && rel + len > -0.12) drawFountain(c, W, H, rel, th.lane, this.t, len);
+    }
     const items = [];
-    for (const th of this.things) if (!th.got) items.push({ ...th, rel: th.d - this.z });
+    for (const th of this.things) if (!th.got && th.kind !== 'fountain') items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
     if (this.fight) for (const b of this.fight.bots) if (!b.part) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
     if (this.boss) this.boss.items(items);
@@ -833,7 +855,6 @@ class LastKnownPosition {
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': drawCrystal(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
-      case 'fountain': drawFountain(c, W, H, it.rel, it.lane, this.t, it.len || SPRING_LEN); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
@@ -879,12 +900,8 @@ class LastKnownPosition {
   _drawCrew(c, i, W, H, at = null){
     const rn = this.crew[i], here = pose.players[i].present;
     const p = at || P(rn.x, RUN, W, H), h = at ? at.h : H * CREW_SIZE;
-    /* Walking through a door; running round the Warden's ring. */
-    const round = this.boss && this.boss.move && this.boss.move.t >= 0.8;
-    const walking = this.seg.kind === 'cross' && this.seg.choice != null ? Math.abs(Math.sin(this.t * 9 + i * 1.7)) * h * 0.06
-      : round ? Math.abs(Math.sin(this.t * (10 + 6 * (this.boss.move.boost || 0)) + i * 1.7)) * h * 0.09 : 0;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + walking + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);

@@ -13,7 +13,8 @@ import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
 import { HugWatch } from '../tracking/gestures.js';
 import { PAL, drawCrystal } from './lkp-art.js';
-import { worldVault, worldSuit, worldPool } from './lkp-places.js';
+import { worldVault, stretchArm, worldPool } from './lkp-places.js';
+import { worldCrew } from './lkp-cast.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 
 export const TREASURE_TIME = 20;
@@ -112,15 +113,24 @@ export class Treasure {
     const world = !!PAL.world;
     if (world){
       worldVault(c, W, H, this.t);
-      /* Their suits, copying them. */
+      /* The crew, small along the bottom where they stand, their arms
+         stretching comically all the way out to their hands. */
       const gm = this.g;
       for (let i = 0; i < gm.players; i++){
         const p = pose.players[i];
-        if (!p || !p.present || !p.lm) continue;
-        worldSuit(c, p.lm, W, H, PLAYER_COLORS[i], (x, y, r) => {
-          if (gm.faces && gm.faces.has(i)) gm.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
-          else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
+        if (!p || !p.present) continue;
+        const col = PLAYER_COLORS[i], h = H * 0.26, u = h / 300;
+        const x = Math.max(0.08, Math.min(0.92, p.centre?.x ?? 0.5)) * W, base = H * 0.985;
+        const hands = (pose.mouse.active ? [p.hands.right] : [p.hands.left, p.hands.right]).filter(Boolean).sort((a, b) => a.x - b.x);
+        hands.forEach((hd, k) => {
+          const side = hands.length === 1 ? (hd.x * W < x ? -1 : 1) : (k ? 1 : -1);
+          stretchArm(c, x + side * 70 * u, base - 160 * u, hd.x * W, hd.y * H, u, col, side);
         });
+        const photo = !!(gm.faces && gm.faces.has(i));
+        worldCrew(c, x, base, h, this.t + i, col, { air: 0, duck: 0, lean: 0, hit: 0, heal: this.wet > 0 && !this.done ? 0.5 : 0, photo }, (fx, fy, r) => {
+          if (photo) gm.faces.draw(c, i, fx, fy, r, col);
+          else drawKid(c, fx, fy + r * 0.1, r, this.t + i, KID_SKINS[i]);
+        }, 'stretch');
       }
     } else {
       const g = c.createRadialGradient(W / 2, H * 0.55, H * 0.1, W / 2, H * 0.55, W * 0.7);
