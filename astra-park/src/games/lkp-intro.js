@@ -251,8 +251,9 @@ export class Intro {
     c.strokeStyle = '#e9ecf8'; c.lineWidth = s * 0.03; c.beginPath(); c.moveTo(s * 0.08, -s * 0.25); c.lineTo(s * 0.12, -s * 0.38); c.stroke();
     for (const k of [1, 2]){ c.strokeStyle = `rgba(127,243,255,${on ? 0.9 / k : 0.3 / k})`; c.beginPath(); c.arc(0, 0, s * (0.22 + 0.1 * k), -0.6, 0.6); c.stroke(); c.beginPath(); c.arc(0, 0, s * (0.22 + 0.1 * k), Math.PI - 0.6, Math.PI + 0.6); c.stroke(); }
     c.restore();
-    c.save(); c.font = `700 ${Math.round(H * 0.03)}px Fredoka, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
-    c.fillStyle = '#7ff3ff'; c.fillText('INCOMING · CMDR NOVA', x + s + H * 0.02, y + s * 0.3); c.restore();
+    c.save(); c.font = `700 ${Math.round(H * 0.04)}px Fredoka, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.lineWidth = H * 0.008; c.strokeStyle = '#05060f'; c.strokeText('INCOMING · CMDR NOVA', x + s + H * 0.02, y + s * 0.3);
+    c.fillStyle = on ? '#ffffff' : '#7ff3ff'; c.fillText('INCOMING · CMDR NOVA', x + s + H * 0.02, y + s * 0.3); c.restore();
     banner(c, W, H, 'HAND TO YOUR EAR TO ANSWER!', '#7ff3ff', 1 + 0.03 * Math.sin(this.t * 6), this.ear / HOLD);
   }
 
