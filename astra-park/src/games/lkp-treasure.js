@@ -7,11 +7,13 @@
    healing water: POOL seconds for the whole team to stand in it, healing
    POOL_HEAL a second - and HUG_HEAL a second hugging themselves. Then on
    they go. (The only healing besides the corridors' springs.) */
-import { pose } from '../tracking/pose.js';
+import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { Avatars } from '../ui/avatars.js';
 import { HugWatch } from '../tracking/gestures.js';
 import { PAL, drawCoin } from './lkp-art.js';
+import { worldVault, worldSuit, worldPool } from './lkp-places.js';
+import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { XP } from './lkp-levelup.js';
 
 export const TREASURE_TIME = 20;
@@ -108,11 +110,26 @@ export class Treasure {
   /* Its own picture: a treasure vault, warm and golden, the players in
      it, the coins, their hands on top - and the time left across the top. */
   view(c, W, H){
-    const g = c.createRadialGradient(W / 2, H * 0.55, H * 0.1, W / 2, H * 0.55, W * 0.7);
-    g.addColorStop(0, '#5a4a26'); g.addColorStop(1, PAL.hall);
-    c.fillStyle = g; c.fillRect(0, 0, W, H);
-    c.fillStyle = PAL.floor; c.fillRect(0, H * 0.88, W, H * 0.12);
-    this.avatars.drawBodies(c, W, H, this.g.players);
+    const world = !!PAL.world;
+    if (world){
+      worldVault(c, W, H, this.t);
+      /* Their suits, copying them. */
+      const gm = this.g;
+      for (let i = 0; i < gm.players; i++){
+        const p = pose.players[i];
+        if (!p || !p.present || !p.lm) continue;
+        worldSuit(c, p.lm, W, H, PLAYER_COLORS[i], (x, y, r) => {
+          if (gm.faces && gm.faces.has(i)) gm.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
+          else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
+        });
+      }
+    } else {
+      const g = c.createRadialGradient(W / 2, H * 0.55, H * 0.1, W / 2, H * 0.55, W * 0.7);
+      g.addColorStop(0, '#5a4a26'); g.addColorStop(1, PAL.hall);
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      c.fillStyle = PAL.floor; c.fillRect(0, H * 0.88, W, H * 0.12);
+      this.avatars.drawBodies(c, W, H, this.g.players);
+    }
     for (const cn of this.coins){
       const s = cn.r * H * cn.born, spin = Math.abs(Math.cos(this.t * 2.5 + cn.ph));
       c.save(); c.translate(cn.x * W, cn.y * H); c.scale(0.35 + 0.65 * spin, 1);
@@ -121,7 +138,8 @@ export class Treasure {
       c.restore();
     }
     /* The healing water, rising round them. */
-    if (this.wet > 0){
+    if (this.wet > 0 && world) worldPool(c, W, H, this.wet, this.t);
+    else if (this.wet > 0){
       const top = H * (0.95 - 0.22 * this.wet);
       const wg = c.createLinearGradient(0, top, 0, H);
       wg.addColorStop(0, 'rgba(56,189,248,.55)'); wg.addColorStop(1, 'rgba(14,116,144,.75)');

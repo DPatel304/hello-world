@@ -18,6 +18,7 @@
 
 import { worldCrew, worldBeast, worldRobot } from './lkp-cast.js';
 import { drawWorld, finish, worldBlocker, worldBeam, worldGap, worldCoin, worldFountain } from './lkp-world.js';
+import { worldFork, worldDepot, worldPiece, worldSweeper, worldSweepBar } from './lkp-places.js';
 
 export const RUN = 0.03;              /* the crew's own depth */
 export const HORIZON = 0.38;          /* screen heights */
@@ -165,6 +166,7 @@ const DOOR_LOOK = { elite: ['#e5484d', 'skull'], combat: ['#e5484d', 'skull'], t
    with its sign over it, the votes in front as dots in the voters'
    colours, and the chosen one opening. */
 export function drawDoors(c, W, H, rel, t, kinds, votes, open = null, opening = 0){
+  if (PAL.world) return worldFork(c, W, H, rel, t, kinds, votes, open, opening, PAL.world);
   /* The wall fills everything behind it: nothing to see past the doors. */
   const l = P(-WALL, rel, W, H), k = l.k;
   c.fillStyle = PAL.wall; c.fillRect(-W, -H, W * 3, l.y + H);
@@ -347,6 +349,7 @@ export function drawBeast(c, x, base, s, t, st){
    the floor, glowing, with a ring round it filling (charge 0..1) as the
    crew power it up. */
 export function drawDepot(c, W, H, rel, t, what, charge = 0){
+  if (PAL.world) return what === 'shed' ? worldDepot(c, W, H, rel, t, PAL.world) : worldPiece(c, W, H, rel, t, charge);
   const p = P(0, rel, W, H), k = p.k;
   if (what === 'shed'){
     const w = H * 1.1 * k, h = H * 0.55 * k;
@@ -397,6 +400,7 @@ export function drawChest(c, W, H, rel, t, open, full){
    stuck: slumped, stars), panic (phase 3: shaking), off (powered off:
    dark, slumped) }. */
 export function drawScout(c, x, base, s, t, st){
+  if (PAL.world) return worldSweeper(c, x, base, s * 1.6, t, st);
   const w = s * 0.5, crouch = st.tell * 0.15 + (st.dazed || st.off ? 0.2 : 0);
   c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, base, w * 0.9, s * 0.05, 0, 0, 6.2832); c.fill();
   c.save();
@@ -539,6 +543,7 @@ export function drawShockwave(c, W, H, rel, t){
 /* A laser sweeping in at head height at depth rel: a red bar right
    across. Duck under it. */
 export function drawSweep(c, W, H, rel, t){
+  if (PAL.world) return worldSweepBar(c, W, H, rel, t);
   const l = P(-WALL, rel, W, H), r = P(WALL, rel, W, H), k = l.k;
   const y = l.y - H * 0.28 * k;
   c.save();

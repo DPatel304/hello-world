@@ -43,7 +43,7 @@ export const LEVELS = [
     },
     plan: ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
-    boss: 'scout', bossName: 'Scout',
+    boss: 'scout', bossName: 'Sweeper',
     tips: {
       coin: ['Grab those coins!', 'COINS!'],
       blocker: ['Fallen tree! Lean to go around it.', 'LEAN!'],
@@ -67,10 +67,10 @@ export const LEVELS = [
       ],
       boss: [
         ['robot', 'Contamination detected. Cleaning.', 'CLEANING.'],
-        ['nova', 'A scout robot! Watch the red, dodge its charges, and hit it when it stops!', 'DODGE!']
+        ['nova', 'An old street sweeper, gone haywire! Watch the red, dodge its charges, and hit it when it stops!', 'DODGE!']
       ],
       won: [
-        ['nova', 'The Scout\'s down! We\'ve got the engine piece.', 'LEVEL CLEAR!'],
+        ['nova', 'The Sweeper\'s down! We\'ve got the engine piece.', 'LEVEL CLEAR!'],
         'PRAISE',
         ['nova', 'The ship\'s still a long way off, and more robots are waking. Rest up, crew.', '']
       ],

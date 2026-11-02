@@ -25,6 +25,7 @@ import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch, MoveWatch } from '../tracking/gestures.js';
 import { drawCoin, PAL } from './lkp-art.js';
+import { worldHall, worldSleeper } from './lkp-places.js';
 import { XP } from './lkp-levelup.js';
 import { armored } from './lkp-weapons.js';
 
@@ -120,14 +121,17 @@ export class Lights {
      drawing, at their places in the hall. */
   draw(c, W, H, drawCrew){
     const g = this.g, red = this.light === 'red', lamp = { green: '#3fcf7f', yellow: '#ffc531', red: '#ff3b3b' }[this.light];
-    c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
     /* The floor, with lines across it every so far up, the start, and the
        finish. */
     const corner = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
-    c.fillStyle = red ? PAL.hallRed : PAL.hallFloor;
-    c.beginPath(); c.moveTo(...corner(-1.1, -0.1)); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(1.1, 1.15)); c.lineTo(...corner(-1.1, 1.15)); c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 2;
-    for (let k = 1; k < 16; k++){ c.beginPath(); c.moveTo(...corner(-1.1, k / 16)); c.lineTo(...corner(1.1, k / 16)); c.stroke(); }
+    if (PAL.world) worldHall(c, W, H, Q, red, this.t);
+    else {
+      c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
+      c.fillStyle = red ? PAL.hallRed : PAL.hallFloor;
+      c.beginPath(); c.moveTo(...corner(-1.1, -0.1)); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(1.1, 1.15)); c.lineTo(...corner(-1.1, 1.15)); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 2;
+      for (let k = 1; k < 16; k++){ c.beginPath(); c.moveTo(...corner(-1.1, k / 16)); c.lineTo(...corner(1.1, k / 16)); c.stroke(); }
+    }
     c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = H * 0.006;
     c.beginPath(); c.moveTo(...corner(-1.1, 0)); c.lineTo(...corner(1.1, 0)); c.stroke();
     /* The finish: a checked strip. */
@@ -138,7 +142,8 @@ export class Lights {
     }
     /* The robot, beyond the finish: asleep (or recharging) on green,
        stirring on yellow, looking on red. */
-    this._robot(c, W / 2, H * 0.22, H * 0.085, lamp, g.awake);
+    if (PAL.world) worldSleeper(c, W / 2, H * 0.335, H * 0.17, this.light, g.awake, this.t, lamp);
+    else this._robot(c, W / 2, H * 0.22, H * 0.085, lamp, g.awake);
     /* Its gaze, on red: a red wash down the hall. */
     if (red){
       c.save(); c.globalAlpha = 0.12 + 0.05 * Math.sin(this.t * 10);
