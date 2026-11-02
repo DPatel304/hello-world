@@ -13,11 +13,12 @@ import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
+import { worldShip, worldWreck } from './lkp-places.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
 import { LEVELS } from './lkp-levels.js';
-import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
+import { Captain, Scene, NAMES, script, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
 
 /* The bosses, by the name a level gives (lkp-levels.js). Each is a fight
    with its own step(dt, W, H, jumped), arena(), items(), hud() and
@@ -54,7 +55,11 @@ export const story = { on: true };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [45, 35, 35, 30];                      /* seconds of each corridor, in full */
+const FULL = [55, 35, 35, 30];                      /* seconds of each corridor, in full */
+/* The first corridor starts quiet - LEAD seconds of just running, past
+   the crash site, while Nova finishes her briefing - before anything
+   comes along. */
+export const LEAD = 10;
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
 /* However a boss fight is going, after this long the boss gives up (the
@@ -252,7 +257,8 @@ class LastKnownPosition {
   _layout(n){
     /* Laid out for the full length, and squeezed to fit a shorter one. */
     const squeeze = this.seg.len / (FULL[n] || 45);
-    const at = (secs) => this.z + RUN + SPEED * secs * squeeze + 0.9;   /* reaching the crew `secs` in */
+    const lead = n === 0 ? LEAD : 0;
+    const at = (secs) => this.z + RUN + SPEED * (secs + lead) * squeeze + 0.9;   /* reaching the crew `secs` in */
     /* After the first, each corridor turns sharply once, halfway (for the
        look: it's automatic). */
     if (n > 0) this.seg.corner = { d: at((FULL[n] || 45) * 0.5), dir: Math.random() < 0.5 ? -1 : 1, at: null };
@@ -271,6 +277,11 @@ class LastKnownPosition {
     };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
     if (n === 0){
+      /* The crash site, where they start: the ship down on its side off to
+         the left, wreckage scattered about. */
+      this.things.push({ d: this.z + 0.3, kind: 'ship', lane: -3.2, s: 1.4 });
+      for (const [lane, rel, s, k] of [[1.9, 0.22, 1, 1], [1.6, 0.5, 0.9, 2], [-1.8, 0.12, 0.7, 3], [2.5, 0.38, 1.2, 4], [-2, 0.62, 0.9, 5]])
+        this.things.push({ d: this.z + rel, kind: 'wreck', lane, s, n: k });
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
       crystalLine(14, 0.4, 5);
@@ -313,7 +324,11 @@ class LastKnownPosition {
     /* A scene: nothing else moves till it's done. */
     if (this.scene){
       this.scene.step(dt);
-      if (this.scene.done) this.scene = null;
+      if (this.scene.done){
+        /* Out of the opening: Nova carries on with the briefing as they run. */
+        if (this.scene.kind === 'intro') for (const [, text, words] of script('briefing', this)) this.captain.say(text, words, { polite: true });
+        this.scene = null;
+      }
       this._stepBits(dt);
       return;
     }
@@ -825,7 +840,7 @@ class LastKnownPosition {
     this._drawBits(c, W, H);
     if (this.depot) this.depot.draw(c, W, H);
     c.restore();
-    this._drawHud(c, W, H);
+    if (!this.inIntro) this._drawHud(c, W, H);
   }
 
   /* The path's bends, for the look: gentle curves along a corridor, a
@@ -855,6 +870,8 @@ class LastKnownPosition {
     const p = P(it.lane || 0, it.rel, W, H);
     switch (it.kind){
       case 'blocker': drawBlocker(c, W, H, it.rel, it.a, it.b, this.t, it.seed); break;
+      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
+      case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': drawCrystal(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
@@ -904,7 +921,7 @@ class LastKnownPosition {
     const rn = this.crew[i], here = pose.players[i].present;
     const p = at || P(rn.x, RUN, W, H), h = at ? at.h : H * CREW_SIZE;
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -917,7 +934,7 @@ class LastKnownPosition {
     if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */
     const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
-    if (!(at && at.noBar)) drawHealth(c, p.x, top - H * 0.03, h * 0.53, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
+    if (!(at && at.noBar) && !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 

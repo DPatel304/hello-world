@@ -54,9 +54,12 @@ export const LEVELS = [
     lines: {
       opening: [
         ['nova', 'Crew, do you read me? This is Commander Nova. Good - you\'re all up.', ''],
-        ['nova', 'We crash-landed. I\'m hurt, stuck in the wreck - and you were thrown clear, a long way from the ship.', ''],
-        ['nova', 'The engine\'s missing a piece. My scans say there\'s one in an old depot, through this forest.', 'FIND THE ENGINE PIECE'],
-        ['nova', 'Head that way. I\'ll guide you. Let\'s go!', 'GO!']
+        ['nova', 'We came down hard. The ship\'s in one piece, but the hatch is jammed and I\'m hurt. I\'m stuck in here.', '']
+      ],
+      /* Carried on over the radio as they set off. */
+      briefing: [
+        ['nova', 'The engine\'s missing a piece - it must have been thrown out as we came down. My scans say there\'s one in an old depot, through this forest.', 'FIND THE ENGINE PIECE'],
+        ['nova', 'Stay on the path and stick together. I\'ll be on the radio the whole way.', 'GO!']
       ],
       depot: [
         ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']

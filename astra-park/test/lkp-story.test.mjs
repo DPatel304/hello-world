@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { TITLE, DARK, WAKE, WIGGLE, UP, CRASH_MAX, RING_MAX } from '../src/games/lkp-intro.js';
+import { TITLE, DARK, WAKE, WIGGLE, UP, CRASH_MAX, RING_MAX, PAN } from '../src/games/lkp-intro.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -50,7 +50,10 @@ test('the run opens on its title, the crash - wiggle to wake up, a hand to your 
   assert.equal(inst.z, z, 'nothing moves');
   const len = script('opening', inst).reduce((s, [who, text]) => s + lineTime(text, who) + 0.5, 0);
   run(inst, len + 0.5);
+  assert.equal(intro.stage, 'pan', 'the camera swinging round to the path');
+  run(inst, PAN + 0.1);
   assert.equal(inst.scene, null);
+  assert.ok(inst.captain.busy, 'and she carries on with the briefing');
   run(inst, 1);
   assert.ok(inst.z > z, 'and off they go');
   story.on = false;

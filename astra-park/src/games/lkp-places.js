@@ -447,3 +447,89 @@ export function worldPool(c, W, H, wet, t){
   c.fillStyle = 'rgba(220,255,255,.8)';
   for (let k = 0; k < 30; k++){ const a = (t * 0.4 + hash(k + 800)) % 1; circ(c, hash(k + 801) * W, top + (H - top) * 0.6 - a * H * 0.4, H * (0.002 + hash(k + 802) * 0.004) * wet); }
 }
+
+/* ---------- the crash site ---------- */
+
+/* The ship, down: in one piece but toppled on its side, at depth rel off
+   to one side of the path - a long rounded hull, its nose cone, a cracked
+   cockpit window, one fin bent, a hull panel hanging, scorch marks, and
+   smoke pouring from its engines. s scales it. */
+export function worldShip(c, W, H, rel, lane, t, s = 1){
+  const p = P(lane, rel, W, H), u = H * 0.0011 * p.k * s;
+  if (p.x < -1400 * u || p.x > W + 1400 * u) return;
+  cast(c, p.x - 200 * u, p.y, 120 * u, 1500 * u, 0.4);
+  c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(p.x, p.y, 760 * u, 70 * u, 0, 0, 6.2832); c.fill();
+  /* a furrow ploughed behind it */
+  c.fillStyle = 'rgba(60,45,70,.45)'; c.beginPath(); c.ellipse(p.x + 620 * u, p.y + 10 * u, 340 * u, 34 * u, 0.05, 0, 6.2832); c.fill();
+  c.save(); c.translate(p.x, p.y - 150 * u); c.rotate(-0.12);
+  /* the far fin, sticking up, bent */
+  c.fillStyle = '#5c6378'; c.beginPath(); c.moveTo(380 * u, -90 * u); c.lineTo(520 * u, -330 * u); c.lineTo(600 * u, -300 * u); c.lineTo(560 * u, -80 * u); c.closePath(); c.fill();
+  /* the hull */
+  const hg = c.createLinearGradient(0, -170 * u, 0, 170 * u);
+  hg.addColorStop(0, '#e9ecf4'); hg.addColorStop(0.45, '#aab0c2'); hg.addColorStop(1, '#4a5068');
+  c.fillStyle = hg; c.beginPath();
+  c.moveTo(-560 * u, -150 * u); c.lineTo(520 * u, -165 * u); c.quadraticCurveTo(640 * u, -150 * u, 650 * u, 0); c.quadraticCurveTo(640 * u, 150 * u, 520 * u, 165 * u);
+  c.lineTo(-560 * u, 150 * u); c.quadraticCurveTo(-820 * u, 120 * u, -880 * u, 0); c.quadraticCurveTo(-820 * u, -120 * u, -560 * u, -150 * u); c.closePath(); c.fill();
+  /* panel lines and the stripe */
+  c.strokeStyle = 'rgba(30,30,50,.3)'; c.lineWidth = 4 * u; c.beginPath();
+  for (const x of [-420, -180, 60, 300]){ c.moveTo(x * u, -158 * u); c.lineTo(x * u, 158 * u); }
+  c.stroke();
+  c.fillStyle = '#e8b830'; c.fillRect(-560 * u, 40 * u, 1080 * u, 26 * u);
+  c.fillStyle = '#3fa6ff'; c.fillRect(-560 * u, 70 * u, 1080 * u, 10 * u);
+  /* the cockpit window, cracked */
+  c.fillStyle = '#1b2440'; c.beginPath(); c.ellipse(-700 * u, -40 * u, 120 * u, 70 * u, -0.15, 0, 6.2832); c.fill();
+  c.fillStyle = 'rgba(140,220,255,.35)'; c.beginPath(); c.ellipse(-730 * u, -62 * u, 60 * u, 22 * u, -0.3, 0, 6.2832); c.fill();
+  c.strokeStyle = 'rgba(230,245,255,.85)'; c.lineWidth = 3 * u; c.beginPath();
+  c.moveTo(-660 * u, -70 * u); c.lineTo(-690 * u, -30 * u); c.lineTo(-650 * u, 0); c.moveTo(-690 * u, -30 * u); c.lineTo(-740 * u, -20 * u); c.lineTo(-770 * u, 10 * u); c.moveTo(-690 * u, -30 * u); c.lineTo(-720 * u, -80 * u);
+  c.stroke();
+  /* the hatch, jammed - a glow round its edge */
+  c.strokeStyle = '#2c3042'; c.lineWidth = 6 * u; c.beginPath(); c.roundRect(-380 * u, -110 * u, 150 * u, 200 * u, 30 * u); c.stroke();
+  glow(c, -305 * u, -10 * u, 70 * u, '#ff6b5b', 0.4 + 0.3 * Math.sin(t * 4));
+  c.fillStyle = '#ff6b5b'; c.beginPath(); c.arc(-250 * u, -80 * u, 8 * u, 0, 6.2832); c.fill();
+  /* dents and scorch */
+  c.fillStyle = 'rgba(30,25,40,.45)';
+  for (const [x, y, r] of [[120, -60, 90], [-80, 90, 60], [420, 60, 70]]){ c.beginPath(); c.ellipse(x * u, y * u, r * u, r * 0.55 * u, 0.3, 0, 6.2832); c.fill(); }
+  c.strokeStyle = 'rgba(30,30,50,.5)'; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(80 * u, -110 * u); c.quadraticCurveTo(140 * u, -60 * u, 110 * u, -10 * u); c.stroke();
+  /* a hull panel hanging loose */
+  c.save(); c.translate(200 * u, 150 * u); c.rotate(0.5 + Math.sin(t * 1.5) * 0.04);
+  c.fillStyle = '#8a90a6'; c.fillRect(0, 0, 120 * u, 60 * u); c.restore();
+  /* the near fin, crumpled under it */
+  c.fillStyle = '#7a8198'; c.beginPath(); c.moveTo(400 * u, 150 * u); c.lineTo(560 * u, 260 * u); c.lineTo(620 * u, 220 * u); c.lineTo(560 * u, 140 * u); c.closePath(); c.fill();
+  /* the engines at the back, scorched, flickering */
+  for (const y of [-70, 70]){
+    c.fillStyle = '#2c3042'; c.beginPath(); c.ellipse(650 * u, y * u, 40 * u, 55 * u, 0, 0, 6.2832); c.fill();
+    glow(c, 670 * u, y * u, 90 * u, '#ff9a3d', 0.4 + 0.35 * Math.abs(Math.sin(t * 9 + y)));
+  }
+  c.strokeStyle = 'rgba(255,240,215,.75)'; c.lineWidth = 5 * u; c.beginPath(); c.moveTo(-560 * u, -150 * u); c.lineTo(520 * u, -165 * u); c.stroke();
+  c.restore();
+  /* smoke pouring out of the engines and a crack in the hull, sparks */
+  for (const [sx, sy, n] of [[700, -170, 0], [690, -330, 1], [130, -300, 2]]){
+    for (let k = 0; k < 7; k++){
+      const a = (t * 0.22 + k / 7 + n * 0.17) % 1;
+      glow(c, p.x + (sx + a * 260 + Math.sin(a * 6 + n) * 40) * u, p.y + (sy - a * 900) * u, (70 + a * 260) * u, '#5d5d72', 0.75 * (1 - a));
+    }
+  }
+  for (let k = 0; k < 4; k++){
+    const a = (t * 1.6 + k / 4) % 1;
+    c.fillStyle = `rgba(255,210,110,${1 - a})`; circ(c, p.x + (120 + k * 20 + a * 40) * u, p.y - (300 + a * 200) * u, 5 * u + 1);
+  }
+}
+
+/* A piece of wreckage thrown off in the crash: a twisted hull shard on
+   the ground at depth rel, embers glowing, smoke rising. */
+export function worldWreck(c, W, H, rel, lane, t, s = 1, n = 0){
+  const p = P(lane, rel, W, H), u = H * 0.0011 * p.k * s;
+  if (p.x < -300 * u || p.x > W + 300 * u) return;
+  c.fillStyle = 'rgba(20,15,45,.35)'; c.beginPath(); c.ellipse(p.x, p.y, 160 * u, 30 * u, 0, 0, 6.2832); c.fill();
+  c.save(); c.translate(p.x, p.y); c.rotate((n % 2 ? 1 : -1) * 0.25);
+  const mg = c.createLinearGradient(-120 * u, 0, 120 * u, 0); mg.addColorStop(0, '#c9ced9'); mg.addColorStop(0.5, '#737a90'); mg.addColorStop(1, '#2c3042');
+  c.fillStyle = mg; c.beginPath(); c.moveTo(-130 * u, 0); c.lineTo(-90 * u, -110 * u); c.lineTo(40 * u, -140 * u); c.lineTo(120 * u, -60 * u); c.lineTo(100 * u, 0); c.closePath(); c.fill();
+  c.fillStyle = '#e8b830'; c.beginPath(); c.moveTo(-100 * u, -80 * u); c.lineTo(60 * u, -110 * u); c.lineTo(66 * u, -94 * u); c.lineTo(-94 * u, -64 * u); c.closePath(); c.fill();
+  c.fillStyle = '#1d2030'; c.beginPath(); c.ellipse(10 * u, -60 * u, 30 * u, 18 * u, 0.3, 0, 6.2832); c.fill();
+  c.restore();
+  glow(c, p.x + 10 * u, p.y - 70 * u, 70 * u, '#ff9a3d', 0.5 + 0.3 * Math.sin(t * 7 + n));
+  for (let k = 0; k < 5; k++){
+    const a = (t * 0.25 + k / 5 + n * 0.13) % 1;
+    glow(c, p.x + 10 * u + Math.sin(a * 5 + n) * 30 * u + a * 80 * u, p.y - (90 + a * 520) * u, (45 + a * 140) * u, '#5d5d72', 0.6 * (1 - a));
+  }
+}
