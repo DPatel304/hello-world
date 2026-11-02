@@ -102,7 +102,7 @@ export class Intro {
       }
       case 'connect':
         if (Math.random() < dt * 20) sfx.spray();
-        if (this.st >= STATIC){ this._go('talk'); this.talk = new Scene('opening', g); this.talk.title = null; this.talk.corner = 'top-right'; }
+        if (this.st >= STATIC){ this._go('talk'); this.talk = new Scene('opening', g); this.talk.title = null; this.talk.corner = 'top-left'; }
         break;
       case 'talk':
         this.talk.step(dt);

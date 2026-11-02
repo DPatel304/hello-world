@@ -205,15 +205,16 @@ export class Scene {
       c.strokeText(this.title[1].toUpperCase(), W / 2, H * 0.23); c.fillStyle = '#ffd24a'; c.fillText(this.title[1].toUpperCase(), W / 2, H * 0.23);
       c.restore();
     }
-    /* Big on the left - or, where a scene says (corner: 'top-right'), up
-       in that corner, out of the way of what's being shown. */
-    const tr = this.corner === 'top-right', who = this.line.who, s = H * (tr ? 0.28 : 0.36);
-    const x = tr ? W - s - W * 0.04 : W * 0.06, y = tr ? H * 0.14 : H * 0.38;
+    /* Big on the left - or, where a scene says (corner: 'top-left'), up in
+       the corner where her window is in play, out of the way of what's
+       being shown. */
+    const tl = this.corner === 'top-left', who = this.line.who, s = H * (tl ? 0.22 : 0.36);
+    const x = tl ? H * 0.03 : W * 0.06, y = tl ? H * 0.14 : H * 0.38;
     radio(c, x, y, s, s, this.t, this.talking, Math.max(0, 1 - this.t * 3), who, this.label);
     if (this.line.words){
       c.save();
-      c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.textAlign = tr ? 'right' : 'left'; c.textBaseline = 'middle';
-      const wx = tr ? x - H * 0.05 : x + s + H * 0.05;
+      c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
+      const wx = x + s + H * 0.05;
       c.lineWidth = H * 0.012; c.strokeStyle = '#05060f'; c.strokeText(this.line.words, wx, y + s * 0.5);
       c.fillStyle = who === 'robot' ? '#ff5b5b' : '#ffffff'; c.fillText(this.line.words, wx, y + s * 0.5);
       c.restore();
