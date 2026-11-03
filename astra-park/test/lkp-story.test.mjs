@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, TITLE, WAKE, WIGGLE, UP, OUT, POND_MAX, CRASH_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, WAKE, WIGGLE, UP, OUT, POND_MAX, CRASH_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -25,10 +25,10 @@ test('the opening: title, the wreck, wiggle to wake, everyone answers, the brief
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'wreck', 'wake', 'call', 'brief', 'pond', 'go']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['wreck', 'wake', 'call', 'brief', 'pond', 'go']);
   const z = inst.z;
-  run(inst, TITLE + 0.1);
-  assert.equal(intro.stage, 'wreck');
+  assert.equal(intro.stage, 'wreck', 'no title: straight into the shot');
+  run(inst, 0.1);
   inst.draw(fake(), W, H);
   run(inst, WAKE + 0.1);
   assert.equal(intro.stage, 'wake');
@@ -81,7 +81,7 @@ test('the opening: title, the wreck, wiggle to wake, everyone answers, the brief
 test('nobody waking, answering or walking never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = TITLE + WAKE + CRASH_MAX + 1 + RING_MAX + 1 + say(inst, 'brief') + 1 + POND_MAX + say(inst, 'pondIn') + say(inst, 'pondWait') + 2 + OUT + 2;
+  const most = WAKE + CRASH_MAX + 1 + RING_MAX + 1 + say(inst, 'brief') + 1 + POND_MAX + say(inst, 'pondIn') + say(inst, 'pondWait') + 2 + OUT + 2;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   assert.equal(inst.crew[0].hp, inst.crew[0].max);

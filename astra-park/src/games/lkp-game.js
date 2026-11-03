@@ -14,7 +14,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { worldPond } from './lkp-crashsite.js';
+import { worldPond, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -61,7 +61,8 @@ const FULL = [55, 35, 35, 30];                      /* seconds of each corridor,
    the crash site - before anything comes along. */
 export const LEAD = 10;
 /* The crash site at the start of the first corridor [lane, depth, size]. */
-export const CRASH = { ship: [-3.7, 0.5, 1.3], wreck: [-2.1, 0.4, 1], pond: [2.0, 0.2, 0.5] };
+/* (the crash site's layout: lkp-crashsite.js SITE) */
+export const CRASH = SITE;
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
 /* However a boss fight is going, after this long the boss gives up (the
@@ -177,7 +178,7 @@ class LastKnownPosition {
     this.boss = null;               /* the level's boss, at the end */
     this.faces = new FaceCam();
     this.captain = new Captain();
-    /* The opening: a title, the crash, waking up, Nova's call (lkp-intro.js). */
+    /* The opening: down from space onto the crash site, waking up, Nova's call, the pond (lkp-intro.js). */
     this.scene = story.on ? new Intro(this) : null;
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
@@ -837,8 +838,8 @@ class LastKnownPosition {
     if (this.depot) this.depot.items(items);
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
-      const p = P(ic.lane, ic.rel, W, H);
-      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x, y: p.y, h: H * CREW_SIZE * p.k, bob: 0 } });
+      const p = P(ic.lane, ic.rel, W, H), h = H * CREW_SIZE * p.k;
+      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x + (ic.dx || 0) * h, y: p.y, h, bob: 0, down: ic.down, pose: ic.pose, noBar: ic.noBar } });
     }
     else for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
@@ -853,6 +854,8 @@ class LastKnownPosition {
       c.beginPath(); c.moveTo(x + d * s, y); c.lineTo(x - d * s * 0.3, y - s * 0.75); c.lineTo(x - d * s * 0.3, y - s * 0.3); c.lineTo(x - d * s, y - s * 0.3); c.lineTo(x - d * s, y + s * 0.3); c.lineTo(x - d * s * 0.3, y + s * 0.3); c.lineTo(x - d * s * 0.3, y + s * 0.75); c.closePath();
       c.stroke(); c.fill(); c.restore();
     }
+    /* (the opening's own things in the world: smoke, stars, the pond's light) */
+    if (this.introDraw) this.introDraw(c, W, H);
     drawGloom(c, W, H);
     if (seg.kind === 'room') this._drawRoom(c, W, H);
     this._drawBits(c, W, H);
