@@ -162,7 +162,9 @@ function panorama(W, H, L){
 
 /* Everything behind the things on the path: the panorama, the ground, the
    path, the trees. z is how far along the crew are; alarm tints it red. */
-export function drawWorld(c, W, H, z, t, alarm, L){
+/* bare: just the sky, the land and the grass - no path, no trees (a
+   scene that places its own: the crash site, lkp-crashsite.js). */
+export function drawWorld(c, W, H, z, t, alarm, L, bare = false){
   /* Turns swing the view round, easing. */
   const dt = VIEW.lastT == null ? 0 : Math.min(0.1, Math.max(0, t - VIEW.lastT)); VIEW.lastT = t;
   VIEW.heading += (VIEW.target - VIEW.heading) * Math.min(1, dt * 2.5);
@@ -182,9 +184,9 @@ export function drawWorld(c, W, H, z, t, alarm, L){
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
   /* The path. */
-  path(c, W, H, z, L);
+  if (!bare) path(c, W, H, z, L);
   /* Trees and glowing plants along both sides. */
-  trees(c, W, H, z, L);
+  if (!bare) trees(c, W, H, z, L);
   /* The far end fades into the haze. */
   const fh = c.createLinearGradient(0, HY - H * 0.07, 0, HY + H * 0.08);
   fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75)); fh.addColorStop(1, rgba(L.haze, 0));

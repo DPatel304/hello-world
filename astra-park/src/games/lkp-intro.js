@@ -1,47 +1,49 @@
 /* Last Known Position's opening: picked from the console, it doesn't throw
-   you straight in - it tells you where you are, and lets your body do it.
-   A camera of its own: a staged crash site - the crew lying about the
-   downed ship - then a whip pan round onto the game's own view, and play
-   just carries on.
+   you straight in - it shows you where you are, and lets your body do it.
+   Its own camera, over the crash site (lkp-crashsite.js), then a whip pan
+   round onto the game's own view, and play just carries on.
 
-     title    the game's name over the planet
-     dark     black: ears ringing, a heartbeat - knocked out
-     pov      through your own eyes, lying there: blinking awake, the world
-              swimming into focus, looking round - the sky, the ship
-     zoom     the camera pulls back into a low, letterboxed shot of the
-              crash site - the ship down behind, toppled but in one piece,
-              smoking; the crew lying about it, not in a line
-     crash    WIGGLE TO WAKE UP: each astronaut sits up and stands when
-              their own player moves
+     title    high above the forest: the clearing, the furrow, the ship at
+              the end of it, the crew tiny in the grass - and the name
+     swoop    the camera drops down out of the sky to the ground, behind
+              the crew, the ship ahead of them across the clearing
+     crash    the crew lying in the grass - WIGGLE TO WAKE UP: each
+              astronaut sits up and stands when their own player moves
+     pond     they've been hurt (they start on half health): they walk
+              over to the healing pond, and HUG YOURSELF TO HEAL fills them
+              up - faster the tighter the hug
      ring     the radio ringing - CMDR NOVA. A hand to your ear answers
-     talk     the same shot while she talks (her opening lines - a wave
-              skips them)
+     talk     she talks (her opening lines - a wave skips them)
      pan      the camera whips round onto the path - the game's view -
-              and they're off; she carries on with the
-              briefing on the radio as they run (lkp-game.js)
+              and they're off; she carries on with the briefing on the
+              radio as they run (lkp-game.js)
 
-   The waking and the answering wait for the players - but never forever
-   (CRASH_MAX, RING_MAX). The game holds still till it's done. */
+   The waking, healing and answering wait for the players - but never
+   forever (CRASH_MAX, POND_MAX, RING_MAX). The game holds still till it's
+   done. */
 import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
-import { MoveWatch } from '../tracking/gestures.js';
-import { P, drawCorridor, drawGloom } from './lkp-art.js';
+import { MoveWatch, HugWatch } from '../tracking/gestures.js';
+import { P, drawGloom } from './lkp-art.js';
 import { glow } from './lkp-world.js';
-import { worldShip, worldWreck } from './lkp-places.js';
+import { drawAbove, drawGround, ABOVE } from './lkp-crashsite.js';
 import { Scene } from './lkp-captain.js';
 
-/* How long each of the first three lasts. */
-export const TITLE = 4, DARK = 2.5, POV = 4.5, ZOOM = 2.2, PAN = 2;
-/* (The old name for the time to come round: the POV.) */
-export const WAKE = POV + ZOOM;
+/* The title from above, and the drop to the ground. */
+export const TITLE = 5, SWOOP = 2.6, PAN = 2;
+/* (How long till the crew are lying there to be woken.) */
+export const WAKE = SWOOP;
 /* Waking up: moving (body sizes a second) more than STIR counts; WIGGLE
    seconds of it and you're up, taking UP seconds to stand. */
 export const STIR = 0.45, WIGGLE = 1.2, UP = 0.8;
+/* The pond: WALK seconds over to it; then healing - HEAL a second standing
+   in it, HUG_HEAL hugging yourself. They start on START of their health. */
+export const WALK = 2.2, HEAL = 4, HUG_HEAL = 30, START = 0.5;
 /* The call: a hand held at the ear HOLD seconds answers it. */
 export const HOLD = 0.4;
 /* However it's going, on after this long. */
-export const CRASH_MAX = 20, RING_MAX = 12;
-/* After the last one's up, a moment before the radio rings; after it's
+export const CRASH_MAX = 20, POND_MAX = 15, RING_MAX = 12;
+/* After the last one's up (or healed), a moment; after the call's
    answered, the static before she's through. */
 const AFTER = 1.2, STATIC = 0.9;
 
@@ -50,30 +52,28 @@ export class Intro {
     this.g = game; this.kind = 'intro'; this.done = false;
     this.stage = 'title'; this.st = 0; this.t = 0;
     this.moves = pose.players.map(() => new MoveWatch());
+    this.hugs = pose.players.map(() => new HugWatch());
     this.woke = pose.players.map(() => 0);       /* how much wiggle, 0..WIGGLE */
     this.up = pose.players.map(() => 0);         /* standing up, 0..1 */
-    this.ear = 0; this.answered = -1; this.talk = null; this.beatT = 0; this.ringT = 0;
+    this.hugging = pose.players.map(() => false);
+    this.ear = 0; this.answered = -1; this.talk = null; this.ringT = 0; this.hearts = [];
   }
-  _go(stage){ this.stage = stage; this.st = 0; }
+  _go(stage){ this.stage = stage; this.st = 0; this.afterT = 0; }
 
   step(dt){
     if (this.done) return;
     this.t += dt; this.st += dt;
     const g = this.g, here = g.here;
+    /* Knocked about in the crash: half health, till the pond. */
+    if (!this.hurt){ this.hurt = true; for (const rn of g.crew) rn.hp = Math.round(rn.max * START); }
+    for (const h of this.hearts){ h.age += dt; h.y -= dt * 0.08; }
+    this.hearts = this.hearts.filter(h => h.age < 1);
     switch (this.stage){
       case 'title':
-        if (this.st >= TITLE){ this._go('dark'); sfx.ringing?.(); }
+        if (this.st >= TITLE) this._go('swoop');
         break;
-      case 'dark':
-        this.beatT -= dt;
-        if (this.beatT <= 0){ sfx.heartbeat(); this.beatT = 1.1; }
-        if (this.st >= DARK) this._go('pov');
-        break;
-      case 'pov':
-        if (this.st >= POV){ this._go('zoom'); for (const i of here){ g.crew[i].played = true; g.crew[i].x = g._home(i); } }
-        break;
-      case 'zoom':
-        if (this.st >= ZOOM) this._go('crash');
+      case 'swoop':
+        if (this.st >= SWOOP){ this._go('crash'); for (const i of here){ g.crew[i].played = true; g.crew[i].x = g._home(i); } }
         break;
       case 'crash': {
         /* Each astronaut gets up when their own player has wiggled enough. */
@@ -81,13 +81,29 @@ export class Intro {
           const moving = this.moves[i].step(pose.players[i], dt, pose.mouse.active);
           if (this.woke[i] < WIGGLE){
             if (moving > STIR){ this.woke[i] += dt; if (Math.random() < dt * 6) sfx.step(i, 0.3); }
-            if (this.woke[i] >= WIGGLE){ sfx.select(); g._sparkle(P(g.crew[i].x, 0.03, 1, 1).x, 0.8, 10, 50); }
+            if (this.woke[i] >= WIGGLE) sfx.select();
           }
         }
         if (this.st >= CRASH_MAX) for (const i of here) this.woke[i] = WIGGLE;
         for (const i of here) if (this.woke[i] >= WIGGLE) this.up[i] = Math.min(1, this.up[i] + dt / UP);
         const allUp = here.length > 0 && here.every(i => this.up[i] >= 1);
-        if (allUp || (!here.length && this.st > 3)){ this.upT = (this.upT || 0) + dt; if (this.upT >= AFTER) this._go('ring'); }
+        if (allUp || (!here.length && this.st > 3)){ this.afterT += dt; if (this.afterT >= AFTER) this._go('pond'); }
+        break;
+      }
+      case 'pond': {
+        /* Over to the pond; then the water heals them, hugging faster. */
+        if (this.st < WALK) break;
+        for (const i of here){
+          const rn = g.crew[i], hug = this.hugs[i].step(pose.players[i], dt);
+          this.hugging[i] = hug;
+          if (rn.hp < rn.max){
+            rn.hp = Math.min(rn.max, rn.hp + (hug ? HUG_HEAL : HEAL) * dt);
+            if (Math.random() < dt * (hug ? 8 : 2)) this.hearts.push({ i, x: (Math.random() - 0.5) * 0.5, y: 0, age: 0 });
+            if (rn.hp >= rn.max) sfx.twinkle();
+          }
+        }
+        if (this.st >= WALK + POND_MAX) for (const i of here) g.crew[i].hp = g.crew[i].max;
+        if (here.every(i => g.crew[i].hp >= g.crew[i].max)){ this.afterT += dt; if (this.afterT >= AFTER){ this._go('ring'); this.hugging = this.hugging.map(() => false); } }
         break;
       }
       case 'ring': {
@@ -130,112 +146,121 @@ export class Intro {
 
   /* ---------- drawing ---------- */
 
-  /* The cinematic shot: where each of them is - not in a line. The first
-     close to the camera and a little to the right, the second further
-     back and well over to the left, the third and fourth further back
-     still - and the ship behind them all, front and centre. [lane, depth] */
+  /* Where each of them is, on the ground: in a row across the front,
+     their backs to us, the ship out ahead - or, once they've walked over,
+     round the pond. [lane, depth] */
   _at(i, W, H){
-    const k = Math.max(0, this.g.here.indexOf(i));
-    const [lane, rel] = CINE.slots[k % CINE.slots.length], p = P(lane, rel, W, H);
-    return { x: p.x, y: p.y, h: H * 0.19 * p.k * CINE.close, rel };
-  }
-
-  /* Where the camera is: looking at (cx, cy), s times closer, tilted r. */
-  _cam(W, H){
-    /* low to the ground, the horizon low in the frame, drifting slowly */
-    const C = CINE.cam, cine = { cx: W * (C.x + 0.015 * Math.sin(this.t * 0.25)), cy: H * C.y, s: C.s + (this.stage === 'talk' ? 0.006 * Math.min(10, this.talk.t) : 0), r: C.r + 0.012 * Math.sin(this.t * 0.2) };
-    const pov = (u) => {
-      /* lying there: up at the sky, down to the ship, a look left, a look right */
-      const down = smooth((u - 0.25) / 0.25), look = u < 0.55 ? 0 : u < 0.78 ? -Math.sin((u - 0.55) / 0.23 * Math.PI / 2) : -1 + 1.6 * smooth((u - 0.78) / 0.22);
-      return { cx: W * (0.5 + 0.22 * look), cy: H * (0.16 + 0.24 * down), s: 2.3, r: Math.sin(this.t * 0.9) * 0.03 + 0.06 * (1 - Math.min(1, u * 1.5)) };
-    };
-    const mix = (a, b, k) => ({ cx: a.cx + (b.cx - a.cx) * k, cy: a.cy + (b.cy - a.cy) * k, s: a.s + (b.s - a.s) * k, r: a.r + (b.r - a.r) * k });
-    if (this.stage === 'pov') return pov(this.st / POV);
-    if (this.stage === 'zoom') return mix(pov(1), cine, smooth(this.st / ZOOM));
-    return cine;
-  }
-
-  /* The staged crash site: the land, the ship down behind them, a piece of
-     it thrown clear, and the crew where they lie (or stand). */
-  _scene(c, W, H, crew){
-    const g = this.g;
-    drawCorridor(c, W, H, 0, this.t);
-    const [sl, sr, ss] = CINE.ship;
-    const list = [{ rel: sr, draw: () => worldShip(c, W, H, sr, sl, this.t, ss) },
-      { rel: 0.34, draw: () => worldWreck(c, W, H, 0.34, 2.7, this.t, 1.1, 1) }];
-    if (crew) for (const i of g.here){
-      const a = this._at(i, W, H);
-      list.push({ rel: a.rel, draw: () => g._drawCrew(c, i, W, H, { x: a.x, y: a.y, h: a.h, bob: 0, down: 1 - easeOut(this.up[i]), noBar: true }) });
+    const k = Math.max(0, this.g.here.indexOf(i)) % 4;
+    let [lane, rel] = CINE.row[k];
+    let run = 0;
+    if (['pond', 'ring', 'connect', 'talk', 'pan'].includes(this.stage)){
+      const u = this.stage === 'pond' ? Math.min(1, this.st / WALK) : 1, [pl, pr] = CINE.pond[k];
+      lane += (pl - lane) * smooth(u); rel += (pr - rel) * smooth(u);
+      run = this.stage === 'pond' && u < 1 ? 1 : 0;
     }
-    list.sort((a, b) => b.rel - a.rel).forEach(it => it.draw());
-    drawGloom(c, W, H);
+    const p = P(lane, rel, W, H);
+    return { x: p.x, y: p.y, h: H * 0.19 * p.k * CINE.close, rel, run };
+  }
+
+  /* The camera on the ground: still, but settling down from the swoop. */
+  _cam(W, H){
+    const C = CINE.cam, k = this.stage === 'swoop' ? 1 - smooth((this.st - SWOOP * 0.45) / (SWOOP * 0.55)) : this.stage === 'crash' ? Math.max(0, 0.25 - this.st * 0.15) : 0;
+    return { cx: W * (C.x + 0.01 * Math.sin(this.t * 0.25)), cy: H * (C.y - 0.1 * k), s: C.s + 0.5 * k, r: C.r };
   }
 
   draw(c, W, H){
     const g = this.g, s = this.stage;
     if (s === 'title'){ this._title(c, W, H); return; }
-    if (s === 'dark'){ c.fillStyle = '#000'; c.fillRect(0, 0, W, H); return; }
     g.inIntro = true;
-    if (s === 'pan'){
-      /* Swinging round onto the path: the crash site sweeping off to the
-         left as the game's own view comes in from the right. */
-      const k = smooth(this.st / PAN);
-      c.save(); c.translate(-W * k, 0); this._cine(c, W, H); c.restore();
-      c.save(); c.translate(W * (1 - k), 0); g._drawPlay(c, W, H); c.restore();
+    if (s === 'swoop'){
+      /* Dropping out of the sky: the view from above rushes in on the crew
+         as the ground-level view takes over. */
+      const k = smooth(this.st / SWOOP), [cx, cy] = ABOVE.crew;
+      c.save(); c.translate(cx * W, cy * H); c.scale(1 + 5 * k * k, 1 + 5 * k * k); c.translate(-cx * W, -cy * H);
+      drawAbove(c, W, H, this.t, g.level.palette.world);
+      c.restore();
+      const fade = smooth((this.st - SWOOP * 0.45) / (SWOOP * 0.45));
+      if (fade > 0){ c.save(); c.globalAlpha = fade; this._ground(c, W, H); c.restore(); }
       g.inIntro = false;
-      const bars = 1 - k;
-      if (bars > 0){ c.fillStyle = '#000'; c.fillRect(0, 0, W, H * 0.11 * bars); c.fillRect(0, H * (1 - 0.11 * bars), W, H * 0.11 * bars); }
       return;
     }
-    /* Blurred as they come round (cheaply: drawn small, then stretched). */
-    const blur = s === 'pov' ? Math.max(0, 14 * (1 - this.st / (POV * 0.6))) : 0;
-    const k = blur > 0.5 ? Math.min(10, 1 + blur * 0.6) : 1;
-    const off = k > 1 ? buffer(Math.ceil(W / k), Math.ceil(H / k)) : null;
-    const into = off ? off.getContext('2d') : c;
-    into.save();
-    if (off){ into.setTransform(1, 0, 0, 1, 0, 0); into.clearRect(0, 0, off.width, off.height); into.scale(off.width / W, off.height / H); }
-    this._cine(into, W, H);
-    into.restore();
-    if (off){ c.imageSmoothingEnabled = true; c.drawImage(off, 0, 0, W, H); }
+    if (s === 'pan'){
+      /* Swinging round onto the path: the clearing sweeping off to the left
+         as the game's own view comes in from the right. */
+      const k = smooth(this.st / PAN);
+      c.save(); c.translate(-W * k, 0); this._ground(c, W, H); c.restore();
+      c.save(); c.translate(W * (1 - k), 0); g._drawPlay(c, W, H); c.restore();
+      g.inIntro = false;
+      this._bars(c, W, H, 1 - k);
+      return;
+    }
+    this._ground(c, W, H);
     g.inIntro = false;
-    if (s === 'pov') this._lids(c, W, H);
-    /* Letterboxed from the moment the camera pulls back. */
-    const bars = s === 'zoom' ? smooth(this.st / ZOOM) : s === 'pov' ? 0 : 1;
-    if (bars > 0){ c.fillStyle = '#000'; c.fillRect(0, 0, W, H * 0.11 * bars); c.fillRect(0, H * (1 - 0.11 * bars), W, H * 0.11 * bars); }
-    if (s === 'crash') this._wiggleBanner(c, W, H);
+    this._bars(c, W, H, 1);
+    if (s === 'crash' && this.g.here.some(i => this.woke[i] < WIGGLE)) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.04 * Math.sin(this.t * 8));
+    if (s === 'pond'){
+      if (this.st < WALK) banner(c, W, H, 'TO THE HEALING POND!', '#7ff3ff');
+      else if (this.g.here.some(i => this.g.crew[i].hp < this.g.crew[i].max)) banner(c, W, H, 'HUG YOURSELF TO HEAL!', '#ff9ccb', 1 + 0.04 * Math.sin(this.t * 6));
+    }
     if (s === 'ring') this._ring(c, W, H);
     if (s === 'connect') this._static(c, W, H, 1 - this.st / STATIC);
     if (s === 'talk'){ this.talk.draw(c, W, H); if (this.talk.t < 0.4) this._static(c, W, H, 1 - this.talk.t / 0.4); }
   }
 
-  /* The crash site through the camera - the crew in it once it's pulled
-     back, dizzy stars and how far each has wiggled. */
-  _cine(c, W, H){
-    const cam = this._cam(W, H), s = this.stage;
-    c.save();
-    c.translate(W / 2, H / 2); c.rotate(cam.r); c.scale(cam.s, cam.s); c.translate(-cam.cx, -cam.cy);
-    this._scene(c, W, H, s !== 'pov');
-    if (s !== 'pov'){ this._dizzy(c, W, H); if (s === 'crash') this._wiggle(c, W, H); }
-    c.restore();
+  _bars(c, W, H, k){
+    if (k <= 0) return;
+    c.fillStyle = '#000'; c.fillRect(0, 0, W, H * 0.09 * k); c.fillRect(0, H * (1 - 0.09 * k), W, H * 0.09 * k);
   }
 
-  /* The title: the planet, the name. */
-  _title(c, W, H){
-    drawCorridor(c, W, H, 0, this.t);
-    drawGloom(c, W, H);
-    const a = Math.min(1, this.st / 0.8) * Math.min(1, (TITLE - this.st) / 0.7);
+  /* The clearing at their level, through the camera: the crew in it. */
+  _ground(c, W, H){
+    const g = this.g, cam = this._cam(W, H), s = this.stage, L = g.level.palette.world;
+    const showBars = s === 'pond' && this.st >= WALK;
     c.save();
-    c.fillStyle = 'rgba(5,6,20,.45)'; c.fillRect(0, 0, W, H);
-    c.globalAlpha = Math.max(0, a); c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = `700 ${Math.round(H * 0.12)}px Fredoka, sans-serif`;
-    c.lineWidth = H * 0.016; c.strokeStyle = '#05060f';
-    const y = H * 0.4 - (1 - Math.min(1, this.st / 0.8)) * H * 0.03;
-    c.strokeText('LAST KNOWN POSITION', W / 2, y); c.fillStyle = '#ffffff'; c.fillText('LAST KNOWN POSITION', W / 2, y);
-    c.font = `600 ${Math.round(H * 0.045)}px Fredoka, sans-serif`; c.lineWidth = H * 0.01;
-    const sub = `LEVEL 1 \u00b7 ${this.g.level.name}`.toUpperCase();
-    c.strokeText(sub, W / 2, y + H * 0.11); c.fillStyle = '#7ff3ff'; c.fillText(sub, W / 2, y + H * 0.11);
+    c.translate(W / 2, H / 2); c.rotate(cam.r); c.scale(cam.s, cam.s); c.translate(-cam.cx, -cam.cy);
+    const crew = g.here.map(i => {
+      const a = this._at(i, W, H), rn = g.crew[i];
+      return { rel: a.rel, draw: () => {
+        const keep = [rn.run, rn.runPh];
+        rn.run = a.run; rn.runPh = (rn.runPh || 0) + (a.run ? 0.25 : 0);
+        g._drawCrew(c, i, W, H, { x: a.x, y: a.y, h: a.h, bob: 0, down: 1 - easeOut(this.up[i]), noBar: !showBars, pose: this.hugging[i] ? 'hug' : null });
+        if (!a.run) [rn.run, rn.runPh] = keep;
+      } };
+    });
+    drawGround(c, W, H, this.t, L, crew);
+    if (s === 'crash' || s === 'swoop'){ this._dizzy(c, W, H); if (s === 'crash') this._wiggle(c, W, H); }
+    /* hearts rising off anyone healing */
+    for (const h of this.hearts){
+      const a = this._at(h.i, W, H), x = a.x + h.x * a.h, y = a.y - a.h * (1.1 + h.age * 0.6), r = a.h * 0.05;
+      c.save(); c.globalAlpha = 1 - h.age; c.fillStyle = '#ff7eb6';
+      c.beginPath(); c.moveTo(x, y + r); c.bezierCurveTo(x - r * 2, y - r * 0.5, x - r * 0.8, y - r * 1.8, x, y - r * 0.6);
+      c.bezierCurveTo(x + r * 0.8, y - r * 1.8, x + r * 2, y - r * 0.5, x, y + r); c.fill(); c.restore();
+    }
     c.restore();
-    if (this.st > TITLE - 0.7){ c.fillStyle = `rgba(0,0,0,${(this.st - (TITLE - 0.7)) / 0.7})`; c.fillRect(0, 0, W, H); }
+    drawGloom(c, W, H);
+  }
+
+  /* The title: high over the forest, looking down on the crash - the name. */
+  _title(c, W, H){
+    const L = this.g.level.palette.world;
+    /* drifting slowly in towards the clearing */
+    const k = this.st / TITLE, [cx, cy] = ABOVE.crew;
+    c.save(); c.translate(W / 2, H / 2); c.scale(1.05 + 0.08 * k, 1.05 + 0.08 * k); c.translate(-W / 2 + (cx * W - W / 2) * 0.1 * k, -H / 2 + (cy * H - H / 2) * 0.1 * k);
+    drawAbove(c, W, H, this.t, L);
+    c.restore();
+    const a = Math.min(1, this.st / 0.8) * Math.min(1, (TITLE - this.st) / 0.6);
+    c.save();
+    const sh = c.createLinearGradient(0, 0, 0, H * 0.4); sh.addColorStop(0, 'rgba(5,10,20,.55)'); sh.addColorStop(1, 'rgba(5,10,20,0)');
+    c.fillStyle = sh; c.fillRect(0, 0, W, H * 0.4);
+    c.globalAlpha = Math.max(0, a); c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `700 ${Math.round(H * 0.11)}px Fredoka, sans-serif`;
+    c.lineWidth = H * 0.016; c.strokeStyle = '#05060f';
+    const y = H * 0.14 - (1 - Math.min(1, this.st / 0.8)) * H * 0.03;
+    c.strokeText('LAST KNOWN POSITION', W / 2, y); c.fillStyle = '#ffffff'; c.fillText('LAST KNOWN POSITION', W / 2, y);
+    c.font = `600 ${Math.round(H * 0.042)}px Fredoka, sans-serif`; c.lineWidth = H * 0.01;
+    const sub = `LEVEL 1 \u00b7 ${this.g.level.name}`.toUpperCase();
+    c.strokeText(sub, W / 2, y + H * 0.1); c.fillStyle = '#7ff3ff'; c.fillText(sub, W / 2, y + H * 0.1);
+    c.restore();
   }
 
   /* Dizzy: stars going round the helmet of anyone not up yet. */
@@ -251,22 +276,7 @@ export class Intro {
     }
   }
 
-  /* Eyelids: heavy blinks, opening wider each time. */
-  _lids(c, W, H){
-    const u = Math.min(1, this.st / (POV * 0.55)), blink = Math.abs(Math.sin(u * Math.PI * 2.5));
-    const open = u >= 1 ? 1 : Math.min(1, u * 1.3) * (0.35 + 0.65 * blink);
-    if (open >= 1) return;
-    const lid = (1 - open) * H * 0.5;
-    c.fillStyle = '#000';
-    c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, lid); c.quadraticCurveTo(W / 2, lid + H * 0.12 * open, 0, lid); c.fill();
-    c.beginPath(); c.moveTo(0, H); c.lineTo(W, H); c.lineTo(W, H - lid); c.quadraticCurveTo(W / 2, H - lid - H * 0.12 * open, 0, H - lid); c.fill();
-  }
-
-  /* WIGGLE TO WAKE UP!, big - */
-  _wiggleBanner(c, W, H){
-    if (this.g.here.some(i => this.woke[i] < WIGGLE)) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.04 * Math.sin(this.t * 8));
-  }
-  /* - and over each one still down, how far they've got. */
+  /* Over each one still down, how far they've wiggled. */
   _wiggle(c, W, H){
     for (const i of this.g.here){
       if (this.woke[i] >= WIGGLE) continue;
@@ -311,33 +321,16 @@ export class Intro {
   }
 }
 
-/* A canvas to draw small into, kept (none where there isn't one). */
-let BUF = null;
-function buffer(w, h){
-  if (BUF === false) return null;
-  try {
-    if (!BUF){
-      BUF = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h)
-        : typeof document !== 'undefined' && document.createElement ? document.createElement('canvas') : false;
-      if (!BUF || !BUF.getContext || !BUF.getContext('2d')){ BUF = false; return null; }
-    }
-    if (BUF.width !== w || BUF.height !== h){ BUF.width = w; BUF.height = h; }
-    return BUF;
-  } catch (e){ BUF = false; return null; }
-}
-
-/* The cinematic shot: the ship [lane, depth, size], and where the crew
-   are, near to far. */
+/* The shot on the ground: the crew in a row across the front, backs to
+   us, the ship out ahead (lkp-crashsite.js GROUND); where they stand at
+   the pond; a little larger than in play; the camera. */
 export const CINE = {
-  /* the hero shot: the ship huge and close right behind them, the crew
-     small in front of it - how big the crash was */
-  ship: [0, 0.32, 1.7],
-  slots: [[0.4, 0.08], [-0.9, 0.1], [1.1, 0.13], [-0.3, 0.15]],
-  /* a little larger than in play */
-  close: 1.1,
-  /* the camera: looking at (x, y) (screens), s times closer, tilted r */
-  cam: { x: 0.5, y: 0.48, s: 1.05, r: 0 }
+  row: [[-0.95, 0.09], [-0.32, 0.11], [0.3, 0.11], [0.92, 0.09]],
+  pond: [[-2.0, 0.27], [-1.3, 0.28], [-1.85, 0.19], [-1.2, 0.19]],
+  close: 1.15,
+  cam: { x: 0.5, y: 0.5, s: 1.0, r: 0 }
 };
+
 const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 

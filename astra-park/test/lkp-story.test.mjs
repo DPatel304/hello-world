@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { TITLE, DARK, WAKE, WIGGLE, UP, CRASH_MAX, RING_MAX, PAN } from '../src/games/lkp-intro.js';
+import { TITLE, WAKE, WIGGLE, UP, WALK, POND_MAX, CRASH_MAX, RING_MAX, PAN, START } from '../src/games/lkp-intro.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -24,7 +24,8 @@ test('the run opens on its title, the crash - wiggle to wake up, a hand to your 
   const intro = inst.scene;
   assert.equal(intro.kind, 'intro');
   const z = inst.z;
-  run(inst, TITLE + DARK + WAKE + 0.2);
+  run(inst, TITLE + WAKE + 0.2);
+  assert.equal(inst.crew[0].hp, inst.crew[0].max * START, 'hurt in the crash');
   assert.equal(intro.stage, 'crash');
   inst.draw(fake(), W, H);
   /* Lying there till they wiggle - player 0 wiggles and gets up; player 1 doesn't. */
@@ -35,6 +36,12 @@ test('the run opens on its title, the crash - wiggle to wake up, a hand to your 
   assert.equal(intro.up[1], 0, 'still down');
   for (let k = 0; k < (WIGGLE + UP + 1.5) / DT; k++){ pose.players[1].hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 2 }; inst.step(DT, W, H); }
   pose.players[1].hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 0 };
+  assert.equal(intro.stage, 'pond', 'over to the healing pond');
+  inst.draw(fake(), W, H);
+  run(inst, WALK + 1);
+  assert.ok(inst.crew[0].hp > inst.crew[0].max * START, 'healing');
+  run(inst, POND_MAX + 1.5);
+  assert.equal(inst.crew[0].hp, inst.crew[0].max, 'healed');
   assert.equal(intro.stage, 'ring');
   inst.draw(fake(), W, H);
   /* Nova calling: one of them answers. */
@@ -62,7 +69,7 @@ test('the run opens on its title, the crash - wiggle to wake up, a hand to your 
 test('nobody waking or answering never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  run(inst, TITLE + DARK + WAKE + CRASH_MAX + UP + 2 + RING_MAX + 2);
+  run(inst, TITLE + WAKE + CRASH_MAX + UP + 2 + WALK + POND_MAX + 2 + RING_MAX + 2);
   assert.equal(inst.scene.stage, 'talk');
   story.on = false;
 });
