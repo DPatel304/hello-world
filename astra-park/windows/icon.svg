@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- The Windows icon: a pink balloon on the app's night-sky square. -->
+  <defs>
+    <radialGradient id="shade" cx="0.36" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#ff9cc6"/>
+      <stop offset="0.45" stop-color="#ff5d9e"/>
+      <stop offset="1" stop-color="#b8306e"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#0d0b1a"/>
+  <circle cx="40" cy="44" r="3" fill="#fff" opacity=".7"/>
+  <circle cx="214" cy="60" r="2.5" fill="#fff" opacity=".6"/>
+  <circle cx="200" cy="200" r="2" fill="#fff" opacity=".5"/>
+  <path d="M128 186 C 120 206, 138 220, 126 246" stroke="#c8beff" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M128 30 C 186 30, 196 120, 128 182 C 60 120, 70 30, 128 30 Z" fill="url(#shade)"/>
+  <path d="M118 190 L138 190 L128 178 Z" fill="#d63f80"/>
+  <ellipse cx="102" cy="78" rx="13" ry="24" transform="rotate(28 102 78)" fill="#fff" opacity=".8"/>
+  <circle cx="122" cy="52" r="5" fill="#fff" opacity=".85"/>
+</svg>
