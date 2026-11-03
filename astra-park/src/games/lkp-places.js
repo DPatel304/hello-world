@@ -85,29 +85,34 @@ export function worldFork(c, W, H, rel, t, kinds, votes, open, opening, L){
       c.fillStyle = 'rgba(255,255,255,.16)'; c.beginPath(); c.ellipse(x, y, rw, rw * 0.16, 0, 0, 6.2832); c.fill();
     }
   }
-  /* The signs, floating over each way. */
+  /* The signs, floating over each way - the one with more votes now
+     bigger and brighter, the other dimmed, so it's plain which way the
+     crew are going. */
+  const n0 = (votes && votes[0] || []).length, n1 = (votes && votes[1] || []).length;
+  const lead = open != null ? open : n0 > n1 ? 0 : n1 > n0 ? 1 : null;
   [-0.72, 0.72].forEach((lane, i) => {
-    const [col, mark] = LOOK[kinds[i]] || LOOK.mystery;
-    const p = P(lane, rel, W, H), R = H * 0.13 * p.k * (open === i ? 1 + 0.35 * opening : 1);
-    const y = p.y - H * 0.5 * p.k - R + Math.sin(t * 2 + i * 2) * R * 0.08;
+    const [col, mark] = LOOK[kinds[i]] || LOOK.mystery, on = lead === i, pulse = on ? 1 + 0.04 * Math.sin(t * 6) : 1;
+    const p = P(lane, rel, W, H), R = H * 0.11 * p.k * (open === i ? 1 + 0.35 * opening : on ? 1.18 * pulse : lead != null ? 0.9 : 1);
+    const y = p.y - H * 0.34 * p.k - R + Math.sin(t * 2 + i * 2) * R * 0.08;
     c.save();
     if (open != null && open !== i) c.globalAlpha = Math.max(0, 1 - opening * 1.5);
+    else if (lead != null && !on) c.globalAlpha = 0.55;
     /* a beam of light down to the path, and its glow on the ground */
     const bg = c.createLinearGradient(0, y, 0, p.y); bg.addColorStop(0, rgba(col, 0.4)); bg.addColorStop(1, rgba(col, 0));
     c.fillStyle = bg; c.beginPath(); c.moveTo(p.x - R * 0.3, y); c.lineTo(p.x + R * 0.3, y); c.lineTo(p.x + R * 0.95, p.y); c.lineTo(p.x - R * 0.95, p.y); c.closePath(); c.fill();
     c.fillStyle = rgba(col, 0.3); c.beginPath(); c.ellipse(p.x, p.y, R * 1.1, R * 0.25, 0, 0, 6.2832); c.fill();
-    glow(c, p.x, y, R * 2.4, col, 0.9);
+    glow(c, p.x, y, R * (on ? 3 : 2.4), col, on ? 1 : 0.9);
     c.fillStyle = 'rgba(20,15,45,.6)'; circ(c, p.x, y, R);
-    c.strokeStyle = col; c.lineWidth = Math.max(2, R * 0.07); c.beginPath(); c.arc(p.x, y, R, 0, 6.2832); c.stroke();
+    c.strokeStyle = on ? '#ffffff' : col; c.lineWidth = Math.max(2, R * (on ? 0.11 : 0.07)); c.beginPath(); c.arc(p.x, y, R, 0, 6.2832); c.stroke();
     if (mark === 'skull') skull(c, p.x, y, R);
     else if (mark === 'mystery'){
       c.font = `700 ${Math.round(R * 1.55)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
       c.fillStyle = '#efe3ff'; c.fillText('?', p.x, y + R * 0.08);
     } else sign(c, mark, p.x, y, R * 0.7, col);
-    /* the votes */
+    /* the votes: a dot in each voter's colour, just under the sign */
     const vs = (votes && votes[i]) || [];
     vs.forEach((vc, n) => {
-      const vx = p.x + (n - (vs.length - 1) / 2) * R * 0.55, vy = y - R * 1.35, vr = R * 0.2;
+      const vr = Math.max(R * 0.22, H * 0.012), vx = p.x + (n - (vs.length - 1) / 2) * vr * 2.6, vy = y + R + vr * 1.8;
       c.fillStyle = vc; circ(c, vx, vy, vr); c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(1.5, vr * 0.25); c.beginPath(); c.arc(vx, vy, vr, 0, 6.2832); c.stroke();
     });
     c.restore();

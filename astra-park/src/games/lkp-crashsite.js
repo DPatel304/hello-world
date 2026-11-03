@@ -184,7 +184,7 @@ export function drawAbove(c, W, H, t, L, crew = [1, 1, 1, 1]){
 export const GROUND = {
   ship: [-0.6, 0.45, 1.25],
   wreck: [1.4, 0.4, 1.1],
-  pond: [2.7, 0.12, 0.6]
+  pond: [2.7, 0.12, 0.75]
 };
 
 /* The land at their level - sky, grass and flowers all over, no path -

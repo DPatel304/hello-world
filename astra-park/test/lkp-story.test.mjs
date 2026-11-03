@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, TITLE, WAKE, WIGGLE, UP, WHIP, BEAUTY, BACK, FILL, CRANE, POND_MAX, CRASH_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, TITLE, WAKE, WIGGLE, UP, OUT, POND_MAX, CRASH_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -56,14 +56,12 @@ test('the opening: title, the wreck, wiggle to wake, everyone answers, the brief
   inst.draw(fake(), W, H);
   run(inst, say(inst, 'brief') + 0.3);
   assert.equal(intro.stage, 'pond');
-  /* the whip pan, the hold, the pull back - then they lean to walk over, and heal */
-  run(inst, WHIP + BEAUTY + BACK);
-  inst.draw(fake(), W, H);
+  /* they walk over to the pond on their own, and heal */
   const x0 = intro.pos[0][0];
-  hands(0, 0.9, 0.5); hands(1, 0.9, 0.5);
   run(inst, 1);
+  inst.draw(fake(), W, H);
   assert.ok(intro.pos[0][0] > x0, 'walking over');
-  run(inst, 3);
+  run(inst, 4);
   assert.ok(intro._inPond(0) && intro._inPond(1), 'in the water');
   assert.ok(inst.crew[0].hp > inst.crew[0].max * START, 'healing');
   for (let k = 0; k < 30 / DT && intro.stage === 'pond'; k++) inst.step(DT, W, H);
@@ -73,7 +71,8 @@ test('the opening: title, the wreck, wiggle to wake, everyone answers, the brief
   let k = 0;
   for (; k < 30 / DT && inst.scene; k++){ inst.step(DT, W, H); assert.equal(inst.z, z, 'nothing moves till it\'s done'); if (k % 20 === 0) inst.draw(fake(), W, H); }
   assert.equal(inst.scene, null);
-  assert.ok(k * DT >= CRANE, 'her last line, then the crane');
+  assert.ok(Math.abs(k * DT - OUT) < 0.2, 'walking onto the path');
+  assert.equal(inst.introCrew, null, 'in their places');
   run(inst, 1);
   assert.ok(inst.z > z, 'and off they go');
   story.on = false;
@@ -82,7 +81,8 @@ test('the opening: title, the wreck, wiggle to wake, everyone answers, the brief
 test('nobody waking, answering or walking never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  run(inst, TITLE + WAKE + CRASH_MAX + 1 + RING_MAX + 1 + say(inst, 'brief') + 1 + POND_MAX + say(inst, 'pondIn') + say(inst, 'pondWait') + 2 + say(inst, 'go') + CRANE + 2);
+  const most = TITLE + WAKE + CRASH_MAX + 1 + RING_MAX + 1 + say(inst, 'brief') + 1 + POND_MAX + say(inst, 'pondIn') + say(inst, 'pondWait') + 2 + OUT + 2;
+  for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   assert.equal(inst.crew[0].hp, inst.crew[0].max);
   story.on = false;
@@ -111,7 +111,7 @@ test('the captain gives each tip once, as it comes', () => {
   assert.ok(said.indexOf('LEAN!') < said.indexOf('DUCK!') && said.indexOf('DUCK!') < said.indexOf('HOP!'));
   /* And at the doors. */
   for (let k = 0; k < 8 / DT && inst.phase === 'cross'; k++) inst.step(DT, W, H);
-  assert.ok(said.includes('PICK A DOOR'));
+  assert.ok(said.includes('PICK A PATH'));
 });
 
 test('her window comes up while she talks and goes again', () => {

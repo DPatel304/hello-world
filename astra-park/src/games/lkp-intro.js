@@ -2,9 +2,10 @@
    you straight in - it shows you where you are, and lets your body do it.
    A scripted run of beats (INTRO_BEATS), each a shot, who's where, and
    what moves it on; the timed ones run themselves, the interactive ones
-   wait on the players - but never forever (max). Then a crane up into the
-   sky and down onto the game's own view, matching it exactly, and play
-   carries on. The game holds still till it's done.
+   wait on the players - but never forever (max). At the end the camera
+   cuts to the game's own view and the crew walk from the pond onto the
+   path - into exactly where play starts - and play carries on. The game
+   holds still till it's done.
 
    Earnest adventure - no jokes. The commander's radio window and
    subtitles are lkp-captain.js's Radio; the crash site, the pond and its
@@ -16,6 +17,7 @@ import { MoveWatch, HugWatch } from '../tracking/gestures.js';
 import { P, drawCorridor, drawGloom } from './lkp-art.js';
 import { glow } from './lkp-world.js';
 import { drawAbove, drawGround, ABOVE, GROUND, pondBeauty, healRipple, healNumber } from './lkp-crashsite.js';
+import { CRASH } from './lkp-game.js';
 import { Radio, script } from './lkp-captain.js';
 
 /* The beats, in order: the shot, who's where, and what moves it on.
@@ -27,8 +29,8 @@ export const INTRO_BEATS = [
   { id: 'wake', until: 'everyone standing', max: 20, shot: 'cut to the ground: medium wide, a slow dolly across them', blocking: 'each player\'s wiggle wakes theirs - a twitch, sitting up, standing; up, they sway and look round' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'push in a little: medium on the team', blocking: 'a radio pulsing over each head; a hand to the ear answers it - a tick' },
   { id: 'brief', until: 'her lines said', lines: 'brief', shot: 'hold, drifting slowly round them', blocking: 'the team waits; her window top left, her words at the bottom' },
-  { id: 'pond', until: 'everyone at full health', max: 30, shot: 'whip pan right to the pond, hold on it, then pull back to follow them over', blocking: 'they walk over (lean to steer); in the water they heal to full, smoothly' },
-  { id: 'go', until: 'her last line, and the crane', lines: 'go', shot: 'her window goes; crane up into the sky and down onto the game\'s view' }
+  { id: 'pond', until: 'everyone at full health', max: 30, shot: 'following them as they walk over to the pond, east', blocking: 'they walk over on their own; in the water they heal to full, smoothly - hugging, faster' },
+  { id: 'go', until: 'they\'re on the path', lines: 'go', shot: 'cut to the game\'s own view: the pond off to the right, the ship to the left', blocking: 'they walk from the pond onto the path, to where play starts' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const TITLE = BEAT.title.time, WRECK = BEAT.wreck.time;
@@ -39,14 +41,12 @@ export const WAKE = WRECK;
 export const STIR = 0.45, WIGGLE = 1.2, UP = 0.8;
 /* The call: a hand held at the ear HOLD seconds answers it. */
 export const HOLD = 0.4;
-/* The pond: the whip pan, the hold on it, the pull back; then they walk
-   (STRIDE lanes a second, leaning); in it, healing FILL of their health a
-   second (twice that hugging themselves). Anyone not on their way after
-   GUIDE is walked over. They start on START of their health. */
-export const WHIP = 0.45, BEAUTY = 2, BACK = 1.5, STRIDE = 1.6, FILL = 0.16, GUIDE = 8, START = 0.5;
+/* The pond: they walk over (STRIDE lanes a second); in it, healing FILL of
+   their health a second (twice that hugging themselves). They start on
+   START of their health. Then OUT seconds walking onto the path. */
+export const STRIDE = 1.1, FILL = 0.16, START = 0.5, OUT = 3;
 export const CRASH_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max, POND_MAX = BEAT.pond.max;
-/* The crane into play, and a moment after the last one's up. */
-export const CRANE = 2.2;
+/* A moment after the last one's up. */
 const AFTER = 0.8;
 
 export class Intro {
@@ -118,7 +118,7 @@ export class Intro {
     const [lane, rel] = this.pos[i], p = P(lane, rel, W, H);
     return { x: p.x, y: p.y, h: H * 0.19 * p.k * 1.15, rel, lane };
   }
-  _inPond(i){ const [pl, pr, r] = GROUND.pond, [lane, rel] = this.pos[i]; return Math.abs(lane - pl) < r * 0.85 && Math.abs(rel - pr) < r * 0.3; }
+  _inPond(i){ const [pl, pr, r] = GROUND.pond, [lane, rel] = this.pos[i]; return Math.abs(lane - pl) < r * 1.15 && Math.abs(rel - pr) < r * 0.3; }
   /* The middle of the team, on screen (x), and its spread. */
   _team(W, H){
     const xs = this.g.here.map(i => this._at(i, W, H).x);
@@ -143,18 +143,10 @@ export class Intro {
       case 'call': return { ...base, cx: team.x + W * 0.06 * (1 - smooth(st / 1.5)), s: fit * (1 + 0.12 * smooth(st / 1.5)) };
       case 'brief': return { cx: team.x + Math.sin(this.t * 0.3) * W * 0.02, cy: H * 0.6, s: fit * 1.12 + Math.sin(this.t * 0.2) * 0.015, r: Math.sin(this.t * 0.25) * 0.008 };
       case 'pond': {
-        const near = { cx: team.x, cy: H * 0.6, s: fit * 1.12, r: 0 };
-        const on = { cx: pond.x, cy: pond.y - H * 0.08, s: 1.55, r: 0 };
-        /* then pulled back, high, following them over */
-        const xs = this.g.here.map(i => this._at(i, W, H).x).concat([pond.x]);
-        const follow = { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: H * 0.55, s: Math.min(1.1, Math.max(0.9, W * 0.85 / (Math.max(...xs) - Math.min(...xs) + W * 0.2))), r: 0 };
-        if (st < WHIP) return mix(near, on, smooth(st / WHIP));
-        if (st < WHIP + BEAUTY) return { ...on, s: on.s + 0.04 * (st - WHIP) / BEAUTY };
-        return mix({ ...on, s: on.s + 0.04 }, follow, smooth((st - WHIP - BEAUTY) / BACK));
-      }
-      case 'go': {
-        const xs = this.g.here.map(i => this._at(i, W, H).x).concat([pond.x]);
-        return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: H * 0.55, s: 1.0, r: 0 };
+        /* following them over, east, the pond coming into view */
+        const xs = this.g.here.map(i => this._at(i, W, H).x);
+        const mid = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : team.x, arrive = smooth(Math.min(1, st / 4));
+        return { cx: mid + (pond.x - mid) * 0.35 * arrive, cy: H * 0.6, s: fit * 1.05, r: 0 };
       }
       default: return base;
     }
@@ -167,31 +159,20 @@ export class Intro {
     if (s === 'title'){ this._title(c, W, H); return; }
     if (s === 'wreck'){ this._wreck(c, W, H); return; }
     g.inIntro = true;
-    if (s === 'go' && this.craneT != null){
-      /* Craning up into the sky and down onto the game's own view: the
-         ground sinks away, then the game's view rises into place - ending
-         exactly on it. */
-      const u = Math.min(1, this.craneT / CRANE), L = g.level.palette.world;
-      c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, H);
-      if (u < 0.5){ c.save(); c.translate(0, H * 1.1 * smooth(u * 2)); this._ground(c, W, H); c.restore(); }
-      else { c.save(); c.translate(0, H * 1.1 * (1 - smooth((u - 0.5) * 2))); g._drawPlay(c, W, H); c.restore(); }
+    if (s === 'go'){
+      /* The game's own view: they walk from the pond onto the path. */
+      g._drawPlay(c, W, H);
       g.inIntro = false;
-      this._bars(c, W, H, 1 - smooth(u));
+      this._bars(c, W, H, 1 - smooth(this.st / 0.8));
+      this.radio.draw(c, W, H);
       return;
     }
     this._ground(c, W, H);
     g.inIntro = false;
-    /* the whip pan's blur */
-    if (s === 'pond' && this.st < WHIP){
-      const a = Math.sin(this.st / WHIP * Math.PI);
-      c.save(); c.globalAlpha = 0.5 * a; c.fillStyle = 'rgba(230,245,255,.5)';
-      for (let k = 0; k < 40; k++){ const y = ((k * 0.618) % 1) * H; c.fillRect(0, y, W, H * 0.006); }
-      c.restore();
-    }
     this._bars(c, W, H, 1);
     if (s === 'wake' && g.here.some(i => this.woke[i] < WIGGLE)) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6));
     if (s === 'call') banner(c, W, H, 'HAND TO YOUR EAR TO ANSWER', '#7ff3ff', 1 + 0.03 * Math.sin(this.t * 6));
-    if (s === 'pond' && this.st > WHIP + BEAUTY + BACK * 0.5 && g.here.some(i => !this._inPond(i))) banner(c, W, H, 'LEAN TO WALK OVER', '#7ff3ff');
+    if (s === 'pond' && g.here.some(i => this._inPond(i) && g.crew[i].hp < g.crew[i].max)) banner(c, W, H, 'HUG YOURSELF TO HEAL FASTER!', '#ff9ccb', 1 + 0.03 * Math.sin(this.t * 6));
     this.radio.draw(c, W, H);
   }
 
@@ -222,7 +203,7 @@ export class Intro {
     });
     drawGround(c, W, H, this.t, L, crew);
     const [pl, pr, ps] = GROUND.pond;
-    if (s === 'pond' || s === 'go') pondBeauty(c, W, H, pl, pr, this.t, L, ps, s === 'pond' ? 1 - 0.6 * smooth((this.st - WHIP - BEAUTY) / BACK) : 0.4);
+    if (s === 'pond') pondBeauty(c, W, H, pl, pr, this.t, L, ps, 0.5 + 0.5 * smooth(Math.min(1, this.st / 3)));
     if (s === 'wake') this._dizzy(c, W, H);
     if (s === 'wake') this._wiggle(c, W, H);
     if (s === 'call') this._radios(c, W, H);
@@ -327,7 +308,13 @@ const BEGIN = {
   wake(){ this._place(); },
   brief(){ this.radio.visible = true; this.radio.say(...script('brief', this.g)); },
   pond(){ this.walking = this.g.crew.map(() => false); this.entered = false; this.waited = false; },
-  go(){ this.radio.say(...script('go', this.g)); for (const i of this.g.here) this.g.crew[i].hp = this.g.crew[i].max; }
+  go(){
+    this.radio.say(...script('go', this.g));
+    const g = this.g;
+    for (const i of g.here){ g.crew[i].hp = g.crew[i].max; g.crew[i].played = true; g.crew[i].x = g._home(i); }
+    /* from round the pond (in the game's view) to their places on the path */
+    this.out = g.here.map((i, k) => ({ i, from: [CRASH.pond[0] + (k - (g.here.length - 1) / 2) * 0.35, CRASH.pond[1] + (k % 2) * 0.04], to: [g._home(i), RUN_AT] }));
+  }
 };
 /* Each step: true once it's done. */
 const STEP = {
@@ -357,26 +344,24 @@ const STEP = {
   },
   brief(){ return !this.radio.busy; },
   pond(dt){
-    const g = this.g, here = g.here, live = this.st >= WHIP + BEAUTY + BACK * 0.5;
+    const g = this.g, here = g.here;
     for (const i of here){
-      const rn = g.crew[i];
-      /* walking: lean to steer - or, after a while, walked over */
-      let lean = 0;
-      if (live && !this._inPond(i)){
-        lean = this.st > WHIP + BEAUTY + BACK + GUIDE ? 1 : (g.leanOf(i) ?? 0);
-        if (Math.abs(lean) < 0.15) lean = 0;
-      }
-      this.walking[i] = lean !== 0;
-      this.pos[i][0] = Math.max(-3, Math.min(GROUND.pond[0] + 0.3, this.pos[i][0] + lean * STRIDE * dt));
+      const rn = g.crew[i], k = Math.max(0, here.indexOf(i)), n = here.length;
+      /* walking over on their own, to a place of their own round the water */
+      const tx = GROUND.pond[0] + (k - (n - 1) / 2) * 0.42;
+      const dx = tx - this.pos[i][0];
+      this.walking[i] = Math.abs(dx) > 0.02;
+      this.pos[i][0] += Math.sign(dx) * Math.min(Math.abs(dx), STRIDE * dt);
+      this.pos[i][1] += (GROUND.pond[1] + (k % 2 ? 0.03 : -0.01) - this.pos[i][1]) * Math.min(1, dt * 1.5);
       if (this.walking[i] && Math.random() < dt * 3) sfx.step(i, 0.25);
       /* in the water: healing, smoothly, up to full */
       if (this._inPond(i)){
         if (!this.entered){ this.entered = true; this.radio.say(...script('pondIn', g)); }
         const hug = this.hugging[i] = this.hugs[i].step(pose.players[i], dt);
         if (rn.hp < rn.max){
-          const was = Math.floor(rn.hp);
+          const was = rn.hp;
           rn.hp = Math.min(rn.max, rn.hp + rn.max * FILL * (hug ? 2 : 1) * dt);
-          if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)){ this.fx.push({ kind: 'num', i, age: 0, dx: (Math.random() - 0.5) * 0.4, text: '+5' }); }
+          if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)) this.fx.push({ kind: 'num', i, age: 0, dx: (Math.random() - 0.5) * 0.4, text: '+5' });
           if (Math.random() < dt * 1.5) this.fx.push({ kind: 'ripple', i, age: 0 });
           if (rn.hp >= rn.max){ sfx.twinkle(); this.fx.push({ kind: 'ripple', i, age: 0 }); }
         }
@@ -386,11 +371,12 @@ const STEP = {
     return this._settled(dt, here.every(i => g.crew[i].hp >= g.crew[i].max) && !this.radio.busy);
   },
   go(dt){
-    /* her last line; then her window goes and the camera cranes into play */
-    if (this.radio.busy) return false;
-    this.radio.visible = false;
-    this.craneT = (this.craneT ?? 0) + dt;
-    return this.craneT >= CRANE;
+    /* walking from the pond onto the path, into their places */
+    const g = this.g, u = Math.min(1, this.st / OUT), e = smooth(u);
+    g.introCrew = u < 1 ? this.out.map(o => ({ i: o.i, lane: o.from[0] + (o.to[0] - o.from[0]) * e, rel: o.from[1] + (o.to[1] - o.from[1]) * e })) : null;
+    for (const o of this.out){ const rn = g.crew[o.i]; rn.run = u < 1 ? 1 : 0; rn.runPh = (rn.runPh || 0) + dt * Math.PI * 4; }
+    if (u > 0.75) this.radio.visible = false;
+    return u >= 1;
   }
 };
 /* When a beat's waited as long as it will: as if everyone had done it. */
@@ -405,6 +391,8 @@ Intro.prototype._settled = function (dt, ok){
   return this.afterT >= AFTER;
 };
 
+/* (the crew's own depth, in play: lkp-art.js RUN) */
+const RUN_AT = 0.03;
 const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 const mix = (a, b, k) => ({ cx: a.cx + (b.cx - a.cx) * k, cy: a.cy + (b.cy - a.cy) * k, s: a.s + (b.s - a.s) * k, r: a.r + (b.r - a.r) * k });

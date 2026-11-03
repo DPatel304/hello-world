@@ -105,7 +105,8 @@ export class Radio {
       const s = H * 0.2, x = H * 0.03 - (1 - this.show) * (s + H * 0.05), y = H * this.top;
       radio(c, x, y, s, s, this.t, this.talking, Math.max(0, 1 - this.show * 1.5), 'nova');
     }
-    if (this.line) subtitle(c, W, H, this.line.text, Math.min(1, this.line.t * 6));
+    /* (subtitles: off for now, while the script's being settled - subtitles: true) */
+    if (this.subtitles && this.line) subtitle(c, W, H, this.line.text, Math.min(1, this.line.t * 6));
   }
 }
 

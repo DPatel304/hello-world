@@ -6,13 +6,15 @@ import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { turn, resetView } from './lkp-world.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette } from './lkp-art.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
 import { arms, armored } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
+import { worldShip, worldWreck } from './lkp-places.js';
+import { worldPond } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -58,6 +60,8 @@ const FULL = [55, 35, 35, 30];                      /* seconds of each corridor,
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
+/* The crash site at the start of the first corridor [lane, depth, size]. */
+export const CRASH = { ship: [-3.7, 0.5, 1.3], wreck: [-2.1, 0.4, 1], pond: [2.0, 0.2, 0.5] };
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
 /* However a boss fight is going, after this long the boss gives up (the
@@ -275,6 +279,13 @@ class LastKnownPosition {
     };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
     if (n === 0){
+      /* Where they start: the crash site - the ship down off to the left
+         with a piece of it beside it, the healing pond on the right. They
+         slide by as the crew set off. (CRASH, lkp-intro.js walks them from
+         the pond onto the path.) */
+      this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
+      this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
+      this.things.push({ d: this.z + CRASH.pond[1], kind: 'pond', lane: CRASH.pond[0], r: CRASH.pond[2] });
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
       crystalLine(14, 0.4, 5);
@@ -476,7 +487,7 @@ class LastKnownPosition {
     if (seg.kind === 'cross' && seg.vote < VOTE && seg.choice == null && !seg.told){
       seg.told = true;
       const [a, b] = seg.kinds;
-      if (!cap.say('Two doors! Lean to the one you want, and stay there till time\'s up.', 'PICK A DOOR', { once: 'doors' }))
+      if (!cap.say('The path splits! Lean towards the way you want, and stay there till time\'s up.', 'PICK A PATH', { once: 'doors' }))
         cap.say(`${cap1(this.behind(a))} on the left, ${this.behind(b)} on the right. Your call!`, '');
     }
     if (f && !bs && !seg.told && f.elite){
@@ -816,16 +827,32 @@ class LastKnownPosition {
       const rel = th.d - this.z, len = th.len || SPRING_LEN;
       if (rel < 1 && rel + len > -0.12) drawFountain(c, W, H, rel, th.lane, this.t, len);
     }
+    /* the crash site's pond: part of the floor too */
+    for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel < 1 && rel > -0.3) worldPond(c, W, H, th.lane, rel, this.t, PAL.world, th.r); }
     const items = [];
-    for (const th of this.things) if (!th.got && th.kind !== 'fountain') items.push({ ...th, rel: th.d - this.z });
+    for (const th of this.things) if (!th.got && th.kind !== 'fountain' && th.kind !== 'pond') items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
     if (this.fight) for (const b of this.fight.bots) if (!b.part) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
     if (this.boss) this.boss.items(items);
     if (this.depot) this.depot.items(items);
-    for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
+    /* (the opening can stand them somewhere else, walking: introCrew) */
+    if (this.introCrew) for (const ic of this.introCrew){
+      const p = P(ic.lane, ic.rel, W, H);
+      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x, y: p.y, h: H * CREW_SIZE * p.k, bob: 0 } });
+    }
+    else for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
     for (const it of items){ if (it.rel > 1 || it.rel < -0.12) continue; this._drawItem(c, it, W, H); }
+    /* At the fork, still choosing: over each one's head an arrow, in their
+       colour, pointing the way they're going. */
+    if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02) for (const i of this.here){
+      const rn = this.crew[i]; if (rn.door == null) continue;
+      const p = P(rn.x, RUN, W, H), s = H * 0.035, x = p.x, y = p.y - H * CREW_SIZE * 1.25 - Math.abs(Math.sin(this.t * 5)) * s * 0.3, d = rn.door ? 1 : -1;
+      c.save(); c.fillStyle = PLAYER_COLORS[i]; c.strokeStyle = '#ffffff'; c.lineWidth = s * 0.18; c.lineJoin = 'round';
+      c.beginPath(); c.moveTo(x + d * s, y); c.lineTo(x - d * s * 0.3, y - s * 0.75); c.lineTo(x - d * s * 0.3, y - s * 0.3); c.lineTo(x - d * s, y - s * 0.3); c.lineTo(x - d * s, y + s * 0.3); c.lineTo(x - d * s * 0.3, y + s * 0.3); c.lineTo(x - d * s * 0.3, y + s * 0.75); c.closePath();
+      c.stroke(); c.fill(); c.restore();
+    }
     drawGloom(c, W, H);
     if (seg.kind === 'room') this._drawRoom(c, W, H);
     this._drawBits(c, W, H);
@@ -869,7 +896,9 @@ class LastKnownPosition {
       case 'team': this._drawTeam(c, W, H); break;
       /* The boss's own things draw themselves. */
       case 'boss': it.draw(c, W, H, this.t); break;
-      case 'crew': this._drawCrew(c, it.i, W, H); break;
+      case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
+      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
+      case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
     }
   }
 
