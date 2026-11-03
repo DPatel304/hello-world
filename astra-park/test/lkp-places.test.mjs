@@ -114,6 +114,9 @@ function clap(inst, i){
 
 test('miss the zip line and you float along in a bubble, getting nothing - till your teammates clap it popped', () => {
   const inst = toZip(2);
+  /* (the corridor going on long enough to see it through - at the fork it
+     would pop by itself) */
+  inst.seg.len = 1e9;
   up(0);
   for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
   up(0, false);

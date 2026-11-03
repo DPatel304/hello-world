@@ -57,6 +57,9 @@ export function guideMove(g){
 }
 
 /* The little man, at (x, y) (his hips), s tall-ish, doing move at time t. */
+/* How short his body and legs are (against a plain stick man), and his
+   arms. */
+const SQUAT = 0.55, ARM = 0.9;
 export function figure(c, x, y, s, move, t){
   /* joints, in his own units: hips at 0, head up at -0.58, feet at 0.45 */
   let hip = [0, 0], neck = [0, -0.42], tilt = 0, lift = 0;
@@ -67,7 +70,11 @@ export function figure(c, x, y, s, move, t){
     case 'clap': {
       const o = 0.03 + 0.16 * wa(Math.PI * 2);
       arms = [[[-0.16, -0.28], [-o, -0.26]], [[0.16, -0.28], [o, -0.26]]];
-      if (o < 0.06){ c.strokeStyle = '#ffd24a'; c.lineWidth = s * 0.02; for (const a of [-0.6, 0, 0.6]){ c.beginPath(); c.moveTo(x + Math.sin(a) * s * 0.1, y - s * 0.26 - Math.cos(a) * s * 0.1); c.lineTo(x + Math.sin(a) * s * 0.17, y - s * 0.26 - Math.cos(a) * s * 0.17); c.stroke(); } }
+      if (o < 0.06){
+        /* (the clap: where the hands meet, squashed like the rest of him) */
+        const cy = y + (-0.42 * SQUAT + (-0.26 + 0.42) * ARM) * s;
+        c.strokeStyle = '#ffd24a'; c.lineWidth = s * 0.025; for (const a of [-0.6, 0, 0.6]){ c.beginPath(); c.moveTo(x + Math.sin(a) * s * 0.1, cy - Math.cos(a) * s * 0.1); c.lineTo(x + Math.sin(a) * s * 0.18, cy - Math.cos(a) * s * 0.18); c.stroke(); }
+      }
       break;
     }
     case 'handsup': lift = 0.03 * wa(4); arms = [[[-0.15, -0.62], [-0.1, -0.84]], [[0.15, -0.62], [0.1, -0.84]]]; break;
@@ -109,6 +116,14 @@ export function figure(c, x, y, s, move, t){
       break;
     }
   }
+  /* Squat: the body and legs squashed short, the arms kept long - it's the
+     arms that show the move. */
+  const sq = ([px, py]) => [px * 1.15, py * SQUAT];
+  const nk = sq(neck);
+  const am = ([px, py]) => [nk[0] + (px - neck[0]) * ARM * 1.1, nk[1] + (py - neck[1]) * ARM];
+  arms = arms.map(([e, h]) => [am(e), am(h)]);
+  legs = legs.map(([k, f]) => [sq(k), sq(f)]);
+  hip = sq(hip); neck = nk; lift *= SQUAT;
   const pt = ([px, py]) => {
     /* tilting at the hips (the upper body), then lifted */
     if (py < hip[1] && tilt){ const dx = px - hip[0], dy = py - hip[1]; return [x + (hip[0] + dx * Math.cos(tilt) - dy * Math.sin(tilt)) * s, y + (hip[1] + dx * Math.sin(tilt) + dy * Math.cos(tilt) - lift) * s]; }
@@ -123,9 +138,9 @@ export function figure(c, x, y, s, move, t){
   c.fillStyle = '#ffffff';
   for (const [, h] of arms){ const q = pt(h); c.beginPath(); c.arc(q[0], q[1], s * 0.04, 0, 6.2832); c.fill(); }
   /* the head, clear of the shoulders, on a short neck */
-  line([neck, [neck[0], neck[1] - 0.06]]);
-  const hd = pt([neck[0], neck[1] - 0.17]);
-  c.beginPath(); c.arc(hd[0], hd[1], s * 0.1, 0, 6.2832); c.fill();
+  line([neck, [neck[0], neck[1] - 0.05]]);
+  const hd = pt([neck[0], neck[1] - 0.16]);
+  c.beginPath(); c.arc(hd[0], hd[1], s * 0.115, 0, 6.2832); c.fill();
 }
 
 /* Each step: what to show, sliding in when there's a move, out when
@@ -141,14 +156,14 @@ export function stepGuide(g, dt){
 export function drawGuide(c, W, H, g){
   const st = g._guide;
   if (!st || st.a <= 0 || !st.move) return;
-  const pw = H * 0.2, ph = H * 0.24, ease = st.a * st.a * (3 - 2 * st.a);
+  const pw = H * 0.17, ph = H * 0.16, ease = st.a * st.a * (3 - 2 * st.a);
   const x = W - H * 0.04 - pw + (1 - ease) * (pw + H * 0.06), y = H * 0.13;
   c.save(); c.globalAlpha = ease;
   c.fillStyle = 'rgba(5,6,15,.72)'; c.beginPath(); c.roundRect(x, y, pw, ph, H * 0.025); c.fill();
   c.strokeStyle = 'rgba(127,243,255,.5)'; c.lineWidth = Math.max(1.5, H * 0.003); c.stroke();
-  figure(c, x + pw / 2, y + ph * 0.5, ph * 0.5, st.move, st.t);
+  figure(c, x + pw / 2, y + ph * 0.56, ph * 0.6, st.move, st.t);
   const word = MOVES[st.move];
-  c.font = `700 ${Math.round(H * (word.length > 10 ? 0.019 : 0.026))}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.fillStyle = '#ffd24a'; c.fillText(word, x + pw / 2, y + ph * 0.9);
+  c.font = `700 ${Math.round(H * (word.length > 10 ? 0.016 : 0.022))}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = '#ffd24a'; c.fillText(word, x + pw / 2, y + ph * 0.88);
   c.restore();
 }
