@@ -213,7 +213,7 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
   /* The path. */
-  if (!bare) path(c, W, H, z, L);
+  if (!bare){ path(c, W, H, z, L); hedges(c, W, H, z, L); for (const g of ROAD.gaps) ravine(c, W, H, g.d - z, g.len, L, t); }
   /* Trees and glowing plants along both sides. */
   if (!bare) trees(c, W, H, z, L);
   /* The far end fades into the haze. */
@@ -221,6 +221,68 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75)); fh.addColorStop(1, rgba(L.haze, 0));
   c.fillStyle = fh; c.fillRect(-SKY.wide, HY - H * 0.07, W + SKY.wide, H * 0.15);
   if (alarm > 0){ c.fillStyle = `rgba(255,60,60,${0.06 * alarm})`; c.fillRect(0, 0, W, H); }
+}
+
+/* Where the road narrows: thick bushes crowding in from both sides,
+   right up to its edges - nobody's getting through those. */
+function hedges(c, W, H, z, L){
+  const list = [];
+  for (let n = 0; n < 90; n++){
+    const rel = along(n, 1.0, 90, z); if (rel == null || rel < -0.08) continue;
+    const hw = roadHalf(z + rel); if (hw > PATH_HALF - 0.12) continue;
+    for (const side of [-1, 1]) for (const j of [0, 1, 2]) list.push({ rel: rel + j * 0.004, lane: side * (hw + 0.12 + j * 0.3 + hash(n * 3 + j) * 0.12), n: n * 3 + j });
+  }
+  list.sort((a, b) => b.rel - a.rel);
+  for (const b of list){
+    const p = P(b.lane, b.rel, W, H), r = H * (0.05 + hash(b.n + 700) * 0.03) * p.k, haze = Math.min(0.6, Math.max(0, b.rel) * 0.8);
+    c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(p.x, p.y, r * 1.2, r * 0.25, 0, 0, 6.2832); c.fill();
+    c.fillStyle = mix(L.tree[1], L.haze, haze); circ(c, p.x, p.y - r * 0.8, r);
+    c.fillStyle = mix(L.tree[0], L.haze, haze); circ(c, p.x - r * 0.3, p.y - r * 1.05, r * 0.72);
+    c.fillStyle = mix(L.grass[0], L.haze, haze); circ(c, p.x - r * 0.45, p.y - r * 1.3, r * 0.32);
+    if (hash(b.n + 701) < 0.3){ c.fillStyle = L.flowers[b.n % L.flowers.length]; circ(c, p.x + r * 0.3, p.y - r * 1.2, r * 0.12); }
+  }
+}
+
+/* A ravine right across the way, its near edge rel ahead, len deep:
+   the path breaks off; looking over, the far side's cliff face falls
+   away - lit at the top, darker down it - into mist rising from far
+   below, the tops of trees just showing through. */
+export function ravine(c, W, H, rel, len, L, t = 0){
+  if (rel > 1.05 || rel + len < -0.15) return;
+  const X = 14, near = Math.max(-0.12, rel), far = Math.min(1.02, rel + len);
+  const nl = P(-X, near, W, H), nr = P(X, near, W, H), fl = P(-X, far, W, H), fr = P(X, far, W, H);
+  const top = fl.y, bot = nl.y, span = Math.max(1, bot - top);
+  /* the far cliff face, falling into the mist */
+  const g = c.createLinearGradient(0, top, 0, bot);
+  g.addColorStop(0, mix(L.rock[0], L.rim, 0.3)); g.addColorStop(0.1, mix(L.rock[1], '#2a2240', 0.25));
+  g.addColorStop(0.45, mix(L.hillDark, '#151230', 0.7)); g.addColorStop(0.78, mix(L.hillDark, L.haze, 0.45)); g.addColorStop(1, mix(L.haze, '#ffffff', 0.5));
+  c.fillStyle = g; c.beginPath(); c.moveTo(nl.x, nl.y); c.lineTo(nr.x, nr.y); c.lineTo(fr.x, fr.y); c.lineTo(fl.x, fl.y); c.closePath(); c.fill();
+  /* cracks and ledges down the rock */
+  c.strokeStyle = rgba(L.hillDark, 0.5); c.lineWidth = Math.max(1, 3 * fl.k);
+  for (let k = 0; k < 18; k++){
+    const x = W * (hash(k + 920) * 1.2 - 0.1), y0 = top + span * 0.04, y1 = top + span * (0.25 + hash(k + 921) * 0.35);
+    c.beginPath(); c.moveTo(x, y0); c.lineTo(x + (hash(k + 922) - 0.5) * span * 0.2, (y0 + y1) / 2); c.lineTo(x + (hash(k + 923) - 0.5) * span * 0.15, y1); c.stroke();
+  }
+  /* treetops far below, in the mist */
+  for (let k = 0; k < 30; k++){
+    const x = W * (hash(k + 900) * 1.2 - 0.1), y = top + span * (0.62 + hash(k + 901) * 0.25), r = span * (0.05 + hash(k + 902) * 0.05);
+    c.fillStyle = rgba(mix(L.tree[1], L.haze, 0.55), 0.85); c.beginPath(); c.moveTo(x, y - r * 1.6); c.lineTo(x + r, y + r * 0.4); c.lineTo(x - r, y + r * 0.4); c.closePath(); c.fill();
+  }
+  /* mist drifting up from the bottom */
+  for (let k = 0; k < 8; k++) glow(c, W * (hash(k + 910) * 1.2 - 0.1) + Math.sin(t * 0.2 + k) * W * 0.03, top + span * (0.8 + hash(k + 911) * 0.15), span * 0.5, '#ffffff', 0.35);
+  /* the far edge: grass and the path going on, its rim catching the light */
+  if (far < 1.02){
+    c.strokeStyle = rgba(L.rim, 0.9); c.lineWidth = Math.max(1, 3 * fl.k); c.beginPath(); c.moveTo(fl.x, fl.y); c.lineTo(fr.x, fr.y); c.stroke();
+  }
+  /* the near edge: the ground breaking off, a dark lip; glowing - hop as
+     you reach it */
+  if (rel > -0.12){
+    const lh = H * 0.012 * nl.k;
+    c.fillStyle = mix(L.ground[2], '#1a1428', 0.5); c.fillRect(0, bot - lh * 0.2, W, lh * 1.6);
+    const a = P(-PATH_HALF, rel, W, H), b = P(PATH_HALF, rel, W, H);
+    c.fillStyle = mix(L.path[1], '#1a1428', 0.45); c.fillRect(a.x, bot - lh * 0.2, b.x - a.x, lh * 1.6);
+    c.strokeStyle = `rgba(255,224,102,${0.6 + 0.35 * Math.sin(t * 8)})`; c.lineWidth = Math.max(2, 7 * a.k); c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+  }
 }
 
 /* Something placed along the way: the n-th of a repeating run `span`
@@ -275,9 +337,25 @@ function groundBits(c, W, H, z, L){
 /* The path: darker than the ground, worn into two tracks, pebbled, stones
    along its edges - following the bends. */
 export const PATH_HALF = 1.15;
+/* The road's own changes along the way: where it narrows or widens
+   (spans: { d0, d1, half } - from d0 to d1 it's half lanes either side,
+   easing in and out over EASE), and where a ravine cuts right across it
+   (gaps: { d, len }). In how far along (d), like the things. */
+export const ROAD = { spans: [], gaps: [] };
+const EASE = 0.12;
+const ramp = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
+export function roadHalf(d){
+  let hw = PATH_HALF;
+  for (const sp of ROAD.spans){
+    const k = Math.min(ramp((d - sp.d0) / EASE + 1), ramp((sp.d1 - d) / EASE + 1));
+    if (k > 0) hw += (sp.half - PATH_HALF) * k;
+  }
+  return hw;
+}
+export const inRavine = (d, pad = 0) => ROAD.gaps.some(g => d > g.d - pad && d < g.d + g.len + pad);
 function path(c, W, H, z, L){
-  const N = 26, Ls = [], Rs = [];
-  for (let i = 0; i <= N; i++){ const rel = -0.1 + 1.1 * Math.pow(i / N, 1.6); Ls.push(P(-PATH_HALF, rel, W, H)); Rs.push(P(PATH_HALF, rel, W, H)); }
+  const N = 40, Ls = [], Rs = [];
+  for (let i = 0; i <= N; i++){ const rel = -0.1 + 1.1 * Math.pow(i / N, 1.6), hw = roadHalf(z + rel); Ls.push(P(-hw, rel, W, H)); Rs.push(P(hw, rel, W, H)); }
   const HY = HORIZON * H;
   const pg = c.createLinearGradient(0, HY, 0, H);
   pg.addColorStop(0, mix(L.path[0], L.haze, 0.4)); pg.addColorStop(1, L.path[1]);
@@ -303,7 +381,7 @@ function path(c, W, H, z, L){
   for (let n = 0; n < 40; n++){
     const rel = along(n, 1.0, 40, z); if (rel == null) continue;
     for (const side of [-1, 1]){
-      const q = P(side * (PATH_HALF + 0.02), rel, W, H), r = H * 0.012 * q.k + 0.5;
+      const q = P(side * (roadHalf(z + rel) + 0.02), rel, W, H), r = H * 0.012 * q.k + 0.5;
       c.fillStyle = 'rgba(30,25,60,.3)'; c.beginPath(); c.ellipse(q.x + r * 0.6, q.y + r * 0.2, r * 1.1, r * 0.4, 0, 0, 6.2832); c.fill();
       c.fillStyle = L.rock[1]; c.beginPath(); c.ellipse(q.x, q.y - r * 0.3, r * 1.1, r * 0.7, 0, 0, 6.2832); c.fill();
       c.fillStyle = L.rock[0]; c.beginPath(); c.ellipse(q.x - r * 0.35, q.y - r * 0.55, r * 0.6, r * 0.35, 0, 0, 6.2832); c.fill();
@@ -328,82 +406,12 @@ function trees(c, W, H, z, L){
     for (const side of [-1, 1]){
       const lane = side * (1.8 + hash(n * 2 + (side > 0 ? 1 : 0)) * 1.6);
       if (CLEAR.some(q => Math.abs(lane - q.lane) < q.r + 0.9 && Math.abs(rel + z - q.d) < q.r * 0.3 + 0.12)) continue;
+      if (Math.abs(lane) < roadHalf(rel + z) + 0.45 || inRavine(rel + z, 0.05)) continue;
       list.push({ rel, lane, n, side });
     }
   }
   list.sort((a, b) => b.rel - a.rel);
-  /* What grows by the path depends on the place (L.sides). */
-  const draw = { cliffs: cliff, shrooms: shroom, burnt: burntTree }[L.sides] || tree;
-  for (const tr of list) draw(c, W, H, tr.lane, tr.rel, L, tr.n);
-  /* A canyon: the walls themselves, rising behind. */
-  if (L.sides === 'cliffs') for (const tr of list) cliff(c, W, H, tr.lane + Math.sign(tr.lane) * 1.3, tr.rel + 0.06, L, tr.n + 40, 1.5);
-}
-
-/* A slab of canyon wall at lane, rel: faceted rock, lit on the side that
-   faces the path. tall: how tall, against a tree's height. */
-export function cliff(c, W, H, lane, rel, L, n = 0, tall = 1){
-  const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.9 + hash(n + 310) * 0.4) * tall, haze = Math.min(0.75, Math.max(0, rel) * 0.95);
-  if (p.x < -400 * s * 2 - SKY.wide || p.x > W + 400 * s * 2) return;
-  const side = lane < 0 ? -1 : 1, w = 170 * s, h = (420 + hash(n + 311) * 260) * s;
-  const lit = mix(L.rock[0], L.haze, haze), dark = mix(L.rock[1], L.haze, haze * 0.8), top = mix(L.grass[1], L.haze, haze);
-  const pts = [[-w, 0], [-w * 0.9, -h * 0.55], [-w * 0.55, -h * (0.85 + hash(n + 312) * 0.1)], [-w * 0.1, -h], [w * 0.4, -h * (0.9 + hash(n + 313) * 0.08)], [w * 0.85, -h * 0.6], [w, 0]];
-  const at = ([x, y]) => [p.x + x * side * -1, p.y + y];
-  c.fillStyle = 'rgba(20,15,45,.35)'; c.beginPath(); c.ellipse(p.x, p.y, w * 1.1, w * 0.18, 0, 0, 6.2832); c.fill();
-  c.fillStyle = dark; c.beginPath(); pts.forEach((q, i) => { const [x, y] = at(q); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill();
-  /* the face towards the path, in the light */
-  c.fillStyle = lit; c.beginPath(); [pts[0], pts[1], pts[2], pts[3], [w * 0.05, -h * 0.4], [w * 0.15, 0]].forEach((q, i) => { const [x, y] = at(q); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.fill();
-  /* layers in the rock */
-  c.strokeStyle = rgba(L.rock[1], 0.35 * (1 - haze)); c.lineWidth = Math.max(1, 3 * s);
-  for (let k = 1; k < 4; k++){ const y = -h * k / 4.5; const [x0, y0] = at([-w * 0.92, y]), [x1, y1] = at([w * 0.1, y + h * 0.04]); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
-  /* a little green on top */
-  c.fillStyle = top; c.beginPath(); { const [x0, y0] = at(pts[2]), [x1, y1] = at(pts[3]), [x2, y2] = at(pts[4]); c.moveTo(x0, y0); c.lineTo(x1, y1 - 8 * s); c.lineTo(x2, y2 - 6 * s); c.lineTo(x2, y2 + 10 * s); c.lineTo(x1, y1 + 12 * s); c.lineTo(x0, y0 + 10 * s); } c.fill();
-  c.strokeStyle = rgba(L.rim, 0.5 * (1 - haze)); c.lineWidth = 2 * s + 0.5; c.beginPath(); { const [x0, y0] = at(pts[1]), [x1, y1] = at(pts[2]), [x2, y2] = at(pts[3]); c.moveTo(x0, y0); c.lineTo(x1, y1); c.lineTo(x2, y2); } c.stroke();
-}
-
-/* A giant glowing mushroom at lane, rel - and a few little ones round
-   its foot. */
-export function shroom(c, W, H, lane, rel, L, n = 0){
-  const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.8 + hash(n + 320) * 0.5), haze = Math.min(0.6, Math.max(0, rel) * 0.8);
-  if (p.x < -300 * s * 2 - SKY.wide || p.x > W + 300 * s * 2) return;
-  const caps = L.caps || ['#ff7ad9', '#7affea', '#b79cff'], cap = caps[n % caps.length], lean = (hash(n + 321) - 0.5) * 60 * s, h = (300 + hash(n + 322) * 200) * s, cw = (130 + hash(n + 323) * 70) * s;
-  c.fillStyle = 'rgba(10,8,30,.4)'; c.beginPath(); c.ellipse(p.x, p.y, cw * 0.7, cw * 0.14, 0, 0, 6.2832); c.fill();
-  glow(c, p.x + lean, p.y - h, cw * 2.2, cap, 0.35 * (1 - haze));
-  /* the stalk */
-  c.fillStyle = mix('#e9e2f5', L.haze, haze); c.beginPath(); c.moveTo(p.x - 22 * s, p.y); c.quadraticCurveTo(p.x - 18 * s + lean * 0.3, p.y - h * 0.5, p.x - 14 * s + lean, p.y - h); c.lineTo(p.x + 14 * s + lean, p.y - h); c.quadraticCurveTo(p.x + 18 * s + lean * 0.3, p.y - h * 0.5, p.x + 22 * s, p.y); c.fill();
-  c.fillStyle = mix('#b9a9d6', L.haze, haze); c.beginPath(); c.moveTo(p.x + 6 * s, p.y); c.quadraticCurveTo(p.x + 10 * s + lean * 0.3, p.y - h * 0.5, p.x + 6 * s + lean, p.y - h); c.lineTo(p.x + 14 * s + lean, p.y - h); c.quadraticCurveTo(p.x + 18 * s + lean * 0.3, p.y - h * 0.5, p.x + 22 * s, p.y); c.fill();
-  /* the cap: a dome, glowing underneath */
-  const cx = p.x + lean, cy = p.y - h;
-  c.fillStyle = rgba(cap, 0.55); c.beginPath(); c.ellipse(cx, cy + 6 * s, cw * 0.92, cw * 0.18, 0, 0, 6.2832); c.fill();
-  const g = c.createLinearGradient(0, cy - cw * 0.75, 0, cy); g.addColorStop(0, mix(cap, '#ffffff', 0.35)); g.addColorStop(1, mix(cap, L.haze, haze));
-  c.fillStyle = g; c.beginPath(); c.ellipse(cx, cy, cw, cw * 0.72, 0, Math.PI, 6.2832); c.closePath(); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.75)';
-  for (let k = 0; k < 5; k++){ const a = Math.PI * (1.15 + k * 0.17), rr = cw * (0.5 + hash(n + 330 + k) * 0.35); circ(c, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.72, (8 + hash(n + 340 + k) * 8) * s); }
-  /* little ones at its foot */
-  for (let k = 0; k < 3; k++){
-    const x = p.x + (k - 1) * 46 * s + 30 * s, hh = (40 + hash(n + 350 + k) * 30) * s, cc = caps[(n + k + 1) % caps.length];
-    c.fillStyle = '#e9e2f5'; c.fillRect(x - 4 * s, p.y - hh, 8 * s, hh);
-    glow(c, x, p.y - hh, 30 * s, cc, 0.6);
-    c.fillStyle = cc; c.beginPath(); c.ellipse(x, p.y - hh, 22 * s, 16 * s, 0, Math.PI, 6.2832); c.fill();
-  }
-}
-
-/* A burnt tree: a charred trunk, broken off, a couple of bare branches,
-   embers still glowing in it. */
-export function burntTree(c, W, H, lane, rel, L, n = 0){
-  const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.85 + hash(n + 360) * 0.4), haze = Math.min(0.7, Math.max(0, rel) * 0.9);
-  if (p.x < -200 * s * 3 - SKY.wide || p.x > W + 200 * s * 3) return;
-  const h = (300 + hash(n + 361) * 220) * s, bark = mix(L.trunk[0], L.haze, haze), lit = mix(L.trunk[1], L.haze, haze);
-  c.fillStyle = 'rgba(25,15,15,.45)'; c.beginPath(); c.ellipse(p.x, p.y, 90 * s, 20 * s, 0, 0, 6.2832); c.fill();
-  c.fillStyle = bark; c.beginPath(); c.moveTo(p.x - 20 * s, p.y); c.lineTo(p.x - 13 * s, p.y - h); c.lineTo(p.x - 2 * s, p.y - h - 30 * s); c.lineTo(p.x + 6 * s, p.y - h + 10 * s); c.lineTo(p.x + 14 * s, p.y - h - 14 * s); c.lineTo(p.x + 20 * s, p.y); c.fill();
-  c.fillStyle = lit; c.fillRect(p.x + 8 * s, p.y - h * 0.9, 6 * s, h * 0.9);
-  c.strokeStyle = bark; c.lineCap = 'round';
-  for (const [y, d, l] of [[0.55, -1, 90], [0.75, 1, 70], [0.35, 1, 60]]){
-    c.lineWidth = 9 * s + 0.5; c.beginPath(); c.moveTo(p.x, p.y - h * y); c.lineTo(p.x + d * l * s, p.y - h * y - l * 0.7 * s); c.stroke();
-    c.lineWidth = 5 * s + 0.5; c.beginPath(); c.moveTo(p.x + d * l * 0.6 * s, p.y - h * y - l * 0.42 * s); c.lineTo(p.x + d * l * 0.9 * s, p.y - h * y - l * 1.1 * s); c.stroke();
-  }
-  c.lineCap = 'butt';
-  /* embers */
-  if (hash(n + 362) < 0.6) for (let k = 0; k < 3; k++){ const y = p.y - h * (0.2 + hash(n + 363 + k) * 0.6); glow(c, p.x + (hash(n + 366 + k) - 0.5) * 20 * s, y, 22 * s + 2, '#ff8a3b', 0.8 * (1 - haze)); }
+  for (const tr of list) tree(c, W, H, tr.lane, tr.rel, L, tr.n);
 }
 
 export function tree(c, W, H, lane, rel, L, n = 0){
@@ -534,23 +542,24 @@ export function worldGap(c, W, H, rel, a, b, L){
   c.strokeStyle = rgba(L.rim, 0.9); c.lineWidth = Math.max(1.5, 4 * l1.k); c.beginPath(); c.moveTo(l1.x, l1.y); c.lineTo(r1.x, r1.y); c.stroke();
 }
 
-/* A boulder rolling along at lane, rel, turned `spin` radians: a big
-   round rock, lit from above, a trail of dust behind. */
-export function worldBoulder(c, W, H, lane, rel, L, spin = 0){
-  const p = P(lane, rel, W, H), r = H * 0.15 * p.k, rock = L.rock || ['#a9a3cf', '#6d6894'];
-  cast(c, p.x, p.y, r * 0.5, r * 2.2, 0.35);
-  c.fillStyle = 'rgba(20,15,40,.35)'; c.beginPath(); c.ellipse(p.x, p.y, r * 1.1, r * 0.25, 0, 0, 6.2832); c.fill();
-  for (let k = 0; k < 4; k++) glow(c, p.x - Math.sign(spin || 1) * r * (0.9 + k * 0.5), p.y - r * 0.2, r * (0.5 + k * 0.15), '#e8dccb', 0.35 - k * 0.07);
-  c.save(); c.translate(p.x, p.y - r); c.rotate(spin);
-  c.fillStyle = rock[1]; c.beginPath();
-  for (let k = 0; k < 9; k++){ const a = k / 9 * 6.2832, rr = r * (0.88 + hash(k + 600) * 0.14); c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
-  c.closePath(); c.fill();
-  c.fillStyle = rock[0]; c.beginPath(); c.moveTo(-r * 0.7, -r * 0.3); c.lineTo(-r * 0.2, -r * 0.85); c.lineTo(r * 0.45, -r * 0.6); c.lineTo(r * 0.1, -r * 0.1); c.closePath(); c.fill();
-  c.strokeStyle = 'rgba(30,20,50,.35)'; c.lineWidth = Math.max(1, r * 0.06);
-  c.beginPath(); c.moveTo(-r * 0.3, r * 0.2); c.lineTo(r * 0.3, r * 0.5); c.moveTo(r * 0.2, -r * 0.2); c.lineTo(r * 0.6, r * 0.1); c.stroke();
-  c.restore();
-  /* lit from above, whichever way it's turned */
-  c.fillStyle = 'rgba(255,245,230,.18)'; c.beginPath(); c.ellipse(p.x - r * 0.2, p.y - r * 1.5, r * 0.55, r * 0.3, -0.4, 0, 6.2832); c.fill();
+/* A log rolling across the path at lane, rel, turned `spin` radians:
+   seen end on - its cut end towards us, rings in it, the bark running
+   back - and dust kicked up beside it. */
+export function worldLog(c, W, H, lane, rel, L, spin = 0){
+  const p = P(lane, rel, W, H), r = H * 0.075 * p.k, back = P(lane, rel + 0.09, W, H), rb = H * 0.075 * back.k;
+  c.fillStyle = 'rgba(20,15,40,.35)'; c.beginPath(); c.ellipse(p.x, p.y, r * 1.2, r * 0.25, 0, 0, 6.2832); c.fill();
+  for (let k = 0; k < 3; k++) glow(c, p.x + (k - 1) * r * 1.2, p.y - r * 0.15, r * 0.6, '#e8dccb', 0.3);
+  /* the bark, running back to its far end */
+  const g = c.createLinearGradient(p.x - r, 0, p.x + r, 0); g.addColorStop(0, L.trunk[1]); g.addColorStop(1, L.trunk[0]);
+  c.fillStyle = g; c.beginPath(); c.moveTo(p.x - r, p.y - r); c.lineTo(back.x - rb, back.y - rb); c.lineTo(back.x + rb, back.y - rb); c.lineTo(p.x + r, p.y - r); c.lineTo(p.x + r, p.y - r); c.arc(p.x, p.y - r, r, 0, Math.PI, true); c.fill();
+  c.beginPath(); c.moveTo(p.x - r, p.y - r); c.lineTo(back.x - rb, back.y - rb); c.lineTo(back.x - rb, back.y - rb * 0.2); c.lineTo(p.x - r, p.y); c.fill();
+  /* the cut end: rings, turning */
+  c.fillStyle = L.wood; circ(c, p.x, p.y - r, r);
+  c.strokeStyle = mix(L.wood, L.trunk[0], 0.45); c.lineWidth = Math.max(1, r * 0.07);
+  for (const k of [0.75, 0.5, 0.27]){ c.beginPath(); c.arc(p.x, p.y - r, r * k, spin, spin + 5.2); c.stroke(); }
+  c.strokeStyle = L.trunk[0]; c.lineWidth = Math.max(1.5, r * 0.12); c.beginPath(); c.arc(p.x, p.y - r, r * 0.96, 0, 6.2832); c.stroke();
+  /* a knot, going round with it */
+  c.fillStyle = mix(L.trunk[0], L.wood, 0.3); circ(c, p.x + Math.cos(spin) * r * 0.55, p.y - r + Math.sin(spin) * r * 0.55, r * 0.09);
 }
 
 /* An energy crystal: a glowing cyan hex gem, turning. */

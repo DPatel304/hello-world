@@ -22,14 +22,15 @@ const hexMix = (a, b, k) => '#' + mix(a, b, k).slice(4, -1).split(',').map(v => 
    lines, a glowing trim at the elbows, knees and ankles, a small pack on
    the back outlined in light, a rounded helmet with an antenna. Same st as
    lkp-art.js drawCrew (and st.run, st.runPh: the stride). pose: 'reach'
-   (an arm up), 'hug' (arms wrapped round themselves), 'stretch' (no arms -
+   (an arm up), 'hug' (arms wrapped round themselves), 'hang' (both arms
+   up, holding on overhead), 'stretch' (no arms -
    someone else draws them), else at their sides - or pumping, running. */
 export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const u = h / 330, f = 1 - (st.duck || 0) * 0.4;
   const run = st.run || 0, ph = st.runPh || 0;
   const lite = mix(col, '#ffffff', 0.28), dark = mix(col, '#0a0f2a', 0.38), deep = mix(col, '#05081a', 0.55), line = mix(col, '#05081a', 0.62);
   const gl = hexMix(col, '#ffffff', 0.62);
-  c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, base, 70 * u, 15 * u, 0, 0, 6.2832); c.fill();
+  if (!st.flying){ c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, base, 70 * u, 15 * u, 0, 0, 6.2832); c.fill(); }
   /* a puff of dust kicked up behind each foot as it pushes off */
   if (run > 0.2 && !st.air) for (const d of [-1, 1]){
     const k = (((ph + (d < 0 ? Math.PI : 0)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / Math.PI;
@@ -80,6 +81,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (pose !== 'stretch') for (const d of [-1, 1]){
     const sh = [d * 46 * u, -222 * u];
     if (pose === 'hug'){ limb([sh, [d * 62 * u, -188 * u], [d * 30 * u, -178 * u]], 26 * u, d); trim(d * 62 * u, -186 * u, 22 * u); continue; }
+    if (pose === 'hang'){ limb([sh, [d * 52 * u, -282 * u], [d * 26 * u, -334 * u]], 24 * u, d); trim(d * 52 * u, -282 * u, 22 * u); c.fillStyle = dark; circ(c, d * 26 * u, -338 * u, 14 * u); continue; }
     if (pose === 'reach' && d < 0){ limb([sh, [-62 * u, -270 * u], [-56 * u, -322 * u]], 26 * u); c.fillStyle = dark; circ(c, -56 * u, -326 * u, 15 * u); continue; }
     const p = run * Math.sin(ph + (d < 0 ? Math.PI : 0));
     const elbow = run > 0.2 ? [d * (66 + 8 * p) * u, (-176 + 12 * p) * u] : [d * 60 * u, -172 * u];

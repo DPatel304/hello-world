@@ -219,10 +219,10 @@ test('level 1 runs as its plan says - corridors, crossroads, rooms, the depot, t
   assert.ok(inst.over);
 });
 
-test('the first corridor teaches one thing at a time: debris, then a bulkhead, then a breach', () => {
+test('the first corridor teaches one thing at a time: debris, then a low branch, then the path squeezing', () => {
   crew(1);
   const inst = game.create(1);
-  const firsts = ['blocker', 'beam', 'gap'].map(k => inst.things.find(th => th.kind === k).d);
+  const firsts = ['blocker', 'beam', 'narrow'].map(k => inst.things.find(th => th.kind === k).d);
   assert.ok(firsts[0] < firsts[1] && firsts[1] < firsts[2]);
   /* Nothing to dodge in the first few seconds (fewer, squeezed into a
      playtest's shorter corridor). */

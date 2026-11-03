@@ -42,30 +42,15 @@ export const LEVELS = [
       }
     },
     plan: ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
-    /* Each corridor its own place along the way (the first is the crash
-       site's forest): its look - changes to the world palette, and what
-       stands by the path (sides) - its name, what Nova says arriving, and
-       its own run of obstacles (lkp-game.js _layout: the pieces it mixes
-       in most). */
-    places: [
-      null,
-      { name: 'Redrock Canyon', say: ['A canyon. Watch those walls \u2014 rocks are coming loose up there!', 'LOOK OUT ABOVE'], pieces: ['boulder', 'boulder', 'slalom', 'combo'],
-        world: { key: 'verdant-canyon', sides: 'cliffs',
-          sky: ['#5d9edc', '#9fcbea', '#f1dcc6', '#ffd6aa'], haze: '#efd8c6', hillLit: '#dcae94', hillDark: '#a0716a', rim: '#fff0d7',
-          ground: ['#b8937c', '#9d7a66', '#81604f'], grass: ['#b5b77e', '#7c8a50'], path: ['#caa98a', '#a7836a'],
-          rock: ['#e3b99c', '#a5705e'], crystal: ['#f2c6a6', '#c98d70', '#8c5a49'], flowers: ['#ffe3a8', '#ffb39a', '#ffffff'], warm: '#ffb07a', cool: '#3a2a6a' } },
-      { name: 'Glowcap Woods', say: ['It\'s getting dark out there. Those mushrooms are glowing\u2026 stay close, crew.', 'STAY CLOSE'], pieces: ['duckrun', 'slalom', 'arc', 'duckrun'],
-        world: { key: 'verdant-dusk', sides: 'shrooms', caps: ['#ff7ad9', '#6ff7e6', '#b79cff', '#ffd36b'],
-          sky: ['#1b1f52', '#46387a', '#9a5b8f', '#f2977f'], sun: '#ffcfa6', haze: '#76679c', cloud: '#e6c3d8', cloudShade: '#5e4f86', planetAlpha: 0.85,
-          hillLit: '#6c5f9e', hillDark: '#3b336c', rim: '#ffc6b0',
-          ground: ['#3b5c71', '#2c4b63', '#213b54'], grass: ['#4f938c', '#28606a'], path: ['#5b5383', '#463f70'],
-          rock: ['#7b71a8', '#4c4480'], glow: '#9ff6ff', bulb: '#ff8cd8', flowers: ['#9ff6ff', '#ff9ce0', '#fff4c2'], warm: '#ff8f7a', cool: '#14185a' } },
-      { name: 'The Sweeper\'s Trail', say: ['Scorch marks\u2026 the Sweeper came through here. We\'re close now. Stay sharp!', 'STAY SHARP'], pieces: ['slalom', 'combo', 'boulder', 'duckrun'],
-        world: { key: 'verdant-scorched', sides: 'burnt',
-          sky: ['#6a7aa3', '#a596a6', '#ddb19a', '#ffb487'], haze: '#d6b6a6', cloud: '#e6dad6', cloudShade: '#978892', smoke: '#5a5560',
-          hillLit: '#b69a99', hillDark: '#785f6f', rim: '#ffd7b8',
-          ground: ['#7c7a69', '#605f54', '#4b4a44'], grass: ['#8c9a6a', '#5b6a46'], path: ['#716673', '#5a5263'],
-          rock: ['#9b91a2', '#5f5869'], crystal: ['#b9b3c0', '#7d7686', '#4d4855'], trunk: ['#231c22', '#4a3838'], flowers: ['#ffb36b', '#ffd28a', '#e2e2e2'], warm: '#ffa36b', cool: '#2a2240' } }
+    /* What happens in each corridor (lkp-game.js _layout): one event
+       apiece - the path squeezing narrow then opening wide, a big jump
+       over a ravine, a zip line - and the run of obstacles round it,
+       the set pieces it mixes in (pieces). big: a wider ravine. */
+    corridors: [
+      { event: 'squeeze' },
+      { event: 'leap', pieces: ['logs', 'slalom', 'duckrun', 'arc'] },
+      { event: 'zip', pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
+      { event: 'leap', big: true, pieces: ['slalom', 'logs', 'duckrun', 'arc'] }
     ],
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
     boss: 'scout', bossName: 'Sweeper',
@@ -74,7 +59,10 @@ export const LEVELS = [
       blocker: ['Fallen tree! Lean to go around it.', 'LEAN!'],
       beam: ['Low branch! Duck under it!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
-      roller: ['A boulder, rolling across! Lean out of its way!', 'DODGE IT!'],
+      roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
+      narrow: ['The path\'s closing in! Squeeze together!', 'SQUEEZE IN!'],
+      wide: ['It opens right up! Spread out and grab them all!', 'SPREAD OUT!'],
+      ravine: ['A ravine! Keep running, you\'ll jump it. Hop right at the edge to fly higher!', 'HOP AT THE EDGE!'],
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
     lines: {

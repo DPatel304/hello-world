@@ -4,7 +4,8 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { turn, resetView, tree, worldBoulder, CLEAR as CLEARINGS } from './lkp-world.js';
+import { turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { Zip, worldZipStart, ZIP_SPEED, RIDE, LAND, DROP, LIFT } from './lkp-zip.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
@@ -56,7 +57,7 @@ export const story = { on: true };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [55, 35, 35, 30];                      /* seconds of each corridor, in full */
+const FULL = [55, 35, 42, 32];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -83,8 +84,14 @@ const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 /* A rolling boulder: how wide (lanes, either side of its middle), and how
    fast it rolls across - lanes for each bit of depth still to come. */
 export const ROLLER = 0.24, ROLL = 3.2;
-/* How long a new place's name shows, arriving. */
-const PLACE_CARD = 3.2;
+/* The path squeezing: how wide (lanes either side) at its narrowest and
+   its widest. */
+export const NARROW = 0.55, WIDE = 2.1;
+/* The big jump: how deep the ravine (depths; a wider one before the
+   boss), how high they fly over it (and with a hop at the edge), how
+   slow it all goes while they're in the air, how long before the edge a
+   hop counts, and the gold crystal at the top. */
+export const RAVINE = 0.42, RAVINE_BIG = 0.56, LEAP_H = 1.5, LEAP_BIG = 2.4, LEAP_SLOW = 0.55, EDGE_HOP = 0.7, GOLD_CRYSTAL = 5;
 const rollerLane = (th, rel) => th.end - th.dir * Math.max(0, rel - RUN) * ROLL;
 export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10, roller: 12 };   /* ledge: a breach across part of the floor */
 export const SAFE = 1;                          /* seconds of safety after a hit */
@@ -268,11 +275,13 @@ class LastKnownPosition {
     const squeeze = this.seg.len / (FULL[n] || 45);
     const lead = n === 0 ? LEAD : 0;
     const at = (secs) => this.z + RUN + SPEED * (secs + lead) * squeeze + 0.9;   /* reaching the crew `secs` in */
+    /* (a distance along, in this corridor's seconds) */
+    const secsOf = (dist) => dist / (SPEED * squeeze);
     /* After the first, each corridor turns sharply once, halfway (for the
-       look: it's automatic). */
-    if (n > 0) this.seg.corner = { d: at((FULL[n] || 45) * 0.5), dir: Math.random() < 0.5 ? -1 : 1, at: null };
+       look: it's automatic) - unless its event's there. */
+    const plan = (this.level.corridors && this.level.corridors[n]) || {};
     const add = (secs, th) => this.things.push({ d: at(secs), ...th });
-    const crystalLine = (secs, lane, k = 5, high = false) => { for (let i = 0; i < k; i++) add(secs + i * 0.3 / squeeze, { kind: 'crystal', lane, high }); };
+    const crystalLine = (secs, lane, k = 5) => { for (let i = 0; i < k; i++) add(secs + i * 0.3 / squeeze, { kind: 'crystal', lane }); };
     const side = () => (Math.random() < 0.5 ? -1 : 1);
     const blocker = (secs, s = side(), width = 0.9) => {
       const a = s < 0 ? -1.05 : 1.05 - width, b = a + width;
@@ -280,40 +289,71 @@ class LastKnownPosition {
       crystalLine(secs - 0.6, s < 0 ? 0.6 : -0.6, 4);
     };
     const beam = (secs) => add(secs, { kind: 'beam' });
-    const gap = (secs, full = true, s = side()) => {
-      if (full){ add(secs, { kind: 'gap', a: -1.05, b: 1.05 }); [-0.5, 0, 0.5].forEach(l => add(secs, { kind: 'crystal', lane: l, high: true })); }
-      else { const a = s < 0 ? -1.05 : 0.05, b = a + 1; add(secs, { kind: 'ledge', a, b }); crystalLine(secs - 0.5, s < 0 ? 0.6 : -0.6, 3); }
-    };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
-    /* A boulder rolling across the path, from one side, as it comes:
-       where it crosses the crew's line (end) is where not to be. */
-    const roller = (secs) => { const dir = side(); add(secs, { kind: 'roller', end: (Math.random() * 2 - 1) * 0.6, dir, spin: 0 }); crystalLine(secs + 0.8, 0, 3); };
+    /* A log rolling across the path, from one side, as it comes: where it
+       crosses the crew's line (end) is where not to be. */
+    const roller = (secs) => { add(secs, { kind: 'roller', end: (Math.random() * 2 - 1) * 0.6, dir: side() }); crystalLine(secs + 0.8, 0, 3); };
     /* Set pieces: a few of one thing in a row, each its own little test.
-       Each returns how long it takes. */
+       Each returns how long it takes. (No hopping: the only jump is the
+       big one.) */
     const PIECES = {
       /* weaving: debris left, right, left, right */
       slalom: (s) => { const f = side(); for (let k = 0; k < 4; k++) blocker(s + k * 1.5, k % 2 ? f : -f, 0.7); return 6; },
       /* a run of low branches: duck, duck, duck */
       duckrun: (s) => { for (let k = 0; k < 3; k++) beam(s + k * 1.4); return 4.4; },
-      /* a ditch, then straight under a branch */
-      combo: (s) => { gap(s); beam(s + 1.5); return 3.4; },
-      /* rocks rolling down off the walls */
-      boulder: (s) => { roller(s); roller(s + 2.2); return 4.2; },
-      /* an arc of crystals, the top of it only to be had with a hop */
-      arc: (s) => { for (let k = 0; k < 7; k++) add(s + k * 0.35, { kind: 'crystal', lane: -0.75 + k * 0.25, high: k >= 2 && k <= 4 }); return 3; }
+      /* logs rolling down the slope, one then another */
+      logs: (s) => { roller(s); roller(s + 2.2); return 4.2; },
+      /* an arc of crystals, across and back */
+      arc: (s) => { for (let k = 0; k < 7; k++) add(s + k * 0.35, { kind: 'crystal', lane: Math.sin(k / 6 * Math.PI) * 0.8 * side() }); return 3; }
     };
-    /* A new place: its own look, its name, Nova on what's ahead. */
-    const place = this.level.places && this.level.places[n];
-    if (place){
-      PAL.world = { ...this.level.palette.world, ...place.world };
-      this.placeCard = { name: place.name, t: 0 };
-      if (place.say) this.captain.say(place.say[0], place.say[1]);
-    }
+
+    /* ---- the events ---- */
+    const EVENTS = {
+      /* The path squeezing narrow - everyone pushed together into the
+         middle - then bursting open wide, crystals all over. */
+      squeeze: (s) => {
+        add(s - 1, { kind: 'narrow' });
+        ROAD.spans.push({ d0: at(s), d1: at(s + 7), half: NARROW });
+        crystalLine(s + 1, 0, 14);
+        add(s + 7.5, { kind: 'wide' });
+        ROAD.spans.push({ d0: at(s + 8.5), d1: at(s + 16), half: WIDE });
+        for (let k = 0; k < 22; k++) add(s + 9 + k * 0.32, { kind: 'crystal', lane: (Math.random() * 2 - 1) * (WIDE - 0.3) });
+        return 17;
+      },
+      /* A ravine right across the way: they leap it on their own (a hop
+         at the edge, higher), crystals in an arc over it - a gold one at
+         the top, only for the high flyers. */
+      leap: (s) => {
+        const len = plan.big ? RAVINE_BIG : RAVINE, d = at(s);
+        add(s, { kind: 'ravine', len, bonus: new Set() });
+        ROAD.gaps.push({ d, len });
+        const dir = side();
+        for (let k = 0; k < 7; k++){
+          const u = 0.15 + 0.7 * k / 6;
+          this.things.push({ d: d + 0.04 + len * u, kind: 'crystal', lane: dir * (-0.6 + 0.2 * k), alt: LEAP_H * Math.sin(Math.PI * u) * 0.75 });
+        }
+        this.things.push({ d: d + 0.04 + len * 0.5, kind: 'crystal', lane: 0, alt: LEAP_BIG * 0.85, worth: GOLD_CRYSTAL });
+        return secsOf(len) + 2;
+      },
+      /* The zip line: grab on, away over the valley, crystals hanging in
+         snaking lines to swing for. */
+      zip: (s) => {
+        const d = at(s), ride = ZIP_SPEED * RIDE;
+        add(s, { kind: 'zip' });
+        for (let k = 0; k * 0.11 < ride - 0.4; k++){
+          const x = k * 0.11, lane = Math.sin(x * 2.2) * 0.85 * (Math.floor(x / 1.6) % 2 ? -1 : 1);
+          this.things.push({ d: d + 0.5 + x, kind: 'crystal', lane, hang: true });
+        }
+        return secsOf(ride + (ZIP_SPEED + SPEED) / 2 * LAND) + 2;
+      }
+    };
+
     if (n === 0){
       /* Where they start: the crash site, off to the left of the path - the
          ship, a piece of it, the meadow and the woods round it, the
          healing pond by the path. They slide by as the crew set off.
          (CRASH; lkp-intro.js walks them from the pond onto the path.) */
+      ROAD.spans.length = 0; ROAD.gaps.length = 0;
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
       this.things.push({ d: this.z + CRASH.pond[1], kind: 'pond', lane: CRASH.pond[0], r: CRASH.pond[2] });
@@ -325,24 +365,29 @@ class LastKnownPosition {
       blocker(10, 1, 0.8);
       crystalLine(14, 0.4, 5);
       beam(19); crystalLine(20, 0, 4);
-      gap(26); crystalLine(29, -0.4, 5);
-      blocker(32, -1); fountain(36, 0.5);
-      beam(40); gap(43, false); blocker(46);
+      const s = 24 + EVENTS[plan.event || 'squeeze'](24);
+      fountain(s, 0.5); beam(s + 4); blocker(s + 7.5, side(), 0.8);
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
       crystalLine(3, 0, 5); blocker(6);
       let s = 9;
+      const end = (FULL[n] || 45) - 3;
+      /* The event: a little before halfway. */
+      const ev = plan.event && EVENTS[plan.event], evAt = Math.round(end * 0.4);
+      let evDone = !ev;
+      if (!ev) this.seg.corner = { d: at((FULL[n] || 45) * 0.5), dir: side(), at: null };
       /* Springs to run into on the way: SPRINGS in the corridor, more in
          the last one before the boss - off to one side, so it's a lean. */
-      const last = n === FULL.length - 1, end = (FULL[n] || 45) - 3;
+      const last = n === FULL.length - 1;
       const springs = Array.from({ length: last ? SPRINGS + 1 : SPRINGS }, (_, k) => s + 2 + (end - s - 2) * (k + 0.5) / (last ? SPRINGS + 1 : SPRINGS));
-      /* The place's own set pieces, in turn, with single things between. */
-      const pool = (place && place.pieces) || ['slalom', 'duckrun', 'combo', 'boulder'];
+      /* The corridor's own set pieces, in turn, with single things between. */
+      const pool = plan.pieces || ['slalom', 'duckrun', 'logs', 'arc'];
       for (let k = 0; s < end - 2; k++){
+        if (!evDone && s >= evAt){ evDone = true; s += ev(s) + 1; continue; }
         if (springs.length && s >= springs[0]){ fountain(s, side() * (0.4 + Math.random() * 0.3)); springs.shift(); s += 2; continue; }
         if (k % 2 === 0){ s += PIECES[pool[(k / 2) % pool.length]](s) + 1.4 * hard; continue; }
         const r = Math.random();
-        if (r < 0.35) blocker(s, side(), 0.9); else if (r < 0.6) beam(s); else if (r < 0.8) gap(s, false); else gap(s);
+        if (r < 0.45) blocker(s, side(), 0.9); else if (r < 0.8) beam(s); else roller(s);
         s += 2.2 * hard + Math.random();
       }
       for (const at of springs) if (at < end) fountain(at, side() * 0.5);
@@ -397,7 +442,6 @@ class LastKnownPosition {
     this.shake = Math.max(0, this.shake - dt * 3);
     const seg = this.seg;
     seg.t += dt;
-    if (this.placeCard){ this.placeCard.t += dt; if (this.placeCard.t > PLACE_CARD) this.placeCard = null; }
     this.slow = Math.max(0, this.slow - dt);
     /* How fast down the corridor: steady, a dip when someone's hit, and
        stopping at the doors. */
@@ -409,13 +453,23 @@ class LastKnownPosition {
     const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
     this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
     if (seg.kind === 'room') want = this.fight || this.trap || this.treasure ? 0 : SPEED * 0.4;
+    /* A corridor's event: the zip line holds still, then flies; the big
+       jump slows everything while they're in the air. (The corridor waits
+       for it.) */
+    if (seg.kind === 'corridor'){
+      this._events(dt);
+      if (this.zip) want = this.zip.speed(SPEED);
+      else if (this.leap) want = SPEED * LEAP_SLOW;
+      if (this.zip || this.leap) seg.len += dt * (1 - this.speed / SPEED);
+    }
     if (seg.kind === 'boss' || seg.kind === 'depot') want = 0;
     this.speed += (want - this.speed) * Math.min(1, dt * 4);
     const before = this.z;
     this.z += this.speed * dt;
     const jumped = this.jumps.step(dt, pose.players, this.players);
+    if (seg.kind === 'corridor') this._edgeHops(jumped);
     for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
-    if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len) this._next(); }
+    if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len && !this.zip && !this.leap) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
     else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
@@ -433,6 +487,61 @@ class LastKnownPosition {
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d + (th.len || 0) - this.z > -0.15);
     this._stepBits(dt);
+  }
+
+  /* ---------- the corridors' events ---------- */
+
+  _events(dt){
+    /* The zip line: reaching its platform, grab on; when they've landed,
+       on they run. */
+    if (!this.zip){
+      const th = this.things.find(t => t.kind === 'zip' && !t.taken && t.d - this.z <= RUN + 0.14);
+      if (th){ th.taken = true; this.zip = new Zip(this, th); }
+    }
+    if (this.zip){
+      this.zip.step(dt);
+      if (this.zip.done){ this.zip = null; for (const rn of this.crew) rn.pose = null; }
+    }
+    /* The big jump: at the ravine's edge, everyone leaps - over it as the
+       ground goes by - and lands on the far side. */
+    if (!this.leap){
+      const th = this.things.find(t => t.kind === 'ravine' && !t.taken && t.d - this.z <= RUN + 0.01);
+      if (th){ th.taken = true; this.leap = { th, z0: this.z, len: th.len + 0.05 }; sfx.whoosh(); }
+    } else if (this.leapU >= 1){
+      this.leap = null; sfx.thud(); this.shake = Math.min(1, this.shake + 0.35);
+      for (const i of this.here){ const p = P(this.crew[i].x, RUN, 1, 1); this._sparkle(p.x, 0.92, 8, 40); }
+    }
+    /* (the road's narrows and ravines, once they're behind) */
+    ROAD.spans = ROAD.spans.filter(sp => sp.d1 > this.z - 0.3);
+    ROAD.gaps = ROAD.gaps.filter(g => g.d + g.len > this.z - 0.3);
+  }
+  /* How far over the ravine they are, 0..1. */
+  get leapU(){ return this.leap ? Math.min(1, Math.max(0, (this.z - this.leap.z0) / this.leap.len)) : 0; }
+  /* How high off the ground a crystal floats (px at depth scale k): low,
+     high for a hop, over the ravine for the leap, or hanging along the
+     zip line. */
+  _crystalUp(th, H, k){
+    if (th.hang) return (LIFT + CREW_SIZE * 0.55) * H * k;
+    if (th.alt) return H * CREW_SIZE * (th.alt * 0.55 + 0.55) * k;
+    return H * (th.high ? 0.3 : 0.11) * k;
+  }
+  /* Where someone's lane puts them on the road as it is here: squeezed
+     together where it narrows, spread out where it widens. */
+  _lane(x){
+    if (this.seg.kind !== 'corridor') return clamp(x, -1, 1);
+    const f = roadHalf(this.z + RUN) / PATH_HALF;
+    return clamp(x * f, -f, f);
+  }
+  /* A hop just before the ravine's edge: that one flies higher. */
+  _edgeHops(jumped){
+    if (!jumped.length || this.leap) return;
+    const th = this.things.find(t => t.kind === 'ravine' && !t.taken && t.d - this.z - RUN < SPEED * EDGE_HOP && t.d - this.z - RUN > -0.02);
+    if (!th) return;
+    for (const i of jumped) if (!th.bonus.has(i)){
+      th.bonus.add(i); sfx.learnt();
+      const p = P(this.crew[i].x, RUN, 1, 1);
+      this._sparkle(p.x, 0.7, 10, 50);
+    }
   }
 
   /* A hit taken: the screen's edges flash red, and a crunch. */
@@ -595,7 +704,7 @@ class LastKnownPosition {
     /* The running stride: how hard (0..1) and where in it - a footstep at
        each half. Walking in a trap room goes by how much they move. */
     const run = this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
-      : this.fight || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
+      : this.fight || this.zip || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
     rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);
     if (rn.run > 0.05 && rn.air <= 0){
       const was = rn.runPh || 0;
@@ -630,15 +739,24 @@ class LastKnownPosition {
       : this.seg.kind === 'cross' && this.seg.choice != null ? DOORS[this.seg.choice] + this._home(i) * 0.12
       : this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
       : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
-      : clamp(this._home(i) + rn.lean * this.reach, -1, 1);
-    rn.x += (want - rn.x) * Math.min(1, dt * 6);
+      : this.zip && this.zip.riding ? this.zip.want(i, rn.lean)
+      : this._lane(this._home(i) + rn.lean * this.reach);
+    /* (on the zip line, swinging - slower to follow) */
+    rn.x += (want - rn.x) * Math.min(1, dt * (this.zip && this.zip.riding ? 2.5 : 6));
+    if (this.zip && this.zip.on[i]) rn.pose = 'hang';
     if (this.t - rn.lastDuck < UNDUCK) jumped = false;
-    if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
-    if (rn.air > 0 || rn.airV > 0){
-      rn.air += rn.airV * dt; rn.airV -= GRAVITY * dt;
-      if (rn.air <= 0){ rn.air = 0; rn.airV = 0; }
+    if (this.leap){
+      /* over the ravine: a long arc - higher for a hop at the edge */
+      rn.air = (this.leap.th.bonus.has(i) ? LEAP_BIG : LEAP_H) * Math.sin(Math.PI * this.leapU); rn.airV = 0;
+    } else if (this.zip){ rn.air = 0; rn.airV = 0; }
+    else {
+      if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
+      if (rn.air > 0 || rn.airV > 0){
+        rn.air += rn.airV * dt; rn.airV -= GRAVITY * dt;
+        if (rn.air <= 0){ rn.air = 0; rn.airV = 0; }
+      }
     }
-    const ducking = this.duckOf(i, dt);
+    const ducking = !this.zip && this.duckOf(i, dt);
     if (ducking) rn.lastDuck = this.t;
     rn.duck += ((ducking ? 1 : 0) - rn.duck) * Math.min(1, dt * 12);
   }
@@ -669,10 +787,11 @@ class LastKnownPosition {
       for (const i of this.here){
         const rn = this.crew[i];
         if (th.kind === 'crystal'){
-          if (th.got || Math.abs(rn.x - th.lane) > CRYSTAL_REACH || (th.high && rn.air < CLEAR * 2)) continue;
+          if (th.got || Math.abs(rn.x - th.lane) > CRYSTAL_REACH || (th.high && rn.air < CLEAR * 2) || (th.alt && rn.air < th.alt * 0.8)) continue;
           th.got = true;
-          const p = P(th.lane, RUN, W, H), y = (p.y - H * (th.high ? 0.3 : 0.12)) / H;
-          this.gain(1, p.x / W, y);
+          const p = P(th.lane, RUN, W, H), y = (p.y - this._crystalUp(th, H, 1)) / H;
+          this.gain(th.worth || 1, p.x / W, y);
+          if (th.worth > 1) sfx.gold();
           sfx.jar(1 + (this.crystals % 8));
           this._sparkle(p.x / W, y, 6, 185);
           continue;
@@ -820,25 +939,9 @@ class LastKnownPosition {
       return;
     }
     this._drawPlay(c, W, H);
-    if (this.placeCard) this._drawPlace(c, W, H);
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
     if (this.levelup) this.levelup.draw(c, W, H);
     this.captain.draw(c, W, H);
-  }
-
-  /* Arriving somewhere new: in from black, and its name. */
-  _drawPlace(c, W, H){
-    const { t, name } = this.placeCard;
-    if (t < 0.7){ c.fillStyle = `rgba(0,0,0,${1 - t / 0.7})`; c.fillRect(0, 0, W, H); }
-    const a = Math.min(1, Math.max(0, (t - 0.4) / 0.4)) * Math.min(1, Math.max(0, (PLACE_CARD - t) / 0.6));
-    if (a <= 0) return;
-    c.save(); c.globalAlpha = a; c.textAlign = 'center'; c.textBaseline = 'middle';
-    const y = H * 0.3 - (1 - Math.min(1, (t - 0.4) / 0.6)) * H * 0.02;
-    c.font = `600 ${Math.round(H * 0.03)}px Fredoka, sans-serif`; c.lineWidth = H * 0.008; c.strokeStyle = '#05060f';
-    c.strokeText('ENTERING', W / 2, y - H * 0.06); c.fillStyle = '#7ff3ff'; c.fillText('ENTERING', W / 2, y - H * 0.06);
-    c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.lineWidth = H * 0.014;
-    c.strokeText(name.toUpperCase(), W / 2, y); c.fillStyle = '#ffffff'; c.fillText(name.toUpperCase(), W / 2, y);
-    c.restore();
   }
 
   _drawPlay(c, W, H){
@@ -867,6 +970,12 @@ class LastKnownPosition {
     }
     const seg = this.seg;
     this._bend();
+    /* Leaping the ravine: the view tipping to show the drop under them. */
+    if (this.leap) c.translate(0, -H * 0.12 * Math.sin(Math.PI * this.leapU));
+    /* On the zip line: the ground dropping away below (everything on it
+       drawn lower; the crew, and the crystals hanging in the air, not). */
+    const dropY = this.zip ? this.zip.drop * DROP * H : 0;
+    if (dropY){ c.save(); c.translate(0, dropY); SKY.above = H; }
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     /* Springs are part of the floor: under everything, there all the way
@@ -878,6 +987,8 @@ class LastKnownPosition {
     /* the crash site's pond: part of the floor too */
     for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
     for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel < 1 && rel > -0.3) worldPond(c, W, H, th.lane, rel, this.t, PAL.world, th.r); }
+    if (dropY){ c.restore(); SKY.above = 0; }
+    if (this.zip) this.zip.cables(c, W, H);
     const items = [];
     for (const th of this.things) if (!th.got && th.kind !== 'fountain' && th.kind !== 'pond' && th.kind !== 'meadow') items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
@@ -892,7 +1003,14 @@ class LastKnownPosition {
     else for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
-    for (const it of items){ if (it.rel > 1 || it.rel < -0.12) continue; this._drawItem(c, it, W, H); }
+    for (const it of items){
+      if (it.rel > 1 || it.rel < -0.12) continue;
+      const low = dropY && it.kind !== 'crew' && !it.hang;
+      if (low){ c.save(); c.translate(0, dropY); }
+      this._drawItem(c, it, W, H);
+      if (low) c.restore();
+    }
+    if (this.zip) this.zip.marks(c, W, H);
     /* At the fork, still choosing: over each one's head an arrow, in their
        colour, pointing the way they're going. */
     if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02) for (const i of this.here){
@@ -941,7 +1059,14 @@ class LastKnownPosition {
       case 'blocker': drawBlocker(c, W, H, it.rel, it.a, it.b, this.t, it.seed); break;
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
-      case 'crystal': drawCrystal(c, p.x, p.y - H * (it.high ? 0.3 : 0.11) * p.k, H * 0.022 * p.k, this.t + it.d * 9); break;
+      case 'crystal': {
+        const y = it.hang && this.zip && this.zip.riding ? this.zip.lineY(W, H, p.k) + H * 0.1 * p.k : p.y - this._crystalUp(it, H, p.k), s = H * 0.022 * p.k * (it.worth > 1 ? 1.7 : 1);
+        if (it.worth > 1){ glow(c, p.x, y, s * 4, '#ffd24a', 0.8 + 0.2 * Math.sin(this.t * 6)); }
+        drawCrystal(c, p.x, y, s, this.t + it.d * 9);
+        if (it.worth > 1){ c.strokeStyle = '#ffe28a'; c.lineWidth = s * 0.18; c.beginPath(); c.arc(p.x, y, s * 1.5, 0, 6.2832); c.stroke(); }
+        break;
+      }
+      case 'zip': if (!this.zip || !this.zip.riding) worldZipStart(c, W, H, it.rel, PAL.world, this.players); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
@@ -950,7 +1075,7 @@ class LastKnownPosition {
       case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
       case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
-      case 'roller': worldBoulder(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world || {}, (it.rel - RUN) * 30 * it.dir); break;
+      case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
     }
   }
@@ -990,9 +1115,10 @@ class LastKnownPosition {
      view - instead of at their place in the corridor. */
   _drawCrew(c, i, W, H, at = null){
     const rn = this.crew[i], here = pose.players[i].present;
-    const p = at || P(rn.x, RUN, W, H), h = at ? at.h : H * CREW_SIZE;
+    let p = at || P(rn.x, RUN, W, H); const h = at ? at.h : H * CREW_SIZE;
+    if (!at && this.zip) p = { ...p, y: p.y - this.zip.lift(H) };
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: at && at.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!(this.zip && this.zip.riding), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || rn.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -1125,9 +1251,9 @@ class LastKnownPosition {
     }
   }
 
-  /* (Reaching up is the game in the treasure room, and moving any way at
-     all in a trap room: no pausing on both hands up there.) */
-  pausable(){ return !this.treasure && !this.trap; }
+  /* No pausing by gesture: hands up is how you grab the zip line, and
+     reach for the treasure. */
+  pausable(){ return false; }
   hud(){ return { score: pose.players.map(() => this.crystals), showLives: false, hideScore: true, hideClock: true }; }
   /* The tally: what the score's made of - each [picture, count, worth]. */
   tallyLines(){
