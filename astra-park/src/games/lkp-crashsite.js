@@ -193,8 +193,8 @@ export const GROUND = {
 export function drawGround(c, W, H, t, L, extra = []){
   /* the land runs on past the screen's edges, for the camera to swing across */
   c.fillStyle = L.ground[1]; c.fillRect(-W, P(0, 1, W, H).y, W * 3, H * 2);
-  c.fillStyle = L.sky[1]; c.fillRect(-W, -H, W * 3, P(0, 1, W, H).y + H);
-  drawWorld(c, W, H, 0, t, 0, L, true);
+  c.fillStyle = L.sky[0]; c.fillRect(-W, -H * 2, W * 3, P(0, 1, W, H).y + H * 2);
+  drawWorld(c, W, H, 0, t, 0, L, true, H * 2);
   /* (drawWorld's own ground stops at the screen's edges: carry it on) */
   const HY = P(0, 1, W, H).y, gg = c.createLinearGradient(0, HY, 0, H);
   gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);

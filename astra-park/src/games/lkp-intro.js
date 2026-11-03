@@ -16,7 +16,7 @@ import { sfx } from '../audio/sound.js';
 import { MoveWatch, HugWatch } from '../tracking/gestures.js';
 import { P, drawCorridor, drawGloom } from './lkp-art.js';
 import { glow } from './lkp-world.js';
-import { drawAbove, drawGround, ABOVE, GROUND, pondBeauty, healRipple, healNumber } from './lkp-crashsite.js';
+import { drawGround, GROUND, pondBeauty, healRipple, healNumber } from './lkp-crashsite.js';
 import { CRASH } from './lkp-game.js';
 import { Radio, script } from './lkp-captain.js';
 
@@ -25,7 +25,7 @@ import { Radio, script } from './lkp-captain.js';
    than max. */
 export const INTRO_BEATS = [
   { id: 'title', time: 4, shot: 'the game\'s name over the planet' },
-  { id: 'wreck', time: 4, shot: 'high over the forest: the crash site - slow push in, descending on the crew', blocking: 'the crew out cold, scattered in front of the wreck; smoke drifting' },
+  { id: 'wreck', time: 6, shot: 'looking up at the smoke in the sky, tilting slowly down onto the crash site, settling on the first of them, close', blocking: 'the crew out cold in front of the wreck; smoke rising' },
   { id: 'wake', until: 'everyone standing', max: 20, shot: 'cut to the ground: medium wide, a slow dolly across them', blocking: 'each player\'s wiggle wakes theirs - a twitch, sitting up, standing; up, they sway and look round' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'push in a little: medium on the team', blocking: 'a radio pulsing over each head; a hand to the ear answers it - a tick' },
   { id: 'brief', until: 'her lines said', lines: 'brief', shot: 'hold, drifting slowly round them', blocking: 'the team waits; her window top left, her words at the bottom' },
@@ -238,22 +238,41 @@ export class Intro {
   /* The wreck, from high above: pushing in and coming down on the crew,
      out cold in front of it - drifting all the while. */
   _wreck(c, W, H){
-    const u = smooth(this.st / WRECK), [cx, cy] = ABOVE.crew, z = 1 + 0.45 * u;
-    c.fillStyle = '#2f5b46'; c.fillRect(0, 0, W, H);
+    /* The opening shot: looking up at the smoke in the sky, then tilting
+       slowly down onto the clearing - the ship, the others out cold - and
+       settling on the first of them, right in front of us. */
+    const g = this.g, u = smooth(Math.max(0, (this.st - 1) / (WRECK - 1.6))), L = g.level.palette.world;
+    const first = g.here[0];
+    if (!this.pos) this._place();
+    c.fillStyle = L.sky[0]; c.fillRect(0, 0, W, H);
     c.save();
-    c.translate(W / 2, H / 2); c.rotate(Math.sin(this.t * 0.2) * 0.01); c.scale(z, z);
-    /* (towards the crew, but never so far the edge of the view shows) */
-    const ox = Math.max(-(W / 2) * (1 - 1 / z), Math.min((W / 2) * (1 - 1 / z), (cx * W - W / 2) * u)), oy = Math.max(-(H / 2) * (1 - 1 / z), Math.min((H / 2) * (1 - 1 / z), (cy * H - H / 2) * u));
-    c.translate(-(W / 2 + ox) - Math.sin(this.t * 0.3) * W * 0.004, -(H / 2 + oy));
-    drawAbove(c, W, H, this.t, this.g.level.palette.world, this.g.here.length ? this.g.here.map(() => 1) : []);
+    c.translate(W / 2, H / 2); c.rotate(Math.sin(this.t * 0.2) * 0.008); c.scale(1.25, 1.25);
+    c.translate(-W * (0.44 + 0.02 * Math.sin(this.t * 0.3)), -H * (0.02 + 0.5 * u));
+    const others = g.here.filter(i => i !== first).map(i => {
+      const a = this._at(i, W, H);
+      return { rel: a.rel, draw: () => g._drawCrew(c, i, W, H, { x: a.x, y: a.y, h: a.h, bob: 0, down: 1, noBar: true }) };
+    });
+    drawGround(c, W, H, this.t, L, others);
+    /* the smoke, in columns up into the sky */
+    const sx = P(GROUND.ship[0] + 0.6, GROUND.ship[1], W, H).x;
+    for (let k = 0; k < 18; k++){ const a = k / 18; glow(c, sx + W * (Math.sin(a * 5 + this.t * 0.2) * 0.04 + a * 0.12), H * (0.25 - a * 0.95), H * (0.07 + a * 0.18), '#6a6a7e', 0.75 * (1 - a * 0.6)); }
+    this._dizzy(c, W, H, first);
     c.restore();
-    if (this.st < 0.6){ c.fillStyle = `rgba(0,0,0,${1 - this.st / 0.6})`; c.fillRect(0, 0, W, H); }
+    drawGloom(c, W, H);
+    /* the first of them, close, rising into the bottom of the frame as we
+       tilt down - soft, still coming round */
+    if (first != null){
+      const y = H * (0.94 + 0.8 * (1 - u)), x = W * 0.3, h = H * 0.42;
+      g._drawCrew(c, first, W, H, { x, y, h, bob: 0, down: 1, noBar: true });
+      for (let j = 0; j < 3; j++){ const a = this.t * 2.5 + j * 2.09; star(c, x + h * 0.42 + Math.cos(a) * h * 0.16, y - h * 0.3 + Math.sin(a) * h * 0.04, h * 0.03, '#ffe066'); }
+    }
+    if (this.st < 0.8){ c.fillStyle = `rgba(0,0,0,${1 - this.st / 0.8})`; c.fillRect(0, 0, W, H); }
   }
 
   /* Dizzy: stars round the helmet of anyone not up yet. */
-  _dizzy(c, W, H){
+  _dizzy(c, W, H, skip = null){
     for (const i of this.g.here){
-      const k = this.up[i]; if (k >= 1) continue;
+      const k = this.up[i]; if (k >= 1 || i === skip) continue;
       const a = this._at(i, W, H), lie = 1 - easeOut(k);
       const hx = a.x + a.h * 0.45 * lie, hy = a.y - a.h * (1.05 - 0.6 * lie);
       for (let j = 0; j < 3; j++){

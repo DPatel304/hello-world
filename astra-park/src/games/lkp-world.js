@@ -164,7 +164,7 @@ function panorama(W, H, L){
    path, the trees. z is how far along the crew are; alarm tints it red. */
 /* bare: just the sky, the land and the grass - no path, no trees (a
    scene that places its own: the crash site, lkp-crashsite.js). */
-export function drawWorld(c, W, H, z, t, alarm, L, bare = false){
+export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = 0){
   /* Turns swing the view round, easing. */
   const dt = VIEW.lastT == null ? 0 : Math.min(0.1, Math.max(0, t - VIEW.lastT)); VIEW.lastT = t;
   VIEW.heading += (VIEW.target - VIEW.heading) * Math.min(1, dt * 2.5);
@@ -176,6 +176,17 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false){
     const off = ((VIEW.heading + BEND.curve * 0.04) % 1 + 1) % 1 * pano.w;
     c.drawImage(pano.cv, -off, 0, pano.w, pano.h);
     if (pano.w - off < W) c.drawImage(pano.cv, pano.w - off, 0, pano.w, pano.h);
+    /* A camera looking up sees more sky: a row near the top (the very
+       top is blurred thin), stretched on up. */
+    if (above > 0){
+      c.drawImage(pano.cv, 0, 10, pano.w, 1, -off, -above, pano.w, above + 10);
+      if (pano.w - off < W) c.drawImage(pano.cv, 0, 10, pano.w, 1, pano.w - off, -above, pano.w, above + 10);
+      /* deepening to the top of the sky's colour, gently, so there's no edge */
+      const top = Math.min(above, H * 0.35), sg = c.createLinearGradient(0, -top, 0, H * 0.06);
+      sg.addColorStop(0, rgba(L.sky[0], 1)); sg.addColorStop(0.45, rgba(L.sky[0], 0.45)); sg.addColorStop(0.8, rgba(L.sky[0], 0.1)); sg.addColorStop(1, rgba(L.sky[0], 0));
+      c.fillStyle = L.sky[0]; c.fillRect(0, -above, W, above - top);
+      c.fillStyle = sg; c.fillRect(0, -top, W, top + H * 0.06);
+    }
   } else { c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, HY); }
   /* The ground. */
   const gg = c.createLinearGradient(0, HY, 0, H);
