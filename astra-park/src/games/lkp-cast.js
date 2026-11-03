@@ -2,8 +2,8 @@
    world look (lkp-world.js); the greybox (lkp-art.js) draws them
    otherwise. All lit from the left, like everything else.
 
-     crew     off-white spacesuits trimmed in each player's colour, their
-              own face in a glass helmet
+     crew     sleek suits all in each player's colour, seen from behind -
+              glowing trim at the joints, a pack outlined in light
      beasts   the planet's wildlife: round fluffy puffballs with big amber
               eyes and a glowing flower on top - grumpy, not scary
      robots   gunmetal, on one wheel, a dark visor with one red eye
@@ -12,123 +12,120 @@ import { glow, mix, rgba } from './lkp-world.js';
 
 const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); c.fill(); };
 const INK = '#1a1830';
+/* mix, as #rrggbb (for glow, which wants hex) */
+const hexMix = (a, b, k) => '#' + mix(a, b, k).slice(4, -1).split(',').map(v => (+v).toString(16).padStart(2, '0')).join('');
 
 /* ---------- the crew ---------- */
 
-/* A crew member in their spacesuit, h tall, feet at (x, base). Same st and
-   face as lkp-art.js drawCrew. pose: 'reach' (an arm up) or 'hug' (arms
-   crossed), else arms at their sides. */
+/* A crew member, h tall, feet at (x, base), seen from behind as they run
+   into the world: a sleek suit all in their own colour - darker panel
+   lines, a glowing trim at the elbows, knees and ankles, a small pack on
+   the back outlined in light, a rounded helmet with an antenna. Same st as
+   lkp-art.js drawCrew (and st.run, st.runPh: the stride). pose: 'reach'
+   (an arm up), 'hug' (arms wrapped round themselves), 'stretch' (no arms -
+   someone else draws them), else at their sides - or pumping, running. */
 export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
-  const u = h / 300, f = 1 - (st.duck || 0) * 0.45;
-  c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, base, 85 * u, 18 * u, 0, 0, 6.2832); c.fill();
-  c.save();
-  /* Running (st.run 0..1, st.runPh the stride's phase): knees pumping
-     high, the body bouncing, arms swinging against the legs. */
+  const u = h / 330, f = 1 - (st.duck || 0) * 0.4;
   const run = st.run || 0, ph = st.runPh || 0;
-  const bounce = run * Math.abs(Math.sin(ph)) * 12 * u;
-  /* In healing water: a soft blue glow round them. */
-  if (st.heal > 0) glow(c, x, base - st.air - 150 * u, 210 * u, '#5fe3ff', 0.7 * st.heal);
+  const lite = mix(col, '#ffffff', 0.28), dark = mix(col, '#0a0f2a', 0.38), deep = mix(col, '#05081a', 0.55), line = mix(col, '#05081a', 0.62);
+  const gl = hexMix(col, '#ffffff', 0.62);
+  c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, base, 70 * u, 15 * u, 0, 0, 6.2832); c.fill();
   /* a puff of dust kicked up behind each foot as it pushes off */
   if (run > 0.2 && !st.air) for (const d of [-1, 1]){
     const k = (((ph + (d < 0 ? Math.PI : 0)) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / Math.PI;
     if (k > 1) continue;
-    c.fillStyle = `rgba(225,215,235,${0.45 * (1 - k) * run})`;
-    circ(c, x + d * (30 + 30 * k) * u, base - (6 + 22 * k) * u, (10 + 22 * k) * u);
+    c.fillStyle = `rgba(225,215,235,${0.4 * (1 - k) * run})`;
+    circ(c, x + d * (24 + 26 * k) * u, base - (6 + 20 * k) * u, (9 + 20 * k) * u);
   }
-  c.translate(x, base - st.air - bounce); c.rotate(st.lean * 0.2 + run * Math.sin(ph) * 0.05);
-  /* Down (lying on the floor) - or, a number 0..1, part of the way: getting up. */
+  if (st.heal > 0) glow(c, x, base - st.air - 160 * u, 200 * u, '#5fe3ff', 0.7 * st.heal);
+  const bounce = run * Math.abs(Math.sin(ph)) * 10 * u;
+  c.save();
+  c.translate(x, base - st.air - bounce); c.rotate(st.lean * 0.2 + run * Math.sin(ph) * 0.04);
   const dn = st.down === true ? 1 : +st.down || 0;
-  if (dn > 0){ c.translate(h * 0.4 * dn, -h * 0.16 * dn); c.rotate(-Math.PI / 2 * dn); if (st.down === true) c.globalAlpha = 0.6; }
+  if (dn > 0){ c.translate(h * 0.42 * dn, -h * 0.14 * dn); c.rotate(-Math.PI / 2 * dn); if (st.down === true) c.globalAlpha = 0.6; }
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
-  const trim = col, trimD = mix(col, '#101030', 0.35);
-  const suit = (x0, x1) => { const g = c.createLinearGradient(x0 * u, 0, x1 * u, 0); g.addColorStop(0, '#f6ecd9'); g.addColorStop(0.5, '#ddd0b6'); g.addColorStop(1, '#8f8270'); return g; };
-  /* The body, squashed down when they duck. */
-  c.save(); c.scale(1, f);
-  /* backpack behind */
-  c.fillStyle = '#6f7598'; c.beginPath(); c.roundRect(-82 * u, -175 * u, 164 * u, 105 * u, 26 * u); c.fill();
-  c.fillStyle = '#9aa0c2'; c.beginPath(); c.roundRect(-82 * u, -175 * u, 30 * u, 105 * u, 14 * u); c.fill();
-  /* legs and boots: standing, a little shuffle; running, each knee
-     driving up in turn - seen from behind, the leg shortens and the boot
-     lifts, its sole showing. */
-  for (const d of [-1, 1]){
-    const lift = run * Math.max(0, Math.sin(ph + (d < 0 ? 0 : Math.PI))), shuffle = run ? 0 : Math.sin(t * 9) * 4 * u * d;
-    const top = -78 * u, len = (66 - 44 * lift) * u, y0 = top + shuffle - lift * 14 * u;
-    c.fillStyle = suit(d * 30 - 26, d * 30 + 26); c.beginPath(); c.roundRect((d * 30 - 26) * u, y0, 52 * u, len, 18 * u); c.fill();
-    c.fillStyle = trim; c.fillRect((d * 30 - 26) * u, y0 + 20 * u, 52 * u, 12 * u);
-    const by = y0 + len - 12 * u;
-    c.fillStyle = lift > 0.25 ? '#2b2e45' : d < 0 ? '#5b607f' : '#3d4160';
-    c.beginPath(); c.roundRect((d * 32 - 30) * u, by, 60 * u, (24 + 6 * lift) * u, 10 * u); c.fill();
-  }
-  /* arms at their sides (unless posed) */
-  for (const d of [-1, 1]){
-    if (pose === 'hug' || pose === 'stretch' || (pose === 'reach' && d < 0)) continue;
-    /* Running, tucked: elbows bent and held in close, the upper arm out
-       of sight behind the body - just the forearm and fist pumping up and
-       down beside the waist, against the legs, like a sprinter's. */
-    if (run > 0.3){
-      const pump = Math.sin(ph + (d < 0 ? Math.PI : 0));
-      const fx = d * 80 * u, fy = (-98 - 30 * pump) * u;
-      c.lineCap = 'round';
-      for (const [w, sc] of [[38, '#5a5040'], [30, '#ddd0b6']]){ c.strokeStyle = sc; c.lineWidth = w * u; c.beginPath(); c.moveTo(d * 60 * u, -150 * u); c.lineTo(fx, fy); c.stroke(); }
-      c.fillStyle = trim; circ(c, d * 72 * u + (fx - d * 72 * u) * 0.5, -124 * u + (fy + 124 * u) * 0.5, 6 * u);
-      c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, fx, fy, 18 * u);
-      continue;
-    }
-    /* swinging against the legs as they run */
-    const sw = run * Math.sin(ph + (d < 0 ? Math.PI : 0)) * 18 * u;
-    c.fillStyle = suit(d * 82 - 22, d * 82 + 22); c.beginPath(); c.roundRect((d * 82 - 22) * u, -168 * u - Math.max(0, sw), 44 * u, 100 * u - Math.abs(sw) * 0.6, 20 * u); c.fill();
-    c.fillStyle = trim; c.fillRect((d * 82 - 22) * u, -108 * u - sw * 0.8, 44 * u, 10 * u);
-    c.fillStyle = d < 0 ? '#5b607f' : '#3d4160'; circ(c, d * 82 * u, -62 * u - sw * 1.3, 20 * u);
-  }
-  /* torso, belt, chest panel, straps */
-  c.fillStyle = suit(-64, 64); c.beginPath(); c.roundRect(-64 * u, -178 * u, 128 * u, 118 * u, 34 * u); c.fill();
-  c.strokeStyle = 'rgba(90,75,55,.35)'; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(-40 * u, -176 * u); c.quadraticCurveTo(-48 * u, -120 * u, -40 * u, -84 * u); c.moveTo(40 * u, -176 * u); c.quadraticCurveTo(48 * u, -120 * u, 40 * u, -84 * u); c.stroke();
-  c.fillStyle = 'rgba(70,75,105,.55)'; c.beginPath(); c.roundRect(-60 * u, -172 * u, 12 * u, 92 * u, 5 * u); c.roundRect(48 * u, -172 * u, 12 * u, 92 * u, 5 * u); c.fill();
-  c.fillStyle = '#4a4f72'; c.fillRect(-64 * u, -82 * u, 128 * u, 16 * u); c.fillStyle = '#c9cde3'; c.beginPath(); c.roundRect(-12 * u, -84 * u, 24 * u, 20 * u, 5 * u); c.fill();
-  c.fillStyle = trimD; c.beginPath(); c.roundRect(-32 * u, -150 * u, 64 * u, 46 * u, 12 * u); c.fill();
-  c.fillStyle = trim; c.beginPath(); c.roundRect(-28 * u, -146 * u, 56 * u, 38 * u, 10 * u); c.fill();
-  c.fillStyle = '#ffffff'; for (let k = 0; k < 3; k++){ c.globalAlpha *= (0.9 - k * 0.25); circ(c, (-14 + k * 14) * u, -127 * u, 5 * u); c.globalAlpha /= (0.9 - k * 0.25); }
-  for (const d of [-1, 1]){ c.fillStyle = trim; c.beginPath(); c.ellipse(d * 68 * u, -168 * u, 30 * u, 14 * u, d * 0.25, 0, 6.2832); c.fill(); }
-  /* posed arms, copying the player's own */
-  const limb = (pts, lit) => {
-    c.lineCap = 'round'; c.lineJoin = 'round';
-    for (const [w, sc] of [[50, '#5a5040'], [40, lit ? '#f3e7cf' : '#c9b99c']]){ c.strokeStyle = sc; c.lineWidth = w * u; c.beginPath(); pts.forEach(([a, b], i) => (i ? c.lineTo(a * u, b * u) : c.moveTo(a * u, b * u))); c.stroke(); }
-    const [hx, hy] = pts[pts.length - 1]; c.fillStyle = '#4b5070'; circ(c, hx * u, hy * u, 22 * u);
+  c.scale(1, f);
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  /* a limb: a dark edge, its colour, lit down one side */
+  const limb = (pts, w, side = -1) => {
+    for (const [lw, sc] of [[w + 6 * u, line], [w, col]]){ c.strokeStyle = sc; c.lineWidth = lw; c.beginPath(); pts.forEach(([a, b], k) => (k ? c.lineTo(a, b) : c.moveTo(a, b))); c.stroke(); }
+    c.strokeStyle = 'rgba(255,255,255,.16)'; c.lineWidth = w * 0.35;
+    c.beginPath(); pts.forEach(([a, b], k) => (k ? c.lineTo(a + side * w * 0.22, b) : c.moveTo(a + side * w * 0.22, b))); c.stroke();
   };
-  if (pose === 'reach') limb([[-66, -160], [-120, -245], [-105, -345]], true);
-  if (pose === 'hug'){ limb([[-74, -165], [-50, -112], [52, -160]], true); limb([[74, -165], [50, -120], [-52, -166]], false); }
-  /* rim light from the sun */
-  c.strokeStyle = 'rgba(255,215,180,.85)'; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(-64 * u, -150 * u); c.lineTo(-64 * u, -95 * u); c.stroke();
-  /* collar ring */
-  c.fillStyle = trimD; c.beginPath(); c.ellipse(0, -176 * u, 70 * u, 20 * u, 0, 0, 6.2832); c.fill();
-  c.fillStyle = trim; c.beginPath(); c.ellipse(0, -180 * u, 64 * u, 16 * u, 0, 0, 6.2832); c.fill();
-  c.restore();
-  /* The helmet, on top whatever they're doing, with their face in it. */
-  const r = 82 * u, hy = -163 * u * f - r;
-  if (st.photo) face(0, hy, r);
-  else {
-    c.save(); c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.clip();
-    c.fillStyle = '#cfe6f5'; c.fillRect(-r, hy - r, r * 2, r * 2);
-    face(0, hy, r);
-    c.restore();
+  const trim = (x0, y0, w) => { glow(c, x0, y0, w * 1.4, gl, 0.5); c.strokeStyle = gl; c.lineWidth = 4 * u; c.beginPath(); c.ellipse(x0, y0, w * 0.55, w * 0.18, 0, 0, Math.PI); c.stroke(); };
+  /* legs: running, one planted, the other's heel kicking up behind -
+     its sole towards us */
+  for (const d of [-1, 1]){
+    const lift = run * Math.max(0, Math.sin(ph + (d < 0 ? 0 : Math.PI)));
+    const hip = [d * 22 * u, -128 * u], knee = [d * 25 * u, (-68 - 26 * lift) * u], foot = [d * (23 + 4 * lift) * u, (-12 - 78 * lift) * u];
+    limb([hip, knee], 31 * u); limb([knee, foot], 25 * u);
+    trim(knee[0], knee[1] + 4 * u, 30 * u);
+    /* the boot: heel down, or its sole up at us */
+    c.fillStyle = lift > 0.3 ? deep : dark;
+    c.beginPath(); c.ellipse(foot[0], foot[1] + (lift > 0.3 ? 0 : 4 * u), (17 + 4 * lift) * u, (11 + 9 * lift) * u, 0, 0, 6.2832); c.fill();
+    if (lift <= 0.3){ c.strokeStyle = gl; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(foot[0] - 15 * u, foot[1] - 6 * u); c.lineTo(foot[0] + 15 * u, foot[1] - 6 * u); c.stroke(); }
   }
-  /* glass: a soft inner shadow, a sky reflection, a sharp highlight; the rim */
-  const ig = c.createRadialGradient(-10 * u, hy - 10 * u, r * 0.5, 0, hy, r); ig.addColorStop(0, 'rgba(0,0,0,0)'); ig.addColorStop(0.8, 'rgba(10,20,50,.05)'); ig.addColorStop(1, 'rgba(10,20,50,.35)');
-  c.fillStyle = ig; circ(c, 0, hy, r);
-  const rg = c.createLinearGradient(-60 * u, hy - 75 * u, 20 * u, hy + 15 * u); rg.addColorStop(0, 'rgba(200,230,255,.45)'); rg.addColorStop(1, 'rgba(200,230,255,0)');
-  c.fillStyle = rg; c.beginPath(); c.ellipse(-20 * u, hy - 35 * u, 56 * u, 32 * u, -0.5, 0, 6.2832); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.75)'; c.beginPath(); c.ellipse(-42 * u, hy - 51 * u, 14 * u, 6 * u, -0.7, 0, 6.2832); c.fill();
-  c.strokeStyle = trim; c.lineWidth = 7 * u; circ0(c, 0, hy, r); c.stroke();
-  c.strokeStyle = 'rgba(255,215,180,.8)'; c.lineWidth = 4 * u; c.beginPath(); c.arc(0, hy, r + 6 * u, Math.PI * 0.8, Math.PI * 1.35); c.stroke();
-  /* antenna on the pack */
-  c.strokeStyle = '#6f7598'; c.lineWidth = 4 * u; c.beginPath(); c.moveTo(70 * u, -175 * u * f); c.lineTo(92 * u, (-175 * f - 55) * u); c.stroke(); c.fillStyle = trim; circ(c, 92 * u, (-175 * f - 57) * u, 6 * u);
-  if (st.lost){ c.setLineDash?.([6, 6]); c.strokeStyle = '#ffffff'; c.lineWidth = 3; circ0(c, 0, hy, r * 1.25); c.stroke(); c.setLineDash?.([]); }
-  if (st.hit > 0){ c.globalAlpha = st.hit * 0.55; c.fillStyle = '#ff3b3b'; circ(c, 0, hy, r * 1.15); c.fillRect(-70 * u, -178 * u * f, 140 * u, 178 * u * f); }
-  /* In healing water: glowing blue, the way a hit is red. */
-  if (st.heal > 0 && !(st.hit > 0.3)) glow(c, 0, -150 * u, 170 * u, '#8ff0ff', 0.35 * st.heal);
+  /* the body: a V from the shoulders to the waist, panel lines down it */
+  const tg = c.createLinearGradient(-52 * u, 0, 52 * u, 0); tg.addColorStop(0, lite); tg.addColorStop(0.45, col); tg.addColorStop(1, dark);
+  c.fillStyle = tg;
+  c.beginPath(); c.moveTo(-50 * u, -232 * u); c.quadraticCurveTo(0, -242 * u, 50 * u, -232 * u); c.lineTo(36 * u, -170 * u); c.lineTo(32 * u, -122 * u); c.quadraticCurveTo(0, -112 * u, -32 * u, -122 * u); c.lineTo(-36 * u, -170 * u); c.closePath(); c.fill();
+  c.strokeStyle = line; c.lineWidth = 3 * u; c.stroke();
+  c.lineWidth = 2.5 * u; c.beginPath();
+  c.moveTo(0, -165 * u); c.lineTo(0, -120 * u);
+  c.moveTo(-32 * u, -150 * u); c.lineTo(-10 * u, -160 * u); c.moveTo(32 * u, -150 * u); c.lineTo(10 * u, -160 * u);
+  c.moveTo(-28 * u, -128 * u); c.quadraticCurveTo(0, -140 * u, 28 * u, -128 * u);
+  c.stroke();
+  /* arms: at their sides; pumping, elbows bent, when they run */
+  if (pose !== 'stretch') for (const d of [-1, 1]){
+    const sh = [d * 46 * u, -222 * u];
+    if (pose === 'hug'){ limb([sh, [d * 62 * u, -188 * u], [d * 30 * u, -178 * u]], 26 * u, d); trim(d * 62 * u, -186 * u, 22 * u); continue; }
+    if (pose === 'reach' && d < 0){ limb([sh, [-62 * u, -270 * u], [-56 * u, -322 * u]], 26 * u); c.fillStyle = dark; circ(c, -56 * u, -326 * u, 15 * u); continue; }
+    const p = run * Math.sin(ph + (d < 0 ? Math.PI : 0));
+    const elbow = run > 0.2 ? [d * (66 + 8 * p) * u, (-176 + 12 * p) * u] : [d * 60 * u, -172 * u];
+    const fist = run > 0.2 ? [d * (64 - 10 * p) * u, (-146 - 34 * p) * u] : [d * 62 * u, -128 * u];
+    limb([sh, elbow], 22 * u, d); limb([elbow, fist], 19 * u, d);
+    trim(elbow[0], elbow[1], 22 * u);
+    c.fillStyle = dark; circ(c, fist[0], fist[1], 12 * u);
+    c.fillStyle = col; circ(c, fist[0] - d * 2.5 * u, fist[1] - 2.5 * u, 7 * u);
+  }
+  /* the pack, outlined in light, straps over the shoulders */
+  c.strokeStyle = line; c.lineWidth = 7 * u; c.beginPath(); c.moveTo(-26 * u, -226 * u); c.lineTo(-40 * u, -232 * u); c.moveTo(26 * u, -226 * u); c.lineTo(40 * u, -232 * u); c.stroke();
+  glow(c, 0, -200 * u, 56 * u, gl, 0.35);
+  c.fillStyle = dark; c.beginPath(); c.roundRect(-24 * u, -228 * u, 48 * u, 54 * u, 12 * u); c.fill();
+  c.fillStyle = col; c.beginPath(); c.roundRect(-19 * u, -223 * u, 38 * u, 44 * u, 9 * u); c.fill();
+  c.strokeStyle = gl; c.lineWidth = 3 * u; c.beginPath(); c.roundRect(-21.5 * u, -225.5 * u, 43 * u, 49 * u, 10 * u); c.stroke();
+  c.strokeStyle = line; c.lineWidth = 2.5 * u; c.beginPath();
+  for (const k of [-7, 0, 7]){ c.moveTo((k - 2.5) * u, -186 * u); c.lineTo((k + 2.5) * u, -186 * u); }
+  c.moveTo(-11 * u, -214 * u); c.lineTo(0, -208 * u); c.lineTo(11 * u, -214 * u);
+  c.stroke();
+  c.restore();
+  /* the helmet, on top whatever they're doing: rounded, the back of it
+     panelled, an antenna with a glowing tip */
+  c.save();
+  c.translate(x, base - st.air - bounce); c.rotate(st.lean * 0.2 + run * Math.sin(ph) * 0.04);
+  if (dn > 0){ c.translate(h * 0.42 * dn, -h * 0.14 * dn); c.rotate(-Math.PI / 2 * dn); if (st.down === true) c.globalAlpha = 0.6; }
+  if (st.lost) c.globalAlpha = 0.35;
+  else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
+  const hy = -238 * u * f - 40 * u, r = 44 * u;
+  c.fillStyle = deep; c.beginPath(); c.ellipse(0, -238 * u * f, 26 * u, 10 * u, 0, 0, 6.2832); c.fill();
+  const hg = c.createRadialGradient(-16 * u, hy - 18 * u, 4 * u, 0, hy, r); hg.addColorStop(0, lite); hg.addColorStop(0.6, col); hg.addColorStop(1, dark);
+  c.fillStyle = hg; circ(c, 0, hy, r);
+  c.strokeStyle = line; c.lineWidth = 3 * u; c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.stroke();
+  /* the back panel and its seams */
+  c.fillStyle = dark; c.beginPath(); c.moveTo(-26 * u, hy + 30 * u); c.quadraticCurveTo(-30 * u, hy + 4 * u, -14 * u, hy - 4 * u); c.lineTo(14 * u, hy - 4 * u); c.quadraticCurveTo(30 * u, hy + 4 * u, 26 * u, hy + 30 * u); c.quadraticCurveTo(0, hy + 40 * u, -26 * u, hy + 30 * u); c.fill();
+  c.strokeStyle = line; c.lineWidth = 2.5 * u; c.beginPath(); c.moveTo(-r * 0.6, hy - r * 0.55); c.quadraticCurveTo(0, hy - r * 0.8, r * 0.6, hy - r * 0.55); c.moveTo(0, hy - r); c.lineTo(0, hy - r * 0.62); c.stroke();
+  c.fillStyle = line; for (const k of [-6, 0, 6]) c.fillRect((k - 2) * u, hy + 16 * u, 4 * u, 8 * u);
+  /* the antenna */
+  c.strokeStyle = dark; c.lineWidth = 4 * u; c.beginPath(); c.moveTo(r * 0.72, hy - r * 0.5); c.lineTo(r * 0.82, hy - r * 1.45); c.stroke();
+  glow(c, r * 0.82, hy - r * 1.48, 14 * u, gl, 0.9); c.fillStyle = gl; circ(c, r * 0.82, hy - r * 1.48, 3.5 * u);
+  if (st.lost){ c.setLineDash?.([6, 6]); c.strokeStyle = '#ffffff'; c.lineWidth = 3; circ0(c, 0, hy, r * 1.3); c.stroke(); c.setLineDash?.([]); }
+  /* hit: a red flash over them; in healing water: a soft blue glow */
+  if (st.hit > 0) glow(c, 0, -170 * u, 190 * u, '#ff3b3b', st.hit * 0.8);
+  if (st.heal > 0 && !(st.hit > 0.3)) glow(c, 0, -170 * u, 160 * u, '#8ff0ff', 0.35 * st.heal);
   c.restore();
 }
+
 const circ0 = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); };
 
 /* ---------- the beasts ---------- */
