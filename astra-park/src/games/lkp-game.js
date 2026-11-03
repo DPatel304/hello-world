@@ -7,6 +7,7 @@ import { JumpWatch } from '../tracking/jump.js';
 import { turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch } from '../tracking/gestures.js';
+import { drawGuide, stepGuide } from './lkp-guide.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
@@ -409,6 +410,7 @@ class LastKnownPosition {
 
   step(dt, W, H){
     this.t += dt;
+    stepGuide(this, dt);
     this.faces.step(dt);
     this.captain.step(dt);
     /* A scene: nothing else moves till it's done. */
@@ -973,7 +975,7 @@ class LastKnownPosition {
     /* The scenes: the opening, the ending, each its own picture; the
        others over the play, darkened. */
     const sc = this.scene || (this.out && this.out.scene);
-    if (sc && sc.kind === 'intro'){ sc.draw(c, W, H); return; }
+    if (sc && sc.kind === 'intro'){ sc.draw(c, W, H); drawGuide(c, W, H, this); return; }
     if (sc && (sc.kind === 'opening' || sc.kind === 'won' || sc.kind === 'lost')){
       if (sc.kind === 'opening') drawOpening(c, W, H, sc.t);
       else drawEnding(c, W, H, this.out.t, sc.kind === 'won');
@@ -984,6 +986,8 @@ class LastKnownPosition {
     this._drawPlay(c, W, H);
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
     if (this.levelup) this.levelup.draw(c, W, H);
+    /* the little man showing the move to make */
+    drawGuide(c, W, H, this);
     this.captain.draw(c, W, H);
   }
 

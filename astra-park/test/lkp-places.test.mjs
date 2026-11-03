@@ -203,3 +203,22 @@ test('a rolling log hits whoever is where it crosses, and nobody else', () => {
   assert.ok(inst.crew[0].hp < hp[0], 'hit');
   assert.equal(inst.crew[1].hp, hp[1], 'missed');
 });
+
+test('the move guide shows the move to make, as it comes up', async () => {
+  const { guideMove, drawGuide } = await import('../src/games/lkp-guide.js');
+  story.on = false; crew(2);
+  const inst = game.create(2); quiet(inst);
+  inst.scene = null;
+  inst.things = [{ kind: 'beam', d: inst.z + RUN + 0.2 }];
+  assert.equal(guideMove(inst), 'duck');
+  inst.things = [];
+  assert.equal(guideMove(inst), null);
+  inst.crew[1].bubble = { t: 0, claps: 0 };
+  assert.equal(guideMove(inst), 'clap');
+  inst.crew[1].bubble = null;
+  const z = toZip(2);
+  assert.equal(guideMove(z), 'handsup');
+  for (let k = 0; k < 20; k++) z.step(DT, W, H);
+  assert.ok(z._guide.a > 0.9);
+  drawGuide(fake(), W, H, z);
+});
