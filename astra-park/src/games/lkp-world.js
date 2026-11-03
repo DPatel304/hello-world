@@ -65,21 +65,28 @@ const canvasOf = (w, h) => {
 function panorama(W, H, L){
   const key = `${W}x${H}:${L.key}`;
   if (PANO.key === key) return PANO;
-  const PW = Math.round(W * 2.5), HY = HORIZON * H, PH = Math.round(HY + H * 0.08);
-  const cv = canvasOf(PW, PH);
-  Object.assign(PANO, { key, cv, w: PW, h: PH });
+  /* (PT: headroom over the top of the view, so the clouds aren't cut off
+     when a camera looks up) */
+  const PW = Math.round(W * 2.5), HY = HORIZON * H, PT = Math.round(H * 0.16), PH = Math.round(HY + H * 0.08);
+  const cv = canvasOf(PW, PH + PT);
+  Object.assign(PANO, { key, cv, w: PW, h: PH + PT, top: null, pt: PT });
   if (!cv) return PANO;
   const c = cv.getContext('2d');
+  c.translate(0, PT);
   /* Sky. */
   const g = c.createLinearGradient(0, 0, 0, HY);
   L.sky.forEach((col, i) => g.addColorStop(i / (L.sky.length - 1), col));
-  c.fillStyle = g; c.fillRect(0, 0, PW, PH);
+  c.fillStyle = g; c.fillRect(0, -PT, PW, PH + PT);
   /* The sun, and its glow. */
   const sx = PW * 0.12, sy = HY * 0.42;
   const sg = c.createRadialGradient(sx, sy, 0, sx, sy, H * 0.75);
   sg.addColorStop(0, rgba(L.sun, 1)); sg.addColorStop(0.07, rgba(L.sun, 0.9)); sg.addColorStop(0.35, rgba(L.sun, 0.28)); sg.addColorStop(1, rgba(L.sun, 0));
-  for (const dx of [0, PW]){ c.save(); c.translate(dx, 0); c.fillStyle = sg; c.fillRect(sx - H, 0, H * 2, PH); c.restore(); }
+  for (const dx of [0, PW]){ c.save(); c.translate(dx, 0); c.fillStyle = sg; c.fillRect(sx - H, -PT, H * 2, PH + PT); c.restore(); }
   c.fillStyle = '#fff8e8'; for (const dx of [0, PW]) circ(c, sx + dx, sy, H * 0.03);
+  /* (the sky's top row, before the clouds and the blur: the sky above it,
+     for a camera looking up) */
+  PANO.top = canvasOf(PW, 1);  /* (row 0: the top of the headroom) */
+  if (PANO.top) PANO.top.getContext('2d').drawImage(cv, 0, 0, PW, 1, 0, 0, PW, 1);
   /* The ringed planet, lit from the left. */
   const px = PW * 0.62, py = HY * 0.4, pr = H * 0.1;
   c.save(); c.globalAlpha = L.planetAlpha;
@@ -152,8 +159,9 @@ function panorama(W, H, L){
   c.fillStyle = hg; c.fillRect(0, HY - H * 0.12, PW, PH);
   /* Soft focus: the distance a little blurred. */
   try {
-    const cp = canvasOf(PW, PH);
-    if (cp && 'filter' in c){ cp.getContext('2d').drawImage(cv, 0, 0); c.clearRect(0, 0, PW, PH); c.filter = 'blur(3px)'; c.drawImage(cp, 0, 0); c.filter = 'none'; }
+    const cp = canvasOf(PW, PH + PT);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    if (cp && 'filter' in c){ cp.getContext('2d').drawImage(cv, 0, 0); c.clearRect(0, 0, PW, PH + PT); c.filter = 'blur(3px)'; for (const dx of [-PW, 0, PW]) c.drawImage(cp, dx, 0); c.filter = 'none'; }
   } catch (e){ /* no blur: fine */ }
   return PANO;
 }
@@ -165,8 +173,12 @@ function panorama(W, H, L){
 /* bare: just the sky, the land and the grass - no path, no trees (a
    scene that places its own: the crash site, lkp-crashsite.js). */
 /* How far above the screen's top the sky goes on - for a camera looking
-   up (the opening) - and up there into space. */
-export const SKY = { above: 0 };
+   up (the opening) - and up there into space; and how far the world goes
+   on past the screen's left edge (the opening's crash site, over there). */
+export const SKY = { above: 0, wide: 0 };
+/* Places along the way kept clear of the trees by the path: { lane, d
+   (how far along), r } - the crash site's pond. */
+export const CLEAR = [];
 export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.above){
   /* Turns swing the view round, easing. */
   const dt = VIEW.lastT == null ? 0 : Math.min(0.1, Math.max(0, t - VIEW.lastT)); VIEW.lastT = t;
@@ -177,28 +189,27 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   if (pano.cv){
     /* The curves drift the view a little too. */
     const off = ((VIEW.heading + BEND.curve * 0.04) % 1 + 1) % 1 * pano.w;
-    c.drawImage(pano.cv, -off, 0, pano.w, pano.h);
-    if (pano.w - off < W) c.drawImage(pano.cv, pano.w - off, 0, pano.w, pano.h);
-    /* A camera looking up sees more sky: a row near the top (the very
-       top is blurred thin), stretched on up. */
+    /* (round the strip, as far as the view goes) */
+    const copies = [-off]; if (pano.w - off < W) copies.push(pano.w - off); if (SKY.wide > off) copies.push(-off - pano.w);
+    for (const dx of copies) c.drawImage(pano.cv, dx, -pano.pt, pano.w + 1, pano.h);
+    /* A camera looking up sees more sky: its top row, stretched on up. */
     if (above > 0){
-      c.drawImage(pano.cv, 0, 10, pano.w, 1, -off, -above, pano.w, above + 10);
-      if (pano.w - off < W) c.drawImage(pano.cv, 0, 10, pano.w, 1, pano.w - off, -above, pano.w, above + 10);
+      if (PANO.top) for (const dx of copies) c.drawImage(PANO.top, dx, -above, pano.w + 1, Math.max(1, above - pano.pt + 10));
       /* deepening to the top of the sky's colour, gently, so there's no edge */
       const top = Math.min(above, H * 0.35), sg = c.createLinearGradient(0, -top, 0, H * 0.06);
       sg.addColorStop(0, rgba(L.sky[0], 1)); sg.addColorStop(0.45, rgba(L.sky[0], 0.45)); sg.addColorStop(0.8, rgba(L.sky[0], 0.1)); sg.addColorStop(1, rgba(L.sky[0], 0));
       if (above > top){
         const sp = c.createLinearGradient(0, -top, 0, -Math.max(above, H * 2));
         sp.addColorStop(0, L.sky[0]); sp.addColorStop(0.3, '#22408a'); sp.addColorStop(0.6, '#0d1636'); sp.addColorStop(1, '#04060f');
-        c.fillStyle = above > H ? sp : L.sky[0]; c.fillRect(0, -above, W, above - top);
+        c.fillStyle = above > H ? sp : L.sky[0]; c.fillRect(-SKY.wide, -above, W + SKY.wide, above - top);
       }
-      c.fillStyle = sg; c.fillRect(0, -top, W, top + H * 0.06);
+      c.fillStyle = sg; c.fillRect(-SKY.wide, -top, W + SKY.wide, top + H * 0.06);
     }
   } else { c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, HY); }
   /* The ground. */
   const gg = c.createLinearGradient(0, HY, 0, H);
   gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
-  c.fillStyle = gg; c.fillRect(0, HY + H * 0.005, W, H - HY);
+  c.fillStyle = gg; c.fillRect(-SKY.wide, HY + H * 0.005, W + SKY.wide, H - HY);
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
   /* The path. */
@@ -208,7 +219,7 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   /* The far end fades into the haze. */
   const fh = c.createLinearGradient(0, HY - H * 0.07, 0, HY + H * 0.08);
   fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75)); fh.addColorStop(1, rgba(L.haze, 0));
-  c.fillStyle = fh; c.fillRect(0, HY - H * 0.07, W, H * 0.15);
+  c.fillStyle = fh; c.fillRect(-SKY.wide, HY - H * 0.07, W + SKY.wide, H * 0.15);
   if (alarm > 0){ c.fillStyle = `rgba(255,60,60,${0.06 * alarm})`; c.fillRect(0, 0, W, H); }
 }
 
@@ -314,7 +325,11 @@ function trees(c, W, H, z, L){
   const SPAN = 1.4, N = 12, list = [];
   for (let n = 0; n < N; n++){
     const rel = along(n, SPAN, N, z); if (rel == null || rel < -0.06) continue;
-    for (const side of [-1, 1]) list.push({ rel, lane: side * (1.8 + hash(n * 2 + (side > 0 ? 1 : 0)) * 1.6), n, side });
+    for (const side of [-1, 1]){
+      const lane = side * (1.8 + hash(n * 2 + (side > 0 ? 1 : 0)) * 1.6);
+      if (CLEAR.some(q => Math.abs(lane - q.lane) < q.r + 0.9 && Math.abs(rel + z - q.d) < q.r * 0.3 + 0.12)) continue;
+      list.push({ rel, lane, n, side });
+    }
   }
   list.sort((a, b) => b.rel - a.rel);
   for (const tr of list) tree(c, W, H, tr.lane, tr.rel, L, tr.n);
@@ -322,7 +337,7 @@ function trees(c, W, H, z, L){
 
 export function tree(c, W, H, lane, rel, L, n = 0){
   const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.85 + hash(n + 300) * 0.4), haze = Math.min(0.7, Math.max(0, rel) * 0.9);
-  if (p.x < -200 * s * 3 || p.x > W + 200 * s * 3) return;
+  if (p.x < -200 * s * 3 - SKY.wide || p.x > W + 200 * s * 3) return;
   cast(c, p.x, p.y, 26 * s, 380 * s);
   c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(p.x, p.y, 70 * s, 16 * s, 0, 0, 6.2832); c.fill();
   c.fillStyle = mix(L.trunk[0], L.haze, haze); c.fillRect(p.x - 9 * s, p.y - 160 * s, 18 * s, 160 * s);

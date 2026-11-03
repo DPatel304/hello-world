@@ -226,7 +226,7 @@ test('the first corridor teaches one thing at a time: debris, then a bulkhead, t
   assert.ok(firsts[0] < firsts[1] && firsts[1] < firsts[2]);
   /* Nothing to dodge in the first few seconds (fewer, squeezed into a
      playtest's shorter corridor). */
-  const early = inst.things.filter(th => !['crystal', 'ship', 'wreck', 'pond'].includes(th.kind) && th.d < inst.z + RUN + SPEED * 6 * CORRIDOR[0] / 50 + 0.9);
+  const early = inst.things.filter(th => !['crystal', 'ship', 'wreck', 'pond', 'meadow', 'tree'].includes(th.kind) && th.d < inst.z + RUN + SPEED * 6 * CORRIDOR[0] / 50 + 0.9);
   assert.equal(early.length, 0);
 });
 

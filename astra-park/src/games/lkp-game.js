@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { turn, resetView } from './lkp-world.js';
+import { turn, resetView, tree, CLEAR as CLEARINGS } from './lkp-world.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
@@ -14,7 +14,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { worldPond, SITE } from './lkp-crashsite.js';
+import { worldPond, worldMeadow, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -280,13 +280,17 @@ class LastKnownPosition {
     };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
     if (n === 0){
-      /* Where they start: the crash site - the ship down off to the left
-         with a piece of it beside it, the healing pond on the right. They
-         slide by as the crew set off. (CRASH, lkp-intro.js walks them from
-         the pond onto the path.) */
+      /* Where they start: the crash site, off to the left of the path - the
+         ship, a piece of it, the meadow and the woods round it, the
+         healing pond by the path. They slide by as the crew set off.
+         (CRASH; lkp-intro.js walks them from the pond onto the path.) */
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
       this.things.push({ d: this.z + CRASH.pond[1], kind: 'pond', lane: CRASH.pond[0], r: CRASH.pond[2] });
+      this.things.push({ d: this.z, kind: 'meadow', len: 0.7 });
+      CRASH.trees.forEach(([lane, rel], n) => this.things.push({ d: this.z + rel, kind: 'tree', lane, n: n + 70 }));
+      /* (no trees by the path in the pond) */
+      CLEARINGS.length = 0; CLEARINGS.push({ lane: CRASH.pond[0], d: this.z + CRASH.pond[1], r: CRASH.pond[2] });
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
       crystalLine(14, 0.4, 5);
@@ -829,9 +833,10 @@ class LastKnownPosition {
       if (rel < 1 && rel + len > -0.12) drawFountain(c, W, H, rel, th.lane, this.t, len);
     }
     /* the crash site's pond: part of the floor too */
+    for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
     for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel < 1 && rel > -0.3) worldPond(c, W, H, th.lane, rel, this.t, PAL.world, th.r); }
     const items = [];
-    for (const th of this.things) if (!th.got && th.kind !== 'fountain' && th.kind !== 'pond') items.push({ ...th, rel: th.d - this.z });
+    for (const th of this.things) if (!th.got && th.kind !== 'fountain' && th.kind !== 'pond' && th.kind !== 'meadow') items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
     if (this.fight) for (const b of this.fight.bots) if (!b.part) items.push({ kind: 'bot', rel: b.d, lane: b.x, b });
     if (this.boss) this.boss.items(items);
@@ -902,6 +907,7 @@ class LastKnownPosition {
       case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
       case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
+      case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
     }
   }
 

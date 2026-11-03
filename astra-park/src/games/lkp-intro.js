@@ -38,13 +38,14 @@ export const INTRO_BEATS = [
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const WRECK = BEAT.wreck.time;
 /* The shots: the game's own view, looking at (cx, cy) - in screens - s
-   times closer. space: way up above the site; site: the crew out cold,
-   the ship behind them; pond: the pond, the path's edge on the left;
-   play: the game's own view. */
+   times closer - off past the left of the game's own view, where the
+   crash site is (SKY.wide). space: way up above the site; site: the crew
+   out cold, the ship behind them; pond: the pond, the path's edge on the
+   right; play: the game's own view. */
 const SHOT = {
-  space: { cx: 0.36, cy: -2.3, s: 1.7 },
-  site: { cx: 0.3, cy: 0.57, s: 1.7 },
-  pond: { cx: 0.6875, cy: 0.62, s: 1.6 },
+  space: { cx: 0.02, cy: -2.3, s: 1.7 },
+  site: { cx: -0.31, cy: 0.6, s: 1.75 },
+  pond: { cx: 0.0, cy: 0.62, s: 1.6 },
   play: { cx: 0.5, cy: 0.5, s: 1 }
 };
 /* The opening: in from black over FADE_IN, holding on the stars for
@@ -128,7 +129,7 @@ export class Intro {
   /* Their place in the water, round its middle. */
   _slot(i){
     const here = this.g.here, k = Math.max(0, here.indexOf(i)), n = here.length;
-    return [SITE.pond[0] + (k - (n - 1) / 2) * SITE.spread, SITE.pond[1] + [0, 0.03, -0.02, 0.04][k % 4]];
+    return [SITE.pond[0] - 0.06 + (k - (n - 1) / 2) * SITE.spread, SITE.pond[1] + [0, 0.02, -0.015, 0.025][k % 4]];
   }
   _at(i, W, H){
     if (!this.pos) this._place();
@@ -171,14 +172,14 @@ export class Intro {
       const twitch = this.woke[i] > 0 && this.up[i] < 0.2 ? Math.sin(this.t * 30) * 0.01 : 0;
       return { i, lane: this.pos[i][0], rel: this.pos[i][1], dx: twitch, down: 1 - easeOut(this.up[i]), noBar: !healing, pose: this.hugging[i] ? 'hug' : null };
     });
-    g.inIntro = true; SKY.above = H * 2.8;
+    g.inIntro = true; SKY.above = H * 2.8; SKY.wide = W * 1.3;
     g.introDraw = (c2) => this._world(c2, W, H);
     c.save();
     c.translate(W / 2, H / 2); c.scale(cam.s, cam.s); c.translate(-cam.cx, -cam.cy);
     g._drawPlay(c, W, H);
     this._marks(c, W, H);
     c.restore();
-    g.introDraw = null; g.introCrew = null; g.inIntro = false; SKY.above = 0;
+    g.introDraw = null; g.introCrew = null; g.inIntro = false; SKY.above = 0; SKY.wide = 0;
     g.crew.forEach((rn, i) => { [rn.run, rn.runPh, rn.lean, rn.heal] = keep[i]; });
     /* letterboxed till they set off */
     this._bars(c, W, H, s === 'go' ? 1 - smooth(this.st / 0.8) : 1);
@@ -206,16 +207,18 @@ export class Intro {
         c.fillStyle = `rgba(255,255,255,${Math.max(0, a)})`; circ(c, hash(n + 2) * W, y, H * (0.0012 + hash(n + 4) * 0.0022));
       }
       /* the way the ship came down: a long trail out of space, drifting apart */
+      const ship = P(SITE.ship[0], SITE.ship[1], W, H).x;
       for (let k = 0; k < 60; k++){
-        const u = k / 59, x = W * (0.2 + 0.42 * u) + Math.sin(u * 9 + t * 0.15) * W * 0.012 * u, y = -H * (0.55 + 2.6 * u);
+        const u = k / 59, x = ship + W * (0.05 + 0.42 * u) + Math.sin(u * 9 + t * 0.15) * W * 0.012 * u, y = -H * (0.55 + 2.6 * u);
         glow(c, x, y, H * (0.035 + 0.07 * u), u > 0.8 ? '#e0a27a' : '#a4a8bf', 0.7 * (1 - u * 0.55));
       }
     }
     /* the smoke off the ship, on up into the sky */
     if (s === 'wreck'){
-      for (const [ox, seed] of [[0.15, 0], [0.29, 5]]){
+      const ship = P(SITE.ship[0], SITE.ship[1], W, H).x;
+      for (const [ox, seed] of [[0.035, 0], [0.17, 5]]){
         for (let k = 0; k < 22; k++){
-          const u = k / 21, x = W * (ox + 0.08 * u * u) + Math.sin(u * 5 + t * 0.25 + seed) * W * 0.02, y = H * (0.08 - 1.3 * u);
+          const u = k / 21, x = ship + W * (ox + 0.08 * u * u) + Math.sin(u * 5 + t * 0.25 + seed) * W * 0.02, y = H * (0.08 - 1.3 * u);
           glow(c, x, y, H * (0.07 + 0.14 * u), '#5e5f72', 0.9 * (1 - u * 0.9));
         }
       }
