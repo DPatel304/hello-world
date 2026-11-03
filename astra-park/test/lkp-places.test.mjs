@@ -103,16 +103,53 @@ test('the zip line counts them in without stopping; hands up in time, on the cab
   crew(3);
 });
 
-test('anyone who never puts their hands up is scooped onto the end of the chain', () => {
+/* A clap, with the mouse's two hands: apart, then together. */
+function clap(inst, i){
+  const p = pose.players[i];
+  p.hands.left = { x: 0.2, y: 0.5, vx: 0, vy: 0, speed: 0 }; p.hands.right = { x: 0.8, y: 0.5, vx: 0, vy: 0, speed: 0 };
+  for (let k = 0; k < 4; k++) inst.step(DT, W, H);
+  p.hands.left = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 0 }; p.hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 0 };
+  for (let k = 0; k < 4; k++) inst.step(DT, W, H);
+}
+
+test('miss the zip line and you float along in a bubble, getting nothing - till your teammates clap it popped', () => {
   const inst = toZip(2);
   up(0);
   for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
   up(0, false);
   for (let k = 0; k < (LATE + 0.2) / DT; k++) inst.step(DT, W, H);
   assert.deepEqual(inst.zip.cable, [0]);
-  assert.deepEqual(inst.zip.chain, [1]);
+  assert.deepEqual(inst.zip.chain, []);
+  assert.ok(inst.crew[1].bubble, 'in a bubble');
   assert.ok(!inst.over);
+  /* clapping on the line does nothing; once they've landed, it pops */
+  clap(inst, 0);
+  assert.equal(inst.crew[1].bubble.claps, 0);
+  for (let k = 0; k < 4000 && inst.zip; k++) inst.step(DT, W, H);
+  assert.ok(inst.crew[1].bubble, 'still in it');
+  inst.draw(fake(), W, H);
+  /* nothing for a bubble: not a crystal right in their path */
+  const got = inst.crystals;
+  inst.things.push({ kind: 'crystal', d: inst.z + RUN + 0.02, lane: inst.crew[1].x });
+  for (let k = 0; k < 10; k++) inst.step(DT, W, H);
+  assert.equal(inst.crystals, got);
+  /* standing by them (squeeze them together), clapping */
+  inst.leanOf = (i) => i === 0 ? 1 : -1;
+  for (let k = 0; k < 40; k++) inst.step(DT, W, H);
+  for (let n = 0; n < 6 && inst.crew[1].bubble; n++) clap(inst, 0);
+  assert.equal(inst.crew[1].bubble, null, 'popped');
+  assert.ok(inst.crew[1].hp >= inst.crew[1].max * 0.5);
   crew(2);
+});
+
+test('a bubble nobody pops pops by itself at the fork', () => {
+  story.on = false; crew(2);
+  const inst = game.create(2); quiet(inst);
+  corridor(inst, 1);
+  inst.crew[1].bubble = { t: 0, claps: 0 };
+  for (let k = 0; k < 6000 && inst.seg.kind === 'corridor'; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  assert.equal(inst.seg.kind, 'cross');
+  assert.equal(inst.crew[1].bubble, null);
 });
 
 test('nobody up in time, but one jumps late: they catch the cable, and everyone else hangs on below', () => {

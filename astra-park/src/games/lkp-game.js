@@ -6,6 +6,7 @@ import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
+import { ClapWatch } from '../tracking/gestures.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
@@ -87,6 +88,9 @@ export const ROLLER = 0.24, ROLL = 3.2;
 /* The path squeezing: how wide (lanes either side) at its narrowest and
    its widest. */
 export const NARROW = 0.55, WIDE = 2.1;
+/* In a rescue bubble (missed the zip line): claps from teammates close by
+   to pop it, how close (lanes), and the health they're back on. */
+export const BUBBLE_CLAPS = 4, BUBBLE_R = 0.6, BUBBLE_HP = 0.5;
 /* The big jump: how deep the ravine (depths; a wider one before the
    boss), how high they fly over it (and with a hop at the edge), how
    slow it all goes while they're in the air, how long before the edge a
@@ -195,7 +199,8 @@ class LastKnownPosition {
     this.scene = story.on ? new Intro(this) : null;
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
-    this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null }));
+    this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null, bubble: null }));
+    this.clapWatch = pose.players.map(() => new ClapWatch());
     this.things = [];
     this.bits = [];
     this.guide = 0;                 /* whose crown breaks a tied vote */
@@ -218,6 +223,8 @@ class LastKnownPosition {
     this.step_++;
     const plan = this.level.plan, kind = plan[this.step_] || 'end';
     this.seg = { kind, t: 0 };
+    /* (any rescue bubbles still up pop at the fork) */
+    if (kind !== 'corridor') for (const i of this.here) if (this.crew[i].bubble) this._pop(i);
     this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null;
     if (kind === 'corridor'){
       const n = plan.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
@@ -462,6 +469,7 @@ class LastKnownPosition {
        for it.) */
     if (seg.kind === 'corridor'){
       this._events(dt, W, H);
+      this._bubbles(dt, W, H);
       if (this.zip) want = this.zip.speed(SPEED);
       else if (this.leap) want = SPEED * LEAP_SLOW;
       if (this.zip || this.leap) seg.len += dt * (1 - this.speed / SPEED);
@@ -518,6 +526,30 @@ class LastKnownPosition {
     /* (the road's narrows and ravines, once they're behind) */
     ROAD.spans = ROAD.spans.filter(sp => sp.d1 > this.z - 0.3);
     ROAD.gaps = ROAD.gaps.filter(g => g.d + g.len > this.z - 0.3);
+  }
+  /* Rescue bubbles: teammates close by clapping pop them - once they're
+     on their feet again, not hanging off the zip line. */
+  _bubbles(dt, W, H){
+    const riding = !!(this.zip && this.zip.riding);
+    for (const i of this.here){
+      const clap = this.clapWatch[i].step(pose.players[i], dt);
+      const rn = this.crew[i];
+      if (rn.bubble) rn.bubble.t += dt;
+      if (!clap || riding || rn.bubble || rn.down) continue;
+      for (const j of this.here){
+        const b = this.crew[j].bubble;
+        if (!b || Math.abs(this.crew[j].x - rn.x) > BUBBLE_R) continue;
+        b.claps++; sfx.pop(1 + b.claps * 0.1);
+        const p = P(this.crew[j].x, RUN, W, H); this._sparkle(p.x / W, (p.y - H * 0.3) / H, 4, 190);
+        if (b.claps >= BUBBLE_CLAPS) this._pop(j, W, H);
+      }
+    }
+  }
+  _pop(i, W = 1920, H = 1080){
+    const rn = this.crew[i];
+    rn.bubble = null; rn.hp = Math.max(rn.hp, Math.round(rn.max * BUBBLE_HP)); rn.safe = 1;
+    const p = P(rn.x, RUN, W, H); this._sparkle(p.x / W, (p.y - H * 0.25) / H, 16, 190);
+    sfx.pop(1.4); sfx.twinkle();
   }
   /* How far over the ravine they are, 0..1. */
   get leapU(){ return this.leap ? Math.min(1, Math.max(0, (this.z - this.leap.z0) / this.leap.len)) : 0; }
@@ -657,6 +689,13 @@ class LastKnownPosition {
         if (!rn.down) rn.told = false;
       }
     }
+    for (const i of this.here){
+      const rn = this.crew[i];
+      if (rn.bubble && !rn.bubble.told && !(this.zip && this.zip.riding)){
+        rn.bubble.told = true;
+        if (!cap.say(`${NAMES[i]} missed it! Stand next to their bubble and clap to pop it!`, 'CLAP TO POP!', { once: 'bubble' })) cap.say(`Pop ${NAMES[i]}'s bubble!`, 'CLAP!');
+      }
+    }
     if (this.treasure && !seg.told){ seg.told = true; cap.say('Treasure! Grab all the crystals you can, with your hands!', 'GRAB THE CRYSTALS!'); }
     if (this.treasure && this.treasure.pool > 0 && !seg.toldPool){ seg.toldPool = true; cap.say('Healing water! Hug yourselves to heal faster!', 'HUG TO HEAL!'); }
     const tr = this.trap;
@@ -707,7 +746,7 @@ class LastKnownPosition {
     /* The running stride: how hard (0..1) and where in it - a footstep at
        each half. Walking in a trap room goes by how much they move. */
     const run = this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
-      : this.fight || (this.zip && this.zip.holding(i)) || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
+      : this.fight || rn.bubble || (this.zip && this.zip.holding(i)) || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
     rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);
     if (rn.run > 0.05 && rn.air <= 0){
       const was = rn.runPh || 0;
@@ -758,7 +797,8 @@ class LastKnownPosition {
         if (rn.air <= 0){ rn.air = 0; rn.airV = 0; }
       }
     }
-    const ducking = !holding && this.duckOf(i, dt);
+    if (rn.bubble){ rn.air = 0; rn.airV = 0; }
+    const ducking = !holding && !rn.bubble && this.duckOf(i, dt);
     if (ducking) rn.lastDuck = this.t;
     rn.duck += ((ducking ? 1 : 0) - rn.duck) * Math.min(1, dt * 12);
   }
@@ -774,7 +814,7 @@ class LastKnownPosition {
         if (b <= a) continue;
         for (const i of this.here){
           const rn = this.crew[i];
-          if (Math.abs(rn.x - th.lane) > FOUNTAIN_REACH) continue;
+          if (rn.bubble || Math.abs(rn.x - th.lane) > FOUNTAIN_REACH) continue;
           if (!th.used.has(i)){ th.used.add(i); sfx.twinkle(); }
           rn.heal = 1;
           if (rn.hp < rn.max){
@@ -789,7 +829,7 @@ class LastKnownPosition {
       for (const i of this.here){
         const rn = this.crew[i];
         if (th.kind === 'crystal'){
-          if (th.hang) continue;     /* (along the zip line: lkp-zip.js) */
+          if (th.hang || rn.bubble) continue;     /* (along the zip line: lkp-zip.js; and none for a bubble) */
           if (th.got || Math.abs(rn.x - th.lane) > CRYSTAL_REACH || (th.high && rn.air < CLEAR * 2) || (th.alt && rn.air < th.alt * 0.8)) continue;
           th.got = true;
           const p = P(th.lane, RUN, W, H), y = (p.y - this._crystalUp(th, H, 1)) / H;
@@ -799,7 +839,7 @@ class LastKnownPosition {
           this._sparkle(p.x / W, y, 6, 185);
           continue;
         }
-        if (rn.safe > 0) continue;
+        if (rn.safe > 0 || rn.bubble) continue;
         let hit = false;
         if (th.kind === 'beam') hit = rn.duck < DUCKED && this.t - rn.lastDuck > 0.25;
         else if (th.kind === 'gap' || th.kind === 'ledge') hit = rn.x > th.a - BODY * 0.5 && rn.x < th.b + BODY * 0.5 && rn.air < CLEAR;
@@ -1125,13 +1165,31 @@ class LastKnownPosition {
   _drawCrew(c, i, W, H, at = null){
     const rn = this.crew[i], here = pose.players[i].present;
     let p = at || P(rn.x, RUN, W, H); const h = at ? at.h : H * CREW_SIZE;
-    if (!at && this.zip) p = { ...p, y: p.y + this.zip.fallY(H) };
+    if (!at && this.zip) p = { ...p, y: p.y + this.zip.fallY(H, i) };
+    /* in a bubble: floating along - up with the riders while they're on the line */
+    const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
+    if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || rn.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || rn.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
       });
+    /* The rescue bubble round them, and how many claps it's had. */
+    if (bub){
+      const cx = p.x, cy = p.y - h * 0.5, r = h * 0.66;
+      glow(c, cx, cy, r * 1.3, '#bff4ff', 0.25);
+      c.save();
+      c.fillStyle = 'rgba(190,240,255,.16)'; c.beginPath(); c.arc(cx, cy, r, 0, 6.2832); c.fill();
+      c.strokeStyle = 'rgba(225,250,255,.85)'; c.lineWidth = Math.max(2, h * 0.02); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = Math.max(2, h * 0.03); c.lineCap = 'round';
+      c.beginPath(); c.arc(cx, cy, r * 0.78, Math.PI * 1.1, Math.PI * 1.45); c.stroke();
+      for (let k = 0; k < BUBBLE_CLAPS; k++){
+        const a = Math.PI * 0.5 + (k - (BUBBLE_CLAPS - 1) / 2) * 0.28, x = cx + Math.cos(a) * r * 1.12, y = cy + Math.sin(a) * r * 1.12;
+        c.fillStyle = k < rn.bubble.claps ? '#ffd24a' : 'rgba(5,6,15,.5)'; c.beginPath(); c.arc(x, y, h * 0.03, 0, 6.2832); c.fill();
+      }
+      c.restore();
+    }
     /* Hitting out: a ring bursting along the floor, as far as they reach. */
     if (this.fight && rn.swing > 0){
       const m = arms(rn).melee, l = P(rn.x - m.reach, RUN, W, H), r = P(rn.x + m.reach, RUN, W, H);

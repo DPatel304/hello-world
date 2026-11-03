@@ -5,9 +5,11 @@
    other in the order they put their hands up (the quickest at the front).
    Anyone late has LATE seconds to throw their hands up and jump for it:
    they catch the feet of whoever's last, and dangle - more of them, a
-   chain, feet holding feet. Anyone who never does is scooped onto the end
-   of the chain anyway... unless nobody at all catches the cable: then
-   they run off the edge, and that's the end of the run.
+   chain, feet holding feet. Anyone who never does falls - and floats back
+   up in a rescue bubble (lkp-game.js: no crystals for them till their
+   teammates clap it popped, or it pops at the next fork)... and if nobody
+   at all catches the cable, they all run off the edge, and that's the
+   end of the run.
 
    Riding, RIDE seconds out over the valley, the forest far below: leaning
    swings your own body under the cable (the ones dangling swing wider,
@@ -23,6 +25,8 @@ import { glow } from './lkp-world.js';
    long hands have to be up to count, the ride, the landing, and running
    off the edge. */
 export const COUNT = 3, LATE = 1.5, HOLD = 0.25, RIDE = 8, LAND = 1.2, FALL = 1.6;
+/* Missing it: falling this long, then floating back up in the bubble. */
+const BUBBLE_UP = 1.1;
 /* How fast along riding (depths a second); how far the ground drops away
    below (screens). (Running, it's the game's own SPEED, RUNNING.) */
 export const ZIP_SPEED = 0.55, DROP = 0.3;
@@ -54,6 +58,7 @@ export class Zip {
     this.swing = pose.players.map(() => ({ a: 0, v: 0 }));
     this.since = 0;               /* since GRAB */
     this.rideT = 0; this.landT = 0; this.fallT = 0;
+    this.fell = new Map();        /* missed it: when they fell */
     this.lastZ = game.z; this.lastLeft = this.left;
   }
 
@@ -147,8 +152,10 @@ export class Zip {
       if (this.cable.length) this.phase = 'ride';
       else if (this.since >= LATE){ this.phase = 'fall'; sfx.whoosh(); }
     }
-    /* the rest scooped up onto the end */
-    if (this.phase === 'ride' && this.since >= LATE) for (const i of g.here) if (!this.holding(i)) this._on(i, 'chain');
+    /* the rest: missed it - down they go, into a rescue bubble */
+    if (this.phase === 'ride' && this.since >= LATE) for (const i of g.here) if (!this.holding(i) && !this.fell.has(i)){
+      this.fell.set(i, this.t); g.crew[i].bubble = { t: 0, claps: 0 }; sfx.whoosh();
+    }
     if (this.phase === 'ride'){
       this.rideT += dt; this._swing(dt);
       if (this.rideT >= RIDE) this.phase = 'land';
@@ -238,8 +245,16 @@ export class Zip {
     }
   }
 
-  /* How far down someone's fallen, running off the edge. */
-  fallY(H){ return this.phase === 'fall' ? H * 1.4 * Math.pow(Math.min(1, this.fallT / FALL), 2) : 0; }
+  /* How far down someone's fallen, running off the edge - everyone, or
+     one who missed it (who then comes back up, in a bubble). */
+  fallY(H, i = -1){
+    if (this.phase === 'fall') return H * 1.4 * Math.pow(Math.min(1, this.fallT / FALL), 2);
+    if (!this.fell.has(i)) return 0;
+    const t = this.t - this.fell.get(i);
+    return t < BUBBLE_UP ? H * 1.4 * Math.pow(t / BUBBLE_UP, 2) : H * 1.4 * (1 - smooth((t - BUBBLE_UP) / 1.2));
+  }
+  /* Their bubble showing yet? (Once they've dropped out of sight.) */
+  bubbled(i){ return !this.fell.has(i) || this.t - this.fell.get(i) >= BUBBLE_UP; }
 
   /* The count in, and who's ready; then, for anyone late, jump! */
   marks(c, W, H){
