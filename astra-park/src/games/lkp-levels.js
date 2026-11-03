@@ -52,15 +52,17 @@ export const LEVELS = [
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
     lines: {
-      opening: [
-        ['nova', 'Crew, do you read me? This is Commander Nova. Good - you\'re all up.', ''],
-        ['nova', 'We came down hard. The ship\'s in one piece, but the hatch is jammed and I\'m hurt. I\'m stuck in here.', '']
+      /* The opening (lkp-intro.js): her briefing once they've answered,
+         at the pond, and sending them off. */
+      brief: [
+        ['nova', 'ksssh \u2014 Mayday, mayday. This is Commander Nova, survey vessel Meridian. If anyone\'s alive down there, pick up.', ''],
+        ['nova', 'There you are. Okay, listen \u2014 the Meridian went down in the storm. You\'re on an uncharted planet. No survey data, no maps. We know nothing about what\'s down there with you.', ''],
+        ['nova', 'The ship\'s a wreck \u2014 engine\'s dead, hull\'s breached. I can\'t get you out until that engine\'s running again.', ''],
+        ['nova', 'Wait \u2014 my short-range scan\'s picking up something. A pool, about fifty meters east of you. The water\'s throwing off an energy signature I\'ve never seen. Might be nothing. Might save your lives. Get over there and check it out \u2014 carefully.', '']
       ],
-      /* Carried on over the radio as they set off. */
-      briefing: [
-        ['nova', 'The engine\'s missing a piece - it must have been thrown out as we came down. My scans say there\'s one in an old depot, through this forest.', 'FIND THE ENGINE PIECE'],
-        ['nova', 'Stay on the path and stick together. I\'ll be on the radio the whole way.', 'GO!']
-      ],
+      pondIn: [['nova', 'Your vitals are climbing \u2014 it\'s working! The water\'s healing you. Everyone in \u2014 don\'t move until you\'re at full strength.', '']],
+      pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
+      go: [['nova', 'Vitals green across the board. Alright \u2014 the engine piece tore loose in the crash. It\'s out there in the forest somewhere, and without it, nobody\'s leaving this planet. Start moving. Nova out.', '']],
       depot: [
         ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
       ],

@@ -178,24 +178,31 @@ export function drawAbove(c, W, H, t, L, crew = [1, 1, 1, 1]){
 
 /* ---------- on the ground ---------- */
 
-/* Where things are, on the ground [lane, depth (rel), size]. The ship's
-   off to the right, beyond the crew; a piece of it beside it; the pond
-   close by on the left. */
+/* Where things are, on the ground [lane, depth (rel), size]. The ship
+   down behind the crew; a piece of it thrown clear beside it; the pond off
+   to the east - the right - out of the first shots, found by a whip pan. */
 export const GROUND = {
-  ship: [1.1, 0.42, 1.25],
-  wreck: [3.0, 0.34, 1.1],
-  pond: [-1.6, 0.23, 0.5]
+  ship: [-0.6, 0.45, 1.25],
+  wreck: [1.4, 0.4, 1.1],
+  pond: [2.7, 0.12, 0.6]
 };
 
 /* The land at their level - sky, grass and flowers all over, no path -
    and the things in it, far to near: trees all round, the ship, the
    wreck. extra: more things to stand in it ({ rel, draw }). */
 export function drawGround(c, W, H, t, L, extra = []){
+  /* the land runs on past the screen's edges, for the camera to swing across */
+  c.fillStyle = L.ground[1]; c.fillRect(-W, P(0, 1, W, H).y, W * 3, H * 2);
+  c.fillStyle = L.sky[1]; c.fillRect(-W, -H, W * 3, P(0, 1, W, H).y + H);
   drawWorld(c, W, H, 0, t, 0, L, true);
+  /* (drawWorld's own ground stops at the screen's edges: carry it on) */
+  const HY = P(0, 1, W, H).y, gg = c.createLinearGradient(0, HY, 0, H);
+  gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
+  c.fillStyle = gg; c.fillRect(W, HY + H * 0.005, W, H * 1.5); c.fillRect(-W, HY + H * 0.005, W, H * 1.5);
   /* grass and flowers everywhere, not just at the sides */
-  for (let n = 0; n < 260; n++){
-    const rel = -0.05 + Math.pow(hash(n + 1200), 1.4) * 0.9, lane = (hash(n + 1201) * 2 - 1) * 3.4, p = P(lane, rel, W, H);
-    if (p.x < -40 || p.x > W + 40) continue;
+  for (let n = 0; n < 340; n++){
+    const rel = -0.05 + Math.pow(hash(n + 1200), 1.4) * 0.9, lane = (hash(n + 1201) * 2 - 1) * 4.5, p = P(lane, rel, W, H);
+    if (p.x < -W * 0.5 || p.x > W * 1.8) continue;
     const h = H * (0.014 + hash(n + 1202) * 0.024) * p.k;
     c.strokeStyle = rgba(L.grass[n % 2], 0.6 + 0.35 * Math.min(1, p.k)); c.lineWidth = Math.max(1, H * 0.003 * p.k);
     c.beginPath();
@@ -217,7 +224,8 @@ export function drawGround(c, W, H, t, L, extra = []){
   }
   for (let n = 0; n < 30; n++){
     const side = n % 2 ? 1 : -1, rel = 0.02 + hash(n + 1400) * 0.55, lane = side * (2.5 + hash(n + 1401) * 3.5);
-    if (side > 0 && Math.abs(rel - GROUND.ship[1]) < 0.1 && lane < 4.5) continue;
+    /* (none in the pond, or where the crew walk over to it) */
+    if (side > 0 && rel < 0.3 && lane < 4.2) continue;
     items.push({ rel, draw: () => tree(c, W, H, lane, rel, L, n + 50) });
   }
   items.sort((a, b) => b.rel - a.rel).forEach(it => it.draw());
@@ -251,4 +259,36 @@ export function worldPond(c, W, H, lane, rel, t, L, r = 0.6){
     const q = P(lane + (hash(k + 1500) - 0.5) * r * 1.4, rel + (hash(k + 1501) - 0.5) * r * 0.3, W, H), u = (t * 0.6 + k / 8) % 1;
     circ(c, q.x, q.y - u * H * 0.1 * q.k, (H * 0.004 * (1 - u * 0.6)) * q.k + 0.5);
   }
+}
+
+/* The pond at its most magical - for the moment it's found: light shafts
+   coming down through the mist onto it, mist rising off the water, motes
+   drifting up (k 0..1, how strongly). */
+export function pondBeauty(c, W, H, lane, rel, t, L, r = 0.6, k = 1){
+  if (k <= 0) return;
+  const ctr = P(lane, rel, W, H), w = (P(lane + r, rel, W, H).x - ctr.x);
+  c.save();
+  for (let j = 0; j < 4; j++){
+    const x = ctr.x + (j - 1.5) * w * 0.55 + Math.sin(t * 0.4 + j) * w * 0.08;
+    const g = c.createLinearGradient(0, ctr.y - H * 0.6, 0, ctr.y);
+    g.addColorStop(0, 'rgba(255,250,220,0)'); g.addColorStop(0.6, `rgba(220,255,250,${0.12 * k})`); g.addColorStop(1, 'rgba(220,255,250,0)');
+    c.fillStyle = g; c.beginPath(); c.moveTo(x - w * 0.12, ctr.y - H * 0.6); c.lineTo(x + w * 0.12, ctr.y - H * 0.6); c.lineTo(x + w * 0.3, ctr.y); c.lineTo(x - w * 0.3, ctr.y); c.closePath(); c.fill();
+  }
+  for (let j = 0; j < 6; j++){ const u = (t * 0.15 + j / 6) % 1; glow(c, ctr.x + (hash(j + 1600) - 0.5) * w * 1.6, ctr.y - u * H * 0.18 * ctr.k, w * (0.5 + u * 0.6), '#e8fbff', 0.35 * k * (1 - u)); }
+  c.fillStyle = `rgba(200,255,250,${0.9 * k})`;
+  for (let j = 0; j < 16; j++){ const u = (t * 0.3 + hash(j + 1700)) % 1; circ(c, ctr.x + (hash(j + 1701) - 0.5) * w * 1.8 + Math.sin(u * 6 + j) * w * 0.05, ctr.y - u * H * 0.3 * ctr.k, H * 0.003 * (1 - u) + 0.6); }
+  c.restore();
+}
+
+/* Healing, shown: a ripple ring spreading from where someone stands in the
+   water (age 0..1), and a "+n" floating up off them. Reusable for the
+   springs. */
+export function healRipple(c, x, y, size, age, col = '#9ff6ff'){
+  c.save(); c.globalAlpha = Math.max(0, 1 - age); c.strokeStyle = col; c.lineWidth = Math.max(1.5, size * 0.03);
+  c.beginPath(); c.ellipse(x, y, size * (0.3 + age), size * (0.08 + age * 0.25), 0, 0, 6.2832); c.stroke(); c.restore();
+}
+export function healNumber(c, x, y, size, age, text){
+  c.save(); c.globalAlpha = Math.max(0, 1 - age); c.font = `700 ${Math.round(size)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineWidth = size * 0.18; c.strokeStyle = '#05303a'; c.strokeText(text, x, y - age * size * 2); c.fillStyle = '#7dffb0'; c.fillText(text, x, y - age * size * 2);
+  c.restore();
 }

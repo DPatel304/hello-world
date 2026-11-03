@@ -17,7 +17,7 @@ import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
 import { LEVELS } from './lkp-levels.js';
-import { Captain, Scene, NAMES, script, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
+import { Captain, Scene, NAMES, drawOpening, drawBossRising, drawEnding } from './lkp-captain.js';
 
 /* The bosses, by the name a level gives (lkp-levels.js). Each is a fight
    with its own step(dt, W, H, jumped), arena(), items(), hud() and
@@ -55,9 +55,8 @@ export const story = { on: true };
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
 const FULL = [55, 35, 35, 30];                      /* seconds of each corridor, in full */
-/* The first corridor starts quiet - LEAD seconds of just running, past
-   the crash site, while Nova finishes her briefing - before anything
-   comes along. */
+/* The first corridor starts quiet - LEAD seconds of just running, out of
+   the crash site - before anything comes along. */
 export const LEAD = 10;
 export const CORRIDOR = PLAYTEST ? FULL.map(() => PLAYTEST) : FULL;
 export const MAX_HP = 100;
@@ -318,11 +317,7 @@ class LastKnownPosition {
     /* A scene: nothing else moves till it's done. */
     if (this.scene){
       this.scene.step(dt);
-      if (this.scene.done){
-        /* Out of the opening: Nova carries on with the briefing as they run. */
-        if (this.scene.kind === 'intro') for (const [, text, words] of script('briefing', this)) this.captain.say(text, words, { polite: true });
-        this.scene = null;
-      }
+      if (this.scene.done) this.scene = null;
       this._stepBits(dt);
       return;
     }

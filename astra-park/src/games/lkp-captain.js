@@ -18,6 +18,7 @@ import { pose } from '../tracking/pose.js';
 import { PAL } from './lkp-art.js';
 import { WaveWatch, handsFrom } from '../tracking/wave.js';
 import { voice, lineTime } from '../audio/voice.js';
+import { sfx } from '../audio/sound.js';
 import { commanderFace } from './lkp-cast.js';
 
 export const NOVA = 'Nova';
@@ -71,9 +72,61 @@ export class Captain {
   }
 }
 
+/* ---------- scripted radio moments ---------- */
+
+/* The commander on the radio for a scripted moment (the opening, and any
+   later): her window up in the top left, sliding in and out (visible),
+   her face talking, and what she says as a subtitle at the bottom centre,
+   big enough to read from the sofa - one chunk at a time, each said out
+   loud with a crackle of static before it. A line starting "ksssh -" is
+   shown that way but not read out. lines: text, or [who, text]. */
+export class Radio {
+  constructor(){ this.queue = []; this.line = null; this.show = 0; this.t = 0; this.visible = true; this.top = 0.03; }
+  say(...lines){
+    for (const l of lines) this.queue.push(typeof l === 'string' ? { who: 'nova', text: l } : { who: l[0], text: l[1] });
+    if (!this.line) this._next();
+  }
+  _next(){
+    const l = this.queue.shift();
+    if (!l){ this.line = null; return; }
+    const spoken = l.text.replace(/^k+s+h+\s*[-\u2014]\s*/i, '');
+    this.line = { ...l, t: 0, len: lineTime(spoken, l.who) + HOLD };
+    sfx.spray(); voice.say(spoken, l.who);
+  }
+  get busy(){ return !!this.line || this.queue.length > 0; }
+  get talking(){ return !!this.line && this.line.t < this.line.len - HOLD; }
+  step(dt){
+    this.t += dt;
+    this.show += ((this.visible ? 1 : 0) - this.show) * Math.min(1, dt * 5);
+    if (this.line){ this.line.t += dt; if (this.line.t >= this.line.len) this._next(); }
+  }
+  draw(c, W, H){
+    if (this.show > 0.02){
+      const s = H * 0.2, x = H * 0.03 - (1 - this.show) * (s + H * 0.05), y = H * this.top;
+      radio(c, x, y, s, s, this.t, this.talking, Math.max(0, 1 - this.show * 1.5), 'nova');
+    }
+    if (this.line) subtitle(c, W, H, this.line.text, Math.min(1, this.line.t * 6));
+  }
+}
+
+/* A subtitle at the bottom centre: big, white on a dark band, wrapped. */
+export function subtitle(c, W, H, text, a = 1){
+  c.save(); c.globalAlpha = a;
+  const size = Math.round(H * 0.042); c.font = `600 ${size}px Fredoka, sans-serif`;
+  const words = text.split(' '), lines = []; let cur = '';
+  for (const w of words){ const tryLine = cur ? cur + ' ' + w : w; if (c.measureText(tryLine).width > W * 0.72 && cur){ lines.push(cur); cur = w; } else cur = tryLine; }
+  if (cur) lines.push(cur);
+  const lh = size * 1.3, h = lines.length * lh + size * 0.8, y = H * 0.87 - h;
+  const w = Math.min(W * 0.8, Math.max(...lines.map(l => c.measureText(l).width)) + size * 1.6);
+  c.fillStyle = 'rgba(5,6,15,.78)'; c.beginPath(); c.roundRect(W / 2 - w / 2, y, w, h, size * 0.4); c.fill();
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#ffffff';
+  lines.forEach((l, k) => c.fillText(l, W / 2, y + size * 0.4 + lh * (k + 0.5)));
+  c.restore();
+}
+
 /* A radio window at (x, y), w x h, with Nova in it - or a robot (who),
    called label - talking or not; static, 0..1, over it. */
-function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', label = 'ROBOT'){
+export function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', label = 'ROBOT'){
   c.save();
   c.fillStyle = '#0b1220'; c.strokeStyle = who === 'robot' ? '#ff3b3b' : '#3fd0ff'; c.lineWidth = h * 0.03;
   c.beginPath(); c.roundRect(x, y, w, h, h * 0.08); c.fill();

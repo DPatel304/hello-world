@@ -1,133 +1,89 @@
 /* Last Known Position's opening: picked from the console, it doesn't throw
    you straight in - it shows you where you are, and lets your body do it.
-   Its own camera, over the crash site (lkp-crashsite.js), then a whip pan
-   round onto the game's own view, and play just carries on.
+   A scripted run of beats (INTRO_BEATS), each a shot, who's where, and
+   what moves it on; the timed ones run themselves, the interactive ones
+   wait on the players - but never forever (max). Then a crane up into the
+   sky and down onto the game's own view, matching it exactly, and play
+   carries on. The game holds still till it's done.
 
-     title    high above the forest: the clearing, the furrow, the ship at
-              the end of it, the crew tiny in the grass - and the name
-     swoop    the camera drops down out of the sky to the ground, behind
-              the crew, the ship ahead of them across the clearing
-     crash    the crew lying in the grass - WIGGLE TO WAKE UP: each
-              astronaut sits up and stands when their own player moves
-     pond     they've been hurt (they start on half health): they walk
-              over to the healing pond, and HUG YOURSELF TO HEAL fills them
-              up - faster the tighter the hug
-     ring     the radio ringing - CMDR NOVA. A hand to your ear answers
-     talk     she talks (her opening lines - a wave skips them)
-     pan      the camera whips round onto the path - the game's view -
-              and they're off; she carries on with the briefing on the
-              radio as they run (lkp-game.js)
-
-   The waking, healing and answering wait for the players - but never
-   forever (CRASH_MAX, POND_MAX, RING_MAX). The game holds still till it's
-   done. */
+   Earnest adventure - no jokes. The commander's radio window and
+   subtitles are lkp-captain.js's Radio; the crash site, the pond and its
+   healing light are lkp-crashsite.js; the wiggle and the hand at the ear
+   are the game's own watchers. */
 import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MoveWatch, HugWatch } from '../tracking/gestures.js';
-import { P, drawGloom } from './lkp-art.js';
+import { P, drawCorridor, drawGloom } from './lkp-art.js';
 import { glow } from './lkp-world.js';
-import { drawAbove, drawGround, ABOVE } from './lkp-crashsite.js';
-import { Scene } from './lkp-captain.js';
+import { drawAbove, drawGround, ABOVE, GROUND, pondBeauty, healRipple, healNumber } from './lkp-crashsite.js';
+import { Radio, script } from './lkp-captain.js';
 
-/* The title from above, and the drop to the ground. */
-export const TITLE = 5, SWOOP = 2.6, PAN = 2;
+/* The beats, in order: the shot, who's where, and what moves it on.
+   time: timed, seconds; until: waits on the players, but never longer
+   than max. */
+export const INTRO_BEATS = [
+  { id: 'title', time: 4, shot: 'the game\'s name over the planet' },
+  { id: 'wreck', time: 4, shot: 'high over the forest: the crash site - slow push in, descending on the crew', blocking: 'the crew out cold, scattered in front of the wreck; smoke drifting' },
+  { id: 'wake', until: 'everyone standing', max: 20, shot: 'cut to the ground: medium wide, a slow dolly across them', blocking: 'each player\'s wiggle wakes theirs - a twitch, sitting up, standing; up, they sway and look round' },
+  { id: 'call', until: 'everyone answered', max: 15, shot: 'push in a little: medium on the team', blocking: 'a radio pulsing over each head; a hand to the ear answers it - a tick' },
+  { id: 'brief', until: 'her lines said', lines: 'brief', shot: 'hold, drifting slowly round them', blocking: 'the team waits; her window top left, her words at the bottom' },
+  { id: 'pond', until: 'everyone at full health', max: 30, shot: 'whip pan right to the pond, hold on it, then pull back to follow them over', blocking: 'they walk over (lean to steer); in the water they heal to full, smoothly' },
+  { id: 'go', until: 'her last line, and the crane', lines: 'go', shot: 'her window goes; crane up into the sky and down onto the game\'s view' }
+];
+const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
+export const TITLE = BEAT.title.time, WRECK = BEAT.wreck.time;
 /* (How long till the crew are lying there to be woken.) */
-export const WAKE = SWOOP;
+export const WAKE = WRECK;
 /* Waking up: moving (body sizes a second) more than STIR counts; WIGGLE
    seconds of it and you're up, taking UP seconds to stand. */
 export const STIR = 0.45, WIGGLE = 1.2, UP = 0.8;
-/* The pond: WALK seconds over to it; then healing - HEAL a second standing
-   in it, HUG_HEAL hugging yourself. They start on START of their health. */
-export const WALK = 2.2, HEAL = 4, HUG_HEAL = 30, START = 0.5;
 /* The call: a hand held at the ear HOLD seconds answers it. */
 export const HOLD = 0.4;
-/* However it's going, on after this long. */
-export const CRASH_MAX = 20, POND_MAX = 15, RING_MAX = 12;
-/* After the last one's up (or healed), a moment; after the call's
-   answered, the static before she's through. */
-const AFTER = 1.2, STATIC = 0.9;
+/* The pond: the whip pan, the hold on it, the pull back; then they walk
+   (STRIDE lanes a second, leaning); in it, healing FILL of their health a
+   second (twice that hugging themselves). Anyone not on their way after
+   GUIDE is walked over. They start on START of their health. */
+export const WHIP = 0.45, BEAUTY = 2, BACK = 1.5, STRIDE = 1.6, FILL = 0.16, GUIDE = 8, START = 0.5;
+export const CRASH_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max, POND_MAX = BEAT.pond.max;
+/* The crane into play, and a moment after the last one's up. */
+export const CRANE = 2.2;
+const AFTER = 0.8;
 
 export class Intro {
   constructor(game){
     this.g = game; this.kind = 'intro'; this.done = false;
-    this.stage = 'title'; this.st = 0; this.t = 0;
+    this.k = 0; this.stage = INTRO_BEATS[0].id; this.st = 0; this.t = 0;
     this.moves = pose.players.map(() => new MoveWatch());
     this.hugs = pose.players.map(() => new HugWatch());
     this.woke = pose.players.map(() => 0);       /* how much wiggle, 0..WIGGLE */
     this.up = pose.players.map(() => 0);         /* standing up, 0..1 */
+    this.ear = pose.players.map(() => 0);        /* how long a hand's been at the ear */
+    this.answered = pose.players.map(() => false);
     this.hugging = pose.players.map(() => false);
-    this.ear = 0; this.answered = -1; this.talk = null; this.ringT = 0; this.hearts = [];
+    this.pos = null;                              /* where each stands, [lane, rel] */
+    this.fx = [];                                 /* ripples and numbers off the healing */
+    this.radio = new Radio(); this.radio.visible = false; this.radio.top = 0.11;
   }
-  _go(stage){ this.stage = stage; this.st = 0; this.afterT = 0; }
+  get beat(){ return INTRO_BEATS[this.k]; }
+  _next(){
+    this.k++; this.st = 0; this.afterT = 0;
+    if (this.k >= INTRO_BEATS.length){ this.done = true; return; }
+    this.stage = this.beat.id;
+    const on = BEGIN[this.stage]; if (on) on.call(this);
+  }
 
   step(dt){
     if (this.done) return;
     this.t += dt; this.st += dt;
-    const g = this.g, here = g.here;
+    const g = this.g;
     /* Knocked about in the crash: half health, till the pond. */
     if (!this.hurt){ this.hurt = true; for (const rn of g.crew) rn.hp = Math.round(rn.max * START); }
-    for (const h of this.hearts){ h.age += dt; h.y -= dt * 0.08; }
-    this.hearts = this.hearts.filter(h => h.age < 1);
-    switch (this.stage){
-      case 'title':
-        if (this.st >= TITLE) this._go('swoop');
-        break;
-      case 'swoop':
-        if (this.st >= SWOOP){ this._go('crash'); for (const i of here){ g.crew[i].played = true; g.crew[i].x = g._home(i); } }
-        break;
-      case 'crash': {
-        /* Each astronaut gets up when their own player has wiggled enough. */
-        for (const i of here){
-          const moving = this.moves[i].step(pose.players[i], dt, pose.mouse.active);
-          if (this.woke[i] < WIGGLE){
-            if (moving > STIR){ this.woke[i] += dt; if (Math.random() < dt * 6) sfx.step(i, 0.3); }
-            if (this.woke[i] >= WIGGLE) sfx.select();
-          }
-        }
-        if (this.st >= CRASH_MAX) for (const i of here) this.woke[i] = WIGGLE;
-        for (const i of here) if (this.woke[i] >= WIGGLE) this.up[i] = Math.min(1, this.up[i] + dt / UP);
-        const allUp = here.length > 0 && here.every(i => this.up[i] >= 1);
-        if (allUp || (!here.length && this.st > 3)){ this.afterT += dt; if (this.afterT >= AFTER) this._go('pond'); }
-        break;
-      }
-      case 'pond': {
-        /* Over to the pond; then the water heals them, hugging faster. */
-        if (this.st < WALK) break;
-        for (const i of here){
-          const rn = g.crew[i], hug = this.hugs[i].step(pose.players[i], dt);
-          this.hugging[i] = hug;
-          if (rn.hp < rn.max){
-            rn.hp = Math.min(rn.max, rn.hp + (hug ? HUG_HEAL : HEAL) * dt);
-            if (Math.random() < dt * (hug ? 8 : 2)) this.hearts.push({ i, x: (Math.random() - 0.5) * 0.5, y: 0, age: 0 });
-            if (rn.hp >= rn.max) sfx.twinkle();
-          }
-        }
-        if (this.st >= WALK + POND_MAX) for (const i of here) g.crew[i].hp = g.crew[i].max;
-        if (here.every(i => g.crew[i].hp >= g.crew[i].max)){ this.afterT += dt; if (this.afterT >= AFTER){ this._go('ring'); this.hugging = this.hugging.map(() => false); } }
-        break;
-      }
-      case 'ring': {
-        /* The radio trilling; whoever gets a hand to their ear first answers. */
-        this.ringT -= dt;
-        if (this.ringT <= 0){ sfx.trill?.(); this.ringT = 1.4; }
-        const who = here.find(i => this._atEar(i));
-        this.ear = who != null ? this.ear + dt : Math.max(0, this.ear - dt * 2);
-        if (who != null && this.ear >= HOLD) this.answered = who;
-        if (this.answered >= 0 || this.st >= RING_MAX){ this._go('connect'); sfx.pick(); sfx.spray(); }
-        break;
-      }
-      case 'connect':
-        if (Math.random() < dt * 20) sfx.spray();
-        if (this.st >= STATIC){ this._go('talk'); this.talk = new Scene('opening', g); this.talk.title = null; this.talk.corner = 'top-left'; }
-        break;
-      case 'talk':
-        this.talk.step(dt);
-        if (this.talk.done) this._go('pan');
-        break;
-      case 'pan':
-        if (this.st >= PAN) this.done = true;
-        break;
-    }
+    for (const f of this.fx) f.age += dt * (f.kind === 'ripple' ? 0.8 : 1.2);
+    this.fx = this.fx.filter(f => f.age < 1);
+    this.radio.step(dt);
+    const b = this.beat;
+    const over = STEP[b.id].call(this, dt);
+    if (over || (b.time && this.st >= b.time) || (b.max && this.st >= b.max && (FORCE[b.id] ? (FORCE[b.id].call(this), true) : true))) this._next();
   }
 
   /* Hand to the ear: a wrist up beside the head, near where the ear is.
@@ -144,67 +100,99 @@ export class Intro {
       && Math.abs(lm[j].x - head.x) < sw * 1.0 && Math.abs(lm[j].x - head.x) > sw * 0.15);
   }
 
-  /* ---------- drawing ---------- */
+  /* ---------- where they are ---------- */
 
-  /* Where each of them is, on the ground: in a row across the front,
-     their backs to us, the ship out ahead - or, once they've walked over,
-     round the pond. [lane, depth] */
+  /* Where each one starts: across the front, in front of the wreck, a
+     little scattered - spread wider for more of them. [lane, rel] */
+  _start(k, n){
+    const gap = n <= 2 ? 1.0 : 0.82;
+    return [-0.75 + (k - (n - 1) / 2) * gap, 0.1 + [0, 0.035, -0.015, 0.025][k % 4]];
+  }
+  _place(){
+    const here = this.g.here;
+    this.pos = this.g.crew.map((_, i) => { const k = Math.max(0, here.indexOf(i)); return this._start(k, Math.max(1, here.length)); });
+    for (const i of here){ this.g.crew[i].played = true; this.g.crew[i].x = this.g._home(i); }
+  }
   _at(i, W, H){
-    const k = Math.max(0, this.g.here.indexOf(i)) % 4;
-    let [lane, rel] = CINE.row[k];
-    let run = 0;
-    if (['pond', 'ring', 'connect', 'talk', 'pan'].includes(this.stage)){
-      const u = this.stage === 'pond' ? Math.min(1, this.st / WALK) : 1, [pl, pr] = CINE.pond[k];
-      lane += (pl - lane) * smooth(u); rel += (pr - rel) * smooth(u);
-      run = this.stage === 'pond' && u < 1 ? 1 : 0;
-    }
-    const p = P(lane, rel, W, H);
-    return { x: p.x, y: p.y, h: H * 0.19 * p.k * CINE.close, rel, run };
+    if (!this.pos) this._place();
+    const [lane, rel] = this.pos[i], p = P(lane, rel, W, H);
+    return { x: p.x, y: p.y, h: H * 0.19 * p.k * 1.15, rel, lane };
+  }
+  _inPond(i){ const [pl, pr, r] = GROUND.pond, [lane, rel] = this.pos[i]; return Math.abs(lane - pl) < r * 0.85 && Math.abs(rel - pr) < r * 0.3; }
+  /* The middle of the team, on screen (x), and its spread. */
+  _team(W, H){
+    const xs = this.g.here.map(i => this._at(i, W, H).x);
+    if (!xs.length) return { x: P(-0.75, 0.1, W, H).x, w: W * 0.3 };
+    return { x: (Math.min(...xs) + Math.max(...xs)) / 2, w: Math.max(...xs) - Math.min(...xs) };
   }
 
-  /* The camera on the ground: still, but settling down from the swoop. */
+  /* ---------- the camera ---------- */
+
+  /* Where the camera is, on the ground: looking at (cx, cy), s times
+     closer, tilted r. All its moves eased. */
   _cam(W, H){
-    const C = CINE.cam, k = this.stage === 'swoop' ? 1 - smooth((this.st - SWOOP * 0.45) / (SWOOP * 0.55)) : this.stage === 'crash' ? Math.max(0, 0.25 - this.st * 0.15) : 0;
-    return { cx: W * (C.x + 0.01 * Math.sin(this.t * 0.25)), cy: H * (C.y - 0.1 * k), s: C.s + 0.5 * k, r: C.r };
+    const team = this._team(W, H), fit = Math.min(1.3, Math.max(1.0, W * 0.62 / Math.max(team.w + W * 0.2, 1)));
+    const pond = P(GROUND.pond[0], GROUND.pond[1], W, H);
+    const st = this.st, base = { cx: team.x, cy: H * 0.6, s: fit, r: 0 };
+    switch (this.stage){
+      case 'wake': {
+        /* a slow dolly across them */
+        const u = smooth(Math.min(1, st / 9));
+        return { ...base, cx: team.x - W * 0.06 + W * 0.12 * u };
+      }
+      case 'call': return { ...base, cx: team.x + W * 0.06 * (1 - smooth(st / 1.5)), s: fit * (1 + 0.12 * smooth(st / 1.5)) };
+      case 'brief': return { cx: team.x + Math.sin(this.t * 0.3) * W * 0.02, cy: H * 0.6, s: fit * 1.12 + Math.sin(this.t * 0.2) * 0.015, r: Math.sin(this.t * 0.25) * 0.008 };
+      case 'pond': {
+        const near = { cx: team.x, cy: H * 0.6, s: fit * 1.12, r: 0 };
+        const on = { cx: pond.x, cy: pond.y - H * 0.08, s: 1.55, r: 0 };
+        /* then pulled back, high, following them over */
+        const xs = this.g.here.map(i => this._at(i, W, H).x).concat([pond.x]);
+        const follow = { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: H * 0.55, s: Math.min(1.1, Math.max(0.9, W * 0.85 / (Math.max(...xs) - Math.min(...xs) + W * 0.2))), r: 0 };
+        if (st < WHIP) return mix(near, on, smooth(st / WHIP));
+        if (st < WHIP + BEAUTY) return { ...on, s: on.s + 0.04 * (st - WHIP) / BEAUTY };
+        return mix({ ...on, s: on.s + 0.04 }, follow, smooth((st - WHIP - BEAUTY) / BACK));
+      }
+      case 'go': {
+        const xs = this.g.here.map(i => this._at(i, W, H).x).concat([pond.x]);
+        return { cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: H * 0.55, s: 1.0, r: 0 };
+      }
+      default: return base;
+    }
   }
+
+  /* ---------- drawing ---------- */
 
   draw(c, W, H){
     const g = this.g, s = this.stage;
     if (s === 'title'){ this._title(c, W, H); return; }
+    if (s === 'wreck'){ this._wreck(c, W, H); return; }
     g.inIntro = true;
-    if (s === 'swoop'){
-      /* Dropping out of the sky: the view from above rushes in on the crew
-         as the ground-level view takes over. */
-      const k = smooth(this.st / SWOOP), [cx, cy] = ABOVE.crew;
-      c.save(); c.translate(cx * W, cy * H); c.scale(1 + 5 * k * k, 1 + 5 * k * k); c.translate(-cx * W, -cy * H);
-      drawAbove(c, W, H, this.t, g.level.palette.world);
-      c.restore();
-      const fade = smooth((this.st - SWOOP * 0.45) / (SWOOP * 0.45));
-      if (fade > 0){ c.save(); c.globalAlpha = fade; this._ground(c, W, H); c.restore(); }
+    if (s === 'go' && this.craneT != null){
+      /* Craning up into the sky and down onto the game's own view: the
+         ground sinks away, then the game's view rises into place - ending
+         exactly on it. */
+      const u = Math.min(1, this.craneT / CRANE), L = g.level.palette.world;
+      c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, H);
+      if (u < 0.5){ c.save(); c.translate(0, H * 1.1 * smooth(u * 2)); this._ground(c, W, H); c.restore(); }
+      else { c.save(); c.translate(0, H * 1.1 * (1 - smooth((u - 0.5) * 2))); g._drawPlay(c, W, H); c.restore(); }
       g.inIntro = false;
-      return;
-    }
-    if (s === 'pan'){
-      /* Swinging round onto the path: the clearing sweeping off to the left
-         as the game's own view comes in from the right. */
-      const k = smooth(this.st / PAN);
-      c.save(); c.translate(-W * k, 0); this._ground(c, W, H); c.restore();
-      c.save(); c.translate(W * (1 - k), 0); g._drawPlay(c, W, H); c.restore();
-      g.inIntro = false;
-      this._bars(c, W, H, 1 - k);
+      this._bars(c, W, H, 1 - smooth(u));
       return;
     }
     this._ground(c, W, H);
     g.inIntro = false;
-    this._bars(c, W, H, 1);
-    if (s === 'crash' && this.g.here.some(i => this.woke[i] < WIGGLE)) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.04 * Math.sin(this.t * 8));
-    if (s === 'pond'){
-      if (this.st < WALK) banner(c, W, H, 'TO THE HEALING POND!', '#7ff3ff');
-      else if (this.g.here.some(i => this.g.crew[i].hp < this.g.crew[i].max)) banner(c, W, H, 'HUG YOURSELF TO HEAL!', '#ff9ccb', 1 + 0.04 * Math.sin(this.t * 6));
+    /* the whip pan's blur */
+    if (s === 'pond' && this.st < WHIP){
+      const a = Math.sin(this.st / WHIP * Math.PI);
+      c.save(); c.globalAlpha = 0.5 * a; c.fillStyle = 'rgba(230,245,255,.5)';
+      for (let k = 0; k < 40; k++){ const y = ((k * 0.618) % 1) * H; c.fillRect(0, y, W, H * 0.006); }
+      c.restore();
     }
-    if (s === 'ring') this._ring(c, W, H);
-    if (s === 'connect') this._static(c, W, H, 1 - this.st / STATIC);
-    if (s === 'talk'){ this.talk.draw(c, W, H); if (this.talk.t < 0.4) this._static(c, W, H, 1 - this.talk.t / 0.4); }
+    this._bars(c, W, H, 1);
+    if (s === 'wake' && g.here.some(i => this.woke[i] < WIGGLE)) banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6));
+    if (s === 'call') banner(c, W, H, 'HAND TO YOUR EAR TO ANSWER', '#7ff3ff', 1 + 0.03 * Math.sin(this.t * 6));
+    if (s === 'pond' && this.st > WHIP + BEAUTY + BACK * 0.5 && g.here.some(i => !this._inPond(i))) banner(c, W, H, 'LEAN TO WALK OVER', '#7ff3ff');
+    this.radio.draw(c, W, H);
   }
 
   _bars(c, W, H, k){
@@ -212,58 +200,76 @@ export class Intro {
     c.fillStyle = '#000'; c.fillRect(0, 0, W, H * 0.09 * k); c.fillRect(0, H * (1 - 0.09 * k), W, H * 0.09 * k);
   }
 
-  /* The clearing at their level, through the camera: the crew in it. */
+  /* The clearing at their level, through the camera, with the crew in it. */
   _ground(c, W, H){
     const g = this.g, cam = this._cam(W, H), s = this.stage, L = g.level.palette.world;
-    const showBars = s === 'pond' && this.st >= WALK;
+    const healing = s === 'pond' || s === 'go';
     c.save();
     c.translate(W / 2, H / 2); c.rotate(cam.r); c.scale(cam.s, cam.s); c.translate(-cam.cx, -cam.cy);
     const crew = g.here.map(i => {
       const a = this._at(i, W, H), rn = g.crew[i];
       return { rel: a.rel, draw: () => {
-        const keep = [rn.run, rn.runPh];
-        rn.run = a.run; rn.runPh = (rn.runPh || 0) + (a.run ? 0.25 : 0);
-        g._drawCrew(c, i, W, H, { x: a.x, y: a.y, h: a.h, bob: 0, down: 1 - easeOut(this.up[i]), noBar: !showBars, pose: this.hugging[i] ? 'hug' : null });
-        if (!a.run) [rn.run, rn.runPh] = keep;
+        const keep = [rn.run, rn.runPh, rn.lean, rn.heal];
+        const moving = this.walking && this.walking[i];
+        rn.run = moving ? 1 : 0; rn.runPh = (keep[1] || 0) + (moving ? 0.22 : 0);
+        /* up and waiting: a sway, a look round */
+        rn.lean = this.up[i] >= 1 && !moving ? Math.sin(this.t * 0.9 + i * 1.7) * 0.25 : 0;
+        rn.heal = healing && this._inPond(i) ? 0.6 : 0;
+        const twitch = this.woke[i] > 0 && this.up[i] < 0.2 ? Math.sin(this.t * 30) * a.h * 0.01 : 0;
+        g._drawCrew(c, i, W, H, { x: a.x + twitch, y: a.y, h: a.h, bob: 0, down: 1 - easeOut(this.up[i]), noBar: !healing, pose: this.hugging[i] ? 'hug' : null });
+        rn.runPh = rn.run ? rn.runPh : keep[1]; [rn.run, , rn.lean, rn.heal] = keep;
       } };
     });
     drawGround(c, W, H, this.t, L, crew);
-    if (s === 'crash' || s === 'swoop'){ this._dizzy(c, W, H); if (s === 'crash') this._wiggle(c, W, H); }
-    /* hearts rising off anyone healing */
-    for (const h of this.hearts){
-      const a = this._at(h.i, W, H), x = a.x + h.x * a.h, y = a.y - a.h * (1.1 + h.age * 0.6), r = a.h * 0.05;
-      c.save(); c.globalAlpha = 1 - h.age; c.fillStyle = '#ff7eb6';
-      c.beginPath(); c.moveTo(x, y + r); c.bezierCurveTo(x - r * 2, y - r * 0.5, x - r * 0.8, y - r * 1.8, x, y - r * 0.6);
-      c.bezierCurveTo(x + r * 0.8, y - r * 1.8, x + r * 2, y - r * 0.5, x, y + r); c.fill(); c.restore();
+    const [pl, pr, ps] = GROUND.pond;
+    if (s === 'pond' || s === 'go') pondBeauty(c, W, H, pl, pr, this.t, L, ps, s === 'pond' ? 1 - 0.6 * smooth((this.st - WHIP - BEAUTY) / BACK) : 0.4);
+    if (s === 'wake') this._dizzy(c, W, H);
+    if (s === 'wake') this._wiggle(c, W, H);
+    if (s === 'call') this._radios(c, W, H);
+    for (const f of this.fx){
+      const a = this._at(f.i, W, H);
+      if (f.kind === 'ripple') healRipple(c, a.x, a.y, a.h * 0.9, f.age);
+      else healNumber(c, a.x + f.dx * a.h, a.y - a.h * 1.15, a.h * 0.12, f.age, f.text);
     }
     c.restore();
     drawGloom(c, W, H);
   }
 
-  /* The title: high over the forest, looking down on the crash - the name. */
+  /* The title: the game's name over the planet. */
   _title(c, W, H){
-    const L = this.g.level.palette.world;
-    /* drifting slowly in towards the clearing */
-    const k = this.st / TITLE, [cx, cy] = ABOVE.crew;
-    c.save(); c.translate(W / 2, H / 2); c.scale(1.05 + 0.08 * k, 1.05 + 0.08 * k); c.translate(-W / 2 + (cx * W - W / 2) * 0.1 * k, -H / 2 + (cy * H - H / 2) * 0.1 * k);
-    drawAbove(c, W, H, this.t, L);
-    c.restore();
-    const a = Math.min(1, this.st / 0.8) * Math.min(1, (TITLE - this.st) / 0.6);
+    drawCorridor(c, W, H, 0, this.t);
+    drawGloom(c, W, H);
+    const a = Math.min(1, this.st / 0.8) * Math.min(1, (TITLE - this.st) / 0.7);
     c.save();
-    const sh = c.createLinearGradient(0, 0, 0, H * 0.4); sh.addColorStop(0, 'rgba(5,10,20,.55)'); sh.addColorStop(1, 'rgba(5,10,20,0)');
-    c.fillStyle = sh; c.fillRect(0, 0, W, H * 0.4);
+    c.fillStyle = 'rgba(5,6,20,.45)'; c.fillRect(0, 0, W, H);
     c.globalAlpha = Math.max(0, a); c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = `700 ${Math.round(H * 0.11)}px Fredoka, sans-serif`;
+    c.font = `700 ${Math.round(H * 0.12)}px Fredoka, sans-serif`;
     c.lineWidth = H * 0.016; c.strokeStyle = '#05060f';
-    const y = H * 0.14 - (1 - Math.min(1, this.st / 0.8)) * H * 0.03;
+    const y = H * 0.4 - (1 - Math.min(1, this.st / 0.8)) * H * 0.03;
     c.strokeText('LAST KNOWN POSITION', W / 2, y); c.fillStyle = '#ffffff'; c.fillText('LAST KNOWN POSITION', W / 2, y);
-    c.font = `600 ${Math.round(H * 0.042)}px Fredoka, sans-serif`; c.lineWidth = H * 0.01;
-    const sub = `LEVEL 1 \u00b7 ${this.g.level.name}`.toUpperCase();
-    c.strokeText(sub, W / 2, y + H * 0.1); c.fillStyle = '#7ff3ff'; c.fillText(sub, W / 2, y + H * 0.1);
+    c.font = `600 ${Math.round(H * 0.045)}px Fredoka, sans-serif`; c.lineWidth = H * 0.01;
+    const sub = `LEVEL 1 · ${this.g.level.name}`.toUpperCase();
+    c.strokeText(sub, W / 2, y + H * 0.11); c.fillStyle = '#7ff3ff'; c.fillText(sub, W / 2, y + H * 0.11);
     c.restore();
+    if (this.st > TITLE - 0.7){ c.fillStyle = `rgba(0,0,0,${(this.st - (TITLE - 0.7)) / 0.7})`; c.fillRect(0, 0, W, H); }
   }
 
-  /* Dizzy: stars going round the helmet of anyone not up yet. */
+  /* The wreck, from high above: pushing in and coming down on the crew,
+     out cold in front of it - drifting all the while. */
+  _wreck(c, W, H){
+    const u = smooth(this.st / WRECK), [cx, cy] = ABOVE.crew, z = 1 + 0.45 * u;
+    c.fillStyle = '#2f5b46'; c.fillRect(0, 0, W, H);
+    c.save();
+    c.translate(W / 2, H / 2); c.rotate(Math.sin(this.t * 0.2) * 0.01); c.scale(z, z);
+    /* (towards the crew, but never so far the edge of the view shows) */
+    const ox = Math.max(-(W / 2) * (1 - 1 / z), Math.min((W / 2) * (1 - 1 / z), (cx * W - W / 2) * u)), oy = Math.max(-(H / 2) * (1 - 1 / z), Math.min((H / 2) * (1 - 1 / z), (cy * H - H / 2) * u));
+    c.translate(-(W / 2 + ox) - Math.sin(this.t * 0.3) * W * 0.004, -(H / 2 + oy));
+    drawAbove(c, W, H, this.t, this.g.level.palette.world, this.g.here.length ? this.g.here.map(() => 1) : []);
+    c.restore();
+    if (this.st < 0.6){ c.fillStyle = `rgba(0,0,0,${1 - this.st / 0.6})`; c.fillRect(0, 0, W, H); }
+  }
+
+  /* Dizzy: stars round the helmet of anyone not up yet. */
   _dizzy(c, W, H){
     for (const i of this.g.here){
       const k = this.up[i]; if (k >= 1) continue;
@@ -291,48 +297,117 @@ export class Intro {
     }
   }
 
-  /* The radio ringing: a flashing call up where her window will be, and
-     how to answer. */
-  _ring(c, W, H){
-    const on = Math.floor(this.t * 3) % 2 === 0, s = H * 0.17, x = H * 0.03, y = H * 0.03;
-    c.save();
-    glow(c, x + s / 2, y + s / 2, s * (on ? 1.3 : 1), '#5ff3ff', on ? 0.8 : 0.4);
-    c.fillStyle = 'rgba(8,20,40,.9)'; c.beginPath(); c.roundRect(x, y, s, s, s * 0.15); c.fill();
-    c.strokeStyle = on ? '#7ff3ff' : 'rgba(127,243,255,.5)'; c.lineWidth = H * 0.005; c.stroke();
-    /* a little radio handset, shaking */
-    c.translate(x + s / 2 + (on ? Math.sin(this.t * 60) * s * 0.03 : 0), y + s * 0.45);
-    c.fillStyle = '#e9ecf8'; c.beginPath(); c.roundRect(-s * 0.12, -s * 0.25, s * 0.24, s * 0.5, s * 0.06); c.fill();
-    c.fillStyle = '#7ff3ff'; c.fillRect(-s * 0.08, -s * 0.18, s * 0.16, s * 0.12);
-    c.strokeStyle = '#e9ecf8'; c.lineWidth = s * 0.03; c.beginPath(); c.moveTo(s * 0.08, -s * 0.25); c.lineTo(s * 0.12, -s * 0.38); c.stroke();
-    for (const k of [1, 2]){ c.strokeStyle = `rgba(127,243,255,${on ? 0.9 / k : 0.3 / k})`; c.beginPath(); c.arc(0, 0, s * (0.22 + 0.1 * k), -0.6, 0.6); c.stroke(); c.beginPath(); c.arc(0, 0, s * (0.22 + 0.1 * k), Math.PI - 0.6, Math.PI + 0.6); c.stroke(); }
-    c.restore();
-    c.save(); c.font = `700 ${Math.round(H * 0.04)}px Fredoka, sans-serif`; c.textAlign = 'left'; c.textBaseline = 'middle';
-    c.lineWidth = H * 0.008; c.strokeStyle = '#05060f'; c.strokeText('INCOMING · CMDR NOVA', x + s + H * 0.02, y + s * 0.3);
-    c.fillStyle = on ? '#ffffff' : '#7ff3ff'; c.fillText('INCOMING · CMDR NOVA', x + s + H * 0.02, y + s * 0.3); c.restore();
-    banner(c, W, H, 'HAND TO YOUR EAR TO ANSWER!', '#7ff3ff', 1 + 0.03 * Math.sin(this.t * 6), this.ear / HOLD);
-  }
-
-  /* Radio static, k 0..1. */
-  _static(c, W, H, k){
-    if (k <= 0) return;
-    c.save(); c.globalAlpha = 0.5 * k;
-    for (let n = 0; n < 140; n++){ c.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#7ff3ff'; c.fillRect(Math.random() * W, Math.random() * H, W * 0.04 * Math.random(), 2); }
-    c.restore();
+  /* Over each head, a radio pulsing till they answer - then a tick. */
+  _radios(c, W, H){
+    for (const i of this.g.here){
+      const a = this._at(i, W, H), r = Math.max(H * 0.024, a.h * 0.16), x = a.x, y = a.y - a.h * 1.35;
+      c.save();
+      if (this.answered[i]){
+        c.fillStyle = '#22c55e'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+        c.strokeStyle = '#ffffff'; c.lineWidth = r * 0.22; c.lineCap = 'round'; c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(x - r * 0.45, y); c.lineTo(x - r * 0.1, y + r * 0.35); c.lineTo(x + r * 0.5, y - r * 0.35); c.stroke();
+      } else {
+        const on = 0.5 + 0.5 * Math.sin(this.t * 7 + i);
+        glow(c, x, y, r * (1.8 + on * 0.6), '#5ff3ff', 0.5 + 0.4 * on);
+        c.fillStyle = 'rgba(8,20,40,.9)'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+        c.strokeStyle = PLAYER_COLORS[i]; c.lineWidth = r * 0.15; c.beginPath(); c.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + 6.2832 * Math.min(1, this.ear[i] / HOLD)); c.stroke();
+        c.fillStyle = '#e9ecf8'; c.beginPath(); c.roundRect(x - r * 0.2, y - r * 0.45, r * 0.4, r * 0.85, r * 0.1); c.fill();
+        c.fillStyle = '#7ff3ff'; c.fillRect(x - r * 0.12, y - r * 0.32, r * 0.24, r * 0.2);
+      }
+      c.restore();
+    }
   }
 }
 
-/* The shot on the ground: the crew in a row across the front, backs to
-   us, the ship out ahead (lkp-crashsite.js GROUND); where they stand at
-   the pond; a little larger than in play; the camera. */
-export const CINE = {
-  row: [[-0.95, 0.09], [-0.32, 0.11], [0.3, 0.11], [0.92, 0.09]],
-  pond: [[-2.0, 0.27], [-1.3, 0.28], [-1.85, 0.19], [-1.2, 0.19]],
-  close: 1.15,
-  cam: { x: 0.5, y: 0.5, s: 1.0, r: 0 }
+/* ---------- what each beat does ---------- */
+
+/* As it starts. */
+const BEGIN = {
+  wreck(){ sfx.ringing?.(); },
+  wake(){ this._place(); },
+  brief(){ this.radio.visible = true; this.radio.say(...script('brief', this.g)); },
+  pond(){ this.walking = this.g.crew.map(() => false); this.entered = false; this.waited = false; },
+  go(){ this.radio.say(...script('go', this.g)); for (const i of this.g.here) this.g.crew[i].hp = this.g.crew[i].max; }
+};
+/* Each step: true once it's done. */
+const STEP = {
+  title(){ return false; },
+  wreck(){ return false; },
+  wake(dt){
+    const g = this.g, here = g.here;
+    for (const i of here){
+      const moving = this.moves[i].step(pose.players[i], dt, pose.mouse.active);
+      if (this.woke[i] < WIGGLE){
+        if (moving > STIR){ this.woke[i] += dt; if (Math.random() < dt * 6) sfx.step(i, 0.3); }
+        if (this.woke[i] >= WIGGLE) sfx.select();
+      }
+      if (this.woke[i] >= WIGGLE) this.up[i] = Math.min(1, this.up[i] + dt / UP);
+    }
+    return this._settled(dt, (here.length > 0 && here.every(i => this.up[i] >= 1)) || (!here.length && this.st > 3));
+  },
+  call(dt){
+    const here = this.g.here;
+    if (Math.random() < dt * 1.5) sfx.trill?.();
+    for (const i of here){
+      if (this.answered[i]) continue;
+      this.ear[i] = this._atEar(i) ? this.ear[i] + dt : Math.max(0, this.ear[i] - dt * 2);
+      if (this.ear[i] >= HOLD){ this.answered[i] = true; sfx.pick(); }
+    }
+    return this._settled(dt, here.every(i => this.answered[i]));
+  },
+  brief(){ return !this.radio.busy; },
+  pond(dt){
+    const g = this.g, here = g.here, live = this.st >= WHIP + BEAUTY + BACK * 0.5;
+    for (const i of here){
+      const rn = g.crew[i];
+      /* walking: lean to steer - or, after a while, walked over */
+      let lean = 0;
+      if (live && !this._inPond(i)){
+        lean = this.st > WHIP + BEAUTY + BACK + GUIDE ? 1 : (g.leanOf(i) ?? 0);
+        if (Math.abs(lean) < 0.15) lean = 0;
+      }
+      this.walking[i] = lean !== 0;
+      this.pos[i][0] = Math.max(-3, Math.min(GROUND.pond[0] + 0.3, this.pos[i][0] + lean * STRIDE * dt));
+      if (this.walking[i] && Math.random() < dt * 3) sfx.step(i, 0.25);
+      /* in the water: healing, smoothly, up to full */
+      if (this._inPond(i)){
+        if (!this.entered){ this.entered = true; this.radio.say(...script('pondIn', g)); }
+        const hug = this.hugging[i] = this.hugs[i].step(pose.players[i], dt);
+        if (rn.hp < rn.max){
+          const was = Math.floor(rn.hp);
+          rn.hp = Math.min(rn.max, rn.hp + rn.max * FILL * (hug ? 2 : 1) * dt);
+          if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)){ this.fx.push({ kind: 'num', i, age: 0, dx: (Math.random() - 0.5) * 0.4, text: '+5' }); }
+          if (Math.random() < dt * 1.5) this.fx.push({ kind: 'ripple', i, age: 0 });
+          if (rn.hp >= rn.max){ sfx.twinkle(); this.fx.push({ kind: 'ripple', i, age: 0 }); }
+        }
+      }
+    }
+    if (this.entered && !this.waited && this.st > 12 && here.some(i => g.crew[i].hp < g.crew[i].max) && !this.radio.busy){ this.waited = true; this.radio.say(...script('pondWait', g)); }
+    return this._settled(dt, here.every(i => g.crew[i].hp >= g.crew[i].max) && !this.radio.busy);
+  },
+  go(dt){
+    /* her last line; then her window goes and the camera cranes into play */
+    if (this.radio.busy) return false;
+    this.radio.visible = false;
+    this.craneT = (this.craneT ?? 0) + dt;
+    return this.craneT >= CRANE;
+  }
+};
+/* When a beat's waited as long as it will: as if everyone had done it. */
+const FORCE = {
+  wake(){ for (const i of this.g.here){ this.woke[i] = WIGGLE; this.up[i] = 1; } },
+  call(){ for (const i of this.g.here) this.answered[i] = true; },
+  pond(){ for (const i of this.g.here){ this.g.crew[i].hp = this.g.crew[i].max; this.pos[i][0] = GROUND.pond[0]; } }
+};
+Intro.prototype._settled = function (dt, ok){
+  if (!ok){ this.afterT = 0; return false; }
+  this.afterT = (this.afterT || 0) + dt;
+  return this.afterT >= AFTER;
 };
 
 const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
+const mix = (a, b, k) => ({ cx: a.cx + (b.cx - a.cx) * k, cy: a.cy + (b.cy - a.cy) * k, s: a.s + (b.s - a.s) * k, r: a.r + (b.r - a.r) * k });
 
 function banner(c, W, H, text, col, scale = 1, fill = 0){
   c.save(); c.translate(W / 2, H * 0.2); c.scale(scale, scale);
