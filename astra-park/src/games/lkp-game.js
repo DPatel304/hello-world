@@ -5,7 +5,7 @@ import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
-import { Zip, worldZipStart, ZIP_SPEED, RIDE, LAND, DROP, LIFT } from './lkp-zip.js';
+import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
@@ -335,16 +335,20 @@ class LastKnownPosition {
         this.things.push({ d: d + 0.04 + len * 0.5, kind: 'crystal', lane: 0, alt: LEAP_BIG * 0.85, worth: GOLD_CRYSTAL });
         return secsOf(len) + 2;
       },
-      /* The zip line: grab on, away over the valley, crystals hanging in
-         snaking lines to swing for. */
+      /* The zip line: counted in on the way (clear ground), everyone
+         grabbing the one cable; then away over the valley, crystals
+         hanging along it to swing for - and lower ones out wide, for
+         anyone dangling. */
       zip: (s) => {
-        const d = at(s), ride = ZIP_SPEED * RIDE;
-        add(s, { kind: 'zip' });
-        for (let k = 0; k * 0.11 < ride - 0.4; k++){
-          const x = k * 0.11, lane = Math.sin(x * 2.2) * 0.85 * (Math.floor(x / 1.6) % 2 ? -1 : 1);
-          this.things.push({ d: d + 0.5 + x, kind: 'crystal', lane, hang: true });
+        const d = at(s + COUNT), ride = ZIP_SPEED * RIDE;
+        add(s + COUNT, { kind: 'zip' });
+        for (let k = 0; k * 0.1 < ride - 0.5; k++){
+          const x = k * 0.1;
+          /* (to one side then the other: lean into them) */
+          this.things.push({ d: d + 0.5 + x, kind: 'crystal', lane: CABLE + (Math.sin(x * 2.5) < 0 ? -0.1 : 0.1), hang: true });
+          if (k % 3 === 0) this.things.push({ d: d + 0.55 + x, kind: 'crystal', lane: CABLE + (Math.sin(x * 1.7 + 1) < 0 ? -0.18 : 0.18), hang: true, low: true });
         }
-        return secsOf(ride + (ZIP_SPEED + SPEED) / 2 * LAND) + 2;
+        return COUNT + secsOf(ride + (ZIP_SPEED + SPEED) / 2 * LAND) + 2;
       }
     };
 
@@ -457,7 +461,7 @@ class LastKnownPosition {
        jump slows everything while they're in the air. (The corridor waits
        for it.) */
     if (seg.kind === 'corridor'){
-      this._events(dt);
+      this._events(dt, W, H);
       if (this.zip) want = this.zip.speed(SPEED);
       else if (this.leap) want = SPEED * LEAP_SLOW;
       if (this.zip || this.leap) seg.len += dt * (1 - this.speed / SPEED);
@@ -491,16 +495,16 @@ class LastKnownPosition {
 
   /* ---------- the corridors' events ---------- */
 
-  _events(dt){
-    /* The zip line: reaching its platform, grab on; when they've landed,
+  _events(dt, W, H){
+    /* The zip line: counted in on the way up to it; when they've landed,
        on they run. */
     if (!this.zip){
-      const th = this.things.find(t => t.kind === 'zip' && !t.taken && t.d - this.z <= RUN + 0.14);
+      const th = this.things.find(t => t.kind === 'zip' && !t.taken && t.d - this.z - RUN <= SPEED * COUNT);
       if (th){ th.taken = true; this.zip = new Zip(this, th); }
     }
     if (this.zip){
-      this.zip.step(dt);
-      if (this.zip.done){ this.zip = null; for (const rn of this.crew) rn.pose = null; }
+      this.zip.step(dt, W, H);
+      if (this.zip.done) this.zip = null;
     }
     /* The big jump: at the ravine's edge, everyone leaps - over it as the
        ground goes by - and lands on the far side. */
@@ -521,7 +525,6 @@ class LastKnownPosition {
      high for a hop, over the ravine for the leap, or hanging along the
      zip line. */
   _crystalUp(th, H, k){
-    if (th.hang) return (LIFT + CREW_SIZE * 0.55) * H * k;
     if (th.alt) return H * CREW_SIZE * (th.alt * 0.55 + 0.55) * k;
     return H * (th.high ? 0.3 : 0.11) * k;
   }
@@ -704,7 +707,7 @@ class LastKnownPosition {
     /* The running stride: how hard (0..1) and where in it - a footstep at
        each half. Walking in a trap room goes by how much they move. */
     const run = this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
-      : this.fight || this.zip || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
+      : this.fight || (this.zip && this.zip.holding(i)) || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
     rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);
     if (rn.run > 0.05 && rn.air <= 0){
       const was = rn.runPh || 0;
@@ -739,16 +742,15 @@ class LastKnownPosition {
       : this.seg.kind === 'cross' && this.seg.choice != null ? DOORS[this.seg.choice] + this._home(i) * 0.12
       : this.seg.kind === 'cross' ? clamp(rn.lean + this._home(i) * 0.2, -1, 1)
       : this.fight ? clamp(rn.lean + this._home(i) * FIGHT_APART, -1, 1)
-      : this.zip && this.zip.riding ? this.zip.want(i, rn.lean)
+      : this.zip && this.zip.holding(i) ? rn.x
       : this._lane(this._home(i) + rn.lean * this.reach);
-    /* (on the zip line, swinging - slower to follow) */
-    rn.x += (want - rn.x) * Math.min(1, dt * (this.zip && this.zip.riding ? 2.5 : 6));
-    if (this.zip && this.zip.on[i]) rn.pose = 'hang';
+    rn.x += (want - rn.x) * Math.min(1, dt * 6);
+    const holding = !!(this.zip && this.zip.holding(i));
     if (this.t - rn.lastDuck < UNDUCK) jumped = false;
     if (this.leap){
       /* over the ravine: a long arc - higher for a hop at the edge */
       rn.air = (this.leap.th.bonus.has(i) ? LEAP_BIG : LEAP_H) * Math.sin(Math.PI * this.leapU); rn.airV = 0;
-    } else if (this.zip){ rn.air = 0; rn.airV = 0; }
+    } else if (holding){ rn.air = 0; rn.airV = 0; }
     else {
       if (jumped && rn.air < CLEAR){ rn.airV = Math.sqrt(2 * GRAVITY * HOP); sfx.boing(1.2); }
       if (rn.air > 0 || rn.airV > 0){
@@ -756,7 +758,7 @@ class LastKnownPosition {
         if (rn.air <= 0){ rn.air = 0; rn.airV = 0; }
       }
     }
-    const ducking = !this.zip && this.duckOf(i, dt);
+    const ducking = !holding && this.duckOf(i, dt);
     if (ducking) rn.lastDuck = this.t;
     rn.duck += ((ducking ? 1 : 0) - rn.duck) * Math.min(1, dt * 12);
   }
@@ -787,6 +789,7 @@ class LastKnownPosition {
       for (const i of this.here){
         const rn = this.crew[i];
         if (th.kind === 'crystal'){
+          if (th.hang) continue;     /* (along the zip line: lkp-zip.js) */
           if (th.got || Math.abs(rn.x - th.lane) > CRYSTAL_REACH || (th.high && rn.air < CLEAR * 2) || (th.alt && rn.air < th.alt * 0.8)) continue;
           th.got = true;
           const p = P(th.lane, RUN, W, H), y = (p.y - this._crystalUp(th, H, 1)) / H;
@@ -988,7 +991,7 @@ class LastKnownPosition {
     for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
     for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel < 1 && rel > -0.3) worldPond(c, W, H, th.lane, rel, this.t, PAL.world, th.r); }
     if (dropY){ c.restore(); SKY.above = 0; }
-    if (this.zip) this.zip.cables(c, W, H);
+    if (this.zip) this.zip.drawCable(c, W, H);
     const items = [];
     for (const th of this.things) if (!th.got && th.kind !== 'fountain' && th.kind !== 'pond' && th.kind !== 'meadow') items.push({ ...th, rel: th.d - this.z });
     if (seg.kind === 'cross') items.push({ kind: 'doors', rel: seg.wall - this.z });
@@ -1000,7 +1003,7 @@ class LastKnownPosition {
       const p = P(ic.lane, ic.rel, W, H), h = H * CREW_SIZE * p.k;
       items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x + (ic.dx || 0) * h, y: p.y, h, bob: 0, down: ic.down, pose: ic.pose, noBar: ic.noBar } });
     }
-    else for (let i = 0; i < this.players; i++) if (this.crew[i].played) items.push({ kind: 'crew', rel: RUN, i });
+    else for (let i = 0; i < this.players; i++) if (this.crew[i].played && !(this.zip && this.zip.holding(i))) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
     items.sort((a, b) => b.rel - a.rel);
     for (const it of items){
@@ -1010,6 +1013,12 @@ class LastKnownPosition {
       this._drawItem(c, it, W, H);
       if (low) c.restore();
     }
+    /* on the zip line: each hanging from the cable, or the feet above */
+    if (this.zip) this.zip.drawRiders(c, W, H, (i, x, y, h, a) => {
+      c.save(); c.translate(x, y); c.rotate(a);
+      this._drawCrew(c, i, W, H, { x: 0, y: h * 1.02, h, bob: 0, pose: 'hang', noBar: true });
+      c.restore();
+    });
     if (this.zip) this.zip.marks(c, W, H);
     /* At the fork, still choosing: over each one's head an arrow, in their
        colour, pointing the way they're going. */
@@ -1060,13 +1069,13 @@ class LastKnownPosition {
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': {
-        const y = it.hang && this.zip && this.zip.riding ? this.zip.lineY(W, H, p.k) + H * 0.1 * p.k : p.y - this._crystalUp(it, H, p.k), s = H * 0.022 * p.k * (it.worth > 1 ? 1.7 : 1);
+        const y = it.hang ? hangY(it, it.rel, W, H) : p.y - this._crystalUp(it, H, p.k), s = H * 0.022 * p.k * (it.worth > 1 ? 1.7 : 1);
         if (it.worth > 1){ glow(c, p.x, y, s * 4, '#ffd24a', 0.8 + 0.2 * Math.sin(this.t * 6)); }
         drawCrystal(c, p.x, y, s, this.t + it.d * 9);
         if (it.worth > 1){ c.strokeStyle = '#ffe28a'; c.lineWidth = s * 0.18; c.beginPath(); c.arc(p.x, y, s * 1.5, 0, 6.2832); c.stroke(); }
         break;
       }
-      case 'zip': if (!this.zip || !this.zip.riding) worldZipStart(c, W, H, it.rel, PAL.world, this.players); break;
+      case 'zip': worldZipStart(c, W, H, it.rel, PAL.world); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
@@ -1116,9 +1125,9 @@ class LastKnownPosition {
   _drawCrew(c, i, W, H, at = null){
     const rn = this.crew[i], here = pose.players[i].present;
     let p = at || P(rn.x, RUN, W, H); const h = at ? at.h : H * CREW_SIZE;
-    if (!at && this.zip) p = { ...p, y: p.y - this.zip.lift(H) };
+    if (!at && this.zip) p = { ...p, y: p.y + this.zip.fallY(H) };
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!(this.zip && this.zip.riding), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || rn.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || rn.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);

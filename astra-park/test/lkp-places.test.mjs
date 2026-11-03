@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import game, { story, ROLLER, NARROW, WIDE, LEAP_H, LEAP_BIG, SPEED } from '../src/games/lkp-game.js';
 import { PAL, RUN } from '../src/games/lkp-art.js';
 import { PATH_HALF } from '../src/games/lkp-world.js';
-import { GRAB_MAX, RIDE, LAND } from '../src/games/lkp-zip.js';
+import { COUNT, LATE, HOLD, RIDE, LAND, FALL } from '../src/games/lkp-zip.js';
 import { pose } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 30;
@@ -73,43 +73,84 @@ test('at the ravine everyone leaps it - higher for a hop at the edge, high enoug
   assert.ok(inst.crew.slice(0, 2).every(rn => rn.air === 0));
 });
 
-test('the zip line: hands up to grab on, away over the valley swinging for crystals, and down', () => {
-  story.on = false; crew(2);
-  const inst = game.create(2); quiet(inst);
+const up = (i, on = true) => { pose.players[i].hands.right = { x: 0.5, y: on ? 0.1 : 0.5, vx: 0, vy: 0, speed: 0 }; };
+/* Into the zip line's count, three of them. */
+function toZip(n = 3){
+  story.on = false; crew(n);
+  const inst = game.create(n); quiet(inst);
   corridor(inst, 2);
-  upTo(inst, 'zip', 0.14);
-  for (let k = 0; k < 20; k++) inst.step(DT, W, H);
-  assert.ok(inst.zip && inst.zip.phase === 'grab');
+  for (let k = 0; k < 4000 && !inst.zip; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  return inst;
+}
+
+test('the zip line counts them in without stopping; hands up in time, on the cable in the order they went up', () => {
+  const inst = toZip(3);
+  assert.equal(inst.zip.phase, 'ready');
   const z = inst.z;
-  for (let k = 0; k < 30; k++) inst.step(DT, W, H);
-  assert.ok(Math.abs(inst.z - z) < 0.01, 'waiting at the platform');
+  /* 2 first, then 0; 1 not yet */
+  up(2); for (let k = 0; k < 10; k++) inst.step(DT, W, H);
+  up(0); for (let k = 0; k < 10; k++) inst.step(DT, W, H);
+  assert.ok(inst.z > z + 0.1, 'still running');
+  assert.deepEqual(inst.zip.ready, [2, 0]);
   inst.draw(fake(), W, H);
-  /* one grabs on; then the other */
-  pose.players[0].hands.right = { x: 0.5, y: 0.1, vx: 0, vy: 0, speed: 0 };
-  for (let k = 0; k < 20; k++) inst.step(DT, W, H);
-  assert.ok(inst.zip.on[0] && !inst.zip.on[1] && inst.zip.phase === 'grab');
-  pose.players[1].hands.right = { x: 0.5, y: 0.1, vx: 0, vy: 0, speed: 0 };
-  for (let k = 0; k < 60; k++) inst.step(DT, W, H);
+  for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
   assert.equal(inst.zip.phase, 'ride');
-  /* leaning hard, swinging all the way over */
-  inst.leanOf = (i) => i === 0 ? -1 : 1;
-  const got = inst.crystals;
-  for (let k = 0; k < 60; k++) inst.step(DT, W, H);
-  assert.ok(inst.crew[0].x < -0.6 && inst.crew[1].x > 0.6, 'swung across');
+  assert.deepEqual(inst.zip.cable, [2, 0], 'the quickest at the front');
+  /* 1, late: jumps for it, and catches the feet of the last one */
+  up(1); for (let k = 0; k < (HOLD + 0.1) / DT; k++) inst.step(DT, W, H);
+  assert.deepEqual(inst.zip.chain, [1]);
   inst.draw(fake(), W, H);
-  for (let k = 0; k < (RIDE + LAND + 1) * 30 && inst.zip; k++) inst.step(DT, W, H);
-  assert.equal(inst.zip, null, 'landed and running');
-  assert.ok(inst.crystals > got, 'picked some up');
+  crew(3);
+});
+
+test('anyone who never puts their hands up is scooped onto the end of the chain', () => {
+  const inst = toZip(2);
+  up(0);
+  for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
+  up(0, false);
+  for (let k = 0; k < (LATE + 0.2) / DT; k++) inst.step(DT, W, H);
+  assert.deepEqual(inst.zip.cable, [0]);
+  assert.deepEqual(inst.zip.chain, [1]);
+  assert.ok(!inst.over);
   crew(2);
 });
 
-test('nobody grabbing on never holds the zip line up for ever', () => {
-  story.on = false; crew(1);
-  const inst = game.create(1); quiet(inst);
-  corridor(inst, 2);
-  upTo(inst, 'zip', 0.14);
-  for (let k = 0; k < (GRAB_MAX + 2) * 30; k++) inst.step(DT, W, H);
-  assert.ok(!inst.zip || inst.zip.phase !== 'grab');
+test('nobody up in time, but one jumps late: they catch the cable, and everyone else hangs on below', () => {
+  const inst = toZip(2);
+  for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
+  assert.equal(inst.zip.phase, 'late');
+  up(1); for (let k = 0; k < (HOLD + 0.1) / DT; k++) inst.step(DT, W, H);
+  assert.deepEqual(inst.zip.cable, [1]);
+  assert.equal(inst.zip.phase, 'ride');
+  crew(2);
+});
+
+test('if nobody grabs the line at all, they run off the edge - and the run is over', () => {
+  const inst = toZip(2);
+  for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
+  for (let k = 0; k < (LATE + 0.2) / DT; k++) inst.step(DT, W, H);
+  assert.equal(inst.zip.phase, 'fall');
+  inst.draw(fake(), W, H);
+  for (let k = 0; k < (FALL + 0.3) / DT && !inst.over; k++) inst.step(DT, W, H);
+  assert.ok(inst.over && inst.lost);
+});
+
+test('riding, leaning swings you for the crystals along the line; then down, running again', () => {
+  const inst = toZip(2);
+  up(0); up(1);
+  for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
+  up(0, false); up(1, false);
+  const got = inst.crystals;
+  inst.leanOf = (i) => Math.sin(inst.t * 2 + i) * 0.9;
+  let swung = 0;
+  for (let k = 0; k < (RIDE + LAND + 1) / DT && inst.zip; k++){
+    inst.step(DT, W, H);
+    if (inst.zip) swung = Math.max(swung, Math.abs(inst.zip.swing[0].a));
+    if (k % 40 === 0) inst.draw(fake(), W, H);
+  }
+  assert.ok(swung > 0.3, 'swinging');
+  assert.equal(inst.zip, null, 'landed');
+  assert.ok(inst.crystals > got, 'picked some up');
 });
 
 test('a rolling log hits whoever is where it crosses, and nobody else', () => {
