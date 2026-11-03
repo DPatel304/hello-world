@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { turn, resetView, tree, CLEAR as CLEARINGS } from './lkp-world.js';
+import { turn, resetView, tree, worldBoulder, CLEAR as CLEARINGS } from './lkp-world.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
@@ -80,7 +80,13 @@ export const FLY = 0.2, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
 export const SCORE = { kill: 10, boss: 500 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
-export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10 };   /* ledge: a breach across part of the floor */
+/* A rolling boulder: how wide (lanes, either side of its middle), and how
+   fast it rolls across - lanes for each bit of depth still to come. */
+export const ROLLER = 0.24, ROLL = 3.2;
+/* How long a new place's name shows, arriving. */
+const PLACE_CARD = 3.2;
+const rollerLane = (th, rel) => th.end - th.dir * Math.max(0, rel - RUN) * ROLL;
+export const HURT = { blocker: 10, beam: 10, gap: 20, ledge: 10, roller: 12 };   /* ledge: a breach across part of the floor */
 export const SAFE = 1;                          /* seconds of safety after a hit */
 export const SLOW = 0.6, SLOW_FOR = 0.6;        /* a hit slows everyone a moment */
 /* A spring: a long pool along the path, SPRING_SECS to run through,
@@ -279,6 +285,30 @@ class LastKnownPosition {
       else { const a = s < 0 ? -1.05 : 0.05, b = a + 1; add(secs, { kind: 'ledge', a, b }); crystalLine(secs - 0.5, s < 0 ? 0.6 : -0.6, 3); }
     };
     const fountain = (secs, lane = 0) => add(secs, { kind: 'fountain', lane, used: new Set(), len: SPRING_LEN * squeeze });
+    /* A boulder rolling across the path, from one side, as it comes:
+       where it crosses the crew's line (end) is where not to be. */
+    const roller = (secs) => { const dir = side(); add(secs, { kind: 'roller', end: (Math.random() * 2 - 1) * 0.6, dir, spin: 0 }); crystalLine(secs + 0.8, 0, 3); };
+    /* Set pieces: a few of one thing in a row, each its own little test.
+       Each returns how long it takes. */
+    const PIECES = {
+      /* weaving: debris left, right, left, right */
+      slalom: (s) => { const f = side(); for (let k = 0; k < 4; k++) blocker(s + k * 1.5, k % 2 ? f : -f, 0.7); return 6; },
+      /* a run of low branches: duck, duck, duck */
+      duckrun: (s) => { for (let k = 0; k < 3; k++) beam(s + k * 1.4); return 4.4; },
+      /* a ditch, then straight under a branch */
+      combo: (s) => { gap(s); beam(s + 1.5); return 3.4; },
+      /* rocks rolling down off the walls */
+      boulder: (s) => { roller(s); roller(s + 2.2); return 4.2; },
+      /* an arc of crystals, the top of it only to be had with a hop */
+      arc: (s) => { for (let k = 0; k < 7; k++) add(s + k * 0.35, { kind: 'crystal', lane: -0.75 + k * 0.25, high: k >= 2 && k <= 4 }); return 3; }
+    };
+    /* A new place: its own look, its name, Nova on what's ahead. */
+    const place = this.level.places && this.level.places[n];
+    if (place){
+      PAL.world = { ...this.level.palette.world, ...place.world };
+      this.placeCard = { name: place.name, t: 0 };
+      if (place.say) this.captain.say(place.say[0], place.say[1]);
+    }
     if (n === 0){
       /* Where they start: the crash site, off to the left of the path - the
          ship, a piece of it, the meadow and the woods round it, the
@@ -300,24 +330,19 @@ class LastKnownPosition {
       beam(40); gap(43, false); blocker(46);
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
-      crystalLine(3, 0, 5); blocker(6); blocker(8.5);
-      let s = 11;
-      for (let k = 0; k < 6; k++){
-        const r = Math.random();
-        if (r < 0.4) blocker(s); else if (r < 0.65) beam(s); else if (r < 0.85) gap(s, false); else gap(s);
-        s += 2.6 * hard + Math.random() * 1.2;
-      }
-      /* The middle: a crystal rush, or a spring. */
-      if (n === 1){ for (let k = 0; k < 4; k++) crystalLine(s + k * 0.9, Math.sin(k) * 0.7, 3); s += 4.5; }
-      else { fountain(s, side() * 0.45); s += 2.5; }
+      crystalLine(3, 0, 5); blocker(6);
+      let s = 9;
       /* Springs to run into on the way: SPRINGS in the corridor, more in
          the last one before the boss - off to one side, so it's a lean. */
       const last = n === FULL.length - 1, end = (FULL[n] || 45) - 3;
       const springs = Array.from({ length: last ? SPRINGS + 1 : SPRINGS }, (_, k) => s + 2 + (end - s - 2) * (k + 0.5) / (last ? SPRINGS + 1 : SPRINGS));
-      for (let k = 0; k < 8 && s < end; k++){
+      /* The place's own set pieces, in turn, with single things between. */
+      const pool = (place && place.pieces) || ['slalom', 'duckrun', 'combo', 'boulder'];
+      for (let k = 0; s < end - 2; k++){
         if (springs.length && s >= springs[0]){ fountain(s, side() * (0.4 + Math.random() * 0.3)); springs.shift(); s += 2; continue; }
+        if (k % 2 === 0){ s += PIECES[pool[(k / 2) % pool.length]](s) + 1.4 * hard; continue; }
         const r = Math.random();
-        if (r < 0.35) blocker(s, side(), 1.1); else if (r < 0.6) beam(s); else if (r < 0.8) gap(s, false); else gap(s);
+        if (r < 0.35) blocker(s, side(), 0.9); else if (r < 0.6) beam(s); else if (r < 0.8) gap(s, false); else gap(s);
         s += 2.2 * hard + Math.random();
       }
       for (const at of springs) if (at < end) fountain(at, side() * 0.5);
@@ -372,6 +397,7 @@ class LastKnownPosition {
     this.shake = Math.max(0, this.shake - dt * 3);
     const seg = this.seg;
     seg.t += dt;
+    if (this.placeCard){ this.placeCard.t += dt; if (this.placeCard.t > PLACE_CARD) this.placeCard = null; }
     this.slow = Math.max(0, this.slow - dt);
     /* How fast down the corridor: steady, a dip when someone's hit, and
        stopping at the doors. */
@@ -656,6 +682,7 @@ class LastKnownPosition {
         if (th.kind === 'beam') hit = rn.duck < DUCKED && this.t - rn.lastDuck > 0.25;
         else if (th.kind === 'gap' || th.kind === 'ledge') hit = rn.x > th.a - BODY * 0.5 && rn.x < th.b + BODY * 0.5 && rn.air < CLEAR;
         else if (th.kind === 'blocker') hit = rn.x > th.a - BODY && rn.x < th.b + BODY && rn.air < CLEAR * 4;
+        else if (th.kind === 'roller') hit = Math.abs(rn.x - th.end) < ROLLER + BODY && rn.air < CLEAR * 4;
         if (hit && (th.kind === 'gap' || th.kind === 'ledge')){ if (!rn.falling){ rn.falling = LATE_HOP; rn.fall = th.kind; } }
         else if (hit) this._hurt(i, HURT[th.kind], W, H);
       }
@@ -793,9 +820,25 @@ class LastKnownPosition {
       return;
     }
     this._drawPlay(c, W, H);
+    if (this.placeCard) this._drawPlace(c, W, H);
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
     if (this.levelup) this.levelup.draw(c, W, H);
     this.captain.draw(c, W, H);
+  }
+
+  /* Arriving somewhere new: in from black, and its name. */
+  _drawPlace(c, W, H){
+    const { t, name } = this.placeCard;
+    if (t < 0.7){ c.fillStyle = `rgba(0,0,0,${1 - t / 0.7})`; c.fillRect(0, 0, W, H); }
+    const a = Math.min(1, Math.max(0, (t - 0.4) / 0.4)) * Math.min(1, Math.max(0, (PLACE_CARD - t) / 0.6));
+    if (a <= 0) return;
+    c.save(); c.globalAlpha = a; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const y = H * 0.3 - (1 - Math.min(1, (t - 0.4) / 0.6)) * H * 0.02;
+    c.font = `600 ${Math.round(H * 0.03)}px Fredoka, sans-serif`; c.lineWidth = H * 0.008; c.strokeStyle = '#05060f';
+    c.strokeText('ENTERING', W / 2, y - H * 0.06); c.fillStyle = '#7ff3ff'; c.fillText('ENTERING', W / 2, y - H * 0.06);
+    c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.lineWidth = H * 0.014;
+    c.strokeText(name.toUpperCase(), W / 2, y); c.fillStyle = '#ffffff'; c.fillText(name.toUpperCase(), W / 2, y);
+    c.restore();
   }
 
   _drawPlay(c, W, H){
@@ -907,6 +950,7 @@ class LastKnownPosition {
       case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
       case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
+      case 'roller': worldBoulder(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world || {}, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
     }
   }
@@ -1081,6 +1125,9 @@ class LastKnownPosition {
     }
   }
 
+  /* (Reaching up is the game in the treasure room, and moving any way at
+     all in a trap room: no pausing on both hands up there.) */
+  pausable(){ return !this.treasure && !this.trap; }
   hud(){ return { score: pose.players.map(() => this.crystals), showLives: false, hideScore: true, hideClock: true }; }
   /* The tally: what the score's made of - each [picture, count, worth]. */
   tallyLines(){
