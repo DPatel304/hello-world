@@ -1,7 +1,13 @@
-/* Spoken lines, in the computer's own voices (the browser's speech
-   synthesis - built into Windows, no download, works offline). For the
-   games with someone to talk to the players: Last Known Position's ship's
-   computer, Nova, and the robots.
+/* Spoken lines, for the games with someone to talk to the players: Last
+   Known Position's ship's computer, Nova, and the robots.
+
+   Recorded first: the lines in voice-lines.js (made once with ElevenLabs,
+   tools/record-voice.mjs, and shipped in the game - nothing's fetched),
+   so she sounds the same, and human, every time. A line made of recorded
+   sentences (the praise: "Blue, great dodging! Green, ...") is played a
+   sentence after another. Anything else - a line written since, or one
+   built on the fly - in the computer's own voices (the browser's speech
+   synthesis - built into Windows, no download, works offline).
 
    Each speaker has a voice: Nova a woman's voice if the computer has one,
    at her own pitch and pace; the robots, a man's, low and slow. A new line
@@ -9,6 +15,7 @@
    turn. Quiet when the sound's muted, and nothing at all where there's no
    speech (in the tests). */
 import { audio, isQuiet } from './sound.js';
+import { LINES } from './voice-lines.js';
 
 /* Who's speaking: which voices they'd like (names to look for, best
    first), and how they say things. The natural-sounding voices - Edge's
@@ -37,11 +44,58 @@ export function pick(who, list = null){
   return voices.slice().sort((a, b) => score(a) - score(b))[0] || null;
 }
 
+/* The recordings that say text: the line's own, or one for each of its
+   sentences - or null, when it isn't all recorded. */
+export function clipsFor(text, lines = LINES){
+  const t = text.trim();
+  if (lines[t]) return [lines[t]];
+  const parts = t.split(/(?<=[.!?])\s+/);
+  if (parts.length < 2) return null;
+  const clips = parts.map(p => lines[p]);
+  return clips.every(Boolean) ? clips : null;
+}
+
+/* GAP: the breath between sentences played one after another. */
+const GAP = 0.15;
+
 /* About how long a line takes to say, in seconds: for timing scenes the
-   same whether or not there's a voice to hear. */
+   same whether or not there's a voice to hear - the recording's own
+   length when there is one. */
 export function lineTime(text, who = 'nova'){
+  const clips = clipsFor(text);
+  if (clips) return clips.reduce((n, c) => n + c.secs, 0) + GAP * (clips.length - 1) + 0.2;
   const words = text.trim().split(/\s+/).length;
   return 0.4 + words / (2.6 * SPEAKERS[who].rate);
+}
+
+/* ---------- the recordings ---------- */
+
+const Player = () => (typeof window !== 'undefined' && window.Audio) || (typeof Audio !== 'undefined' ? Audio : null);
+/* now: what's playing; later: the lines waiting their turn (polite). */
+let now = null, later = [];
+/* Play clips, one after another; then whatever's waiting. */
+function play(clips){
+  const A = Player(); if (!A) return;
+  const job = { clips, k: 0, el: null, gap: null };
+  now = job;
+  const next = () => {
+    if (now !== job) return;
+    if (job.k >= clips.length){ now = null; const w = later.shift(); if (w) w(); return; }
+    const el = job.el = new A('data:audio/mpeg;base64,' + clips[job.k++].mp3);
+    el.volume = Math.min(1, audio.volume * 1.4);
+    el.onended = () => { job.gap = setTimeout(next, GAP * 1000); };
+    el.onerror = () => next();
+    const p = el.play && el.play();
+    if (p && p.catch) p.catch(() => {});
+  };
+  next();
+}
+function stopClips(){
+  later = [];
+  if (!now) return;
+  const job = now; now = null;
+  clearTimeout(job.gap);
+  if (job.el){ job.el.onended = job.el.onerror = null; job.el.pause && job.el.pause(); }
 }
 
 /* The computer's voices arrive a moment after the browser starts - the
@@ -79,8 +133,15 @@ function voiceFor(who){
 export const voice = {
   /* Say text, as who. */
   say(text, who = 'nova', polite = false){
+    if (audio.muted || isQuiet()) return;
+    const clips = clipsFor(text);
+    if (clips && Player()){
+      if (polite && now){ later.push(() => play(clips)); return; }
+      voice.hush(); play(clips); return;
+    }
     const s = synth(), U = Utterance();
-    if (!s || !U || audio.muted || isQuiet()) return;
+    if (!s || !U) return;
+    if (!polite) stopClips();
     const speak = () => {
       if (!polite) s.cancel();
       const u = new U(text), sp = SPEAKERS[who];
@@ -97,5 +158,7 @@ export const voice = {
     waiting.push(speak);
     if (!waitTimer) waitTimer = setTimeout(settle, WAIT * 1000);
   },
-  hush(){ waiting = []; const s = synth(); if (s) s.cancel(); }
+  hush(){ stopClips(); waiting = []; const s = synth(); if (s) s.cancel(); },
+  /* Whether a recording's playing. */
+  get playing(){ return !!now; }
 };

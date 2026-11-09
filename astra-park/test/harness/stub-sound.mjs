@@ -14,11 +14,11 @@ const recorder = () => new Proxy({}, {
 
 export const sfx = recorder();
 export const music = recorder();
-export const audio = Object.assign(recorder(), {
-  get volume(){ return 0.7; },
-  get muted(){ return false; }
-});
+/* (muted and quiet can be switched on by a test: stub.muted, stub.quiet) */
+export const stub = { muted: false, quiet: false };
+const sound = { volume: 0.7, get muted(){ return stub.muted; } };
+export const audio = new Proxy({}, { get: (t, k) => k in sound ? sound[k] : k === 'then' ? undefined : noop });
 export const ambience = recorder();
 
-export const isQuiet = () => false;
+export const isQuiet = () => stub.quiet;
 export const quietly = (fn) => fn();
