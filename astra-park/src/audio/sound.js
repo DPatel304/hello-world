@@ -153,11 +153,11 @@ export const sfx = {
      less as you come round (k: how loud, 0..1). */
   earRing(k = 1){
     const c = ctx(), t = c.currentTime;
-    for (const [f, g] of [[3520, 0.035], [3585, 0.02], [7040, 0.006]]){
+    for (const [f, g] of [[3520, 0.008], [3585, 0.004]]){
       const o = c.createOscillator(), gn = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
       o.type = 'sine'; o.frequency.value = f;
       lfo.frequency.value = 0.7 + Math.random() * 0.6; lg.gain.value = f * 0.004; lfo.connect(lg); lg.connect(o.frequency);
-      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(g * k + 0.0001, t + 0.6); gn.gain.exponentialRampToValueAtTime(0.0001, t + 6);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(g * k + 0.0001, t + 1.2); gn.gain.exponentialRampToValueAtTime(0.0001, t + 4.5);
       o.connect(gn); gn.connect(master); o.start(t); o.stop(t + 6.1); lfo.start(t); lfo.stop(t + 6.1);
     }
   },
@@ -166,15 +166,21 @@ export const sfx = {
   fireRoar(k = 1, dur = 1.2, clear = 0){
     const c = ctx(), t = c.currentTime, s = noise(), f = c.createBiquadFilter(), g = c.createGain();
     s.loop = true;
-    f.type = 'lowpass'; f.frequency.value = 260 + 900 * clear; f.Q.value = 0.7;
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09 * k, t + dur * 0.4); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    /* (a broad rushing band - the body of the flames - and a deep rumble
+       under it, both swelling and easing as the fire breathes) */
+    f.type = 'bandpass'; f.frequency.value = 420 + 700 * clear; f.Q.value = 0.45;
+    const lo = c.createBiquadFilter(), lg = c.createGain(), s2 = noise(); s2.loop = true;
+    lo.type = 'lowpass'; lo.frequency.value = 160; lg.gain.value = 0;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime((0.45 + 0.25 * clear) * k, t + dur * 0.4); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    lg.gain.setValueAtTime(0.0001, t); lg.gain.linearRampToValueAtTime(1.2 * k, t + dur * 0.4); lg.gain.linearRampToValueAtTime(0.0001, t + dur);
     s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.05);
+    s2.connect(lo); lo.connect(lg); lg.connect(master); s2.start(t, 0.3); s2.stop(t + dur + 0.05);
   },
   /* ...and its crackle: a few sharp little pops, now and then a snap. */
   fireCrackle(k = 1, clear = 0){
     const n = 2 + Math.floor(Math.random() * 4);
-    for (let j = 0; j < n; j++) hiss({ dur: 0.012 + Math.random() * 0.03, gain: (0.06 + Math.random() * 0.1) * k, hp: 1400 + Math.random() * 2600 * (0.4 + clear), type: 'bandpass', q: 1.4, delay: Math.random() * 0.4 });
-    if (Math.random() < 0.25) hiss({ dur: 0.05, gain: 0.16 * k, hp: 900 + 1200 * clear, type: 'bandpass', q: 0.8, delay: Math.random() * 0.4 });
+    for (let j = 0; j < n; j++) hiss({ dur: 0.012 + Math.random() * 0.03, gain: (0.14 + Math.random() * 0.2) * k, hp: 1400 + Math.random() * 2600 * (0.4 + clear), type: 'bandpass', q: 1.4, delay: Math.random() * 0.4 });
+    if (Math.random() < 0.3) hiss({ dur: 0.06, gain: 0.32 * k, hp: 900 + 1200 * clear, type: 'bandpass', q: 0.8, delay: Math.random() * 0.4 });
   },
   /* Voices, far off, over a crackly radio: a few muffled syllables,
      rising and falling like someone talking - no words you could make

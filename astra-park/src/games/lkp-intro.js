@@ -113,10 +113,11 @@ export class Intro {
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
     if (s === 'rise' || this.done) return;
     const near = s === 'dark' || s === 'wake' ? 1 : 0.5;
-    if (this.t > 0.2 && (this.ringT == null || this.t - this.ringT > 5.5)){ this.ringT = this.t; sfx.earRing?.(s === 'dark' ? 1 : 0.5); }
+    /* (the ringing: just once, softly, in the dark - and once more, fainter, as the eyes first open) */
+    if ((s === 'dark' && this.ringT == null) || (s === 'wake' && this.ringT != null && this.ringT < 0)){ this.ringT = s === 'dark' ? -1 : this.t; sfx.earRing?.(s === 'dark' ? 1 : 0.5); }
     this.roarT = (this.roarT ?? 0) - dt;
     if (this.roarT <= 0){ this.roarT = 1; sfx.fireRoar?.(near * (0.6 + 0.4 * clear), 1.3, clear); }
-    if (Math.random() < dt * (2 + 3 * clear)) sfx.fireCrackle?.(near * (0.5 + 0.5 * clear), clear);
+    if (Math.random() < dt * (4 + 4 * clear)) sfx.fireCrackle?.(near * (0.6 + 0.4 * clear), clear);
     this.talkT = (this.talkT ?? 2.2) - dt;
     if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear); }
   }
