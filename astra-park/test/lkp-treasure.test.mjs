@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { story, GOLD_EVERY, FLYING } from '../src/games/lkp-game.js';
+import game, { story, PICKING, GOLD_EVERY, FLYING, AFTER } from '../src/games/lkp-game.js';
+/* (the choosing screens, put away for now in the game, are tested here) */
+PICKING.levelUp = PICKING.weapon = true;
 import { needFor } from '../src/games/lkp-levelup.js';
 import { TREASURE_TIME as LEN, CALM, CRYSTALS, RAIN, POOL, POOL_HEAL } from '../src/games/lkp-treasure.js';
 /* The whole crystal grab: the calm start, then the crystals coming down. */
@@ -64,7 +66,7 @@ test('the crystals done, POOL seconds of healing water for the whole team - hugg
   assert.ok(Math.abs(a - POOL_HEAL * POOL) < 2, `standing: +${a}`);
   assert.ok(b > a * 2.5, `hugging: +${b}`);
   pose.players[1].lm = null;
-  run(inst, 1.5);
+  run(inst, AFTER.treasure + 0.5);
   assert.notEqual(inst.phase, 'room');
 });
 
@@ -83,7 +85,7 @@ test('after its time, the room is over and the run goes on', () => {
   const inst = treasure();
   run(inst, TREASURE_TIME - 1);
   assert.equal(inst.phase, 'room');
-  run(inst, POOL + 2.5);
+  run(inst, POOL + AFTER.treasure + 1.5);
   assert.notEqual(inst.phase, 'room');
 });
 

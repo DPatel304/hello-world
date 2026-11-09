@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { story, MAX_HP } from '../src/games/lkp-game.js';
+import game, { story, PICKING, MAX_HP } from '../src/games/lkp-game.js';
+/* (the choosing screens, put away for now in the game, are tested here) */
+PICKING.levelUp = PICKING.weapon = true;
 import { needFor } from '../src/games/lkp-levelup.js';
 import { CRYSTAL_XP, GOLD_EVERY } from '../src/games/lkp-game.js';
 import { take, MAX_LEVEL, HP_UP, DAMAGE_UP, ARMOR_UP } from '../src/games/lkp-weapons.js';
@@ -193,4 +195,27 @@ test('the level up draws', () => {
   inst.addXp(needFor(1)); inst.step(DT, W, H);
   inst.levelup.took[1] = 2;
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
+});
+
+test('with the choosing put away, a level up is more health for everyone, straight away - and the depot hands out knives', async () => {
+  const { KNIFE } = await import('../src/games/lkp-weapons.js');
+  const { HP_UP } = await import('../src/games/lkp-weapons.js');
+  PICKING.levelUp = PICKING.weapon = false;
+  try {
+    crew(2);
+    const inst = game.create(2);
+    inst.step(1 / 60, 1920, 1080);
+    inst.things = [];
+    assert.equal(inst.here.length, 2);
+    const [a, b] = inst.here.map(i => inst.crew[i].max);
+    inst.pending = 1; inst.golds = 1;
+    inst.step(1 / 60, 1920, 1080);
+    assert.equal(inst.levelup, null, 'no choosing screen');
+    assert.deepEqual(inst.here.map(i => inst.crew[i].max), [a + HP_UP * 3, b + HP_UP * 3], 'one, and a gold one twice');
+    assert.equal(inst.pending + inst.golds, 0);
+    inst.depot = { step(){}, speed: () => 0, done: true, items(){}, draw(){} }; inst.seg = { kind: 'depot', t: 0 };
+    inst.step(1 / 60, 1920, 1080);
+    assert.equal(inst.levelup, null, 'no weapon pick');
+    assert.ok(inst.here.every(i => inst.crew[i].melee === KNIFE), 'everyone has a knife');
+  } finally { PICKING.levelUp = PICKING.weapon = true; }
 });

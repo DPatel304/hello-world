@@ -205,7 +205,7 @@ test('the ? door is monsters, traps or treasure - treasure most often', () => {
   assert.ok(['combat', 'traps', 'treasure'].includes(a.rooms[0]));
 });
 
-test('level 1 runs as its plan says - the tutorial run, the tutorial fight, the depot, a fork, the boss - and ends', () => {
+test('level 1 runs as its plan says - all running: the tutorial run, another, the depot, the ride - and ends', () => {
   const inst = quiet();
   /* Too tough to fall asleep: just going through. */
   for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
@@ -215,7 +215,8 @@ test('level 1 runs as its plan says - the tutorial run, the tutorial fight, the 
     if (inst.phase === 'corridor') inst.seg.t = inst.seg.len;
     run(inst, 0.5);
   }
-  assert.deepEqual(seen, ['corridor', 'room', 'corridor', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss']);
+  assert.deepEqual(seen, ['corridor', 'depot', 'ride'], 'no fights');
+  assert.equal(inst.step_, 1 + inst.level.plan.indexOf('ride'), 'through both runs');
   assert.ok(inst.over);
 });
 

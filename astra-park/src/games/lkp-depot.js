@@ -2,8 +2,9 @@
    ship's engine piece - and powering it up wakes every robot on the
    planet.
 
-   The run stops at the depot: a shed at the end of the path and, on the
-   floor in front of it, the engine piece, glowing. "ENGINE PIECE FOUND."
+   The depot comes up out of the haze ahead - the crew run on up to it
+   (APPROACH) and stop: a shed at the end of the path and, on the floor in
+   front of it, the engine piece, glowing. "ENGINE PIECE FOUND."
    Nova asks everyone to roll their arms to power it up: the ring round it
    fills as they do - all of them for POWER seconds - or, whoever's
    rolling, by itself after AUTO. Then the SURGE: a shockwave rolling out
@@ -20,19 +21,34 @@ import { P, drawDepot } from './lkp-art.js';
 export const POWER = 3, AUTO = 5, SURGE = 2.5;
 /* Where the piece sits on the floor ahead. */
 export const PIECE = 0.22;
+/* Where the shed stands once they're there; and how much further off it
+   first shows, far up the path in the haze, as they run on up to it. */
+export const SHED = 0.75, APPROACH = 0.85;
+/* (fading in out of the haze, its first FADE of the way) */
+const FADE = 0.25;
 
 export class Depot {
   constructor(game){
-    this.g = game; this.t = 0; this.state = 'power'; this.st = 0; this.charge = 0; this.done = false;
+    this.g = game; this.t = 0; this.state = 'approach'; this.st = 0; this.charge = 0; this.done = false;
     this.cranks = pose.players.map(() => new CrankWatch());
-    this.banner = 'ENGINE PIECE FOUND';
-    sfx.learnt();
+    this.banner = '';
+    /* where the shed is along the way: up ahead, still to run to */
+    this.d = game.z + SHED + APPROACH;
+  }
+  /* How far off the shed is, as things go (SHED once they're there). */
+  get rel(){ return this.d - this.g.z; }
+  /* How fast to run, coming up to it: full speed, slowing to a stop. */
+  speed(full){
+    if (this.state !== 'approach') return 0;
+    return full * Math.max(0.12, Math.min(1, (this.rel - SHED) / 0.25));
   }
 
   step(dt, W, H){
     const g = this.g;
     this.t += dt; this.st += dt;
-    if (this.state === 'power'){
+    if (this.state === 'approach'){
+      if (this.rel <= SHED + 0.002){ this.state = 'power'; this.st = 0; this.banner = 'ENGINE PIECE FOUND'; sfx.learnt(); }
+    } else if (this.state === 'power'){
       const here = g.here, rolling = here.filter(i => { this.cranks[i].step(pose.players[i], dt); return this.cranks[i].rolling; }).length;
       this.charge = Math.min(1, this.charge + dt / POWER * (here.length ? rolling / here.length : 0));
       if (this.st >= AUTO) this.charge = Math.min(1, this.charge + dt * 1.5);
@@ -45,12 +61,15 @@ export class Depot {
 
   /* The shed and the piece (among the game's things, at their depths). */
   items(list){
-    list.push({ kind: 'boss', rel: 0.75, draw: (c, W, H, t) => drawDepot(c, W, H, 0.75, t, 'shed') });
-    if (this.state === 'power') list.push({ kind: 'boss', rel: PIECE, draw: (c, W, H, t) => drawDepot(c, W, H, PIECE, t, 'piece', this.charge) });
+    const off = Math.max(0, this.rel - SHED), a = Math.min(1, (APPROACH - off) / (APPROACH * FADE));
+    const fade = (f) => (c, W, H, t) => { c.save(); c.globalAlpha = Math.max(0, a); f(c, W, H, t); c.restore(); };
+    list.push({ kind: 'boss', rel: SHED + off, draw: fade((c, W, H, t) => drawDepot(c, W, H, SHED + off, t, 'shed')) });
+    if (this.state === 'power' || this.state === 'approach') list.push({ kind: 'boss', rel: PIECE + off, draw: fade((c, W, H, t) => drawDepot(c, W, H, PIECE + off, t, 'piece', this.charge)) });
   }
 
   /* Over everything: the banner, and the surge rolling out. */
   draw(c, W, H){
+    if (!this.banner) return;
     if (this.state === 'surge'){
       const p = P(0, PIECE, W, H), r = (this.st / SURGE) * W * 1.2;
       c.save();

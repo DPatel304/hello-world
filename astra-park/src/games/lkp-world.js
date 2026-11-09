@@ -177,7 +177,8 @@ function panorama(W, H, L){
    on past the screen's left edge (the opening's crash site, over there). */
 export const SKY = { above: 0, wide: 0 };
 /* Places along the way kept clear of the trees by the path: { lane, d
-   (how far along), r } - the crash site's pond. */
+   (how far along), r, and depth (along the way) if not round } - the
+   crash site, the healing pond. */
 export const CLEAR = [];
 export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.above){
   /* Turns swing the view round, easing. */
@@ -405,7 +406,7 @@ function trees(c, W, H, z, L){
     const rel = along(n, SPAN, N, z); if (rel == null || rel < -0.06) continue;
     for (const side of [-1, 1]){
       const lane = side * (1.8 + hash(n * 2 + (side > 0 ? 1 : 0)) * 1.6);
-      if (CLEAR.some(q => Math.abs(lane - q.lane) < q.r + 0.9 && Math.abs(rel + z - q.d) < q.r * 0.3 + 0.12)) continue;
+      if (CLEAR.some(q => Math.abs(lane - q.lane) < q.r + 0.9 && Math.abs(rel + z - q.d) < (q.depth ?? q.r * 0.3 + 0.12))) continue;
       if (Math.abs(lane) < roadHalf(rel + z) + 0.45 || inRavine(rel + z, 0.05)) continue;
       list.push({ rel, lane, n, side });
     }
@@ -513,21 +514,59 @@ export function worldBlocker(c, W, H, rel, a, b, L, seed = 0){
 /* A fallen trunk across the whole path at head height, propped on two
    boulders. Duck under it. */
 export function worldBeam(c, W, H, rel, L){
-  const l = P(-PATH_HALF - 0.1, rel, W, H), r = P(PATH_HALF + 0.1, rel, W, H), k = l.k;
-  const top = l.y - H * 0.36 * k, bot = l.y - H * 0.24 * k, th = bot - top;
-  for (const [x, d] of [[l.x, -1], [r.x, 1]]){
-    const w = H * 0.07 * k;
-    c.fillStyle = L.rock[1]; c.beginPath(); c.moveTo(x - w, l.y); c.lineTo(x - w * 0.6, bot + th * 0.2); c.lineTo(x + w * 0.5, bot); c.lineTo(x + w, l.y); c.fill();
-    c.fillStyle = L.rock[0]; c.beginPath(); c.moveTo(x - w, l.y); c.lineTo(x - w * 0.6, bot + th * 0.2); c.lineTo(x - w * 0.1, l.y); c.fill();
+  /* A fallen tree across the path at head height, resting on a mossy
+     boulder at each side: duck under it. */
+  const l = P(-PATH_HALF - 0.15, rel, W, H), r = P(PATH_HALF + 0.15, rel, W, H), k = l.k;
+  const top = l.y - H * 0.36 * k, bot = l.y - H * 0.25 * k, th = bot - top, mid = (top + bot) / 2;
+  /* its shadow, a soft band across the path under it */
+  c.fillStyle = 'rgba(25,20,55,.22)'; c.beginPath(); c.ellipse((l.x + r.x) / 2, l.y + th * 0.1, (r.x - l.x) * 0.52, th * 0.45, 0, 0, 6.2832); c.fill();
+  /* the rocks it rests on: a big boulder and a smaller one on it, at
+     each side, from the ground up to its middle */
+  const lump = (x, y, w, h, seed) => {
+    const g = c.createLinearGradient(x - w, y - h, x + w * 0.6, y);
+    g.addColorStop(0, mix(L.rock[0], '#ffffff', 0.1)); g.addColorStop(1, mix(L.rock[1], '#000000', 0.2));
+    c.fillStyle = g; c.beginPath();
+    for (let k = 0; k <= 16; k++){
+      const a = Math.PI + k / 16 * Math.PI, f = 1 + 0.12 * Math.sin(a * 3 + seed) + 0.06 * Math.sin(a * 5 + seed * 2);
+      c.lineTo(x + Math.cos(a) * w * f, y + Math.sin(a) * h * f);
+    }
+    c.closePath(); c.fill();
+    c.fillStyle = rgba(L.grass[0], 0.85); c.beginPath(); c.ellipse(x - w * 0.15, y - h * 0.92, w * 0.5, h * 0.18, -0.1, Math.PI, 0); c.fill();
+  };
+  for (const [x, sd] of [[l.x, 1], [r.x, 4]]){
+    const h = l.y - mid, w = th * 1.35;
+    c.fillStyle = 'rgba(25,20,55,.3)'; c.beginPath(); c.ellipse(x, l.y, w * 1.15, w * 0.25, 0, 0, 6.2832); c.fill();
+    lump(x, l.y, w, h * 0.62, sd);
+    lump(x + w * 0.1 * (sd > 2 ? -1 : 1), l.y - h * 0.55, w * 0.68, h * 0.47, sd + 2);
   }
-  cast(c, (l.x + r.x) / 2, l.y, H * 0.012 * k, (r.x - l.x) * 0.6, 0.25);
-  const g = c.createLinearGradient(0, top, 0, bot); g.addColorStop(0, L.trunk[1]); g.addColorStop(1, L.trunk[0]);
-  c.fillStyle = g; c.beginPath(); c.roundRect(l.x - th * 0.3, top, r.x - l.x + th * 0.6, th, th / 2); c.fill();
-  c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = Math.max(1, 2 * k);
-  for (let i = 1; i < 6; i++){ const x = l.x + (r.x - l.x) * i / 6; c.beginPath(); c.moveTo(x - th * 0.2, top + th * 0.3); c.lineTo(x + th * 0.3, top + th * 0.5); c.stroke(); }
-  c.fillStyle = L.wood; c.beginPath(); c.ellipse(r.x + th * 0.3, top + th / 2, th * 0.22, th * 0.48, 0, 0, 6.2832); c.fill();
-  /* moss along the top, glowing a little */
-  c.fillStyle = rgba(L.grass[0], 0.9); c.beginPath(); c.roundRect(l.x, top - th * 0.08, r.x - l.x, th * 0.22, th * 0.1); c.fill();
+  /* the trunk: round, lit from above, bark running along it */
+  const x0 = l.x - th * 0.9, x1 = r.x + th * 0.9;
+  const g = c.createLinearGradient(0, top, 0, bot);
+  g.addColorStop(0, mix(L.trunk[1], '#ffffff', 0.25)); g.addColorStop(0.45, L.trunk[1]); g.addColorStop(1, mix(L.trunk[0], '#000000', 0.25));
+  c.fillStyle = g; c.beginPath(); c.roundRect(x0, top, x1 - x0, th, th / 2); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,.2)'; c.lineWidth = Math.max(1, th * 0.06); c.lineCap = 'round';
+  for (let i = 0; i < 14; i++){
+    const x = x0 + (x1 - x0) * (i + 0.5) / 14, y = top + th * (0.3 + 0.4 * hash(i + 610)), len = (x1 - x0) * (0.03 + 0.04 * hash(i + 611));
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x + len, y + th * 0.04); c.stroke();
+  }
+  /* a couple of leafy twigs still growing off it, and the cut end */
+  for (const f of [0.27, 0.7]){
+    const x = x0 + (x1 - x0) * f;
+    c.strokeStyle = L.trunk[1]; c.lineWidth = Math.max(1, th * 0.12); c.beginPath(); c.moveTo(x, top + th * 0.2); c.quadraticCurveTo(x + th * 0.2, top - th * 0.3, x + th * 0.55, top - th * 0.5); c.stroke();
+    for (let k = 0; k < 4; k++){ c.fillStyle = L.grass[k % 2]; c.beginPath(); c.ellipse(x + th * (0.35 + 0.15 * k), top - th * (0.35 + 0.1 * (k % 2)), th * 0.2, th * 0.1, -0.5 + k * 0.4, 0, 6.2832); c.fill(); }
+  }
+  c.fillStyle = L.wood; c.beginPath(); c.ellipse(x1 - th * 0.12, mid, th * 0.2, th * 0.47, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = mix(L.wood, L.trunk[0], 0.45); c.lineWidth = Math.max(1, th * 0.04);
+  c.beginPath(); c.ellipse(x1 - th * 0.12, mid, th * 0.1, th * 0.26, 0, 0, 6.2832); c.stroke();
+  /* moss along the top, and a few leafy strands hanging down */
+  c.fillStyle = rgba(L.grass[0], 0.95);
+  for (let i = 0; i < 9; i++){ const x = x0 + (x1 - x0) * (0.08 + 0.84 * hash(i + 620)); c.beginPath(); c.ellipse(x, top + th * 0.08, (x1 - x0) * 0.04, th * 0.16, 0, Math.PI, 0); c.fill(); }
+  c.strokeStyle = rgba(L.grass[1], 0.9); c.lineWidth = Math.max(1, th * 0.07);
+  for (let i = 0; i < 7; i++){
+    const x = x0 + (x1 - x0) * (0.12 + 0.76 * hash(i + 630)), len = th * (0.5 + 0.7 * hash(i + 631));
+    c.beginPath(); c.moveTo(x, bot - th * 0.1); c.quadraticCurveTo(x + th * 0.15, bot + len * 0.5, x - th * 0.05, bot + len); c.stroke();
+    c.fillStyle = L.grass[0]; c.beginPath(); c.ellipse(x - th * 0.05, bot + len, th * 0.1, th * 0.06, 0.5, 0, 6.2832); c.fill();
+  }
 }
 
 /* A ditch across part of the path, lane a to b: dark, its near lip lit.
@@ -546,20 +585,33 @@ export function worldGap(c, W, H, rel, a, b, L){
    seen end on - its cut end towards us, rings in it, the bark running
    back - and dust kicked up beside it. */
 export function worldLog(c, W, H, lane, rel, L, spin = 0){
-  const p = P(lane, rel, W, H), r = H * 0.075 * p.k, back = P(lane, rel + 0.09, W, H), rb = H * 0.075 * back.k;
-  c.fillStyle = 'rgba(20,15,40,.35)'; c.beginPath(); c.ellipse(p.x, p.y, r * 1.2, r * 0.25, 0, 0, 6.2832); c.fill();
-  for (let k = 0; k < 3; k++) glow(c, p.x + (k - 1) * r * 1.2, p.y - r * 0.15, r * 0.6, '#e8dccb', 0.3);
-  /* the bark, running back to its far end */
-  const g = c.createLinearGradient(p.x - r, 0, p.x + r, 0); g.addColorStop(0, L.trunk[1]); g.addColorStop(1, L.trunk[0]);
-  c.fillStyle = g; c.beginPath(); c.moveTo(p.x - r, p.y - r); c.lineTo(back.x - rb, back.y - rb); c.lineTo(back.x + rb, back.y - rb); c.lineTo(p.x + r, p.y - r); c.lineTo(p.x + r, p.y - r); c.arc(p.x, p.y - r, r, 0, Math.PI, true); c.fill();
-  c.beginPath(); c.moveTo(p.x - r, p.y - r); c.lineTo(back.x - rb, back.y - rb); c.lineTo(back.x - rb, back.y - rb * 0.2); c.lineTo(p.x - r, p.y); c.fill();
+  /* A round log, lying along the path and rolling across it: its cut end
+     towards us, the bark running back to its far end. */
+  const LEN = 0.13, R = 0.075;
+  const p = P(lane, rel, W, H), r = H * R * p.k, b = P(lane, rel + LEN, W, H), rb = H * R * b.k;
+  const n0 = { x: p.x, y: p.y - r }, n1 = { x: b.x, y: b.y - rb };
+  /* the shadow under it, along its length */
+  c.fillStyle = 'rgba(20,15,40,.35)'; c.beginPath(); c.moveTo(p.x - r * 1.1, p.y); c.lineTo(b.x - rb, b.y); c.lineTo(b.x + rb, b.y); c.lineTo(p.x + r * 1.1, p.y); c.closePath(); c.fill();
+  c.beginPath(); c.ellipse(p.x, p.y, r * 1.1, r * 0.22, 0, 0, 6.2832); c.fill();
+  /* the body: the two ends, and the sides between (their outline as one) */
+  const dx = n1.x - n0.x, dy = n1.y - n0.y, d = Math.hypot(dx, dy) || 1, nx = -dy / d, ny = dx / d;
+  const g = c.createLinearGradient(n0.x - r, 0, n0.x + r, 0); g.addColorStop(0, mix(L.trunk[1], '#ffffff', 0.15)); g.addColorStop(0.6, L.trunk[1]); g.addColorStop(1, L.trunk[0]);
+  c.fillStyle = g;
+  circ(c, n1.x, n1.y, rb);
+  c.beginPath(); c.moveTo(n0.x + nx * r, n0.y + ny * r); c.lineTo(n1.x + nx * rb, n1.y + ny * rb); c.lineTo(n1.x - nx * rb, n1.y - ny * rb); c.lineTo(n0.x - nx * r, n0.y - ny * r); c.closePath(); c.fill();
+  /* the bark: lines running along it, turning with it */
+  c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = Math.max(1, r * 0.06);
+  for (let k = 0; k < 6; k++){
+    const a = spin + k * 1.047, cs = Math.cos(a); if (Math.sin(a) > 0.2) continue;
+    c.beginPath(); c.moveTo(n0.x + cs * r * 0.95, n0.y + Math.sin(a) * r * 0.95); c.lineTo(n1.x + cs * rb * 0.95, n1.y + Math.sin(a) * rb * 0.95); c.stroke();
+  }
   /* the cut end: rings, turning */
-  c.fillStyle = L.wood; circ(c, p.x, p.y - r, r);
+  c.fillStyle = L.wood; circ(c, n0.x, n0.y, r);
   c.strokeStyle = mix(L.wood, L.trunk[0], 0.45); c.lineWidth = Math.max(1, r * 0.07);
-  for (const k of [0.75, 0.5, 0.27]){ c.beginPath(); c.arc(p.x, p.y - r, r * k, spin, spin + 5.2); c.stroke(); }
-  c.strokeStyle = L.trunk[0]; c.lineWidth = Math.max(1.5, r * 0.12); c.beginPath(); c.arc(p.x, p.y - r, r * 0.96, 0, 6.2832); c.stroke();
+  for (const k of [0.75, 0.5, 0.27]){ c.beginPath(); c.arc(n0.x, n0.y, r * k, spin, spin + 5.2); c.stroke(); }
+  c.strokeStyle = L.trunk[0]; c.lineWidth = Math.max(1.5, r * 0.14); c.beginPath(); c.arc(n0.x, n0.y, r * 0.95, 0, 6.2832); c.stroke();
   /* a knot, going round with it */
-  c.fillStyle = mix(L.trunk[0], L.wood, 0.3); circ(c, p.x + Math.cos(spin) * r * 0.55, p.y - r + Math.sin(spin) * r * 0.55, r * 0.09);
+  c.fillStyle = mix(L.trunk[0], L.wood, 0.3); circ(c, n0.x + Math.cos(spin) * r * 0.55, n0.y + Math.sin(spin) * r * 0.55, r * 0.09);
 }
 
 /* An energy crystal: a glowing cyan hex gem, turning. */

@@ -30,7 +30,7 @@ export const SITE = {
   ship: [-5.0, 0.45, 1.3],
   wreck: [-6.7, 0.38, 1],
   /* the woods round the site, [lane, rel] */
-  trees: [[-8.2, 0.62], [-6.9, 0.7], [-5.6, 0.66], [-4.2, 0.6], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.6, 0.55], [-3.6, 0.52], [-11.5, 0.6], [-12, 0.42]]
+  trees: [[-8.2, 0.75], [-6.9, 0.9], [-5.4, 0.95], [-3.6, 0.92], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.9, 0.62], [-2.6, 0.98], [-11.5, 0.6], [-12, 0.42]]
 };
 
 /* The meadow round the site, part of the floor: grass and flowers over
@@ -153,10 +153,81 @@ export function pondBeauty(c, W, H, lane, rel, t, L, r = 0.6, k = 1){
     g.addColorStop(0, 'rgba(255,250,220,0)'); g.addColorStop(0.6, `rgba(220,255,250,${0.12 * k})`); g.addColorStop(1, 'rgba(220,255,250,0)');
     c.fillStyle = g; c.beginPath(); c.moveTo(x - w * 0.12, ctr.y - H * 0.6); c.lineTo(x + w * 0.12, ctr.y - H * 0.6); c.lineTo(x + w * 0.3, ctr.y); c.lineTo(x - w * 0.3, ctr.y); c.closePath(); c.fill();
   }
-  for (let j = 0; j < 6; j++){ const u = (t * 0.15 + j / 6) % 1; glow(c, ctr.x + (hash(j + 1600) - 0.5) * w * 1.6, ctr.y - u * H * 0.18 * ctr.k, w * (0.5 + u * 0.6), '#e8fbff', 0.35 * k * (1 - u)); }
+  for (let j = 0; j < 6; j++){ const u = (t * 0.15 + j / 6) % 1; glow(c, ctr.x + (hash(j + 1600) - 0.5) * w * 1.6, ctr.y - u * H * 0.18 * ctr.k, w * (0.25 + u * 0.3), '#e8fbff', 0.12 * k * (1 - u)); }
   c.fillStyle = `rgba(200,255,250,${0.9 * k})`;
   for (let j = 0; j < 16; j++){ const u = (t * 0.3 + hash(j + 1700)) % 1; circ(c, ctr.x + (hash(j + 1701) - 0.5) * w * 1.8 + Math.sin(u * 6 + j) * w * 0.05, ctr.y - u * H * 0.3 * ctr.k, H * 0.003 * (1 - u) + 0.6); }
   c.restore();
+}
+
+/* The healing pond along the way: a broad stretch of still water right
+   across the land, wider than the view - the path running down into it
+   and up out the far side - deep LAKE across (in depth), its middle at
+   rel. Its shores wander; a damp bank, reeds and rushes along them, lily
+   pads, the sky in the water, and a soft healing light. */
+export const LAKE = 0.3;
+const SPAN = 9;          /* lanes either side: always past the screen's edges */
+const shore = (lane, side) => 0.035 * Math.sin(lane * 1.3 + side * 2.1) + 0.02 * Math.sin(lane * 2.9 + side) + 0.012 * Math.sin(lane * 6.1 + side * 3);
+export function worldLake(c, W, H, rel, t, L, len = LAKE){
+  const n0 = rel - len / 2, n1 = rel + len / 2;
+  if (n1 < -0.15 || n0 > 1.05) return;
+  const N = 60, lanes = Array.from({ length: N + 1 }, (_, k) => -SPAN + 2 * SPAN * k / N);
+  /* (the near shore's line, and the far one's: depth at each lane) */
+  const nearAt = (ln, out = 0) => Math.max(-0.14, n0 + shore(ln, 0) - out), farAt = (ln, out = 0) => Math.min(1.02, n1 + shore(ln, 1) + out);
+  const band = (out) => {
+    c.beginPath();
+    lanes.forEach((ln, k) => { const q = P(ln, nearAt(ln, out), W, H); k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+    for (let k = N; k >= 0; k--){ const q = P(lanes[k], farAt(lanes[k], out), W, H); c.lineTo(q.x, q.y); }
+    c.closePath();
+  };
+  const far = P(0, farAt(0), W, H), near = P(0, nearAt(0), W, H);
+  /* the damp bank, then the water: the sky in it at the far side, deeper near */
+  c.fillStyle = mix(L.ground[2], '#3b3326', 0.4); band(0.03); c.fill();
+  c.fillStyle = mix(L.ground[2], '#2f2a20', 0.55); band(0.012); c.fill();
+  const g = c.createLinearGradient(0, far.y, 0, Math.max(far.y + 1, Math.min(near.y, H)));
+  g.addColorStop(0, mix(L.sky[2], L.water, 0.4)); g.addColorStop(0.35, mix(L.water, '#1f7489', 0.45)); g.addColorStop(1, '#174f63');
+  c.fillStyle = g; band(0); c.fill();
+  c.save(); band(0); c.clip();
+  /* the healing light under the surface, round the path */
+  glow(c, far.x, (far.y + near.y) / 2, Math.min(W * 0.35, (near.y - far.y) * 1.4 + W * 0.08), '#7ff3e0', 0.16 + 0.04 * Math.sin(t * 1.5));
+  /* long glints of sky, drifting */
+  for (let k = 0; k < 14; k++){
+    const q = P((hash(k + 1520) - 0.5) * 7, n0 + len * (0.15 + 0.7 * hash(k + 1522)), W, H), w = W * 0.05 * q.k * (0.5 + hash(k + 1521));
+    c.fillStyle = `rgba(255,255,255,${0.12 + 0.08 * Math.sin(t * 0.8 + k)})`; c.beginPath(); c.ellipse(q.x + Math.sin(t * 0.3 + k) * w * 0.1, q.y, w, Math.max(1, w * 0.035), 0, 0, 6.2832); c.fill();
+  }
+  /* slow rings */
+  c.strokeStyle = 'rgba(255,255,255,.22)';
+  for (let k = 0; k < 4; k++){
+    const u = (t * 0.22 + k / 4) % 1, q = P((hash(k + 1530) - 0.5) * 4, rel + (hash(k + 1531) - 0.5) * len * 0.6, W, H), w = W * 0.06 * q.k * (0.2 + u);
+    c.globalAlpha = 1 - u; c.lineWidth = Math.max(1, 2 * q.k); c.beginPath(); c.ellipse(q.x, q.y, w, w * 0.18, 0, 0, 6.2832); c.stroke();
+  }
+  c.globalAlpha = 1; c.restore();
+  /* the shallows: a pale line along each shore */
+  c.strokeStyle = 'rgba(200,245,240,.4)';
+  for (const [at, side] of [[nearAt, 0], [farAt, 1]]){
+    c.lineWidth = Math.max(1, H * 0.004 * P(0, at(0), W, H).k); c.beginPath();
+    lanes.forEach((ln, k) => { const q = P(ln, at(ln), W, H); k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+    c.stroke();
+  }
+  /* lily pads, here and there, clear of the path */
+  for (let k = 0; k < 16; k++){
+    const ln = (hash(k + 1550) - 0.5) * 12; if (Math.abs(ln) < 1.4) continue;
+    const q = P(ln, n0 + len * (0.2 + 0.6 * hash(k + 1551)), W, H), rr = H * 0.02 * q.k;
+    c.fillStyle = '#3f9a55'; c.beginPath(); c.ellipse(q.x, q.y, rr * 1.6, rr * 0.55, 0, 0.35, 6.2832 - 0.35); c.lineTo(q.x, q.y); c.closePath(); c.fill();
+    c.fillStyle = '#5cb96c'; c.beginPath(); c.ellipse(q.x - rr * 0.3, q.y - rr * 0.1, rr * 0.7, rr * 0.22, 0, 0, 6.2832); c.fill();
+    if (k % 3 === 0){ c.fillStyle = '#ffb6d9'; for (let j = 0; j < 5; j++){ const b = j / 5 * 6.2832; circ(c, q.x + Math.cos(b) * rr * 0.3, q.y - rr * 0.35 + Math.sin(b) * rr * 0.12, rr * 0.22); } c.fillStyle = '#ffe28a'; circ(c, q.x, q.y - rr * 0.35, rr * 0.14); }
+  }
+  /* reeds and bulrushes along both shores, leaving the path's way in and out */
+  for (let k = 0; k < 70; k++){
+    const ln = (hash(k + 1560) - 0.5) * 2 * SPAN; if (Math.abs(ln) < 1.3) continue;
+    const side = k % 2, q = P(ln, side ? farAt(ln, 0.004) : nearAt(ln, -0.004), W, H);
+    if (q.x < -50 || q.x > W + 50) continue;
+    const h = H * (0.04 + hash(k + 1561) * 0.04) * q.k, sway = Math.sin(t * 1.2 + k) * h * 0.06;
+    for (let j = -1; j <= 1; j++){
+      c.strokeStyle = (k + j) % 3 ? '#4f8f4a' : '#6aa95a'; c.lineWidth = Math.max(1, H * 0.003 * q.k);
+      c.beginPath(); c.moveTo(q.x + j * h * 0.12, q.y); c.quadraticCurveTo(q.x + j * h * 0.15 + sway * 0.5, q.y - h * 0.6, q.x + j * h * 0.25 + sway, q.y - h * (1 - Math.abs(j) * 0.2)); c.stroke();
+    }
+    if (k % 4 === 0){ c.fillStyle = '#6b4a2e'; c.beginPath(); c.ellipse(q.x + sway, q.y - h * 0.9, h * 0.05, h * 0.14, 0, 0, 6.2832); c.fill(); }
+  }
 }
 
 /* Healing, shown: a ripple ring spreading from where someone stands in the

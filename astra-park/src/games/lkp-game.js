@@ -9,17 +9,17 @@ import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } 
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
 import { TeamJump } from './lkp-leap.js';
-import { Ride, worldMossy, RIDE_LEN, COUNT as RIDE_COUNT, LOW as RIDE_LOW, HIGH as RIDE_HIGH } from './lkp-ride.js';
+import { Ride } from './lkp-ride.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
-import { arms, armored } from './lkp-weapons.js';
+import { arms, armored, take, KNIFE } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { worldPond, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
+import { worldLake, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -56,12 +56,16 @@ export const SPEED = 0.3;                       /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
    play itself). */
 export const story = { on: true };
+/* The choosing screens, on or off. Off (for now, while they're
+   reworked): a level up is more health for everyone, straight away; and
+   at the depot everyone's handed a knife. */
+export const PICKING = { levelUp: false, weapon: false };
 
 /* While we playtest the mechanics, every part of the run is PLAYTEST
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [66, 35, 42, 32];                      /* seconds of each corridor, in full */
+const FULL = [86, 45, 52, 40];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -83,6 +87,9 @@ export const CRYSTAL_XP = 2, GOLD_EVERY = 3;
    at once (any more go straight in). */
 export const FLY = 0.2, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
 export const SCORE = { kill: 10, boss: 500 };
+/* A breather after each room's done, before the run goes on (seconds):
+   time for "Room clear!" and a look round. */
+export const AFTER = { fight: 3.5, trap: 3, treasure: 2.5 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 /* A line from the level's script, for the captain: [who, text, words] -> (text, words). */
@@ -235,7 +242,7 @@ class LastKnownPosition {
     this.seg = { kind, t: 0 };
     /* (any rescue bubbles still up pop at the fork) */
     if (kind !== 'corridor') for (const i of this.here) if (this.crew[i].bubble) this._pop(i);
-    this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null;
+    this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null; this.ride = null;
     if (kind === 'corridor'){
       const n = plan.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -274,6 +281,10 @@ class LastKnownPosition {
       this.boss = PLAYTEST ? new Boss(this, PLAYTEST * 2, 0.35) : new Boss(this, BOSS_MAX);
       this.fight = this.boss.fight;
       this.things = [];
+    } else if (kind === 'ride'){
+      /* Mossy, after the boss: catch up, climb on, sit and relax (lkp-ride.js) */
+      this.things = [];
+      this.ride = new Ride(this, story.on);
     } else if (kind === 'end'){
       this.over = true;
     }
@@ -331,9 +342,9 @@ class LastKnownPosition {
       /* The healing pond, right across the path: the run stops in it
          till everyone's healed (lkp-game.js _rest). */
       rest: (s) => {
-        add(s, { kind: 'pond', lane: 0, r: REST_POND, rest: true });
-        CLEARINGS.push({ lane: 0, d: at(s), r: REST_POND });
-        return secsOf(REST_POND * 0.4) + 1;
+        add(s, { kind: 'pond', lane: 0, r: REST_POND, rest: true, len: LAKE / 2 });
+        CLEARINGS.push({ lane: 0, d: at(s), r: 99, depth: LAKE / 2 + 0.1 });
+        return secsOf(LAKE) + 1;
       },
       /* The path squeezing narrow - everyone pushed together into the
          middle - then bursting open wide, crystals all over. */
@@ -368,20 +379,6 @@ class LastKnownPosition {
           if (k % 3 === 0) this.things.push({ d: d + 0.55 + x, kind: 'crystal', lane: CABLE + (Math.sin(x * 1.7 + 1) < 0 ? -0.18 : 0.18), hang: true, low: true });
         }
         return COUNT + secsOf(ride + (ZIP_SPEED + SPEED) / 2 * LAND) + 2;
-      },
-      /* Mossy, the forest giant (lkp-ride.js): asleep across the path -
-         waved awake, it carries them along on its back, running when they
-         run, steered by their leaning; crystals weaving along at their
-         height, and high ones for bounding. */
-      ride: (s) => {
-        const d = at(s + RIDE_COUNT);
-        add(s + RIDE_COUNT, { kind: 'critter', lane: 0 });
-        for (let k = 0; k * 0.11 < RIDE_LEN - 0.5; k++){
-          const x = k * 0.11, lane = Math.sin(x * 1.8) * 0.55;
-          this.things.push({ d: d + 0.3 + x, kind: 'crystal', lane, ride: true });
-          if (k % 3 === 1) this.things.push({ d: d + 0.33 + x, kind: 'crystal', lane: Math.sin((x + 0.03) * 1.8) * 0.55, ride: true, up: true, worth: 2 });
-        }
-        return RIDE_COUNT + secsOf(RIDE_LEN + 0.45) + 1;
       }
     };
 
@@ -396,14 +393,20 @@ class LastKnownPosition {
       this.things.push({ d: this.z, kind: 'meadow', len: 0.7 });
       CRASH.trees.forEach(([lane, rel], n) => this.things.push({ d: this.z + rel, kind: 'tree', lane, n: n + 70 }));
       CLEARINGS.length = 0;
+      /* (the meadow round the ship kept clear of the path's trees: it came
+         down in a clearing, not into the woods) */
+      CLEARINGS.push({ lane: CRASH.ship[0], d: this.z + CRASH.ship[1], r: 2.4 });
       /* Nova's story, a piece at a time, in the quiet between her tips -
          the first two in the quiet start (LEAD), before anything comes */
-      if (story.on) [-9, -3.5, 15].forEach((secs, k) => add(secs, { kind: 'say', line: k }));
-      crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
-      blocker(10, 1, 0.8);
-      crystalLine(13, 0.4, 5);
-      beam(19); crystalLine(20, 0, 4);
-      let s = 24 + EVENTS[plan.event || 'squeeze'](24);
+      /* Each a good while after the tip before it, so she's never
+         talking over herself - her story in the quiet between the
+         lessons, each lesson in a quiet of its own. */
+      if (story.on) [-9, 12, 26].forEach((secs, k) => add(secs, { kind: 'say', line: k }));
+      crystalLine(6, 0, 6); crystalLine(9, -0.5, 5);
+      blocker(22, 1, 0.8);
+      crystalLine(25, 0.4, 5);
+      beam(35); crystalLine(36, 0, 4);
+      let s = 41 + EVENTS[plan.event || 'squeeze'](41);
       /* the healing pond: a stop, to heal up after the crash */
       s += EVENTS.rest(s + 1) + 1;
       beam(s + 1); blocker(s + 4.5, side(), 0.8); crystalLine(s + 6.5, 0, 5);
@@ -425,10 +428,10 @@ class LastKnownPosition {
       for (let k = 0; s < end - 2; k++){
         if (!evDone && s >= evAt - 3){ evDone = true; s += ev(s) + 1; continue; }
         if (springs.length && s >= springs[0]){ fountain(s, side() * (0.4 + Math.random() * 0.3)); springs.shift(); s += 2; continue; }
-        if (k % 2 === 0){ s += PIECES[pool[(k / 2) % pool.length]](s) + 1.4 * hard; continue; }
+        if (k % 2 === 0){ s += PIECES[pool[(k / 2) % pool.length]](s) + 2.6 * hard; continue; }
         const r = Math.random();
         if (r < 0.45) blocker(s, side(), 0.9); else if (r < 0.8) beam(s); else roller(s);
-        s += 2.2 * hard + Math.random();
+        s += 3.4 * hard + Math.random() * 1.5;
       }
       for (const at of springs) if (at < end) fountain(at, side() * 0.5);
     }
@@ -466,6 +469,8 @@ class LastKnownPosition {
     }
     /* A gold pick earned (every GOLD_EVERY-th level up): before any other
        level up. */
+    /* (no choosing: each level up straight to more health, all round) */
+    if (!PICKING.levelUp && (this.golds > 0 || this.pending > 0)){ this._moreHealth(); return; }
     if (this.golds > 0 && (this.calm || this.bossBeaten)){
       this.levelup = goldPick(this, PLAYTEST || PICK_TIME);
       this.captain.say('A gold pick! Every card counts twice.', 'GOLD PICK', { once: 'goldpick' });
@@ -501,12 +506,14 @@ class LastKnownPosition {
       this._events(dt, W, H);
       this._bubbles(dt, W, H);
       if (this.zip) want = this.zip.speed(SPEED);
-      else if (this.ride) want = this.ride.speed(SPEED);
       else if (this.leap) want = this.leap.speed(SPEED);
       else if (this.rest) want = 0;
-      if (this.zip || this.ride || this.leap || this.rest) seg.len += dt * (1 - this.speed / SPEED);
+      if (this.zip || this.leap || this.rest) seg.len += dt * (1 - this.speed / SPEED);
     }
-    if (seg.kind === 'boss' || seg.kind === 'depot') want = 0;
+    if (seg.kind === 'boss') want = 0;
+    if (seg.kind === 'ride') want = this.ride ? this.ride.speed(SPEED) : SPEED;
+    /* (running on up to the depot, slowing to a stop at it) */
+    if (seg.kind === 'depot') want = this.depot ? this.depot.speed(SPEED) : 0;
     this.speed += (want - this.speed) * Math.min(1, dt * (this.rest || this.leap ? 10 : 4));
     const before = this.z;
     this.z += this.speed * dt;
@@ -517,19 +524,21 @@ class LastKnownPosition {
       if (this.leap.across){ this.leap.across = false; this.z = this.leap.th.d + this.leap.th.len + 0.02 - RUN; }
     }
     for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
-    if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len && !this.zip && !this.ride && !this.leap && !this.rest) this._next(); }
+    if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len && !this.zip && !this.leap && !this.rest) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
+    else if (this.ride){ this.ride.step(dt, W, H); if (this.ride.done) this._next(); }
     else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
-    else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
-    else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > 1.5) this._next(); }
-    else if (this.treasure){ this.treasure.step(dt, W, H); if (this.treasure.done && this.treasure.clearT > 1) this._next(); }
+    else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > AFTER.fight) this._next(); }
+    else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > AFTER.trap) this._next(); }
+    else if (this.treasure){ this.treasure.step(dt, W, H); if (this.treasure.done && this.treasure.clearT > AFTER.treasure) this._next(); }
     else if (this.depot){
       this.depot.step(dt, W, H);
       /* Woken: the robots speak - and then, everyone picks their weapon. */
       if (this.depot.done){
         this._next();
         if (story.on) this.scene = new Scene('waking', this);
-        this.levelup = meleePick(this, PLAYTEST || PICK_TIME); this.levelup.weapon = true;
+        if (PICKING.weapon){ this.levelup = meleePick(this, PLAYTEST || PICK_TIME); this.levelup.weapon = true; }
+        else for (const rn of this.crew) rn.melee = KNIFE;
       }
     }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
@@ -549,15 +558,6 @@ class LastKnownPosition {
     if (this.zip){
       this.zip.step(dt, W, H);
       if (this.zip.done) this.zip = null;
-    }
-    /* Mossy: counted in, waving hello; carried along; waved goodbye. */
-    if (!this.ride){
-      const th = this.things.find(t => t.kind === 'critter' && !t.taken && t.d - this.z - RUN <= SPEED * RIDE_COUNT + 0.02);
-      if (th){ th.taken = true; th.got = true; this.ride = new Ride(this, th, story.on); }
-    }
-    if (this.ride){
-      this.ride.step(dt, W, H);
-      if (this.ride.done) this.ride = null;
     }
     /* The team jump: coming up to the gorge's edge, slow motion, JUMP!
        (lkp-leap.js); landed, on they run. */
@@ -618,7 +618,7 @@ class LastKnownPosition {
     r.ok = full ? r.ok + dt : 0;
     if (r.ok > 0.8 || r.t >= REST_MAX){
       for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; }
-      if (story.on) this.captain.say(...line(this.level.lines.pondDone[0]));
+      if (story.on) this.captain.say(...line(this.level.lines.pondDone[0]), { polite: true });
       this.rest = null;
     }
   }
@@ -702,6 +702,16 @@ class LastKnownPosition {
   /* Who's in a fight here and now: the level's wildlife, or its robots. */
   get enemy(){ const e = this.level.enemies; return this.awake ? e.awake : e.wild; }
 
+  /* Level ups without choosing: each one more health for everyone (MAX
+     HP, and that much back) - a gold one counts twice. */
+  _moreHealth(){
+    const n = this.pending + this.golds * 2;
+    this.pending = 0; this.golds = 0;
+    for (const i of this.here) for (let k = 0; k < n; k++) take('maxhp', this.crew[i]);
+    this.bits.push({ kind: 'num', x: 0.5, y: 0.27, vy: -0.03, age: 0, life: 1.8, text: 'MORE HEALTH!', col: '#ff8fa3' });
+    sfx.learnt();
+  }
+
   /* ---------- the ship's computer's tips ---------- */
 
   /* Nova noticing what's happening, and saying something - each tip
@@ -710,10 +720,12 @@ class LastKnownPosition {
     const cap = this.captain, seg = this.seg, f = this.fight, bs = this.boss, up = this.here.filter(i => !this.crew[i].down);
     if (seg.kind === 'corridor'){
       /* her story, as the run reaches each piece of it - never over a tip */
-      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; cap.say(...line(this.level.lines.walk[th.line]), { polite: true }); }
+      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; cap.say(...line(this.level.lines.walk[th.line]), { polite: true, story: true }); }
       for (const th of this.things){
         const ahead = th.d - this.z - RUN;
         if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
+        /* (never over her story: the tip waits for her to finish) */
+        if (cap.storyTalking) break;
         const kind = th.kind === 'ledge' ? 'gap' : th.kind, tip = this.level.tips[kind];
         if (tip && cap.say(tip[0], tip[1], { once: kind })) break;
       }
@@ -733,7 +745,7 @@ class LastKnownPosition {
         ['Here come more! Jump to zap the ones that are still coming!', 'JUMP!', 'zap'],
         ['Last ones! Roll your arms, like the wheels on the bus, to hit even harder!', 'ROLL YOUR ARMS', 'crank']
       ][Math.min(2, f.wave)];
-      cap.said.add(lesson[2]); cap.say(lesson[0], lesson[1]);
+      cap.said.add(lesson[2]); cap.say(lesson[0], lesson[1], { polite: f.wave > 0 });
     }
     if (f && !bs && !seg.told && f.elite){
       seg.told = true;
@@ -816,7 +828,7 @@ class LastKnownPosition {
     /* The running stride: how hard (0..1) and where in it - a footstep at
        each half. Walking in a trap room goes by how much they move. */
     const run = this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
-      : this.ride && this.ride.on(i) ? this.ride.march[i]
+      : this.ride && this.ride.on(i) ? 0
       : this.fight || rn.bubble || (this.zip && this.zip.holding(i)) || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
     rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);
     if (rn.run > 0.05 && rn.air <= 0){
@@ -1105,7 +1117,7 @@ class LastKnownPosition {
     }
     /* the crash site's pond: part of the floor too */
     for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
-    for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel < 1 && rel > -0.3) worldPond(c, W, H, th.lane, rel, this.t, PAL.world, th.r); }
+    for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel - LAKE / 2 < 1 && rel + LAKE / 2 > -0.15) worldLake(c, W, H, rel, this.t, PAL.world); }
     if (dropY){ c.restore(); SKY.above = 0; }
     if (this.zip) this.zip.drawCable(c, W, H);
     const items = [];
@@ -1166,7 +1178,7 @@ class LastKnownPosition {
     const seg = this.seg;
     let curve = 0, corner = null, dir = 1;
     if (!this.boss){
-      const want = seg.kind === 'corridor' ? 0.6 * Math.sin(this.z * 0.35) + 0.35 * Math.sin(this.z * 0.9 + 1) : 0;
+      const want = seg.kind === 'corridor' || seg.kind === 'ride' ? 0.6 * Math.sin(this.z * 0.35) + 0.35 * Math.sin(this.z * 0.9 + 1) : 0;
       this.curveNow = (this.curveNow || 0) + (want - (this.curveNow || 0)) * 0.05;
       curve = this.curveNow;
       const cn = seg.corner;
@@ -1190,7 +1202,7 @@ class LastKnownPosition {
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': {
-        const y = it.hang ? hangY(it, it.rel, W, H) : it.ride ? p.y - H * (it.up ? RIDE_HIGH : RIDE_LOW) * p.k : p.y - this._crystalUp(it, H, p.k), s = H * 0.022 * p.k * (it.worth > 1 ? 1.7 : 1);
+        const y = it.hang ? hangY(it, it.rel, W, H) : p.y - this._crystalUp(it, H, p.k), s = H * 0.022 * p.k * (it.worth > 1 ? 1.7 : 1);
         if (it.worth > 1){ glow(c, p.x, y, s * 4, '#ffd24a', 0.8 + 0.2 * Math.sin(this.t * 6)); }
         drawCrystal(c, p.x, y, s, this.t + it.d * 9);
         if (it.worth > 1){ c.strokeStyle = '#ffe28a'; c.lineWidth = s * 0.18; c.beginPath(); c.arc(p.x, y, s * 1.5, 0, 6.2832); c.stroke(); }
@@ -1198,8 +1210,6 @@ class LastKnownPosition {
       }
       case 'zip': worldZipStart(c, W, H, it.rel, PAL.world); break;
       case 'ride': this.ride && this.ride.draw(c, W, H); break;
-      case 'critter': worldMossy(c, W, H, it.rel, it.lane, this.t); break;
-      case 'mossy': worldMossy(c, W, H, it.rel, it.lane, this.t, true); break;
       case 'doors': this._drawDoors(c, W, H, it.rel); break;
       case 'bot': this._drawBot(c, it.b, W, H); break;
       case 'team': this._drawTeam(c, W, H); break;
@@ -1256,7 +1266,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || rn.pose, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -1341,7 +1351,8 @@ class LastKnownPosition {
       c.restore();
     }
     /* The floor, as a row of pips along the top: where the crew are. */
-    const plan = this.level.plan, n = plan.length - 1, w = H * 0.034;
+    /* (this level's part of the plan: up to its end) */
+    const plan = this.level.plan.slice(0, this.level.plan.indexOf('end') + 1), n = plan.length - 1, w = H * 0.034;
     for (let k = 0; k < n; k++){
       const px = W / 2 + (k - (n - 1) / 2) * w * 1.6, done = k < this.step_, now = k === this.step_, kind = plan[k];
       c.fillStyle = done ? '#7ff3ff' : now ? '#fff6e2' : 'rgba(255,255,255,.25)';

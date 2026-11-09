@@ -35,9 +35,9 @@ export class Captain {
   /* Say text (words: the few words under her window). once: a tip given
      only once a run. Lines cut in, unless polite, when they wait their
      turn. Returns whether it'll be said. */
-  say(text, words = '', { once = null, polite = false, who = 'nova' } = {}){
+  say(text, words = '', { once = null, polite = false, who = 'nova', story = false } = {}){
     if (once){ if (this.said.has(once)) return false; this.said.add(once); }
-    const line = { text, words, who, t: 0, len: lineTime(text, who) + HOLD };
+    const line = { text, words, who, story, t: 0, len: lineTime(text, who) + HOLD };
     if (polite && this.line){ this.queue.push(line); return true; }
     this.queue = []; this._start(line);
     return true;
@@ -46,6 +46,8 @@ export class Captain {
 
   get talking(){ return !!this.line && this.line.t < this.line.len - HOLD; }
   get busy(){ return !!this.line || this.queue.length > 0; }
+  /* Telling the story (or about to: it's next): the tips wait. */
+  get storyTalking(){ return (this.talking && this.line.story) || this.queue.some(l => l.story); }
 
   step(dt){
     this.t += dt;

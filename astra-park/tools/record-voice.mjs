@@ -4,6 +4,7 @@
 
      node tools/record-voice.mjs          record what's new or changed
      node tools/record-voice.mjs --dry    just list what would be recorded
+     node tools/record-voice.mjs --prune  drop recordings of lines no longer said
 
    The key is never read here: the requests go through curl, and the
    network proxy this runs behind adds it (set ELEVENLABS_API_KEY to send
@@ -76,6 +77,8 @@ if (import.meta.url === `file://${process.argv[1]}`){
   for (const { who, text } of want) (have[text] && have[text].who === who ? (keep[text] = have[text]) : todo.push({ who, text }));
   console.log(`${want.length} lines: ${Object.keys(keep).length} recorded already, ${todo.length} to record (${todo.reduce((n, l) => n + l.text.length, 0)} characters)`);
   if (dry){ todo.forEach(l => console.log(' ', l.who, delivery(l.text, l.who), l.text)); process.exit(0); }
+  /* --prune: just drop the recordings of lines no longer in the game */
+  if (process.argv.includes('--prune')){ save(keep); console.log('kept', Object.keys(keep).length); process.exit(0); }
   const dir = mkdtempSync(join(tmpdir(), 'voice-'));
   try {
     for (const [k, l] of todo.entries()){

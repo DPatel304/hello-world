@@ -20,6 +20,9 @@ export const MELEE = {
   hammer: { id: 'hammer', name: 'HAMMER', icon: '\u{1F528}', every: 2.2, dmg: 15, reach: 0.3, style: 'slam' },
   blades: { id: 'blades', name: 'BLADES', icon: '\u{1F5E1}\u{FE0F}', every: 0.9, dmg: 5, reach: 0.4, style: 'spin' }
 };
+/* The knife: what everyone's given at the depot while the weapon pick's
+   put away (lkp-game.js PICKING) - quick and handy, between the two. */
+export const KNIFE = { id: 'knife', name: 'KNIFE', icon: '\u{1F52A}', every: 1.1, dmg: 7, reach: 0.36, style: 'spin' };
 /* A ranged weapon: how often it fires, how hard, at how many robots at
    once. */
 export const RANGED = {

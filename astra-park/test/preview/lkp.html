@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<script type="importmap">{"imports":{"@mediapipe/tasks-vision":"/test/preview/mediapipe-stub.js"}}</script>
+<link rel="stylesheet" href="/src/style.css">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+</head><body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script type="module">
+/* Last Known Position at any moment, for screenshots (test/preview/lkp-shots.mjs):
+   window.LKP has the game, the pose, and helpers to run it forward. */
+import game, { story } from '/src/games/lkp-game.js';
+import { pose } from '/src/tracking/pose.js';
+import * as ride from '/src/games/lkp-ride.js';
+const W = 1920, H = 1080, DT = 1 / 60, c = document.getElementById('c').getContext('2d');
+function crew(n){
+  pose.mouse.active = true;
+  pose.players.forEach((p, i) => {
+    p.present = i < n;
+    p.hands.right = { x: 0.5, y: 0.5, vx: 0, vy: 0, speed: 0 }; p.hands.left = { ...p.hands.right };
+    p.centre = { x: 0.5, y: 0.6 }; p.scale = 0.3; p.lm = null;
+  });
+}
+window.LKP = {
+  game, pose, story, W, H, ride,
+  start(n = 2, storyOn = true){ story.on = storyOn; crew(n); this.inst = game.create(n); return this.inst; },
+  run(secs, each){ for (let k = 0; k < Math.round(secs / DT); k++){ each && each(this.inst, k * DT); if (this.inst.levelup) this.inst.levelup.t = 1e9; this.inst.step(DT, W, H); } },
+  to(kind){ const i = this.inst; i.things = []; i.step_ = i.level.plan.indexOf(kind) - 1; i._next(); },
+  draw(){ c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); this.inst.draw(c, W, H); }
+};
+window.READY = true;
+</script></body></html>

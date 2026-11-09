@@ -24,7 +24,9 @@ const hexMix = (a, b, k) => '#' + mix(a, b, k).slice(4, -1).split(',').map(v => 
    lkp-art.js drawCrew (and st.run, st.runPh: the stride). pose: 'reach'
    (an arm up), 'hug' (arms wrapped round themselves), 'hang' (both arms
    up, holding on overhead), 'stretch' (no arms -
-   someone else draws them), else at their sides - or pumping, running. */
+   someone else draws them), 'sit' (sat astride something at (x, base),
+   legs hanging down either side, hands resting on it), else at their
+   sides - or pumping, running. */
 export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const u = h / 330, f = 1 - (st.duck || 0) * 0.4;
   const run = st.run || 0, ph = st.runPh || 0;
@@ -47,6 +49,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   c.scale(1, f);
+  /* (sitting: the seat is where the hips are) */
+  if (pose === 'sit') c.translate(0, 120 * u);
   c.lineCap = 'round'; c.lineJoin = 'round';
   /* a limb: a dark edge, its colour, lit down one side */
   const limb = (pts, w, side = -1) => {
@@ -57,7 +61,15 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const trim = (x0, y0, w) => { glow(c, x0, y0, w * 1.4, gl, 0.5); c.strokeStyle = gl; c.lineWidth = 4 * u; c.beginPath(); c.ellipse(x0, y0, w * 0.55, w * 0.18, 0, 0, Math.PI); c.stroke(); };
   /* legs: running, one planted, the other's heel kicking up behind -
      its sole towards us */
-  for (const d of [-1, 1]){
+  if (pose === 'sit') for (const d of [-1, 1]){
+    /* astride: thighs out over its sides, shins hanging down, swinging a little */
+    const swing = Math.sin(t * 1.6 + d) * 6 * u;
+    const hip = [d * 22 * u, -128 * u], knee = [d * 70 * u, -112 * u], foot = [d * 78 * u + swing, -40 * u];
+    limb([hip, knee], 31 * u); limb([knee, foot], 25 * u);
+    trim(knee[0], knee[1] + 4 * u, 30 * u);
+    c.fillStyle = dark; c.beginPath(); c.ellipse(foot[0], foot[1], 17 * u, 12 * u, 0, 0, 6.2832); c.fill();
+  }
+  else for (const d of [-1, 1]){
     const lift = run * Math.max(0, Math.sin(ph + (d < 0 ? 0 : Math.PI)));
     const hip = [d * 22 * u, -128 * u], knee = [d * 25 * u, (-68 - 26 * lift) * u], foot = [d * (23 + 4 * lift) * u, (-12 - 78 * lift) * u];
     limb([hip, knee], 31 * u); limb([knee, foot], 25 * u);
@@ -80,6 +92,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   /* arms: at their sides; pumping, elbows bent, when they run */
   if (pose !== 'stretch') for (const d of [-1, 1]){
     const sh = [d * 46 * u, -222 * u];
+    if (pose === 'sit'){ limb([sh, [d * 58 * u, -178 * u], [d * 52 * u, -132 * u]], 26 * u, d); trim(d * 58 * u, -178 * u, 22 * u); c.fillStyle = dark; circ(c, d * 52 * u, -128 * u, 14 * u); continue; }
     if (pose === 'hug'){ limb([sh, [d * 62 * u, -188 * u], [d * 30 * u, -178 * u]], 26 * u, d); trim(d * 62 * u, -186 * u, 22 * u); continue; }
     if (pose === 'hang'){ limb([sh, [d * 52 * u, -282 * u], [d * 26 * u, -334 * u]], 24 * u, d); trim(d * 52 * u, -282 * u, 22 * u); c.fillStyle = dark; circ(c, d * 26 * u, -338 * u, 14 * u); continue; }
     if (pose === 'reach' && d < 0){ limb([sh, [-62 * u, -270 * u], [-56 * u, -322 * u]], 26 * u); c.fillStyle = dark; circ(c, -56 * u, -326 * u, 15 * u); continue; }
@@ -109,6 +122,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (dn > 0){ c.translate(h * 0.42 * dn, -h * 0.14 * dn); c.rotate(-Math.PI / 2 * dn); if (st.down === true) c.globalAlpha = 0.6; }
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
+  if (pose === 'sit') c.translate(0, 120 * u);
   const hy = -238 * u * f - 40 * u, r = 44 * u;
   c.fillStyle = deep; c.beginPath(); c.ellipse(0, -238 * u * f, 26 * u, 10 * u, 0, 0, 6.2832); c.fill();
   const hg = c.createRadialGradient(-16 * u, hy - 18 * u, 4 * u, 0, hy, r); hg.addColorStop(0, lite); hg.addColorStop(0.6, col); hg.addColorStop(1, dark);

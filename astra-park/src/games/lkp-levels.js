@@ -46,15 +46,19 @@ export const LEVELS = [
        jump over a gorge; the engine piece (the robots wake); a run with
        a ride on Mossy, the forest giant; a fork and a room; a run with a bigger gorge; the
        boss. */
-    plan: ['corridor', 'tutorial', 'corridor', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
+    /* (Level 1 is all running, no fighting: it ends at the engine piece -
+       the robots wake, and a friendly giant carries the crew away. After
+       its 'end', the rest - the tutorial fight, a fork, a room, the big
+       gorge and the Sweeper - kept for level 2: not played yet.) */
+    plan: ['corridor', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     /* What happens in each corridor (lkp-game.js _layout): one event
        apiece - the path squeezing narrow then opening wide, a big jump
        over a ravine, a zip line - and the run of obstacles round it,
        the set pieces it mixes in (pieces). big: a wider ravine. */
     corridors: [
       { event: 'squeeze' },
-      { event: 'leap', pieces: ['logs', 'slalom', 'duckrun', 'arc'] },
-      { event: 'ride', pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
+      { pieces: ['logs', 'slalom', 'duckrun', 'arc'] },
+      { pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
       { event: 'leap', big: true, pieces: ['slalom', 'logs', 'duckrun', 'arc'] }
     ],
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
@@ -84,10 +88,9 @@ export const LEVELS = [
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
       pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
-      /* Mossy, the forest giant (lkp-ride.js). */
-      rideMeet: [['nova', 'Shh... something big is asleep on the path! Don\'t worry \u2014 it\'s friendly. Hands up and wave hello!', 'WAVE HELLO!']],
-      rideOn: [['nova', 'It likes you! Run on the spot and it runs with you. Lean together to steer!', 'RUN!']],
-      rideFast: [['nova', 'Faster, and it bounces! Grab the high crystals!', 'BOUNCE!']],
+      /* Mossy, the gentle giant, after the boss (lkp-ride.js). */
+      rideMeet: [['nova', 'Look up ahead! A big friendly giant. Run, crew, catch up to it!', 'CATCH UP!']],
+      rideOn: [['nova', 'Everyone on? Sit down and rest, crew. You\'ve earned it.', 'SIT AND RELAX']],
       rideOff: [['nova', 'What a ride! Say thank you, crew. I think we\'ll call it... Mossy!', 'BYE, MOSSY!']],
       depot: [
         ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
@@ -101,7 +104,7 @@ export const LEVELS = [
         ['nova', 'An old street sweeper, gone haywire! Watch the red, dodge its charges, and hit it when it stops!', 'DODGE!']
       ],
       won: [
-        ['nova', 'The Sweeper\'s down! We\'ve got the engine piece.', 'LEVEL CLEAR!'],
+        ['nova', 'We\'ve got the engine piece! Brilliant work, crew.', 'LEVEL CLEAR!'],
         'PRAISE',
         ['nova', 'The ship\'s still a long way off, and more robots are waking. Rest up, crew.', '']
       ],

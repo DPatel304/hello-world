@@ -40,8 +40,7 @@ export function guideMove(g){
   }
   const ride = g.ride;
   if (ride){
-    if (ride.phase === 'meet') return 'handsup';
-    if (ride.phase === 'ride') return ride.team < 0.35 ? 'run' : 'lean';
+    if (ride.phase === 'chase') return 'run';
     return null;
   }
   if (g.rest) return 'hug';
