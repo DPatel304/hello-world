@@ -185,11 +185,12 @@ export const sfx = {
   /* Voices, far off, over a crackly radio: a few muffled syllables,
      rising and falling like someone talking - no words you could make
      out - with static under them. */
-  chatter(k = 1){
+  chatter(k = 1, clear = 1){
     const c = ctx(), t0 = c.currentTime, n = 4 + Math.floor(Math.random() * 6), base = 150 + Math.random() * 110;
     const bp = c.createBiquadFilter(), lp = c.createBiquadFilter(), out = c.createGain();
-    bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = 1.6;
-    lp.type = 'lowpass'; lp.frequency.value = 2200;
+    /* (muffled, as if underwater, till the eyes are open: clear 0..1) */
+    bp.type = 'bandpass'; bp.frequency.value = 500 + 600 * clear; bp.Q.value = 1.6 - 0.6 * clear;
+    lp.type = 'lowpass'; lp.frequency.value = 450 + 1900 * clear;
     out.gain.value = 0.5 * k;
     bp.connect(lp); lp.connect(out); out.connect(master); if (reverbIn) out.connect(reverbIn);
     let at = t0;
@@ -202,6 +203,45 @@ export const sfx = {
     }
     hiss({ dur: at - t0 + 0.15, gain: 0.018 * k, hp: 2500, type: 'bandpass', q: 0.6 });
   },
+  /* A breath inside the helmet: in, then out - a soft rushing close to
+     the ears, ringing a little in the helmet. k: how loud; quick: faster. */
+  breath(k = 1, quick = 0){
+    const c = ctx(), t = c.currentTime, inn = 1.1 - quick * 0.4, out = 1.4 - quick * 0.5;
+    for (const [d, dur, f0, f1, g] of [[0, inn, 700, 1300, 0.12], [inn + 0.15, out, 1100, 600, 0.1]]){
+      const s = noise(), f = c.createBiquadFilter(), gn = c.createGain(); s.loop = true;
+      f.type = 'bandpass'; f.Q.value = 2.2; f.frequency.setValueAtTime(f0, t + d); f.frequency.linearRampToValueAtTime(f1, t + d + dur);
+      gn.gain.setValueAtTime(0.0001, t + d); gn.gain.linearRampToValueAtTime(g * k, t + d + dur * 0.45); gn.gain.linearRampToValueAtTime(0.0001, t + d + dur);
+      s.connect(f); f.connect(gn); gn.connect(master); s.start(t + d); s.stop(t + d + dur + 0.05);
+    }
+  },
+  /* A soft gust of wind through the trees. */
+  wind(k = 1){
+    const c = ctx(), t = c.currentTime, dur = 3 + Math.random() * 2, s = noise(), f = c.createBiquadFilter(), g = c.createGain(); s.loop = true;
+    f.type = 'bandpass'; f.Q.value = 0.8; f.frequency.setValueAtTime(300, t); f.frequency.linearRampToValueAtTime(700 + Math.random() * 400, t + dur * 0.5); f.frequency.linearRampToValueAtTime(350, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.12 * k, t + dur * 0.45); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.05);
+  },
+  /* A bird - well, something like one - singing a few notes in the trees. */
+  bird(k = 1){
+    const base = 2200 + Math.random() * 1600, n = 2 + Math.floor(Math.random() * 4), up = Math.random() < 0.5;
+    for (let j = 0; j < n; j++){ const f = base * (1 + (up ? j : n - j) * 0.06); blip({ freq: f, to: f * (1.25 + Math.random() * 0.3), dur: 0.07 + Math.random() * 0.05, type: 'sine', gain: 0.05 * k, delay: j * (0.1 + Math.random() * 0.05) }); }
+  },
+  /* Far off, a great creature calling: a long low friendly hoot, rising and
+     falling, echoing round the hills. */
+  giantCall(k = 1){
+    const c = ctx(), t = c.currentTime;
+    for (const [mul, g, type] of [[1, 0.16, 'sine'], [2, 0.05, 'triangle'], [3.01, 0.015, 'sine']]){
+      const o = c.createOscillator(), gn = c.createGain(), v = c.createOscillator(), vg = c.createGain(), lp = c.createBiquadFilter();
+      o.type = type; lp.type = 'lowpass'; lp.frequency.value = 900;
+      o.frequency.setValueAtTime(120 * mul, t); o.frequency.linearRampToValueAtTime(165 * mul, t + 0.9); o.frequency.linearRampToValueAtTime(150 * mul, t + 1.6); o.frequency.linearRampToValueAtTime(105 * mul, t + 2.6);
+      v.frequency.value = 5; vg.gain.value = 3 * mul; v.connect(vg); vg.connect(o.frequency);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(g * k, t + 0.5); gn.gain.linearRampToValueAtTime(g * k * 0.8, t + 2); gn.gain.linearRampToValueAtTime(0.0001, t + 2.8);
+      o.connect(lp); lp.connect(gn); gn.connect(master); if (reverbIn) gn.connect(reverbIn);
+      o.start(t); o.stop(t + 2.9); v.start(t); v.stop(t + 2.9);
+    }
+  },
+  /* A little helper drone: a happy two-note chirp. */
+  chirp(){ blip({ freq: 1500, to: 2200, dur: 0.08, type: 'sine', gain: 0.08 }); blip({ freq: 2000, to: 2700, dur: 0.1, type: 'sine', gain: 0.07, delay: 0.1 }); },
   /* The radio ringing: a quick two-tone trill. */
   trill(){ for (let k = 0; k < 6; k++) blip({ freq: k % 2 ? 1320 : 1760, dur: 0.06, type: 'square', gain: 0.05, delay: k * 0.07 }); },
   /* ---- urgency (Last Known Position) ---- */

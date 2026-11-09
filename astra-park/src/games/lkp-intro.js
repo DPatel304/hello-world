@@ -24,7 +24,7 @@
 import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
-import { SKY } from './lkp-world.js';
+import { SKY, mix } from './lkp-world.js';
 import { Radio, script } from './lkp-captain.js';
 import { commanderFace } from './lkp-cast.js';
 import { figure } from './lkp-guide.js';
@@ -90,6 +90,10 @@ export class Intro {
       for (const i of g.here){ g.crew[i].played = true; g.crew[i].x = g._home(i); }
     }
     this.radio.step(dt);
+    this._stepDrone(dt);
+    /* the gloves: in view once the eyes are opening, until they get up */
+    const handsOn = (this.stage === 'wake' && (this.notch || 0) >= 1) || this.stage === 'call' || this.stage === 'answer';
+    this.gloves = Math.max(0, Math.min(1, (this.gloves || 0) + (handsOn ? dt * 1.2 : -dt * 3)));
     /* the heartbeat, while you're coming round */
     if (this.stage === 'dark' || this.stage === 'wake'){
       this.beatT -= dt;
@@ -102,6 +106,94 @@ export class Intro {
     const want = EYES[this.stage].call(this);
     this.open += (want - this.open) * Math.min(1, dt * (this.stage === 'rise' ? 30 : 5));
     if (over || (b.time && this.st >= b.time) || (b.max && this.st >= b.max && (FORCE[b.id] ? (FORCE[b.id].call(this), true) : true))) this._next();
+  }
+
+  /* The helper drone - a little round robot from the ship, a friendly
+     screen for a face. Once your eyes are mostly open it floats in close,
+     peering at you, shines its little light in your eyes and chirps; then
+     it hovers by the call it's put through, and off it goes once she's
+     talking. */
+  _stepDrone(dt){
+    const s = this.stage, d = this.drone || (this.drone = { x: 1.25, y: 0.3, on: false, t: 0, light: 0 });
+    d.t += dt;
+    const want = s === 'wake' && (this.notch || 0) >= 3 ? [0.66, 0.42] : s === 'call' ? [0.2, 0.36] : s === 'answer' ? [1.3, -0.2] : null;
+    if (want){
+      if (!d.on && s === 'wake'){ d.on = true; d.arrive = d.t; }
+      d.x += (want[0] - d.x) * Math.min(1, dt * 1.6); d.y += (want[1] - d.y) * Math.min(1, dt * 1.6);
+    }
+    /* arriving: a peer, a flash of its light, a chirp */
+    if (d.on && !d.chirped && d.t - d.arrive > 1.1){ d.chirped = true; d.light = 1; sfx.chirp?.(); }
+    if (s === 'call' && !d.patched){ d.patched = true; sfx.chirp?.(); }
+    d.light = Math.max(0, d.light - dt * 0.9);
+  }
+  _drone(c, W, H, clear){
+    const d = this.drone; if (!d || !d.on || d.x > 1.25) return;
+    const x = d.x * W, y = d.y * H + Math.sin(this.t * 2.2) * H * 0.012, r = H * (this.stage === 'wake' ? 0.11 : 0.07);
+    c.save();
+    if (clear < 0.95){ try { c.filter = `blur(${Math.round((1 - clear) * 10)}px)`; } catch (e){} }
+    /* its hover glow underneath */
+    const hg = c.createRadialGradient(x, y + r * 1.1, 0, x, y + r * 1.1, r * 1.2); hg.addColorStop(0, 'rgba(127,243,255,.55)'); hg.addColorStop(1, 'rgba(127,243,255,0)');
+    c.fillStyle = hg; c.beginPath(); c.arc(x, y + r * 1.1, r * 1.2, 0, 6.2832); c.fill();
+    /* little side fans */
+    for (const s of [-1, 1]){ c.fillStyle = '#c9d4e6'; c.beginPath(); c.ellipse(x + s * r * 1.05, y + r * 0.1, r * 0.32, r * 0.14, s * 0.3, 0, 6.2832); c.fill(); c.fillStyle = 'rgba(127,243,255,.6)'; c.beginPath(); c.ellipse(x + s * r * 1.05, y + r * 0.2, r * 0.22, r * 0.06, 0, 0, 6.2832); c.fill(); }
+    /* its round shell */
+    const sg = c.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r * 1.1); sg.addColorStop(0, '#ffffff'); sg.addColorStop(0.6, '#e4ecf6'); sg.addColorStop(1, '#9fb0c8');
+    c.fillStyle = sg; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
+    c.strokeStyle = '#6f80a0'; c.lineWidth = Math.max(2, r * 0.04); c.stroke();
+    /* the antenna, its light blinking */
+    c.strokeStyle = '#6f80a0'; c.beginPath(); c.moveTo(x + r * 0.2, y - r * 0.95); c.lineTo(x + r * 0.32, y - r * 1.35); c.stroke();
+    c.fillStyle = Math.floor(this.t * 3) % 2 ? '#7ff3ff' : '#ffd24a'; c.beginPath(); c.arc(x + r * 0.32, y - r * 1.4, r * 0.09, 0, 6.2832); c.fill();
+    /* its screen face: two happy eyes, blinking */
+    c.fillStyle = '#16264a'; c.beginPath(); c.roundRect(x - r * 0.62, y - r * 0.42, r * 1.24, r * 0.78, r * 0.3); c.fill();
+    c.fillStyle = '#7ff3ff'; const blink = (this.t % 3.2) < 0.12;
+    for (const s of [-1, 1]){
+      if (blink || this.stage === 'call'){ c.strokeStyle = '#7ff3ff'; c.lineWidth = r * 0.08; c.lineCap = 'round'; c.beginPath(); c.arc(x + s * r * 0.26, y + r * 0.02, r * 0.13, 1.15 * Math.PI, 1.85 * Math.PI); c.stroke(); }
+      else { c.beginPath(); c.ellipse(x + s * r * 0.26, y - r * 0.04, r * 0.1, r * 0.15, 0, 0, 6.2832); c.fill(); }
+    }
+    c.restore();
+    /* its little light, shone in your eyes */
+    if (d.light > 0){
+      const lg = c.createRadialGradient(x, y, 0, x, y, W * 0.5); lg.addColorStop(0, `rgba(255,250,225,${0.9 * d.light})`); lg.addColorStop(0.3, `rgba(255,250,225,${0.35 * d.light})`); lg.addColorStop(1, 'rgba(255,250,225,0)');
+      c.fillStyle = lg; c.fillRect(0, 0, W, H);
+    }
+    /* putting the call through: a faint beam to the call box */
+    if (this.stage === 'call'){ c.save(); c.strokeStyle = `rgba(127,243,255,${0.25 + 0.15 * Math.sin(this.t * 8)})`; c.lineWidth = H * 0.006; c.setLineDash?.([H * 0.015, H * 0.012]); c.beginPath(); c.moveTo(x + r, y); c.lineTo(W * 0.5 - H * 0.39, H * 0.4); c.stroke(); c.restore(); }
+  }
+
+  /* Your hands, in the suit's gloves, coming up into view - and moving as
+     your real hands move (the first of you the camera sees): wiggle your
+     fingers, and there you are, in the suit. */
+  _gloves(c, W, H){
+    const a = this.gloves || 0; if (a <= 0.01) return;
+    const i = this.g.here[0]; if (i == null) return;
+    const p = pose.players[i], col = PLAYER_COLORS[i];
+    const cen = p.centre || { x: 0.5, y: 0.6 }, sc = p.scale || 0.3;
+    c.save(); c.globalAlpha = a;
+    for (const side of ['left', 'right']){
+      const h = p.hands[side], d = side === 'left' ? -1 : 1;
+      /* where it is, in front of you: as far out from your middle as the real hand is from the body's */
+      const hx = W * Math.max(0.05, Math.min(0.95, 0.5 + (h.x - cen.x) / sc * 0.85)), hy = H * Math.max(0.3, Math.min(1.05, 0.78 + (h.y - cen.y) / sc * 0.85)) + (1 - a) * H * 0.3;
+      const wig = Math.min(1, (h.speed || 0) * 0.6), sz = H * 0.13, ax = W * (0.5 + d * 0.32), ay = H * 1.25;
+      /* the arm, up from the bottom corner */
+      c.lineCap = 'round';
+      c.strokeStyle = mix(col, '#0a0f2a', 0.45); c.lineWidth = sz * 0.95; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo((ax + hx) / 2 + d * W * 0.05, (ay + hy) / 2 + H * 0.05, hx, hy + sz * 0.45); c.stroke();
+      c.strokeStyle = col; c.lineWidth = sz * 0.8; c.stroke();
+      /* the cuff, glowing */
+      c.strokeStyle = mix(col, '#ffffff', 0.6); c.lineWidth = sz * 0.12; c.beginPath(); c.ellipse(hx, hy + sz * 0.42, sz * 0.42, sz * 0.12, 0, 0, 6.2832); c.stroke();
+      /* the glove: the back of the hand, four fingers, a thumb - spreading as you wiggle */
+      const gc = mix(col, '#ffffff', 0.25), gd = mix(col, '#0a0f2a', 0.35);
+      for (let f = 0; f < 4; f++){
+        const ang = -Math.PI / 2 + (f - 1.5) * (0.22 + wig * 0.18) + Math.sin(this.t * 14 + f) * wig * 0.15, len = sz * (0.55 - Math.abs(f - 1.5) * 0.06);
+        c.strokeStyle = gd; c.lineWidth = sz * 0.2; c.beginPath(); c.moveTo(hx + (f - 1.5) * sz * 0.14, hy - sz * 0.1); c.lineTo(hx + (f - 1.5) * sz * 0.14 + Math.cos(ang) * len, hy - sz * 0.1 + Math.sin(ang) * len); c.stroke();
+        c.strokeStyle = gc; c.lineWidth = sz * 0.15; c.stroke();
+      }
+      c.strokeStyle = gd; c.lineWidth = sz * 0.2; c.beginPath(); c.moveTo(hx - d * sz * 0.28, hy + sz * 0.05); c.lineTo(hx - d * sz * 0.55, hy - sz * 0.2 - wig * sz * 0.1); c.stroke();
+      c.strokeStyle = gc; c.lineWidth = sz * 0.15; c.stroke();
+      c.fillStyle = gc; c.beginPath(); c.ellipse(hx, hy + sz * 0.05, sz * 0.36, sz * 0.32, 0, 0, 6.2832); c.fill();
+      c.strokeStyle = gd; c.lineWidth = Math.max(2, sz * 0.03); c.stroke();
+      c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.ellipse(hx - sz * 0.1, hy - sz * 0.05, sz * 0.15, sz * 0.08, -0.4, 0, 6.2832); c.fill();
+    }
+    c.restore();
   }
 
   /* What you hear, coming round: the ears ringing (loud at first, then
@@ -119,7 +211,20 @@ export class Intro {
     if (this.roarT <= 0){ this.roarT = 1; sfx.fireRoar?.(near * (0.6 + 0.4 * clear), 1.3, clear); }
     if (Math.random() < dt * (4 + 4 * clear)) sfx.fireCrackle?.(near * (0.6 + 0.4 * clear), clear);
     this.talkT = (this.talkT ?? 2.2) - dt;
-    if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear); }
+    if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear, clear); }
+    /* breathing inside the helmet: slow and heavy in the dark, quicker as
+       you wake, softer once you're up and listening */
+    this.breathT = (this.breathT ?? 0.8) - dt;
+    if (this.breathT <= 0){ this.breathT = s === 'dark' ? 4 : s === 'wake' ? 3.2 : 4.2; sfx.breath?.(s === 'call' || s === 'answer' ? 0.5 : 1, s === 'wake' ? clear : 0); }
+    /* outside, as the eyes open: wind in the trees, birds singing - it's
+       lovely out there */
+    if (clear > 0.2){
+      this.windT = (this.windT ?? 0) - dt;
+      if (this.windT <= 0){ this.windT = 3.5 + Math.random() * 2; sfx.wind?.(clear); }
+      if (Math.random() < dt * 0.6 * clear) sfx.bird?.(clear);
+    }
+    /* and once, far off, something big calling across the hills */
+    if (!this.called && s === 'wake' && (this.notch || 0) >= 2){ this.called = true; sfx.giantCall?.(0.8); }
   }
 
   /* Hand to the ear: a wrist up beside the head, near where the ear is.
@@ -172,6 +277,10 @@ export class Intro {
       c.globalAlpha = 0.45 * (1 - clear); c.drawImage(buf, W * 0.035 * (1 - clear), H * 0.01 * (1 - clear), W, H);
       c.restore();
     } else view(c);
+    /* the helper drone, out there in front of you (as blurred as the rest) */
+    this._drone(c, W, H, clear);
+    /* your own hands, in the suit's gloves, in front of you */
+    this._gloves(c, W, H);
     /* the edges: dark, pulsing red with the heartbeat */
     const beat = Math.exp(-(this.t - (this.beatAt ?? -9)) * 4) * (1 - clear * 0.7);
     const vg = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.62);
