@@ -55,9 +55,9 @@ export const LEVELS = [
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
     boss: 'scout', bossName: 'Sweeper',
     tips: {
-      crystal: ['Grab those crystals!', 'CRYSTALS!'],
-      blocker: ['Fallen tree! Lean to go around it.', 'LEAN!'],
-      beam: ['Low branch! Duck under it!', 'DUCK!'],
+      crystal: ['See those glowing crystals? They power your suits. Lean to grab them!', 'CRYSTALS!'],
+      blocker: ['Debris! Lean around it.', 'LEAN!'],
+      beam: ['Low branch! Duck!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
       roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
       narrow: ['The path\'s closing in! Squeeze together!', 'SQUEEZE IN!'],
@@ -66,17 +66,19 @@ export const LEVELS = [
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
     lines: {
-      /* The opening (lkp-intro.js): her briefing once they've answered,
-         at the pond, and sending them off. */
-      brief: [
-        ['nova', 'ksssh \u2014 Mayday, mayday. This is Commander Nova, survey vessel Meridian. If anyone\'s alive down there, pick up.', ''],
-        ['nova', 'There you are. Okay, listen \u2014 the Meridian went down in the storm. You\'re on an uncharted planet. No survey data, no maps. We know nothing about what\'s down there with you.', ''],
-        ['nova', 'The ship\'s a wreck \u2014 engine\'s dead, hull\'s breached. I can\'t get you out until that engine\'s running again.', ''],
-        ['nova', 'Wait \u2014 my short-range scan\'s picking up something. A pool, about fifty meters east of you. The water\'s throwing off an energy signature I\'ve never seen. Might be nothing. Might save your lives. Get over there and check it out \u2014 carefully.', '']
+      /* The opening (lkp-intro.js): answering her call, inside the helmet. */
+      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re alive! Okay, on your feet. Follow the path and I\'ll talk you through it.', '']],
+      /* The first corridor: the story, a piece at a time, in the quiet
+         between her tips (lkp-game.js: said as the run reaches them). */
+      walk: [
+        ['nova', 'This is Commander Nova, on the Meridian. The ship went down in the storm. You\'re on a planet we know nothing about.', ''],
+        ['nova', 'Your suits took a beating in the crash. Hang in there \u2014 we\'ll find you somewhere to heal.', ''],
+        ['nova', 'My scans show a signal up ahead. Maybe the engine piece we lost. That\'s where you\'re headed.', '']
       ],
-      pondIn: [['nova', 'Your vitals are climbing \u2014 it\'s working! The water\'s healing you. Everyone in \u2014 don\'t move until you\'re at full strength.', '']],
+      /* The healing pond, a stop along the first corridor. */
+      pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
-      go: [['nova', 'Vitals green across the board. Alright \u2014 the engine piece tore loose in the crash. It\'s out there in the forest somewhere, and without it, nobody\'s leaving this planet. Start moving. Nova out.', '']],
+      pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
       depot: [
         ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
       ],

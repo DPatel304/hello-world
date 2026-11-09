@@ -29,9 +29,6 @@ const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6
 export const SITE = {
   ship: [-5.0, 0.45, 1.3],
   wreck: [-6.7, 0.38, 1],
-  pond: [-2.35, 0.18, 0.68],
-  lying: [[-3.65, 0.16], [-5.1, 0.27], [-3.5, 0.21], [-5.3, 0.2]],
-  spread: 0.19,
   /* the woods round the site, [lane, rel] */
   trees: [[-8.2, 0.62], [-6.9, 0.7], [-5.6, 0.66], [-4.2, 0.6], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.6, 0.55], [-3.6, 0.52], [-11.5, 0.6], [-12, 0.42]]
 };
@@ -42,14 +39,40 @@ export function worldMeadow(c, W, H, rel0, L){
   for (let n = 0; n < 300; n++){
     const rel = rel0 - 0.05 + hash(n + 1200) * 0.8, lane = -1.35 - Math.pow(hash(n + 1201), 0.8) * 11, p = P(lane, rel, W, H);
     if (p.x > W + 40 || rel < -0.1 || rel > 1) continue;
-    const [pl, pr, ps] = SITE.pond;
-    if (Math.abs(lane - pl) < ps * 1.1 && Math.abs(rel - rel0 - pr) < ps * 0.3) continue;
     const h = H * (0.014 + hash(n + 1202) * 0.024) * p.k;
     c.strokeStyle = rgba(L.grass[n % 2], 0.6 + 0.35 * Math.min(1, p.k)); c.lineWidth = Math.max(1, H * 0.003 * p.k);
     c.beginPath();
     for (const dx of [-1, 0, 1]){ c.moveTo(p.x + dx * h * 0.2, p.y); c.quadraticCurveTo(p.x + dx * h * 0.25, p.y - h * 0.6, p.x + dx * h * 0.45 - h * 0.15, p.y - h); }
     c.stroke();
     if (hash(n + 1203) < 0.16){ c.fillStyle = L.flowers[n % L.flowers.length]; circ(c, p.x, p.y - h, h * 0.18); }
+  }
+}
+
+/* The ship on fire: flames licking up off its hull and out of its
+   engines, sparks rising, the ground lit orange round it. Where
+   lkp-places.js worldShip draws it, at lane, rel, size s. */
+export function shipFire(c, W, H, rel, lane, t, s = 1){
+  const p = P(lane, rel, W, H), u = H * 0.0011 * p.k * s;
+  if (p.x < -1400 * u - W * 2 || p.x > W + 1400 * u) return;
+  glow(c, p.x + 100 * u, p.y - 40 * u, 900 * u, '#ff7a2e', 0.28 + 0.06 * Math.sin(t * 9));
+  /* (the hull's tilted: -0.12 rad, its middle 150 up) */
+  const at = (x, y) => [p.x + x * u * Math.cos(-0.12) - y * u * Math.sin(-0.12), p.y - 150 * u + x * u * Math.sin(-0.12) + y * u * Math.cos(-0.12)];
+  for (const [x, y, size, seed] of [[560, -60, 1.3, 1], [430, -150, 1, 2], [-120, -150, 0.8, 3], [180, -165, 0.65, 4], [600, 60, 0.9, 5]]){
+    const [fx, fy] = at(x, y), h = 230 * u * size * (0.85 + 0.15 * Math.sin(t * 11 + seed) + 0.1 * Math.sin(t * 17 + seed * 2)), w = 95 * u * size;
+    glow(c, fx, fy - h * 0.4, w * 2.4, '#ff8a3b', 0.55);
+    for (const [col, k] of [['#e8452c', 1], ['#ff9a2e', 0.72], ['#ffe27a', 0.45], ['#fff8e0', 0.22]]){
+      const sway = Math.sin(t * 6 + seed + k * 3) * w * 0.25 * k;
+      c.fillStyle = col; c.beginPath(); c.moveTo(fx - w * k, fy);
+      c.quadraticCurveTo(fx - w * k * 0.9, fy - h * k * 0.55, fx + sway, fy - h * k);
+      c.quadraticCurveTo(fx + w * k * 0.9, fy - h * k * 0.55, fx + w * k, fy);
+      c.closePath(); c.fill();
+    }
+  }
+  /* sparks, rising and drifting */
+  for (let k = 0; k < 22; k++){
+    const v = (t * (0.35 + hash(k + 1900) * 0.3) + hash(k + 1901)) % 1, [fx, fy] = at(-200 + hash(k + 1902) * 820, -150);
+    c.fillStyle = `rgba(255,${180 + Math.round(60 * (1 - v))},90,${(1 - v) * 0.9})`;
+    circ(c, fx + Math.sin(v * 6 + k) * 40 * u, fy - v * 700 * u, (5 + 4 * (1 - v)) * u + 0.5);
   }
 }
 

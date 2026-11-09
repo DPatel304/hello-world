@@ -20,9 +20,8 @@ export function guideMove(g){
   if (sc){
     if (sc.kind !== 'intro') return null;
     const here = g.here;
-    if (sc.stage === 'wake' && here.some(i => sc.up[i] < 1)) return 'wiggle';
+    if (sc.stage === 'wake') return 'wiggle';
     if (sc.stage === 'call' && here.some(i => !sc.answered[i])) return 'ear';
-    if (sc.stage === 'pond' && here.some(i => sc._inPond(i) && g.crew[i].hp < g.crew[i].max)) return 'hug';
     return null;
   }
   if (g.over) return null;
@@ -37,6 +36,7 @@ export function guideMove(g){
     if (zip.riding) return 'lean';
     return null;
   }
+  if (g.rest) return 'hug';
   if (g.trap && !g.trap.done) return g.trap.light === 'green' ? 'run' : 'freeze';
   if (g.treasure && !g.treasure.done) return g.treasure.pool > 0 ? 'hug' : 'reach';
   if (g.leap) return 'lean';

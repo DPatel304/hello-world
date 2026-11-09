@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, WAKE, WIGGLE, UP, OUT, POND_MAX, CRASH_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, DARK, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { RUN } from '../src/games/lkp-art.js';
+import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -21,27 +23,25 @@ const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' |
 const say = (inst, kind) => script(kind, inst).reduce((s, [who, text]) => s + lineTime(text.replace(/^k+s+h+\s*[-\u2014]\s*/i, ''), who) + 0.5, 0);
 const hands = (i, x, y, speed = 0) => { pose.players[i].hands.right = { x, y, vx: 0, vy: 0, speed }; };
 
-test('the opening: title, the wreck, wiggle to wake, everyone answers, the briefing, the pond heals them, then into play', () => {
+test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, a blink, and off', () => {
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['wreck', 'wake', 'call', 'brief', 'pond', 'go']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['dark', 'wake', 'call', 'answer', 'rise']);
   const z = inst.z;
-  assert.equal(intro.stage, 'wreck', 'no title: straight into the shot');
-  run(inst, 0.1);
-  inst.draw(fake(), W, H);
-  run(inst, WAKE + 0.1);
+  run(inst, DARK + 0.1);
   assert.equal(intro.stage, 'wake');
   assert.equal(inst.crew[0].hp, inst.crew[0].max * START, 'hurt in the crash');
   inst.draw(fake(), W, H);
-  /* lying there till they wiggle - player 0 does, player 1 doesn't yet */
-  run(inst, 2);
-  for (let k = 0; k < (WIGGLE + UP + 0.3) / DT; k++){ hands(0, 0.5, 0.5, 2); inst.step(DT, W, H); }
-  hands(0, 0.5, 0.5);
-  assert.equal(intro.up[0], 1); assert.equal(intro.up[1], 0);
+  /* one wiggling gets the eyes half open - the team has to do it */
+  for (let k = 0; k < (WIGGLE + 0.5) / DT; k++){ hands(0, 0.5, 0.5, 2); inst.step(DT, W, H); }
+  assert.ok(intro.wiggled > 0.45 && intro.wiggled < 0.55);
   assert.equal(intro.stage, 'wake');
-  for (let k = 0; k < (WIGGLE + UP + 1.2) / DT; k++){ hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
-  hands(1, 0.5, 0.5);
+  /* stopping, they droop */
+  hands(0, 0.5, 0.5); const was = intro.wiggled; run(inst, 0.5);
+  assert.ok(intro.wiggled <= was);
+  for (let k = 0; k < (WIGGLE + 1.5) / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
+  hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
   assert.equal(intro.stage, 'call');
   inst.draw(fake(), W, H);
   /* everyone answers - one isn't enough */
@@ -51,40 +51,55 @@ test('the opening: title, the wreck, wiggle to wake, everyone answers, the brief
   assert.equal(intro.stage, 'call');
   hands(1, 0.5, 0.1); run(inst, 0.6); hands(1, 0.5, 0.5);
   run(inst, 1);
-  assert.equal(intro.stage, 'brief');
+  assert.equal(intro.stage, 'answer');
   assert.ok(intro.radio.busy && intro.radio.visible);
   inst.draw(fake(), W, H);
-  run(inst, say(inst, 'brief') + 0.3);
-  assert.equal(intro.stage, 'pond');
-  /* they walk over to the pond on their own, and heal */
-  const x0 = intro.pos[0][0];
-  run(inst, 1);
-  inst.draw(fake(), W, H);
-  assert.ok(intro.pos[0][0] > x0, 'walking over');
-  run(inst, 4);
-  assert.ok(intro._inPond(0) && intro._inPond(1), 'in the water');
-  assert.ok(inst.crew[0].hp > inst.crew[0].max * START, 'healing');
-  for (let k = 0; k < 30 / DT && intro.stage === 'pond'; k++) inst.step(DT, W, H);
-  assert.equal(inst.crew[0].hp, inst.crew[0].max, 'full');
-  assert.equal(intro.stage, 'go');
-  inst.draw(fake(), W, H);
-  let k = 0;
-  for (; k < 30 / DT && inst.scene; k++){ inst.step(DT, W, H); assert.equal(inst.z, z, 'nothing moves till it\'s done'); if (k % 20 === 0) inst.draw(fake(), W, H); }
+  run(inst, say(inst, 'wakeup') + 0.3);
+  assert.equal(intro.stage, 'rise');
+  for (let k = 0; k < 40 && inst.scene; k++){ inst.step(DT, W, H); assert.equal(inst.z, z, 'nothing moves till it\'s done'); if (k % 10 === 0) inst.draw(fake(), W, H); }
+  run(inst, RISE);
   assert.equal(inst.scene, null);
-  assert.ok(Math.abs(k * DT - OUT) < 0.2, 'walking onto the path');
   assert.equal(inst.introCrew, null, 'in their places');
   run(inst, 1);
   assert.ok(inst.z > z, 'and off they go');
   story.on = false;
 });
 
-test('nobody waking, answering or walking never holds it up for ever', () => {
+test('nobody waking or answering never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = WAKE + CRASH_MAX + 1 + RING_MAX + 1 + say(inst, 'brief') + 1 + POND_MAX + say(inst, 'pondIn') + say(inst, 'pondWait') + 2 + OUT + 2;
+  const most = DARK + WAKE_MAX + 1 + RING_MAX + 1 + say(inst, 'wakeup') + 1 + RISE + 1;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
-  assert.equal(inst.crew[0].hp, inst.crew[0].max);
+  story.on = false;
+});
+
+test('the first corridor: Nova tells the story between her tips, and the healing pond is a stop that heals everyone', () => {
+  story.on = true; crew(2);
+  const inst = game.create(2);
+  inst.scene = null;
+  inst.leanOf = () => 0; inst.duckOf = () => false; inst.jumps = { step: () => [] };
+  for (const rn of inst.crew) rn.hp = rn.max * START;
+  const said = [];
+  const sayFn = inst.captain.say.bind(inst.captain);
+  inst.captain.say = (text, words, o) => { const ok = sayFn(text, words, o); if (ok) said.push(text); return ok; };
+  const pond = inst.things.find(t => t.kind === 'pond' && t.rest);
+  assert.ok(pond, 'a pond stop');
+  for (let k = 0; k < 200 / DT && !inst.rest; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  assert.ok(inst.rest, 'stopped at the pond');
+  const walk = inst.level.lines.walk.map(l => l[1]);
+  assert.ok(walk.every(l => said.includes(l)), 'the whole story told on the way');
+  for (let k = 0; k < 15; k++) inst.step(DT, W, H);
+  const z = inst.z;
+  for (let k = 0; k < 30; k++) inst.step(DT, W, H);
+  assert.ok(inst.z - z < 0.005, 'standing in it');
+  assert.ok(Math.abs(pond.d - inst.z - RUN) < 0.05, 'in the middle of it');
+  assert.ok(inst.crew[0].hp > inst.crew[0].max * START, 'healing');
+  for (let k = 0; k < (REST_MAX + 1) / DT && inst.rest; k++) inst.step(DT, W, H);
+  assert.equal(inst.rest, null);
+  assert.equal(inst.crew[0].hp, inst.crew[0].max, 'full');
+  run(inst, 1);
+  assert.ok(inst.z > z + 0.1, 'and on they go');
   story.on = false;
 });
 

@@ -6,7 +6,7 @@ import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
 import { turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
-import { ClapWatch } from '../tracking/gestures.js';
+import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
@@ -17,7 +17,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { worldPond, worldMeadow, SITE } from './lkp-crashsite.js';
+import { worldPond, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -59,7 +59,7 @@ export const story = { on: true };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [55, 35, 42, 32];                      /* seconds of each corridor, in full */
+const FULL = [66, 35, 42, 32];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -83,6 +83,8 @@ export const FLY = 0.2, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
 export const SCORE = { kill: 10, boss: 500 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
+/* A line from the level's script, for the captain: [who, text, words] -> (text, words). */
+const line = (l) => [l[1], l[2] || ''];
 /* A rolling boulder: how wide (lanes, either side of its middle), and how
    fast it rolls across - lanes for each bit of depth still to come. */
 export const ROLLER = 0.24, ROLL = 3.2;
@@ -92,6 +94,9 @@ export const NARROW = 0.55, WIDE = 2.1;
 /* In a rescue bubble (missed the zip line): claps from teammates close by
    to pop it, how close (lanes), and the health they're back on. */
 export const BUBBLE_CLAPS = 4, BUBBLE_R = 0.6, BUBBLE_HP = 0.5;
+/* The healing pond stop: its size (lanes), how much health a second it
+   heals (twice that hugging), and the longest it waits. */
+export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 25;
 /* The big jump: how deep the ravine (depths; a wider one before the
    boss), how high they fly over it (and with a hop at the edge), how
    slow it all goes while they're in the air, how long before the edge a
@@ -202,6 +207,7 @@ class LastKnownPosition {
     this.heads = pose.players.map(() => null);
     this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null, bubble: null }));
     this.clapWatch = pose.players.map(() => new ClapWatch());
+    this.hugWatch = pose.players.map(() => new HugWatch());
     this.things = [];
     this.bits = [];
     this.guide = 0;                 /* whose crown breaks a tied vote */
@@ -317,6 +323,13 @@ class LastKnownPosition {
 
     /* ---- the events ---- */
     const EVENTS = {
+      /* The healing pond, right across the path: the run stops in it
+         till everyone's healed (lkp-game.js _rest). */
+      rest: (s) => {
+        add(s, { kind: 'pond', lane: 0, r: REST_POND, rest: true });
+        CLEARINGS.push({ lane: 0, d: at(s), r: REST_POND });
+        return secsOf(REST_POND * 0.4) + 1;
+      },
       /* The path squeezing narrow - everyone pushed together into the
          middle - then bursting open wide, crystals all over. */
       squeeze: (s) => {
@@ -368,17 +381,20 @@ class LastKnownPosition {
       ROAD.spans.length = 0; ROAD.gaps.length = 0;
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
-      this.things.push({ d: this.z + CRASH.pond[1], kind: 'pond', lane: CRASH.pond[0], r: CRASH.pond[2] });
       this.things.push({ d: this.z, kind: 'meadow', len: 0.7 });
       CRASH.trees.forEach(([lane, rel], n) => this.things.push({ d: this.z + rel, kind: 'tree', lane, n: n + 70 }));
-      /* (no trees by the path in the pond) */
-      CLEARINGS.length = 0; CLEARINGS.push({ lane: CRASH.pond[0], d: this.z + CRASH.pond[1], r: CRASH.pond[2] });
+      CLEARINGS.length = 0;
+      /* Nova's story, a piece at a time, in the quiet between her tips -
+         the first two in the quiet start (LEAD), before anything comes */
+      if (story.on) [-9, -3.5, 15].forEach((secs, k) => add(secs, { kind: 'say', line: k }));
       crystalLine(3, 0, 6); crystalLine(6, -0.5, 5);
       blocker(10, 1, 0.8);
-      crystalLine(14, 0.4, 5);
+      crystalLine(13, 0.4, 5);
       beam(19); crystalLine(20, 0, 4);
-      const s = 24 + EVENTS[plan.event || 'squeeze'](24);
-      fountain(s, 0.5); beam(s + 4); blocker(s + 7.5, side(), 0.8);
+      let s = 24 + EVENTS[plan.event || 'squeeze'](24);
+      /* the healing pond: a stop, to heal up after the crash */
+      s += EVENTS.rest(s + 1) + 1;
+      beam(s + 1); blocker(s + 4.5, side(), 0.8); crystalLine(s + 6.5, 0, 5);
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
       crystalLine(3, 0, 5); blocker(6);
@@ -474,16 +490,17 @@ class LastKnownPosition {
       this._bubbles(dt, W, H);
       if (this.zip) want = this.zip.speed(SPEED);
       else if (this.leap) want = SPEED * LEAP_SLOW;
-      if (this.zip || this.leap) seg.len += dt * (1 - this.speed / SPEED);
+      else if (this.rest) want = 0;
+      if (this.zip || this.leap || this.rest) seg.len += dt * (1 - this.speed / SPEED);
     }
     if (seg.kind === 'boss' || seg.kind === 'depot') want = 0;
-    this.speed += (want - this.speed) * Math.min(1, dt * 4);
+    this.speed += (want - this.speed) * Math.min(1, dt * (this.rest ? 10 : 4));
     const before = this.z;
     this.z += this.speed * dt;
     const jumped = this.jumps.step(dt, pose.players, this.players);
     if (seg.kind === 'corridor') this._edgeHops(jumped);
     for (let i = 0; i < this.players; i++) this._move(i, dt, jumped.includes(i), W, H);
-    if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len && !this.zip && !this.leap) this._next(); }
+    if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len && !this.zip && !this.leap && !this.rest) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
     else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > 1.5) this._next(); }
@@ -525,6 +542,12 @@ class LastKnownPosition {
       this.leap = null; sfx.thud(); this.shake = Math.min(1, this.shake + 0.35);
       for (const i of this.here){ const p = P(this.crew[i].x, RUN, 1, 1); this._sparkle(p.x, 0.92, 8, 40); }
     }
+    /* The healing pond: stopping in it, healing, till everyone's full. */
+    if (!this.rest){
+      /* (a little before its middle: braking, they stop in it) */
+      const th = this.things.find(t => t.kind === 'pond' && t.rest && !t.taken && t.d - this.z - RUN <= this.speed * 0.15);
+      if (th){ th.taken = true; this.rest = { th, t: 0, ok: 0, waited: false }; if (story.on) this.captain.say(...line(this.level.lines.pondIn[0])); sfx.splash?.(); }
+    } else this._rest(dt, W, H);
     /* (the road's narrows and ravines, once they're behind) */
     ROAD.spans = ROAD.spans.filter(sp => sp.d1 > this.z - 0.3);
     ROAD.gaps = ROAD.gaps.filter(g => g.d + g.len > this.z - 0.3);
@@ -552,6 +575,29 @@ class LastKnownPosition {
     rn.bubble = null; rn.hp = Math.max(rn.hp, Math.round(rn.max * BUBBLE_HP)); rn.safe = 1;
     const p = P(rn.x, RUN, W, H); this._sparkle(p.x / W, (p.y - H * 0.25) / H, 16, 190);
     sfx.pop(1.4); sfx.twinkle();
+  }
+  /* In the healing pond: everyone heals - hugging, twice as fast - till
+     they're all full (or it's waited long enough), then on they go. */
+  _rest(dt, W, H){
+    const r = this.rest;
+    r.t += dt;
+    for (const i of this.here){
+      const rn = this.crew[i], hug = this.hugWatch[i].step(pose.players[i], dt);
+      rn.pose = hug ? 'hug' : null; rn.heal = 0.6;
+      if (rn.hp >= rn.max) continue;
+      const was = rn.hp;
+      rn.hp = Math.min(rn.max, rn.hp + rn.max * REST_FILL * (hug ? 2 : 1) * dt);
+      if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)){ const p = P(rn.x, RUN, W, H); this.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.25) / H, vy: -0.06, age: 0, life: 0.8, text: '+5', col: '#7ff3ff' }); }
+      if (rn.hp >= rn.max) sfx.twinkle();
+    }
+    if (story.on && !r.waited && r.t > 10 && !this.captain.busy){ r.waited = true; this.captain.say(...line(this.level.lines.pondWait[0])); }
+    const full = this.here.every(i => this.crew[i].hp >= this.crew[i].max);
+    r.ok = full ? r.ok + dt : 0;
+    if (r.ok > 0.8 || r.t >= REST_MAX){
+      for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; }
+      if (story.on) this.captain.say(...line(this.level.lines.pondDone[0]));
+      this.rest = null;
+    }
   }
   /* How far over the ravine they are, 0..1. */
   get leapU(){ return this.leap ? Math.min(1, Math.max(0, (this.z - this.leap.z0) / this.leap.len)) : 0; }
@@ -617,7 +663,7 @@ class LastKnownPosition {
     const xp = n * each;
     if (this.flyers.length >= FLYING){ this.addXp(xp); this.xpPulse = 1; return; }
     const first = this.flown < SHOW; this.flown++;
-    if (this.flown === 1) this.captain?.say('Grab the energy crystals, crew! Your suits run on them.', 'CRYSTALS POWER YOU UP', { once: 'crystals', polite: true });
+    if (this.flown === 1) this.captain?.say('Grab the energy crystals, crew! Your suits run on them.', 'CRYSTALS POWER YOU UP', { once: 'crystal', polite: true });
     this.flyers.push({ x, y, t: 0, dur: first ? FLY_FIRST : FLY, xp, n: Math.min(n, 4), big: first, bend: Math.random() < 0.5 ? -1 : 1 });
   }
   /* Calm enough to stop for level ups - between rooms: a corridor just
@@ -654,6 +700,8 @@ class LastKnownPosition {
   _cues(){
     const cap = this.captain, seg = this.seg, f = this.fight, bs = this.boss, up = this.here.filter(i => !this.crew[i].down);
     if (seg.kind === 'corridor'){
+      /* her story, as the run reaches each piece of it - never over a tip */
+      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; cap.say(...line(this.level.lines.walk[th.line]), { polite: true }); }
       for (const th of this.things){
         const ahead = th.d - this.z - RUN;
         if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
@@ -1064,6 +1112,7 @@ class LastKnownPosition {
       c.restore();
     });
     if (this.zip) this.zip.marks(c, W, H);
+    if (this.rest){ const th = this.rest.th; pondBeauty(c, W, H, th.lane, th.d - this.z, this.t, PAL.world, th.r * 0.6, Math.min(1, this.rest.t / 1.5)); }
     /* At the fork, still choosing: over each one's head an arrow, in their
        colour, pointing the way they're going. */
     if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02) for (const i of this.here){
@@ -1126,7 +1175,7 @@ class LastKnownPosition {
       /* The boss's own things draw themselves. */
       case 'boss': it.draw(c, W, H, this.t); break;
       case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
-      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); break;
+      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); shipFire(c, W, H, it.rel, it.lane, this.t, it.s); break;
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
       case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
