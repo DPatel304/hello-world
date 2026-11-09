@@ -107,6 +107,28 @@ function hiss({ dur = 0.18, gain = 0.25, hp = 900, delay = 0, sweep = 0, type = 
   s.start(t); s.stop(t + dur + 0.02);
 }
 
+/* A kalimba note: a plucked metal tine - the note, a faint octave, and the
+   quick bright 'tink' of the tine itself - in a small warm room. */
+let kalRoom = null;
+function kalimba(m, t, gain = 0.3, dur = 2){
+  const c = ctx(), f = 440 * Math.pow(2, (m - 69) / 12);
+  if (!kalRoom){
+    kalRoom = c.createGain();
+    const verb = c.createConvolver(), wet = c.createGain();
+    verb.buffer = impulse(c, 1.4); wet.gain.value = 0.28;
+    kalRoom.connect(master); kalRoom.connect(verb); verb.connect(wet); wet.connect(master);
+  }
+  for (const [r, a, dec] of [[1, 1, 0.9], [2, 0.08, 0.3], [5.4, 0.15, 0.04]]){
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.value = f * r;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain * a, t + 0.003);
+    g.gain.setTargetAtTime(0, t + 0.003, dec);
+    o.connect(g); g.connect(kalRoom);
+    o.start(t); o.stop(t + Math.min(dur, dec * 7 + 0.05));
+  }
+}
+
 /* The major pentatonic: steps that sound sweet in any order. */
 const PENT = [0, 2, 4, 7, 9];
 
@@ -366,12 +388,12 @@ export const sfx = {
   flip(){ blip({ freq: 700, dur: 0.06, type: 'triangle', gain: 0.18 }); blip({ freq: 1050, dur: 0.08, type: 'triangle', gain: 0.18, delay: 0.08 }); },
   /* Got the hang of something: a little rising chime. */
   learnt(){ [0, 4, 7, 12, 16].forEach((st, i) => blip({ freq: 523 * Math.pow(2, st / 12), dur: 0.3, type: 'sine', gain: 0.16, delay: i * 0.07 })); },
-  /* The console turning on: a soft swell up into a bright bell chord -
-     the same every time, so it becomes the sound of Astra Park. */
-  boot(){
-    hiss({ dur: 1.1, gain: 0.05, hp: 300, sweep: 3200, type: 'bandpass', q: 0.6 });
-    [0, 7, 12, 16, 19, 24].forEach((st, i) => blip({ freq: 262 * Math.pow(2, st / 12), dur: 1.4 - i * 0.12, type: i < 2 ? 'triangle' : 'sine', gain: 0.12, delay: 0.35 + i * 0.09 }));
-  },
+  /* The console turning on: a kalimba - do, mi, sol, do - plucked as the
+     four lights join into the cube; the same every time, so it becomes the
+     sound of MoveCube. */
+  boot(){ const t = ctx().currentTime; [72, 76, 79].forEach((m, i) => kalimba(m, t + i * 0.13, 0.3)); kalimba(84, t + 0.39, 0.22, 2.5); },
+  /* The cube's wink: one little high note. */
+  wink(){ kalimba(88, ctx().currentTime, 0.12); },
   /* Moving along the shelf. */
   nav(){ blip({ freq: 520, to: 640, dur: 0.07, type: 'sine', gain: 0.1 }); hiss({ dur: 0.08, gain: 0.03, hp: 2400 }); },
   /* Into a game, or a choice made. */

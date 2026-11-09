@@ -38,14 +38,14 @@ export class PlayerBar {
 
   /* The bubbles, centred at (cx, cy), each r across. Empty places are
      faint rings, so it's clear there's room for more. */
-  draw(c, cx, cy, r){
+  draw(c, cx, cy, r, ring = '#fff6e2'){
     const gap = r * 2.7;
     for (let i = 0; i < MAX_PLAYERS; i++){
       const x = cx + (i - (MAX_PLAYERS - 1) / 2) * gap, k = this.in[i];
       /* An empty place: a faint dashed ring. */
       c.save();
       c.globalAlpha = 0.35 * (1 - k);
-      c.strokeStyle = '#fff6e2'; c.lineWidth = Math.max(1.5, r * 0.07); c.setLineDash?.([r * 0.25, r * 0.2]);
+      c.strokeStyle = ring; c.lineWidth = Math.max(1.5, r * 0.07); c.setLineDash?.([r * 0.25, r * 0.2]);
       c.beginPath(); c.arc(x, cy, r * 0.85, 0, 6.2832); c.stroke();
       c.restore();
       if (k < 0.02) continue;

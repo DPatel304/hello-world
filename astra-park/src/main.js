@@ -1,7 +1,7 @@
 import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
-import { title, logo } from './ui/title.js';
+import { remote } from './ui/remote.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -40,32 +40,15 @@ function go(next, build){
 
 /* The menus are quiet: music belongs to playing, so it starts when a game is
    picked and fades away on the way back out. */
-function toMenu(){
+function toMenu(arrive = false){
   music.stop();
   if (mode === 'results' || mode === 'play' || mode === 'outro') sfx.back();
   pose.keepSitters = false;
-  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration }));
+  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, arrive }));
 }
 
 function toCalibration(){
   go('calibrate', () => calibration(toMenu));
-}
-
-/* The front door. Shown once on boot rather than dropping straight into
-   calibration, so the first thing on the television is the name and one
-   obvious way in - not an instruction to stand further back. */
-function toTitle(t0 = 0){
-  music.stop();
-  go('title', () => title({
-    t0,
-    /* Straight to the games. Calibration used to sit in the way, which meant
-       the second thing on the television was an instruction to stand further
-       back - and the title screen already answers the only question that
-       screen asked, with a dot that says whether anyone can be seen. It is
-       still there under Settings for when tracking actually needs sorting. */
-    onPlay: () => { toMenu(); cursor.hold(2); },
-    onSettings: () => { toMenu(); openSettings(toCalibration); }
-  }));
 }
 
 /* Straight into the game, no instructions or countdown: every round opens
@@ -123,14 +106,22 @@ function checkPause(dt){
   const any = pose.players.slice(0, players).some(handsAboveHead);
   handsUp = any ? handsUp + dt : 0;
   /* A game where reaching up is part of play can ask for a longer hold. */
-  if (handsUp >= (game.pauseHold || 1.5)){
-    handsUp = 0;
-    paused = pauseOverlay(
-      () => { paused.remove(); paused = null; cursor.reset(); },
-      () => { paused.remove(); paused = null; toMenu(); });
-    sfx.whoosh();
-  }
+  if (handsUp >= (game.pauseHold || 1.5)){ handsUp = 0; openPause(); }
 }
+function openPause(){
+  if (paused) return;
+  paused = pauseOverlay(
+    () => { paused.remove(); paused = null; cursor.reset(); },
+    () => { paused.remove(); paused = null; toMenu(); });
+  sfx.whoosh();
+}
+
+/* The remote's Back: in a game, pause it (Back again carries on); from
+   the scores or the camera check, home. */
+remote.install(() => {
+  if (mode === 'play' && !lost){ if (paused){ paused.remove(); paused = null; cursor.reset(); } else openPause(); }
+  else if (mode === 'results' || mode === 'calibrate') toMenu();
+});
 
 /* The game waits only when the room is empty - everybody gone for a couple
    of seconds - and carries on the moment anyone is back. */
@@ -232,6 +223,7 @@ function tick(now){
   checkPause(dt);
   checkLost(dt);
   cursor.update(dt, document.getElementById('ui'));
+  remote.sync();
   drawHUD();
   oc.clearRect(0, 0, W, H);
   if ((mode !== 'play' && mode !== 'outro') || paused || lost) cursor.draw(oc, W, H);
@@ -299,6 +291,7 @@ document.addEventListener('visibilitychange', () => {
 /* The boot show plays while the camera starts; the front door opens when
    both are done. */
 (async function boot(){
+  document.title = 'MoveCube';
   const debug = new URLSearchParams(location.search).has('debug');
   audio.resume();
   let show = null;
@@ -309,10 +302,11 @@ document.addEventListener('visibilitychange', () => {
   window.__round = () => inst;
   holdScreen();
   let ready = false;
-  started.then(() => { ready = true; }, () => { ready = true; });
+  started.then(() => { ready = true; show.camReady = true; }, () => { ready = true; show.camReady = true; });
   await new Promise(res => {
-    const wait = () => { if (show.done && ready) res(); else { show.waiting = show.done; setTimeout(wait, 50); } };
+    const wait = () => { if (show.done && ready) res(); else setTimeout(wait, 50); };
     wait();
   });
-  toTitle(show.t);
+  /* Straight from the intro to the home screen: its tiles fly out of the cube. */
+  toMenu(true);
 })();
