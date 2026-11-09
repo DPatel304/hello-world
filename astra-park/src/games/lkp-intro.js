@@ -28,12 +28,8 @@ import { SKY } from './lkp-world.js';
 import { Radio, script } from './lkp-captain.js';
 import { commanderFace } from './lkp-cast.js';
 import { figure } from './lkp-guide.js';
-import { P } from './lkp-art.js';
-import { worldShip } from './lkp-places.js';
-import { shipFire } from './lkp-crashsite.js';
 
 export const INTRO_BEATS = [
-  { id: 'fall', time: 4.6, shot: 'the crash site from above, the ship streaking down out of the sky, trailing smoke - THUD - the eyes closing', blocking: 'a rising whoosh, the boom' },
   { id: 'dark', time: 3, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, clear', blocking: 'the suit display rings: INCOMING CALL - NOVA; a hand to the ear answers' },
@@ -41,9 +37,7 @@ export const INTRO_BEATS = [
   { id: 'rise', time: 2.4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
-export const FALL = BEAT.fall.time, DARK = BEAT.dark.time, RISE = BEAT.rise.time;
-/* The fall: seconds till it hits the ground. */
-export const IMPACT = 2.6;
+export const DARK = BEAT.dark.time, RISE = BEAT.rise.time;
 export const WAKE_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max;
 /* Waking: moving (body sizes a second) more than STIR counts; WIGGLE
    seconds of it each and your share of the eyes is open - it slips back
@@ -101,12 +95,30 @@ export class Intro {
       this.beatT -= dt;
       if (this.beatT <= 0){ sfx.heartbeat?.(); this.beatT = 1.15; this.beatAt = this.t; }
     }
+    this._sounds(dt);
     const b = this.beat;
     const over = STEP[b.id].call(this, dt);
     /* the eyes: how open, eased */
     const want = EYES[this.stage].call(this);
     this.open += (want - this.open) * Math.min(1, dt * (this.stage === 'rise' ? 30 : 5));
     if (over || (b.time && this.st >= b.time) || (b.max && this.st >= b.max && (FORCE[b.id] ? (FORCE[b.id].call(this), true) : true))) this._next();
+  }
+
+  /* What you hear, coming round: the ears ringing (loud at first, then
+     less, again each time you wake a little more); the fire burning,
+     muffled in the dark and clearer as your eyes open; and voices, far
+     off, crackling over a radio somewhere in the wreck. Quieter once the
+     call comes, and gone once you're up. */
+  _sounds(dt){
+    const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
+    if (s === 'rise' || this.done) return;
+    const near = s === 'dark' || s === 'wake' ? 1 : 0.5;
+    if (this.t > 0.2 && (this.ringT == null || this.t - this.ringT > 5.5)){ this.ringT = this.t; sfx.earRing?.(s === 'dark' ? 1 : 0.5); }
+    this.roarT = (this.roarT ?? 0) - dt;
+    if (this.roarT <= 0){ this.roarT = 1; sfx.fireRoar?.(near * (0.6 + 0.4 * clear), 1.3, clear); }
+    if (Math.random() < dt * (2 + 3 * clear)) sfx.fireCrackle?.(near * (0.5 + 0.5 * clear), clear);
+    this.talkT = (this.talkT ?? 2.2) - dt;
+    if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear); }
   }
 
   /* Hand to the ear: a wrist up beside the head, near where the ear is.
@@ -127,8 +139,7 @@ export class Intro {
 
   draw(c, W, H){
     const s = this.stage;
-    if (s === 'fall') this._fall(c, W, H);
-    else if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
+    if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
     else this._helmet(c, W, H);
     this._lids(c, W, H);
     if (s === 'wake'){ this._sparkles(c, W, H); banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6), this.wiggled); }
@@ -167,44 +178,6 @@ export class Intro {
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
     this._visor(c, W, H);
   }
-  /* The crash, from outside: the site from the game's own world, framed
-     on the clearing; the ship coming down out of the sky over it,
-     trailing smoke - and the impact, a flash, the ground shaking, dust. */
-  _fall(c, W, H){
-    const g = this.g, st = this.st, f = Math.min(1, st / IMPACT), e = f * f;
-    const th = g.things.find(t => t.kind === 'ship'), rel = th ? th.d - g.z : 0.45, lane = th ? th.lane : -5, s = th ? th.s : 1.3;
-    const hit = st - IMPACT, shake = hit > 0 ? Math.max(0, 1 - hit / 0.9) : 0;
-    c.save();
-    if (shake) c.translate((Math.random() - 0.5) * H * 0.04 * shake, (Math.random() - 0.5) * H * 0.04 * shake);
-    c.translate(W / 2, H / 2); c.scale(FALL_VIEW.s, FALL_VIEW.s); c.translate(-FALL_VIEW.cx * W, -FALL_VIEW.cy * H);
-    g.inIntro = true; g.introCrew = []; g.shipOff = true; SKY.above = H; SKY.wide = W * 1.3;
-    g._drawPlay(c, W, H);
-    g.shipOff = false; g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
-    /* where it lands, and where it is: coming in from high up and away to the left */
-    const p = P(lane, rel, W, H), off = 1 - e, dx = -off * W * 1.1, dy = -off * H * 1.3;
-    /* its smoke trail, back along the way it came */
-    for (let k = 0; k < 40; k++){
-      const u = k / 40, back = off + u * 0.7, wob = Math.sin(k * 1.7 + this.t) * H * 0.015 * (1 + u * 3);
-      const px = p.x - back * W * 1.1 - W * 0.05 + wob, py = p.y - H * 0.12 - back * H * 1.3, r = H * (0.05 + u * 0.12);
-      const sg = c.createRadialGradient(px, py, 0, px, py, r);
-      sg.addColorStop(0, `rgba(110,104,124,${0.4 * (1 - u)})`); sg.addColorStop(1, 'rgba(110,104,124,0)');
-      c.fillStyle = sg; c.beginPath(); c.arc(px, py, r, 0, 6.2832); c.fill();
-    }
-    c.save(); c.translate(dx, dy); c.translate(p.x, p.y); c.rotate(-0.3 * off); c.translate(-p.x, -p.y);
-    worldShip(c, W, H, rel, lane, this.t, s); shipFire(c, W, H, rel, lane, this.t, s);
-    c.restore();
-    /* the impact: dust bursting out along the ground */
-    if (hit > 0){
-      const k = Math.min(1, hit / 1.4);
-      for (let j = 0; j < 9; j++){
-        const a = j / 9 * Math.PI, r = H * (0.15 + 0.5 * k) * (0.7 + 0.3 * Math.sin(j * 7));
-        c.fillStyle = `rgba(200,190,175,${0.55 * (1 - k)})`; c.beginPath(); c.arc(p.x + Math.cos(a) * r * 1.6 - r * 0.2, p.y - Math.sin(a) * r * 0.35, H * 0.08 * (0.6 + k), 0, 6.2832); c.fill();
-      }
-    }
-    c.restore();
-    if (hit > 0 && hit < 0.5){ c.fillStyle = `rgba(255,248,230,${0.85 * (1 - hit / 0.5)})`; c.fillRect(0, 0, W, H); }
-  }
-
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
   _clear(){
     const s = this.stage;
@@ -337,12 +310,7 @@ const BEGIN = {
 };
 /* Each step: true once it's done. */
 const STEP = {
-  fall(){
-    if (this.st < 0.05) sfx.whoosh?.();
-    if (!this.boomed && this.st >= IMPACT){ this.boomed = true; sfx.boom?.(); }
-    return false;
-  },
-  dark(){ if (this.st < 0.05) sfx.ringing?.(); return false; },
+  dark(){ return false; },
   wake(dt){
     const here = this.g.here;
     for (const i of here){
@@ -380,8 +348,6 @@ const STEP = {
 };
 /* How open the eyes want to be, in each beat. */
 const EYES = {
-  /* watching it come down; then, a moment after the thud, the eyes closing */
-  fall(){ return this.st < FALL - 0.9 ? 1 : Math.max(0, 1 - (this.st - FALL + 0.9) / 0.7); },
   /* closed - a flutter open - closed again */
   dark(){ const u = (this.st - 1.1) / 1.3; return u > 0 && u < 1 ? 0.35 * Math.sin(u * Math.PI) * (0.8 + 0.2 * Math.sin(this.t * 20)) : 0; },
   /* opening as they wiggle, a little heavy flicker while they're still low */
@@ -406,9 +372,6 @@ Intro.prototype._settled = function (dt, ok){
   this.afterT = (this.afterT || 0) + dt;
   return this.afterT >= AFTER;
 };
-
-/* The crash shot's framing: looking at (cx, cy) - screens - s times closer. */
-const FALL_VIEW = { cx: -0.18, cy: 0.42, s: 1.15 };
 
 /* (the crew's own depth, in play: lkp-art.js RUN) */
 const RUN_AT = 0.03;

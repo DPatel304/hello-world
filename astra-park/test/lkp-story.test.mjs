@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, FALL, DARK, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, DARK, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
@@ -27,10 +27,9 @@ test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, 
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['fall', 'dark', 'wake', 'call', 'answer', 'rise']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['dark', 'wake', 'call', 'answer', 'rise']);
   const z = inst.z;
-  inst.draw(fake(), W, H);
-  run(inst, FALL + DARK + 0.1);
+  run(inst, DARK + 0.1);
   assert.equal(intro.stage, 'wake');
   assert.equal(inst.crew[0].hp, inst.crew[0].max * START, 'hurt in the crash');
   inst.draw(fake(), W, H);
@@ -69,7 +68,7 @@ test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, 
 test('nobody waking or answering never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = FALL + DARK + WAKE_MAX + 1 + RING_MAX + 1 + say(inst, 'wakeup') + 1 + RISE + 1;
+  const most = DARK + WAKE_MAX + 1 + RING_MAX + 1 + say(inst, 'wakeup') + 1 + RISE + 1;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   story.on = false;

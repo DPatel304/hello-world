@@ -148,6 +148,54 @@ export const sfx = {
   step(k = 0, gain = 1){ blip({ freq: 95 + k * 12, to: 55, dur: 0.07, type: 'sine', gain: 0.16 * gain }); hiss({ dur: 0.05, gain: 0.05 * gain, hp: 900 + k * 300, type: 'bandpass', q: 0.8 }); },
   /* Ears ringing after a knock: a thin high tone fading away. */
   ringing(){ blip({ freq: 3400, dur: 2.4, type: 'sine', gain: 0.025 }); blip({ freq: 3460, dur: 2.2, type: 'sine', gain: 0.015 }); },
+  /* Waking up after the crash (Last Known Position's opening). The ears
+     ringing: a long thin tone, wavering, slowly fading - loud, then
+     less as you come round (k: how loud, 0..1). */
+  earRing(k = 1){
+    const c = ctx(), t = c.currentTime;
+    for (const [f, g] of [[3520, 0.035], [3585, 0.02], [7040, 0.006]]){
+      const o = c.createOscillator(), gn = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      lfo.frequency.value = 0.7 + Math.random() * 0.6; lg.gain.value = f * 0.004; lfo.connect(lg); lg.connect(o.frequency);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(g * k + 0.0001, t + 0.6); gn.gain.exponentialRampToValueAtTime(0.0001, t + 6);
+      o.connect(gn); gn.connect(master); o.start(t); o.stop(t + 6.1); lfo.start(t); lfo.stop(t + 6.1);
+    }
+  },
+  /* A fire burning nearby: a low roar, for `dur` seconds - muffled (low
+     cut-off) while you're still out of it, clearer as you come round. */
+  fireRoar(k = 1, dur = 1.2, clear = 0){
+    const c = ctx(), t = c.currentTime, s = noise(), f = c.createBiquadFilter(), g = c.createGain();
+    s.loop = true;
+    f.type = 'lowpass'; f.frequency.value = 260 + 900 * clear; f.Q.value = 0.7;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09 * k, t + dur * 0.4); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.05);
+  },
+  /* ...and its crackle: a few sharp little pops, now and then a snap. */
+  fireCrackle(k = 1, clear = 0){
+    const n = 2 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < n; j++) hiss({ dur: 0.012 + Math.random() * 0.03, gain: (0.06 + Math.random() * 0.1) * k, hp: 1400 + Math.random() * 2600 * (0.4 + clear), type: 'bandpass', q: 1.4, delay: Math.random() * 0.4 });
+    if (Math.random() < 0.25) hiss({ dur: 0.05, gain: 0.16 * k, hp: 900 + 1200 * clear, type: 'bandpass', q: 0.8, delay: Math.random() * 0.4 });
+  },
+  /* Voices, far off, over a crackly radio: a few muffled syllables,
+     rising and falling like someone talking - no words you could make
+     out - with static under them. */
+  chatter(k = 1){
+    const c = ctx(), t0 = c.currentTime, n = 4 + Math.floor(Math.random() * 6), base = 150 + Math.random() * 110;
+    const bp = c.createBiquadFilter(), lp = c.createBiquadFilter(), out = c.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = 1.6;
+    lp.type = 'lowpass'; lp.frequency.value = 2200;
+    out.gain.value = 0.5 * k;
+    bp.connect(lp); lp.connect(out); out.connect(master); if (reverbIn) out.connect(reverbIn);
+    let at = t0;
+    for (let j = 0; j < n; j++){
+      const d = 0.08 + Math.random() * 0.16, o = c.createOscillator(), g = c.createGain(), f = base * (0.85 + Math.random() * 0.4);
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(f, at); o.frequency.linearRampToValueAtTime(f * (0.85 + Math.random() * 0.35), at + d);
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.12, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + d);
+      o.connect(g); g.connect(bp); o.start(at); o.stop(at + d + 0.02);
+      at += d + (Math.random() < 0.2 ? 0.25 : 0.03 + Math.random() * 0.06);
+    }
+    hiss({ dur: at - t0 + 0.15, gain: 0.018 * k, hp: 2500, type: 'bandpass', q: 0.6 });
+  },
   /* The radio ringing: a quick two-tone trill. */
   trill(){ for (let k = 0; k < 6; k++) blip({ freq: k % 2 ? 1320 : 1760, dur: 0.06, type: 'square', gain: 0.05, delay: k * 0.07 }); },
   /* ---- urgency (Last Known Position) ---- */

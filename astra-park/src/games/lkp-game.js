@@ -1225,8 +1225,7 @@ class LastKnownPosition {
       /* The boss's own things draw themselves. */
       case 'boss': it.draw(c, W, H, this.t); break;
       case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
-      /* (not while the opening draws it coming down itself) */
-      case 'ship': if (!this.shipOff){ worldShip(c, W, H, it.rel, it.lane, this.t, it.s); shipFire(c, W, H, it.rel, it.lane, this.t, it.s); } break;
+      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); shipFire(c, W, H, it.rel, it.lane, this.t, it.s); break;
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
       case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;

@@ -23,7 +23,7 @@
    A new level is a new entry (and, if it needs one, a new boss). */
 
 /* The friendly giant's name, as Nova calls it (still to be chosen). */
-export const GIANT = 'Mossy';
+export const GIANT = 'Biscuit';
 
 export const LEVELS = [
   {
