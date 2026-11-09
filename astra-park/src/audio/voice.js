@@ -44,19 +44,58 @@ export function lineTime(text, who = 'nova'){
   return 0.4 + words / (2.6 * SPEAKERS[who].rate);
 }
 
+/* The computer's voices arrive a moment after the browser starts - the
+   natural ones last - so a line said straight away would get whatever old
+   voice is there first, then the next one the good voice: two Novas. So
+   they're asked for as soon as this loads (during the boot), a line waits
+   up to WAIT seconds for a natural voice to turn up, and once a speaker has
+   a natural voice they keep it. */
+export const WAIT = 2.5;
+const kept = {};
+let ready = false, waiting = [], waitTimer = null;
+const naturalHere = () => { const s = synth(); return !!s && s.getVoices().some(v => /^en/i.test(v.lang) && natural(v)); };
+function settle(){
+  if (ready) return;
+  ready = true; clearTimeout(waitTimer);
+  const go = waiting; waiting = [];
+  go.forEach(f => f());
+}
+(function warm(){
+  const s = synth(); if (!s) return;
+  s.getVoices();
+  const changed = () => { if (naturalHere()) settle(); };
+  if (s.addEventListener) s.addEventListener('voiceschanged', changed); else s.onvoiceschanged = changed;
+  if (naturalHere()) ready = true;
+})();
+/* The voice for who: theirs, once they have a natural one. */
+function voiceFor(who){
+  const s = synth(), all = s ? s.getVoices() : [];
+  if (kept[who] && all.includes(kept[who])) return kept[who];
+  const v = pick(who, all);
+  if (v && natural(v)) kept[who] = v;
+  return v;
+}
+
 export const voice = {
   /* Say text, as who. */
   say(text, who = 'nova', polite = false){
     const s = synth(), U = Utterance();
     if (!s || !U || audio.muted) return;
-    if (!polite) s.cancel();
-    const u = new U(text), sp = SPEAKERS[who];
-    const v = pick(who);
-    if (v) u.voice = v;
-    /* (a natural voice at its own pitch; the robot always made low) */
-    u.pitch = v && natural(v) && who !== 'robot' ? 1 : sp.pitch; u.rate = v && natural(v) ? Math.min(1, sp.rate) : sp.rate;
-    u.volume = Math.min(1, audio.volume * 1.4);
-    s.speak(u);
+    const speak = () => {
+      if (!polite) s.cancel();
+      const u = new U(text), sp = SPEAKERS[who];
+      const v = voiceFor(who);
+      if (v) u.voice = v;
+      /* (a natural voice at its own pitch; the robot always made low) */
+      u.pitch = v && natural(v) && who !== 'robot' ? 1 : sp.pitch; u.rate = v && natural(v) ? Math.min(1, sp.rate) : sp.rate;
+      u.volume = Math.min(1, audio.volume * 1.4);
+      s.speak(u);
+    };
+    if (ready || naturalHere()){ ready = true; speak(); return; }
+    /* not yet: wait for the good voice (or WAIT seconds, then the best there is) */
+    if (!polite) waiting = [];
+    waiting.push(speak);
+    if (!waitTimer) waitTimer = setTimeout(settle, WAIT * 1000);
   },
-  hush(){ const s = synth(); if (s) s.cancel(); }
+  hush(){ waiting = []; const s = synth(); if (s) s.cancel(); }
 };
