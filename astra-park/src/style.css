@@ -597,3 +597,9 @@ body.remote .btn.kfocus:not(.tvtile):not(.play){ outline:none; transform:scale(1
 .screen.dim .bullets{ max-width:min(80vw,62ch); font-size:clamp(14px,2.6vh,30px); gap:.8em; }
 .screen.dim.family{ background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; }
 :root{ --dim:#5b5f6e; --faint:#8a8ea0; --good:#16a34a; --bad:#e11d48; }
+/* the banner and the rows: room between them, on any screen shape, for the
+   picked tile to lift without touching the banner */
+.hero{ height:37vh; }
+.shelves{ top:50.5vh; }
+.shelfwrap{ padding-top:3.2vh; }
+.btn.tvtile, .btn.tvtile.hot{ box-shadow:none; border:none; background:transparent; }

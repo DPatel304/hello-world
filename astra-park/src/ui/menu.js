@@ -99,6 +99,7 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
   });
   s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
 
+  let scrollY = 0;
   let focus = Math.min(lastFocus, items.length - 1), t = 0, going = null, family = false, tick = 0, flown = !arrive;
   /* After the remote's used, pointing takes over again only once a hand (or
      the mouse) actually moves - not because the rows slid under one that's
@@ -115,7 +116,12 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
     play.querySelector('.lbl').innerHTML = it.kind === 'game' ? '<span class="tri"></span>Play' : it.p.soon ? 'Coming soon' : 'Open';
     /* keep the row in view, and the tile along it */
     const r = rows[it.rowAt];
-    wrap.style.transform = `translateY(${-r.sec.offsetTop}px)`;
+    /* (up only as far as it takes to see the whole row - with everything on
+       screen, not at all) */
+    const top = r.sec.offsetTop - rows[0].sec.offsetTop, bottom = top + r.sec.offsetHeight, view = shelves.clientHeight - rows[0].sec.offsetTop;
+    if (top < scrollY) scrollY = top;
+    else if (bottom > scrollY + view) scrollY = Math.min(top, bottom - view);
+    wrap.style.transform = `translateY(${-scrollY}px)`;
     const tile = cards[focus].card, over = tile.offsetLeft + tile.offsetWidth - r.row.clientWidth + tile.offsetWidth * 0.3;
     r.row.style.transform = `translateX(${-Math.max(0, over)}px)`;
   }
