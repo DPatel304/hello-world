@@ -22,6 +22,9 @@
 
    A new level is a new entry (and, if it needs one, a new boss). */
 
+/* The friendly giant's name, as Nova calls it (still to be chosen). */
+export const GIANT = 'Mossy';
+
 export const LEVELS = [
   {
     id: 'verdant', name: 'Verdant Crash Site', goal: 'Find the engine piece',
@@ -50,14 +53,18 @@ export const LEVELS = [
        the robots wake, and a friendly giant carries the crew away. After
        its 'end', the rest - the tutorial fight, a fork, a room, the big
        gorge and the Sweeper - kept for level 2: not played yet.) */
-    plan: ['corridor', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
+    plan: ['corridor', 'corridor', 'sneak', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     /* What happens in each corridor (lkp-game.js _layout): one event
        apiece - the path squeezing narrow then opening wide, a big jump
        over a ravine, a zip line - and the run of obstacles round it,
        the set pieces it mixes in (pieces). big: a wider ravine. */
     corridors: [
+      /* level 1: the crash site and the teaching run; the team jump; a
+         short run on to the depot */
       { event: 'squeeze' },
-      { pieces: ['logs', 'slalom', 'duckrun', 'arc'] },
+      { event: 'leap', big: true, pieces: ['logs', 'slalom', 'duckrun', 'arc'] },
+      { pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
+      /* (level 2, to come) */
       { pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
       { event: 'leap', big: true, pieces: ['slalom', 'logs', 'duckrun', 'arc'] }
     ],
@@ -91,9 +98,9 @@ export const LEVELS = [
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
       pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
       /* Mossy, the gentle giant, after the boss (lkp-ride.js). */
-      rideMeet: [['nova', 'Look up ahead! A big friendly giant. Run, crew, catch up to it!', 'CATCH UP!']],
+      rideMeet: [['nova', 'Look who it is! The giant from the glade. The robots woke it up too. Run, crew, catch up!', 'CATCH UP!']],
       rideOn: [['nova', 'Everyone on? Sit down and rest, crew. You\'ve earned it.', 'SIT AND RELAX']],
-      rideOff: [['nova', 'What a ride! Say thank you, crew. I think we\'ll call it... Mossy!', 'BYE, MOSSY!']],
+      rideOff: [['nova', `What a ride! Say thank you, crew. I think we'll call it... ${GIANT}!`, `BYE, ${GIANT.toUpperCase()}!`]],
       depot: [
         ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
       ],

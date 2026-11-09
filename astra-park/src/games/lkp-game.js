@@ -65,7 +65,7 @@ export const PICKING = { levelUp: false, weapon: false };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [86, 45, 52, 40];                      /* seconds of each corridor, in full */
+const FULL = [86, 50, 36, 52, 40];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -269,6 +269,11 @@ class LastKnownPosition {
       /* A longer hall: twice the playtest time to get up it. */
       if (this.seg.room === 'traps') this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2) : new Lights(this);
       if (this.seg.room === 'treasure') this.treasure = new Treasure(this);
+      sfx.whoosh();
+    } else if (kind === 'sneak'){
+      /* Sneaking past the giant, fast asleep across the glade: red light,
+         green light (lkp-trap.js, outdoors) */
+      this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2, { giant: true }) : new Lights(this, undefined, { giant: true });
       sfx.whoosh();
     } else if (kind === 'depot'){
       this.depot = new Depot(this);
@@ -501,6 +506,7 @@ class LastKnownPosition {
     const close = seg.kind === 'cross' && seg.wall - this.z <= DOOR_STOP + 0.02;
     this.zoom = close ? Math.min(1, this.zoom + dt / ZOOM_IN) : Math.max(0, this.zoom - dt / ZOOM_OUT);
     if (seg.kind === 'room') want = this.fight || this.trap || this.treasure ? 0 : SPEED * 0.4;
+    if (seg.kind === 'sneak') want = 0;
     /* A corridor's event: the zip line holds still, then flies; the big
        jump slows everything while they're in the air. (The corridor waits
        for it.) */
@@ -785,9 +791,10 @@ class LastKnownPosition {
     const tr = this.trap;
     if (tr && !seg.told){
       seg.told = true;
-      const first = this.awake ? 'A sentry robot, recharging! Run on the spot while it\'s green. When its eye opens, freeze!'
+      const first = tr.giant ? 'Shh! Something huge, fast asleep. Creep past while it snores. When its eyes open, freeze!'
+        : this.awake ? 'A sentry robot, recharging! Run on the spot while it\'s green. When its eye opens, freeze!'
         : 'Shh! A sleeping robot. Run on the spot while it sleeps. When its eye opens, freeze!';
-      if (!cap.say(first, this.awake ? 'RUN, THEN FREEZE' : 'SHH! RUN, THEN FREEZE', { once: 'lights' })) cap.say(this.awake ? 'Another sentry. Careful now.' : 'Another sleeper. Quietly now!', '');
+      if (!cap.say(first, tr.giant ? 'SHH! CREEP, THEN FREEZE' : this.awake ? 'RUN, THEN FREEZE' : 'SHH! RUN, THEN FREEZE', { once: 'lights' })) cap.say(this.awake ? 'Another sentry. Careful now.' : 'Another sleeper. Quietly now!', '');
     }
     if (tr && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
     if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The crystals are yours.', ''); }

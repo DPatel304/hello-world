@@ -365,6 +365,44 @@ export function worldHall(c, W, H, Q, red, t){
   for (const d of [-1, 1]){ c.beginPath(); c.moveTo(...pt(d * 1.08, -0.1)); c.lineTo(...pt(d * 1.08, 1.15)); c.stroke(); }
 }
 
+/* A forest glade, from up high (the sneak past the sleeping giant, lkp-
+   trap.js): the sky and the hills at the top, woods down both sides, a
+   soft grass floor with a trodden path up the middle. Q: the glade's own
+   view, as worldHall. When it's looking (red), a red tint. */
+export function worldGlade(c, W, H, Q, red, t, L){
+  const pt = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
+  const far = Q(0, 1.15, W, H).y;
+  const sky = c.createLinearGradient(0, 0, 0, far);
+  sky.addColorStop(0, L.sky[0]); sky.addColorStop(0.7, L.sky[2]); sky.addColorStop(1, L.haze);
+  c.fillStyle = sky; c.fillRect(0, 0, W, far + 2);
+  /* hills, far off */
+  c.fillStyle = mix(L.hillDark, L.haze, 0.4);
+  c.beginPath(); c.moveTo(0, far); for (let k = 0; k <= 12; k++) c.lineTo(W * k / 12, far - H * (0.05 + 0.04 * Math.sin(k * 1.7) + 0.02 * Math.sin(k * 3.1))); c.lineTo(W, far); c.closePath(); c.fill();
+  /* the ground */
+  const fg = c.createLinearGradient(0, far, 0, H);
+  fg.addColorStop(0, mix(L.ground[0], L.haze, 0.3)); fg.addColorStop(1, L.ground[2]);
+  c.fillStyle = fg; c.fillRect(0, far, W, H - far);
+  /* the trodden path up the middle */
+  c.fillStyle = rgba(L.path[0], 0.55); c.beginPath(); c.moveTo(...pt(-0.75, -0.1)); c.lineTo(...pt(0.75, -0.1)); c.lineTo(...pt(0.55, 1.15)); c.lineTo(...pt(-0.55, 1.15)); c.closePath(); c.fill();
+  /* grass tufts, scattered */
+  c.strokeStyle = rgba(L.grass[1], 0.7);
+  for (let k = 0; k < 90; k++){
+    const lane = Math.sin(k * 12.9898) * 1.3, along = ((k * 0.6180339) % 1) * 1.1 - 0.05, q = Q(lane, along, W, H), h = H * 0.02 * q.k;
+    c.lineWidth = Math.max(1, H * 0.002 * q.k); c.beginPath(); c.moveTo(q.x, q.y); c.lineTo(q.x - h * 0.3, q.y - h); c.moveTo(q.x, q.y); c.lineTo(q.x + h * 0.3, q.y - h); c.stroke();
+  }
+  /* the woods down both sides, far ones first */
+  for (let k = 9; k >= 0; k--) for (const d of [-1, 1]){
+    const along = k / 9 * 1.15 - 0.05, q = Q(d * (1.25 + 0.2 * Math.sin(k * 2.3 + d)), along, W, H), s = H * 0.5 * q.k;
+    c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(q.x, q.y, s * 0.25, s * 0.05, 0, 0, 6.2832); c.fill();
+    c.fillStyle = L.trunk[0]; c.fillRect(q.x - s * 0.03, q.y - s * 0.35, s * 0.06, s * 0.35);
+    for (const [w, top, bot] of [[0.32, -1, -0.3], [0.25, -1.2, -0.6], [0.17, -1.35, -0.9]]){
+      c.fillStyle = mix(L.tree[0], L.haze, along * 0.4); c.beginPath(); c.moveTo(q.x, q.y + top * s); c.lineTo(q.x - w * s, q.y + bot * s); c.lineTo(q.x + w * s, q.y + bot * s); c.fill();
+      c.fillStyle = mix(L.tree[1], L.haze, along * 0.4); c.beginPath(); c.moveTo(q.x, q.y + top * s); c.lineTo(q.x + w * s, q.y + bot * s); c.lineTo(q.x, q.y + bot * s); c.fill();
+    }
+  }
+  if (red){ c.fillStyle = 'rgba(255,60,60,.08)'; c.fillRect(0, 0, W, H); }
+}
+
 /* The sleeping robot at the end of the hall: a great gunmetal dome, one
    eye - shut and snoring on green, flickering on yellow, wide open and red
    on red, its gaze washing down the hall. Its lamp on top in the light's

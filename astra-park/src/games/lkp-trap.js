@@ -22,12 +22,18 @@
    nobody won the crystals.
 
    Its own view: the hall is drawn by Q(lane, along) here, not the
-   corridor's P. */
+   corridor's P.
+
+   In level 1 it's outdoors (giant): a forest glade with the friendly giant
+   (lkp-ride.js) fast asleep at the far end - snoring on green, an eye
+   peeking on yellow, both eyes open on red. Anyone it catches moving it
+   just snorts back down the glade a little: it never hurts. */
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { drawCrystal, PAL } from './lkp-art.js';
-import { worldHall, worldSleeper } from './lkp-places.js';
+import { worldHall, worldSleeper, worldGlade } from './lkp-places.js';
+import { drawGiantAsleep } from './lkp-ride.js';
 import { armored } from './lkp-weapons.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
@@ -43,6 +49,8 @@ export const GRACE = 0.9, STILL = 1.0, CAUGHT = 0.4;
 /* Up the hall (0 to 1) a second, running all-out (walking is about half). */
 export const STRIDE = 0.09;
 export const ZAP = 10, KNOCK = 0.08, ZAP_SAFE = 1.2;
+/* The giant's snort: how far back down the glade it blows you. */
+export const SNORT = 0.12;
 /* The pile of crystals at the end, everyone's when the first is over. */
 export const CLEAR_CRYSTALS = 35;
 export const TRAP_MAX = 90;
@@ -60,8 +68,8 @@ export function Q(lane, along, W, H){
 const rand = ([a, b]) => a + Math.random() * (b - a);
 
 export class Lights {
-  constructor(game, len = TRAP_MAX){
-    this.g = game; this.len = len;
+  constructor(game, len = TRAP_MAX, { giant = false } = {}){
+    this.g = game; this.len = len; this.giant = giant;
     this.t = 0; this.light = 'red'; this.left = READY; this.redT = Infinity;   /* the first red's only to get ready: nobody's zapped */
     this.done = false; this.clearT = 0; this.fade = 0;
     this.moves = pose.players.map(() => new MoveWatch(true));
@@ -105,6 +113,15 @@ export class Lights {
 
   _zap(i, W, H){
     const g = this.g, rn = g.crew[i];
+    if (this.giant){
+      /* a great sleepy snort: back down the glade a bit, nothing worse */
+      rn.zapped = 1; rn.safe = ZAP_SAFE; rn.along = Math.max(0, rn.along - SNORT);
+      const p = Q(rn.x, rn.along, W, H);
+      g._sparkle(p.x / W, (p.y - H * 0.08) / H, 10, 140);
+      g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.2) / H, vy: -0.08, age: 0, life: 0.9, text: 'HUFF!', col: '#ffffff' });
+      sfx.whoosh(); sfx.thud();
+      return;
+    }
     rn.hp = Math.max(1, rn.hp - armored(rn, ZAP)); rn.hit = 1; rn.zapped = 1; rn.safe = ZAP_SAFE;
     g.ouch?.(0.8);
     rn.along = Math.max(0, rn.along - KNOCK);
@@ -132,7 +149,8 @@ export class Lights {
     /* The floor, with lines across it every so far up, the start, and the
        finish. */
     const corner = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
-    if (PAL.world) worldHall(c, W, H, Q, red, this.t);
+    if (PAL.world && this.giant) worldGlade(c, W, H, Q, red, this.t, PAL.world);
+    else if (PAL.world) worldHall(c, W, H, Q, red, this.t);
     else {
       c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
       c.fillStyle = red ? PAL.hallRed : PAL.hallFloor;
@@ -140,20 +158,29 @@ export class Lights {
       c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 2;
       for (let k = 1; k < 16; k++){ c.beginPath(); c.moveTo(...corner(-1.1, k / 16)); c.lineTo(...corner(1.1, k / 16)); c.stroke(); }
     }
+    if (!this.giant){
     c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = H * 0.006;
     c.beginPath(); c.moveTo(...corner(-1.1, 0)); c.lineTo(...corner(1.1, 0)); c.stroke();
-    /* The finish: a checked strip. */
-    for (let k = 0; k < 22; k++){
+    }
+    /* The finish: a checked strip - or, in the glade, a row of glowing
+       flowers. */
+    if (this.giant) for (let k = 0; k < 13; k++){
+      const q = Q(-1.05 + k * 0.175, 1, W, H);
+      c.fillStyle = 'rgba(255,140,216,.35)'; c.beginPath(); c.arc(q.x, q.y - H * 0.012, H * 0.02, 0, 6.2832); c.fill();
+      c.fillStyle = '#ff8cd8'; c.beginPath(); c.arc(q.x, q.y - H * 0.012, H * 0.007, 0, 6.2832); c.fill();
+    }
+    else for (let k = 0; k < 22; k++){
       c.fillStyle = k % 2 ? '#ffffff' : '#0b0d1c';
       const a = corner(-1.1 + k * 0.1, 1), b = corner(-1.1 + (k + 1) * 0.1, 1.03);
       c.fillRect(a[0], b[1], b[0] - a[0], a[1] - b[1]);
     }
     /* The robot, beyond the finish: asleep (or recharging) on green,
        stirring on yellow, looking on red. */
-    if (PAL.world) worldSleeper(c, W / 2, H * 0.335, H * 0.17, this.light, g.awake, this.t, lamp);
+    if (this.giant) drawGiantAsleep(c, W / 2, H * 0.31, H * 0.2, this.light, this.t);
+    else if (PAL.world) worldSleeper(c, W / 2, H * 0.335, H * 0.17, this.light, g.awake, this.t, lamp);
     else this._robot(c, W / 2, H * 0.22, H * 0.085, lamp, g.awake);
     /* Its gaze, on red: a red wash down the hall. */
-    if (red){
+    if (red && !this.giant){
       c.save(); c.globalAlpha = 0.12 + 0.05 * Math.sin(this.t * 10);
       c.fillStyle = '#ff3b3b';
       c.beginPath(); c.moveTo(W / 2, H * 0.24); c.lineTo(...corner(1.1, -0.1)); c.lineTo(...corner(-1.1, -0.1)); c.closePath(); c.fill();

@@ -56,6 +56,7 @@ export const LOOKS = {
     leaf: '#7ff3e0', bulb: '#6ff6ff', nail: '#dfe8ff', spot: 'rgba(255,255,255,.18)', neck: 1.2, spine: 'crystals', ears: false }
 };
 export function setLook(name){ Object.assign(MOSSY, LOOKS[name] || LOOKS.lilac); }
+/* (its name: lkp-levels.js GIANT) */
 
 export class Ride {
   constructor(game, talk = false){
@@ -321,4 +322,86 @@ export function drawMossy(c, x, y, s, t, o = {}){
 export function worldMossy(c, W, H, rel, lane, t){
   const p = P(lane, rel, W, H);
   drawMossy(c, p.x, p.y, H * SIZE * p.k, t, {});
+}
+
+/* The giant asleep, facing us, at the far end of the glade (lkp-trap.js,
+   sneaking past it): its great body a mound behind, its long neck curled
+   round and its head resting on the ground in front, between its front
+   feet. light: 'green' - eyes shut, snoring; 'yellow' - stirring, one eye
+   peeking; 'red' - both eyes wide open, looking. (x, y): where its chin
+   rests; s: its size. */
+export function drawGiantAsleep(c, x, y, s, light, t){
+  const M = MOSSY, breathe = 1 + 0.02 * Math.sin(t * 1.6), stir = light === 'yellow' ? Math.sin(t * 28) * s * 0.01 : 0;
+  c.save();
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  /* its shadow */
+  c.fillStyle = 'rgba(10,20,25,.3)'; c.beginPath(); c.ellipse(x, y + s * 0.04, s * 1.5, s * 0.16, 0, 0, Math.PI * 2); c.fill();
+  /* the body: a great mound behind, rising and falling as it breathes */
+  const by = y - s * 0.2, bh = s * 0.75 * breathe;
+  const bg = c.createRadialGradient(x - s * 0.4, by - bh * 0.8, s * 0.1, x, by - bh * 0.3, s * 1.5);
+  bg.addColorStop(0, M.light); bg.addColorStop(0.55, M.skin); bg.addColorStop(1, M.shade);
+  c.fillStyle = M.dark; c.beginPath(); c.ellipse(x, by, s * 1.32, bh * 1.02, 0, Math.PI, 0); c.fill();
+  c.fillStyle = bg; c.beginPath(); c.ellipse(x, by, s * 1.3, bh, 0, Math.PI, 0); c.fill();
+  /* moss and glowing flowers along its back */
+  for (let k = -5; k <= 5; k++){
+    const u = k / 5, mx = x + u * s * 1.05, my = by - bh * Math.sqrt(Math.max(0, 1 - u * u * 0.65)) + s * 0.03, r = s * (0.05 + 0.015 * ((k + 5) % 3));
+    c.fillStyle = M.moss[(k + 5) % 2]; c.beginPath(); c.ellipse(mx, my, r * 1.5, r * 0.75, 0, 0, Math.PI * 2); c.fill();
+    if ((k + 5) % 3 === 0){ glow(c, mx, my - r * 0.3, r * 1.4, M.bulb, 0.45); c.fillStyle = M.bulb; c.beginPath(); c.arc(mx, my - r * 0.3, r * 0.3, 0, Math.PI * 2); c.fill(); }
+  }
+  c.fillStyle = M.spot;
+  for (const [mx, my, mr] of [[-0.8, -0.35, 0.1], [0.75, -0.3, 0.09], [-0.35, -0.6, 0.08], [0.4, -0.65, 0.07]]){ c.beginPath(); c.ellipse(x + mx * s, by + my * s, mr * s, mr * s * 0.65, 0.3, 0, Math.PI * 2); c.fill(); }
+  /* its front feet, either side of its head */
+  for (const d of [-1, 1]){
+    const fx = x + d * s * 0.62, fw = s * 0.2;
+    c.fillStyle = M.shade; c.beginPath(); c.roundRect(fx - fw, y - s * 0.32, fw * 2, s * 0.34, fw * 0.6); c.fill();
+    c.fillStyle = M.nail; for (const k of [-1, 0, 1]){ c.beginPath(); c.ellipse(fx + k * fw * 0.55, y - fw * 0.05, fw * 0.22, fw * 0.14, 0, 0, Math.PI * 2); c.fill(); }
+  }
+  /* the neck, curling down out of the body to its head */
+  const neck = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x + s * 0.25, by - bh * 0.5); c.bezierCurveTo(x + s * 0.55, by - bh * 0.1, x + s * 0.3, y - s * 0.1, x + stir, y - s * 0.16); c.stroke(); };
+  neck(s * 0.3, M.dark); neck(s * 0.26, M.shade); neck(s * 0.14, M.skin);
+  /* the head, resting on the ground, facing us */
+  const hx = x + stir, hy = y - s * 0.17, hw = s * 0.36, hh = s * 0.22;
+  c.fillStyle = M.dark; c.beginPath(); c.ellipse(hx, hy, hw * 1.04, hh * 1.06, 0, 0, Math.PI * 2); c.fill();
+  const hg = c.createRadialGradient(hx - hw * 0.3, hy - hh * 0.5, s * 0.02, hx, hy, hw * 1.1);
+  hg.addColorStop(0, M.light); hg.addColorStop(0.6, M.skin); hg.addColorStop(1, M.shade);
+  c.fillStyle = hg; c.beginPath(); c.ellipse(hx, hy, hw, hh, 0, 0, Math.PI * 2); c.fill();
+  /* its sprout */
+  const tip = { x: hx + Math.sin(t * 2) * s * 0.03, y: hy - hh - s * 0.18 };
+  c.strokeStyle = M.moss[1]; c.lineWidth = Math.max(1.5, s * 0.02); c.beginPath(); c.moveTo(hx, hy - hh * 0.9); c.quadraticCurveTo(hx, hy - hh - s * 0.08, tip.x, tip.y); c.stroke();
+  glow(c, tip.x, tip.y, s * 0.1, M.bulb, 0.6 + 0.2 * Math.sin(t * 3)); c.fillStyle = M.bulb; c.beginPath(); c.arc(tip.x, tip.y, s * 0.03, 0, Math.PI * 2); c.fill();
+  /* nostrils, a soft snore puffing out of them while it sleeps */
+  c.fillStyle = M.dark;
+  for (const d of [-1, 1]){ c.beginPath(); c.ellipse(hx + d * hw * 0.22, hy + hh * 0.35, hw * 0.07, hh * 0.08, 0, 0, Math.PI * 2); c.fill(); }
+  if (light === 'green'){
+    const u = (t * 0.45) % 1;
+    c.fillStyle = `rgba(255,255,255,${0.35 * (1 - u)})`; c.beginPath(); c.arc(hx + hw * 0.2, hy + hh * 0.5 + u * s * 0.15, s * (0.03 + u * 0.06), 0, Math.PI * 2); c.fill();
+  }
+  /* its eyes: shut, peeking, or wide open */
+  for (const d of [-1, 1]){
+    const ex = hx + d * hw * 0.5, ey = hy - hh * 0.25, er = hw * 0.24;
+    const open = light === 'red' ? 1 : light === 'yellow' && d > 0 ? (Math.floor(t * 8) % 2 ? 0.45 : 0.15) : 0;
+    if (open <= 0){
+      c.strokeStyle = M.dark; c.lineWidth = Math.max(2, s * 0.025);
+      c.beginPath(); c.arc(ex, ey - er * 0.3, er * 0.8, 0.2 * Math.PI, 0.8 * Math.PI); c.stroke();
+    } else {
+      c.save(); c.translate(ex, ey); c.scale(1, open);
+      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(0, 0, er, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#2b2350'; c.beginPath(); c.arc(0, er * 0.1, er * 0.62, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(-er * 0.25, -er * 0.25, er * 0.22, 0, Math.PI * 2); c.fill();
+      c.restore();
+      c.strokeStyle = M.dark; c.lineWidth = Math.max(2, s * 0.02); c.beginPath(); c.arc(ex, ey, er * 1.05, 1.15 * Math.PI, 1.85 * Math.PI); c.stroke();
+    }
+  }
+  c.restore();
+  /* Z z z, while it sleeps */
+  if (light === 'green'){
+    c.save(); c.fillStyle = '#ffffff'; c.textAlign = 'center';
+    for (let k = 0; k < 3; k++){
+      const u = (t * 0.45 + k / 3) % 1;
+      c.globalAlpha = Math.sin(u * Math.PI) * 0.9;
+      c.font = `700 ${Math.round(s * (0.12 + u * 0.14))}px Fredoka, sans-serif`;
+      c.fillText('z', x + s * (0.55 + u * 0.4), y - s * (0.45 + u * 0.55));
+    }
+    c.restore();
+  }
 }

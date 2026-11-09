@@ -55,7 +55,7 @@ test('the path squeezes everyone together, then opens out and spreads them wide'
 function toGorge(n = 3){
   story.on = false; crew(n);
   const inst = game.create(n); quiet(inst);
-  corridor(inst, 3);
+  corridor(inst, 1);
   for (let k = 0; k < 4000 && !inst.leap; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   return inst;
 }

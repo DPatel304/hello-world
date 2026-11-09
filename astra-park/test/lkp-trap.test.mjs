@@ -175,3 +175,27 @@ test('a trap room draws', () => {
   inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
   pose.mouse.active = true;
 });
+
+test('level 1\'s sneak: past the friendly giant asleep in a glade - caught moving, it only snorts you back, never hurts', async () => {
+  const { SNORT } = await import('../src/games/lkp-trap.js');
+  pose.mouse.active = false;
+  pose.players.forEach((p, i) => { p.present = i < 1; });
+  body(0);
+  const inst = game.create(1);
+  inst.step(DT, W, H); inst.things = [];
+  inst.step_ = inst.level.plan.indexOf('sneak') - 1; inst._next();
+  assert.equal(inst.phase, 'sneak');
+  assert.ok(inst.trap && inst.trap.giant, 'the giant, asleep');
+  const tr = inst.trap, rn = inst.crew[0];
+  rn.along = 0.5; rn.safe = 0;
+  const hp = rn.hp;
+  tr.light = 'red'; tr.redT = tr.t - GRACE - 0.1; tr.left = 9;
+  for (let k = 0; k < (CAUGHT + 0.6) / DT; k++){ body(0, inst.t, 'wriggle'); inst.step(DT, W, H); }
+  assert.equal(rn.hp, hp, 'no harm done');
+  assert.ok(rn.along <= 0.5 - SNORT + 0.01, `snorted back (${rn.along.toFixed(2)})`);
+  inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
+  /* over the line: on to the next run */
+  rn.along = 1; tr.light = 'green';
+  for (let k = 0; k < (AFTER.trap + 1) / DT && inst.phase === 'sneak'; k++){ body(0, inst.t, 'march'); inst.step(DT, W, H); }
+  assert.equal(inst.phase, 'corridor');
+});
