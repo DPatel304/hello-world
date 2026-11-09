@@ -44,7 +44,7 @@ export const LEVELS = [
     /* The way through: the tutorial run (and the healing pond); a first,
        easy fight, straight in, to learn fighting; a run with the team
        jump over a gorge; the engine piece (the robots wake); a run with
-       the zip line; a fork and a room; a run with a bigger gorge; the
+       a ride on Mossy, the forest giant; a fork and a room; a run with a bigger gorge; the
        boss. */
     plan: ['corridor', 'tutorial', 'corridor', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     /* What happens in each corridor (lkp-game.js _layout): one event
@@ -54,7 +54,7 @@ export const LEVELS = [
     corridors: [
       { event: 'squeeze' },
       { event: 'leap', pieces: ['logs', 'slalom', 'duckrun', 'arc'] },
-      { event: 'zip', pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
+      { event: 'ride', pieces: ['duckrun', 'slalom', 'logs', 'arc'] },
       { event: 'leap', big: true, pieces: ['slalom', 'logs', 'duckrun', 'arc'] }
     ],
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
@@ -84,6 +84,11 @@ export const LEVELS = [
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
       pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
+      /* Mossy, the forest giant (lkp-ride.js). */
+      rideMeet: [['nova', 'Shh... something big is asleep on the path! Don\'t worry \u2014 it\'s friendly. Hands up and wave hello!', 'WAVE HELLO!']],
+      rideOn: [['nova', 'It likes you! Run on the spot and it runs with you. Lean together to steer!', 'RUN!']],
+      rideFast: [['nova', 'Faster, and it bounces! Grab the high crystals!', 'BOUNCE!']],
+      rideOff: [['nova', 'What a ride! Say thank you, crew. I think we\'ll call it... Mossy!', 'BYE, MOSSY!']],
       depot: [
         ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
       ],

@@ -29,7 +29,7 @@ test('all of level 1 is the one place, and the only jump is the big one', () => 
   const key = PAL.world.key, kinds = new Set(inst.things.map(t => t.kind));
   for (const n of [1, 2, 3]){ corridor(inst, n); inst.things.forEach(t => kinds.add(t.kind)); assert.equal(PAL.world.key, key); }
   assert.ok(!kinds.has('gap') && !kinds.has('ledge'), 'no little ditches');
-  for (const k of ['narrow', 'wide', 'ravine', 'zip', 'roller']) assert.ok(kinds.has(k), k);
+  for (const k of ['narrow', 'wide', 'ravine', 'critter', 'roller']) assert.ok(kinds.has(k), k);
 });
 
 test('the path squeezes everyone together, then opens out and spreads them wide', () => {
@@ -91,11 +91,13 @@ test('the gorge: everyone jumping is a bonus; nobody jumping, they run off the e
 });
 
 const up = (i, on = true) => { pose.players[i].hands.right = { x: 0.5, y: on ? 0.1 : 0.5, vx: 0, vy: 0, speed: 0 }; };
+/* (The zip line's kept for later levels: level 1 rides Mossy there now.) */
+const zipAt = (inst, n) => { inst.level = { ...inst.level, corridors: inst.level.corridors.map((c, k) => k === n ? { ...c, event: 'zip' } : c) }; };
 /* Into the zip line's count, three of them. */
 function toZip(n = 3){
   story.on = false; crew(n);
   const inst = game.create(n); quiet(inst);
-  corridor(inst, 2);
+  zipAt(inst, 2); corridor(inst, 2);
   for (let k = 0; k < 4000 && !inst.zip; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   return inst;
 }
@@ -243,4 +245,67 @@ test('the move guide shows the move to make, as it comes up', async () => {
   for (let k = 0; k < 20; k++) z.step(DT, W, H);
   assert.ok(z._guide.a > 0.9);
   drawGuide(fake(), W, H, z);
+});
+
+/* Up to Mossy, asleep across the path, n of them. */
+function toMossy(n = 3){
+  story.on = false; crew(n);
+  const inst = game.create(n); quiet(inst);
+  corridor(inst, 2);
+  for (let k = 0; k < 4000 && !inst.ride; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  return inst;
+}
+
+test('Mossy: waved awake, it takes everyone on its back - anyone who didn\'t wave scooped up by its tail', () => {
+  const inst = toMossy(3);
+  assert.ok(inst.ride, 'the forest giant, asleep on the path');
+  assert.equal(inst.ride.phase, 'meet');
+  const z = inst.z;
+  up(1); for (let k = 0; k < 10; k++) inst.step(DT, W, H);
+  assert.ok(inst.z > z + 0.05, 'still running up to it');
+  assert.deepEqual(inst.ride.ready, [1]);
+  inst.draw(fake(), W, H);
+  for (let k = 0; k < 4000 && inst.ride.phase === 'meet'; k++) inst.step(DT, W, H);
+  assert.equal(inst.ride.phase, 'board');
+  assert.equal(inst.ride.riders.length, 3, 'nobody left behind');
+  assert.deepEqual(inst.ride.scooped.sort(), [0, 2]);
+  inst.draw(fake(), W, H);
+  for (let k = 0; k < 4000 && inst.ride.phase === 'board'; k++) inst.step(DT, W, H);
+  assert.equal(inst.ride.phase, 'ride');
+  for (let k = 0; k < 10; k++) inst.step(DT, W, H);
+  assert.ok(inst.here.every(i => inst.ride.aboard(i)), 'all up on its back');
+  inst.draw(fake(), W, H);
+  crew(3);
+});
+
+test('riding Mossy: it runs when they run, bounds for the high crystals, and goes the way they lean', () => {
+  const pace = (march, lean = 0) => {
+    const inst = toMossy(2);
+    inst.marchOf = () => march; inst.leanOf = () => lean;
+    for (let k = 0; k < 4000 && inst.ride.phase !== 'ride'; k++) inst.step(DT, W, H);
+    const z = inst.z, c0 = inst.crystals;
+    for (let k = 0; k < 4 / DT; k++) inst.step(DT, W, H);
+    return { inst, went: inst.z - z, got: inst.crystals - c0 };
+  };
+  const slow = pace(0), fast = pace(1), left = pace(0.3, -1);
+  assert.ok(fast.went > slow.went * 1.8, `faster running, faster ride (${slow.went.toFixed(2)} -> ${fast.went.toFixed(2)})`);
+  assert.ok(fast.inst.ride.leapT > 0.5, 'bounding');
+  assert.ok(fast.got > slow.got, `more crystals bounding (${slow.got} -> ${fast.got})`);
+  assert.ok(left.inst.ride.lane < -0.4, 'steered left');
+  assert.ok(left.inst.here.every(i => inst2x(left.inst, i) < 0), 'everyone carried that way');
+  fast.inst.draw(fake(), W, H);
+});
+const inst2x = (inst, i) => inst.crew[i].x;
+
+test('the end of the ride: down they hop, and it sits by the path waving goodbye - then on they run', () => {
+  const inst = toMossy(2);
+  inst.marchOf = () => 1;
+  for (let k = 0; k < 4000 && inst.ride; k++) inst.step(DT, W, H);
+  assert.ok(!inst.ride && !inst.over, 'done, and nobody\'s out');
+  assert.equal(inst.seg.kind, 'corridor');
+  assert.ok(inst.things.some(t => t.kind === 'mossy' && t.bye), 'Mossy, waving');
+  assert.ok(inst.here.every(i => inst.crew[i].air === 0));
+  const z = inst.z; for (let k = 0; k < 30; k++) inst.step(DT, W, H);
+  assert.ok(inst.z - z > SPEED * 0.8, 'running again');
+  inst.draw(fake(), W, H);
 });

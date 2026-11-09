@@ -109,15 +109,7 @@ export class Zip {
     return out;
   }
 
-  /* Both hands up over the head. (With the mouse, up near the top.) */
-  _handsUp(i){
-    const p = pose.players[i];
-    if (!p || !p.present) return false;
-    if (pose.mouse.active) return !!p.hands.right && p.hands.right.y < 0.25;
-    const lm = p.lm; if (!lm) return false;
-    const head = lm[L.NOSE].y;
-    return [L.L_WRIST, L.R_WRIST].every(j => (lm[j].v ?? 1) > 0.4 && lm[j].y < head);
-  }
+  _handsUp(i){ return handsUp(i); }
 
   /* ---------- the loop ---------- */
 
@@ -304,7 +296,7 @@ export function worldZipStart(c, W, H, rel, Lw){
   c.beginPath(); c.moveTo(a.x, top + beam); c.lineTo(b.x, b.y - cableH(1) * H * b.k); c.stroke();
 }
 
-function tick(c, x, y, r, done, fill, col, t){
+export function tick(c, x, y, r, done, fill, col, t){
   c.save();
   if (done){
     c.fillStyle = '#22c55e'; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
@@ -322,7 +314,7 @@ function tick(c, x, y, r, done, fill, col, t){
   c.restore();
 }
 
-function banner(c, W, H, text, col, s = 1, y = H * 0.2){
+export function banner(c, W, H, text, col, s = 1, y = H * 0.2){
   c.save(); c.translate(W / 2, y); c.scale(s, s);
   c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.lineWidth = H * 0.014; c.strokeStyle = '#05060f'; c.strokeText(text, 0, 0);
@@ -330,4 +322,14 @@ function banner(c, W, H, text, col, s = 1, y = H * 0.2){
   c.restore();
 }
 
-const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
+/* Both hands up over the head. (With the mouse, up near the top.) */
+export function handsUp(i){
+  const p = pose.players[i];
+  if (!p || !p.present) return false;
+  if (pose.mouse.active) return !!p.hands.right && p.hands.right.y < 0.25;
+  const lm = p.lm; if (!lm) return false;
+  const head = lm[L.NOSE].y;
+  return [L.L_WRIST, L.R_WRIST].every(j => (lm[j].v ?? 1) > 0.4 && lm[j].y < head);
+}
+
+export const smooth = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };

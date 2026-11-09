@@ -38,6 +38,12 @@ export function guideMove(g){
     if (zip.riding) return 'lean';
     return null;
   }
+  const ride = g.ride;
+  if (ride){
+    if (ride.phase === 'meet') return 'handsup';
+    if (ride.phase === 'ride') return ride.team < 0.35 ? 'run' : 'lean';
+    return null;
+  }
   if (g.rest) return 'hug';
   if (g.trap && !g.trap.done) return g.trap.light === 'green' ? 'run' : 'freeze';
   if (g.treasure && !g.treasure.done) return g.treasure.pool > 0 ? 'hug' : 'reach';
