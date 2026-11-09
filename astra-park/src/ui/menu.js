@@ -13,8 +13,8 @@ import { remote } from './remote.js';
    name, who's here (a bubble each, with their face), whether the camera's
    working, and the time. Under it a big banner for the game you're on - its
    living picture, its name, a line about it, how many can play, and Play.
-   Under that, all the games in a row, and a row of the console's own places.
-   Moving along (pointing, or the remote's arrows) changes the banner; a row
+   Under that, the games in a row. The console's own places - settings, the
+   store - are in the menu behind the button in the corner. Moving along (pointing, or the remote's arrows) changes the banner; a row
    slides along to keep the one you're on in view, so there's room for as
    many games as there are.
 
@@ -28,13 +28,13 @@ const BLURB = {
   'last-known-position': 'Run, jump and explore a strange planet',
   'castle-defense': 'Build towers together and keep the castle safe'
 };
-/* The console's own places, in the last row. */
-const PLACES = [
-  { id: 'family', name: 'Family', icon: '\u{1F46A}', accent: '#53c98f', blurb: 'Everyone who\'s here today' },
-  { id: 'settings', name: 'Settings', icon: '\u{2699}\u{FE0F}', accent: '#8a83b8', blurb: 'Sound, camera and screen' },
-  { id: 'help', name: 'Help', icon: '\u{2753}', accent: '#c46bff', blurb: 'How to play MoveCube' },
-  { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', accent: '#5b8cff', soon: true, blurb: 'New games, coming soon' },
-  { id: 'make', name: 'Make a game', icon: '\u{1F58C}\u{FE0F}', accent: '#ffb02e', soon: true, blurb: 'Coming soon' }
+/* Games kept off the home screen for now (still there, just not shown). */
+export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']);
+/* What's in the corner menu. */
+const MENU = [
+  { id: 'settings', name: 'Settings', icon: '\u{2699}\u{FE0F}' },
+  { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', soon: true },
+  { id: 'make', name: 'Make a game', icon: '\u{1F58C}\u{FE0F}', soon: true }
 ];
 /* What was picked last visit. */
 let lastFocus = 0;
@@ -52,15 +52,15 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
   const brand = h('div', 'brand', `<span class="mark">${MARK}</span><span>MoveCube</span>`);
   const players = h('div', 'tvplayers');
   const clock = h('span', 'clock', ''), cam = h('span', 'camdot', '');
-  const sys = h('div', 'tvsys'); sys.append(players, cam, clock);
+  const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => openMenu());
+  const sys = h('div', 'tvsys'); sys.append(players, cam, clock, burger);
   top.append(brand, sys);
   s.appendChild(top);
   if (pose.mouse.active && pose.reason !== 'debug') s.appendChild(h('div', 'warnstrip', '⚠ No camera — the mouse is playing'));
 
   const bar = new PlayerBar();
   const items = [];
-  for (const g of GAMES) items.push({ kind: 'game', g, shelf: 'games', accent: g.accent, name: g.name, blurb: BLURB[g.id] || '', paint: poster(g) });
-  for (const p of PLACES) items.push({ kind: 'place', p, shelf: 'places', accent: p.accent, name: p.name, blurb: p.blurb, paint: placePoster(p, bar) });
+  for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: g.accent, name: g.name, blurb: BLURB[g.id] || '', paint: poster(g) });
 
   /* the banner */
   const hero = h('div', 'hero');
@@ -75,10 +75,10 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
   const shelves = h('div', 'shelves'), wrap = h('div', 'shelfwrap');
   shelves.appendChild(wrap); s.appendChild(shelves);
   const rows = [];
-  for (const id of ['games', 'places']){
+  for (const id of ['games']){
     const list = items.map((it, n) => ({ it, n })).filter(({ it }) => it.shelf === id);
     if (!list.length) continue;
-    const sec = h('section', 'shelf' + (id === 'places' ? ' places' : ''));
+    const sec = h('section', 'shelf');
     const row = h('div', 'shelfrow');
     sec.append(row);
     wrap.appendChild(sec);
@@ -86,12 +86,11 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
     for (const { it, n } of list) items[n].rowAt = rows.length - 1;
   }
   const cards = items.map((it, n) => {
-    const card = button('', 'tvtile' + (it.kind === 'place' ? ' place' : ''));
+    const card = button('', 'tvtile');
     card.style.setProperty('--accent', it.accent);
     const pic = document.createElement('canvas'); pic.className = 'pic';
     card.insertBefore(pic, card.firstChild);
     card.querySelector('.lbl').textContent = it.name;
-    if (it.p?.soon) card.appendChild(h('span', 'soon', 'Soon'));
     onPick(card, () => choose(n));
     card.addEventListener('remotefocus', () => move(n));
     rows[it.rowAt].row.appendChild(card);
@@ -100,7 +99,7 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
   s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
 
   let scrollY = 0;
-  let focus = Math.min(lastFocus, items.length - 1), t = 0, going = null, family = false, tick = 0, flown = !arrive;
+  let focus = Math.min(lastFocus, items.length - 1), t = 0, going = null, open = null, tick = 0, flown = !arrive;
   /* After the remote's used, pointing takes over again only once a hand (or
      the mouse) actually moves - not because the rows slid under one that's
      resting. */
@@ -112,8 +111,7 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
     remote.mark(cards[focus].card);
     hero.style.setProperty('--accent', it.accent);
     hname.textContent = it.name; hblurb.textContent = it.blurb;
-    hmoves.innerHTML = it.kind === 'game' ? `<span class="mv who">${howMany(it.g)}</span>` : '';
-    play.querySelector('.lbl').innerHTML = it.kind === 'game' ? '<span class="tri"></span>Play' : it.p.soon ? 'Coming soon' : 'Open';
+    hmoves.innerHTML = `<span class="mv who">${howMany(it.g)}</span>`;
     /* keep the row in view, and the tile along it */
     const r = rows[it.rowAt];
     /* (up only as far as it takes to see the whole row - with everything on
@@ -132,28 +130,31 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
   }
   /* A pick goes straight in. */
   function choose(n){
-    if (going || family) return;
+    if (going || open) return;
     move(n);
-    const it = items[n];
-    if (it.kind === 'game'){
-      sfx.select();
-      going = { t: 0, g: it.g };
-      cards[n].card.classList.add('launch');
-      return;
-    }
-    if (it.p.soon){ sfx.boing(0.7); const cd = cards[n].card; cd.classList.remove('nope'); void cd.offsetWidth; cd.classList.add('nope'); return; }
     sfx.select();
-    if (it.p.id === 'settings') settings(onRecalibrate);
-    if (it.p.id === 'help') help();
-    if (it.p.id === 'family') openFamily();
+    going = { t: 0, g: items[n].g };
+    cards[n].card.classList.add('launch');
   }
-  function openFamily(){
-    family = true;
-    s.style.visibility = 'hidden';     /* just the room, and everyone's bubbles big in the middle */
-    const o = overlay(); o.classList.add('family');
-    o.append(h('h2', '', 'Family'));
-    o.appendChild(h('div', 'familyspace'));
-    o.appendChild(onPick(button('Close', 'close'), () => { sfx.back(); family = false; s.style.visibility = ''; o.remove(); }));
+  /* The corner menu: a little card under the button. */
+  function openMenu(){
+    if (going || open) return;
+    sfx.select();
+    open = overlay(); open.classList.add('popmenu');
+    const card = h('div', 'popcard');
+    const shut = () => { if (!open) return; open.remove(); open = null; };
+    for (const m of MENU){
+      const b = onPick(button(`<span class="pi">${m.icon}</span><span class="pn">${m.name}</span>${m.soon ? '<span class="soon">Soon</span>' : ''}`, 'popitem'), () => {
+        if (m.soon){ sfx.boing(0.7); b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); return; }
+        sfx.select(); shut();
+        if (m.id === 'settings') settings(onRecalibrate);
+      });
+      card.appendChild(b);
+    }
+    card.appendChild(onPick(button('Close', 'popitem close'), () => { sfx.back(); shut(); }));
+    open.appendChild(card);
+    /* a tap anywhere else closes it too */
+    open.addEventListener('pointerdown', (e) => { if (e.target === open){ sfx.back(); shut(); } });
   }
   show();
   ambience.start();
@@ -181,7 +182,7 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
       if (remote.lastKey !== keySeen){ keySeen = remote.lastKey; anchor = cursor.rings.map(r => [r.x, r.y]); }
       if (anchor && (cursor.rings.length !== anchor.length || cursor.rings.some((r, i) => Math.hypot(r.x - anchor[i][0], r.y - anchor[i][1]) > POINT_AGAIN))) anchor = null;
       /* The tile pointed at is the picked one. */
-      if (!anchor) for (let n = 0; n < cards.length; n++){
+      if (!anchor && !open) for (let n = 0; n < cards.length; n++){
         const cd = cards[n];
         cd.hot = cd.card.classList.contains('hot') && n !== focus ? cd.hot + dt : 0;
         if (cd.hot >= HOVER_FOCUS){ cd.hot = 0; move(n); }
@@ -206,14 +207,8 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
       /* the banner's living picture; the tiles' still ones */
       paint(heroPic, items[focus].paint, t);
       cards.forEach((cd) => { if (!cd.still) cd.still = paint(cd.pic, cd.paint, 1.5); });
-      if (family){
-        const sp = document.querySelector('.familyspace');
-        const r = sp ? sp.getBoundingClientRect() : null;
-        bar.draw(c, W / 2, r && r.height ? r.top + r.height / 2 : H * 0.5, H * 0.09, 'rgba(40,44,70,.5)');
-      } else {
-        const r = players.getBoundingClientRect();
-        if (r.width) bar.draw(c, r.left + r.width / 2, r.top + r.height / 2, r.height * 0.42, 'rgba(40,44,70,.5)');
-      }
+      const r = players.getBoundingClientRect();
+      if (r.width) bar.draw(c, r.left + r.width / 2, r.top + r.height / 2, r.height * 0.42, 'rgba(40,44,70,.5)');
       if (going){ c.fillStyle = `rgba(13,11,26,${Math.min(1, going.t / LAUNCH)})`; c.fillRect(0, 0, W, H); }
     }
   };
@@ -229,31 +224,6 @@ function wash(c, x, y, r, col, a){
   const g = c.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, col); g.addColorStop(1, 'rgba(243,244,247,0)');
   c.save(); c.globalAlpha = a; c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
-}
-
-/* A console place's picture: its colour, glowing, with its sign big in the
-   middle and a few sparkles drifting up. */
-function placePoster(p, bar){
-  return (c, W, H, t) => {
-    const g = c.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, p.accent); g.addColorStop(1, mix(p.accent));
-    c.fillStyle = g; c.fillRect(0, 0, W, H);
-    for (let k = 0; k < 9; k++){
-      const u = ((t * 0.12 + k / 9) % 1), x = W * (0.1 + 0.8 * ((k * 0.37) % 1));
-      c.fillStyle = `rgba(255,255,255,${0.5 * (1 - u)})`;
-      c.beginPath(); c.arc(x, H * (1 - u), H * 0.012, 0, 6.2832); c.fill();
-    }
-    /* The family: everyone who's here, their faces in their bubbles. */
-    if (p.id === 'family' && bar){ bar.draw(c, W / 2, H * 0.5, H * 0.13); return; }
-    c.font = `${Math.round(H * 0.45)}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(p.icon, W / 2, H * 0.52 + Math.sin(t * 1.5) * H * 0.02);
-  };
-}
-/* a lighter partner for a colour, for its gradient */
-function mix(hex){
-  const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
-  return `rgb(${Math.round(r + (255 - r) * 0.45)},${Math.round(g + (255 - g) * 0.45)},${Math.round(b + (255 - b) * 0.45)})`;
 }
 
 /* A picture on its own small canvas, sized to it as laid out. */
@@ -274,21 +244,6 @@ function overlay(){
   const s = screen('dim');
   s.style.zIndex = 5;
   return s;
-}
-
-function help(){
-  const s = overlay();
-  s.append(h('h2', '', 'How to play'));
-  const bl = h('ul', 'bullets');
-  [['👉','Point at something, then wave to press it'],
-   ['📺','Or use the remote: arrows to move, OK to pick, Back to go back'],
-   ['🙌','Raise both hands above your head to pause (or press Back)'],
-   ['📏','Stand about two metres back so your whole body is in frame'],
-   ['💡','Lights on — the camera needs to see you'],
-   ['⛶','Press F for fullscreen on the TV']]
-   .forEach(([ic, t]) => bl.appendChild(h('li','',`<span class="ic">${ic}</span><span>${t}</span>`)));
-  s.appendChild(bl);
-  s.appendChild(onPick(button('Got it', 'close'), () => s.remove()));
 }
 
 export { settings as openSettings };

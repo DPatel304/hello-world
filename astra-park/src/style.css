@@ -603,3 +603,25 @@ body.remote .btn.kfocus:not(.tvtile):not(.play){ outline:none; transform:scale(1
 .shelves{ top:50.5vh; }
 .shelfwrap{ padding-top:3.2vh; }
 .btn.tvtile, .btn.tvtile.hot{ box-shadow:none; border:none; background:transparent; }
+/* the corner menu: a round button with three bars, and a little card under it */
+.btn.burger{ width:5.6vh; height:5.6vh; padding:0; display:inline-flex; align-items:center; justify-content:center; margin-left:.4vw; }
+.btn.burger .lbl{ display:flex; }
+.btn.burger .bars{ display:flex; flex-direction:column; gap:.55vh; }
+.btn.burger .bars i{ display:block; width:2.4vh; height:.32vh; border-radius:1vh; background:#16161d; }
+.screen.dim.popmenu{ background:rgba(236,238,244,.35); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+.popcard{
+  position:absolute; top:10.5vh; right:4vw; min-width:22vw; padding:1.2vh; border-radius:2.6vh;
+  background:rgba(255,255,255,.96); box-shadow:0 2vh 5vh rgba(30,40,90,.22), 0 0 0 1px rgba(20,24,50,.06);
+  display:flex; flex-direction:column; gap:.6vh; animation:popin .22s cubic-bezier(.2,.8,.25,1) both; transform-origin:top right;
+}
+@keyframes popin{ from{ opacity:0; transform:scale(.92) translateY(-1vh) } to{ opacity:1; transform:none } }
+.btn.popitem{ width:100%; border:none; box-shadow:none; border-radius:1.6vh; background:transparent; padding:1.5vh 1.6vh; font-size:2.8vh; text-align:left; }
+.btn.popitem .lbl{ display:flex; align-items:center; gap:.7em; }
+.btn.popitem .pi{ font-size:1.1em; width:1.4em; text-align:center; }
+.btn.popitem .pn{ flex:1; }
+.btn.popitem .soon{ position:static; font-size:.6em; font-weight:600; color:#fff; background:#2b2d3a; border-radius:999px; padding:.25em .7em; }
+.btn.popitem.close{ color:#5b5f6e; justify-content:center; }
+.btn.popitem.close .lbl{ justify-content:center; }
+.btn.popitem.hot, body.remote .btn.popitem.kfocus{ background:#eef0f6; box-shadow:none; transform:none; }
+body.remote .btn.popitem.kfocus{ box-shadow:inset 0 0 0 .4vh #6d5efc; }
+.btn.popitem.nope{ animation:nope .45s ease; }
