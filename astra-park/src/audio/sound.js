@@ -153,7 +153,7 @@ export const sfx = {
      less as you come round (k: how loud, 0..1). */
   earRing(k = 1){
     const c = ctx(), t = c.currentTime;
-    for (const [f, g] of [[3520, 0.008], [3585, 0.004]]){
+    for (const [f, g] of [[3520, 0.0025]]){
       const o = c.createOscillator(), gn = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
       o.type = 'sine'; o.frequency.value = f;
       lfo.frequency.value = 0.7 + Math.random() * 0.6; lg.gain.value = f * 0.004; lfo.connect(lg); lg.connect(o.frequency);
@@ -212,7 +212,15 @@ export const sfx = {
   /* A klaxon: two low honks. */
   klaxon(){ for (const d of [0, 0.32]){ blip({ freq: 220, to: 180, dur: 0.28, type: 'sawtooth', gain: 0.12, delay: d }); blip({ freq: 277, to: 230, dur: 0.28, type: 'square', gain: 0.05, delay: d }); } },
   /* A heartbeat: lub-dub, low and soft. */
-  heartbeat(){ blip({ freq: 70, to: 45, dur: 0.16, type: 'sine', gain: 0.35 }); blip({ freq: 62, to: 40, dur: 0.14, type: 'sine', gain: 0.25, delay: 0.22 }); },
+  heartbeat(k = 1){
+    /* lub-dub: each beat a deep thump (felt on big speakers) with a body
+       of muffled thud a laptop's small speakers can still play */
+    for (const [d, g] of [[0, 1], [0.24, 0.7]]){
+      blip({ freq: 70, to: 45, dur: 0.16, type: 'sine', gain: 0.4 * g * k, delay: d });
+      blip({ freq: 150, to: 90, dur: 0.12, type: 'triangle', gain: 0.22 * g * k, delay: d });
+      hiss({ dur: 0.1, gain: 0.35 * g * k, hp: 220, type: 'lowpass', q: 0.8, delay: d });
+    }
+  },
   /* Incoming: a sharp double beep. */
   alert(){ for (const d of [0, 0.14]) blip({ freq: 1180, dur: 0.09, type: 'square', gain: 0.08, delay: d }); },
   /* A hit taken: a crunch and a thump. */

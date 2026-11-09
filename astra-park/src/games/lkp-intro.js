@@ -113,8 +113,8 @@ export class Intro {
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
     if (s === 'rise' || this.done) return;
     const near = s === 'dark' || s === 'wake' ? 1 : 0.5;
-    /* (the ringing: just once, softly, in the dark - and once more, fainter, as the eyes first open) */
-    if ((s === 'dark' && this.ringT == null) || (s === 'wake' && this.ringT != null && this.ringT < 0)){ this.ringT = s === 'dark' ? -1 : this.t; sfx.earRing?.(s === 'dark' ? 1 : 0.5); }
+    /* (the ringing: just once, faintly, in the dark) */
+    if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
     this.roarT = (this.roarT ?? 0) - dt;
     if (this.roarT <= 0){ this.roarT = 1; sfx.fireRoar?.(near * (0.6 + 0.4 * clear), 1.3, clear); }
     if (Math.random() < dt * (4 + 4 * clear)) sfx.fireCrackle?.(near * (0.6 + 0.4 * clear), clear);
