@@ -19,3 +19,6 @@ export const audio = Object.assign(recorder(), {
   get muted(){ return false; }
 });
 export const ambience = recorder();
+
+export const isQuiet = () => false;
+export const quietly = (fn) => fn();

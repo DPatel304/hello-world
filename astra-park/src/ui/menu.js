@@ -8,6 +8,7 @@ import { PlayerBar } from './playerbar.js';
 import { poster } from './posters.js';
 import { MARK, PAPER } from './boot.js';
 import { remote } from './remote.js';
+import { trailer } from './trailer.js';
 
 /* Home: MoveCube's front room, the way a TV box does it. Along the top, the
    name, who's here (a bubble each, with their face), whether the camera's
@@ -28,6 +29,24 @@ const BLURB = {
   'last-known-position': 'Run, jump and explore a strange planet',
   'castle-defense': 'Build towers together and keep the castle safe'
 };
+/* Each game's icon, in the cube's style: a rounded square in two colours,
+   a simple white picture on it. */
+export const ICONS = {
+  'pop-party': { cols: ['#ff7eb3', '#ffa25a'], glyph: 'balloon' },
+  'last-known-position': { cols: ['#4f46e5', '#22d3ee'], glyph: 'rocket' },
+  'uncle-bs-boat': { cols: ['#0ea5e9', '#5eead4'], glyph: 'boat' },
+  'dance-party': { cols: ['#f43f5e', '#fbbf24'], glyph: 'note' },
+  'castle-defense': { cols: ['#10b981', '#a3e635'], glyph: 'tower' }
+};
+const GLYPHS = {
+  balloon: '<path d="M50 14c15 0 25 11 25 26 0 17-14 30-25 33-11-3-25-16-25-33 0-15 10-26 25-26z" fill="#fff"/><path d="M46 73h8l-4 6z" fill="#fff"/><path d="M50 79c-5 6 5 9 0 16" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="41" cy="31" rx="5" ry="8" transform="rotate(-25 41 31)" fill="#000" opacity=".12"/>',
+  rocket: '<path d="M50 10c11 9 16 24 16 40 0 9-2 17-5 24H39c-3-7-5-15-5-24 0-16 5-31 16-40z" fill="#fff"/><circle cx="50" cy="40" r="7" fill="#000" opacity=".16"/><path d="M34 56l-11 16 13-3zM66 56l11 16-13-3z" fill="#fff"/><path d="M43 78h14l-7 12z" fill="#fff" opacity=".8"/>',
+  boat: '<path d="M18 60h64l-10 16H28z" fill="#fff"/><path d="M50 18v38H24z" fill="#fff"/><path d="M54 26v30h20z" fill="#fff" opacity=".85"/>',
+  note: '<ellipse cx="38" cy="72" rx="12" ry="9" transform="rotate(-20 38 72)" fill="#fff"/><path d="M47 70V20l26 8v12l-20-6v36" fill="#fff"/>',
+  tower: '<path d="M30 30h8v-8h8v8h8v-8h8v8h8v14H30z" fill="#fff"/><path d="M34 44h32v36H34z" fill="#fff"/><path d="M45 80V64a5 5 0 0 1 10 0v16z" fill="#000" opacity=".15"/>'
+};
+const iconOf = (g) => ICONS[g.id] || { cols: [g.accent, g.accent], glyph: 'balloon' };
+
 /* Games kept off the home screen for now (still there, just not shown). */
 export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']);
 /* What's in the corner menu. */
@@ -60,7 +79,7 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
 
   const bar = new PlayerBar();
   const items = [];
-  for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: g.accent, name: g.name, blurb: BLURB[g.id] || '', paint: poster(g) });
+  for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: iconOf(g).cols[0], icon: iconOf(g), name: g.name, blurb: BLURB[g.id] || '', paint: poster(g), trailer: undefined });
 
   /* the banner */
   const hero = h('div', 'hero');
@@ -88,7 +107,8 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
   const cards = items.map((it, n) => {
     const card = button('', 'tvtile');
     card.style.setProperty('--accent', it.accent);
-    const pic = document.createElement('canvas'); pic.className = 'pic';
+    const pic = h('div', 'icon', `<svg viewBox="0 0 100 100" aria-hidden="true">${GLYPHS[it.icon.glyph]}</svg>`);
+    pic.style.setProperty('--c1', it.icon.cols[0]); pic.style.setProperty('--c2', it.icon.cols[1]);
     card.insertBefore(pic, card.firstChild);
     card.querySelector('.lbl').textContent = it.name;
     onPick(card, () => choose(n));
@@ -194,6 +214,12 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
         cam.className = 'camdot ' + (ok ? 'ok' : 'off');
         cam.title = ok ? 'Camera on' : 'No camera';
       }
+      /* the banner's trailer: the picked game, playing itself */
+      const it = items[focus];
+      if (it.trailer === undefined) it.trailer = trailer(it.g);
+      if (it.trailer && !going){
+        it.trailer.step(Math.min(dt, 1 / 20), TW, TH);
+      }
       if (going){
         going.t += dt;
         if (going.t >= LAUNCH){ ambience.stop(); const g = going.g; going = null; onPlay(g); }
@@ -205,8 +231,9 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
       wash(c, W * 0.15, 0, H * 0.9, '#ccfbf1', 0.6);
       wash(c, W * 0.9, H, H * 1.0, items[focus].accent, 0.18);
       /* the banner's living picture; the tiles' still ones */
-      paint(heroPic, items[focus].paint, t);
-      cards.forEach((cd) => { if (!cd.still) cd.still = paint(cd.pic, cd.paint, 1.5); });
+      const it = items[focus];
+      if (it.trailer) paint(heroPic, (c, w, hh) => cover(c, w, hh, it.trailer), t, 1);
+      else paint(heroPic, it.paint, t);
       const r = players.getBoundingClientRect();
       if (r.width) bar.draw(c, r.left + r.width / 2, r.top + r.height / 2, r.height * 0.42, 'rgba(40,44,70,.5)');
       if (going){ c.fillStyle = `rgba(13,11,26,${Math.min(1, going.t / LAUNCH)})`; c.fillRect(0, 0, W, H); }
@@ -226,12 +253,25 @@ function wash(c, x, y, r, col, a){
   c.save(); c.globalAlpha = a; c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
 }
 
+/* The trailer plays at TV shape, TW x TH, and the banner shows the part of
+   it the trailer says (anchor: how far down the middle of the view sits). */
+const TW = 1440, TH = 810;
+let film = null;
+function cover(c, w, h, tr){
+  if (!film){ film = document.createElement('canvas'); film.width = TW; film.height = TH; }
+  const fc = film.getContext && film.getContext('2d'); if (!fc) return;
+  fc.setTransform(1, 0, 0, 1, 0, 0);
+  tr.draw(fc, TW, TH);
+  const k = w / TW, sh = Math.min(TH, h / k), sy = Math.max(0, Math.min(TH - sh, TH * (tr.anchor ?? 0.5) - sh / 2));
+  c.drawImage(film, 0, sy, TW, sh, 0, 0, w, h);
+}
+
 /* A picture on its own small canvas, sized to it as laid out. */
-function paint(pic, fn, t){
+function paint(pic, fn, t, sharp = 2){
   if (!pic.getContext || !pic.getBoundingClientRect) return false;
   const w0 = pic.offsetWidth || pic.getBoundingClientRect().width, h0 = pic.offsetHeight || pic.getBoundingClientRect().height;
   if (!w0) return false;
-  const k = Math.min(2, devicePixelRatio || 1);
+  const k = Math.min(sharp, devicePixelRatio || 1);
   const w = Math.round(w0 * k), hgt = Math.round(h0 * k);
   if (pic.width !== w || pic.height !== hgt){ pic.width = w; pic.height = hgt; }
   const c = pic.getContext('2d');

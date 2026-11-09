@@ -821,3 +821,18 @@ export const audio = {
   toggleMute(){ state.muted = !state.muted; if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); return state.muted; },
   resume(){ ctx(); }
 };
+
+/* Quietly: whatever runs inside makes no sound - for the home screen's
+   trailers, real games playing themselves in the banner. Every sound and
+   every word goes through here, so wrapping them all is enough. */
+let hushDepth = 0;
+export const isQuiet = () => hushDepth > 0;
+export function quietly(fn){ hushDepth++; try { return fn(); } finally { hushDepth--; } }
+for (const obj of [sfx, music]){
+  for (const k of Object.keys(obj)){
+    const d = Object.getOwnPropertyDescriptor(obj, k);
+    if (!d || typeof d.value !== 'function') continue;
+    const f = d.value;
+    obj[k] = function(...a){ return hushDepth ? undefined : f.apply(obj, a); };
+  }
+}

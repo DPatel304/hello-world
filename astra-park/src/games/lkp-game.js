@@ -1057,6 +1057,8 @@ class LastKnownPosition {
     if (this.leap && this.leap.phase === 'hero') this.leap.view(c, W, H, PAL.world);
     else this._drawPlay(c, W, H);
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
+    /* (playing itself in the home screen's banner, demo: just the play) */
+    if (this.demo) return;
     if (this.levelup) this.levelup.draw(c, W, H);
     /* the little man showing the move to make */
     drawGuide(c, W, H, this);
@@ -1304,6 +1306,7 @@ class LastKnownPosition {
   _xpAt(W, H){ return { x: W - H * 0.42, y: H * 0.07 }; }
 
   _drawHud(c, W, H){
+    if (this.demo) return;
     /* Danger at the edges: a red flash on a hit, a red glow pulsing with
        the heartbeat while anyone's nearly out. */
     {

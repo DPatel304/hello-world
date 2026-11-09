@@ -8,7 +8,7 @@
    cuts off whatever's being said, unless it's `polite`, when it waits its
    turn. Quiet when the sound's muted, and nothing at all where there's no
    speech (in the tests). */
-import { audio } from './sound.js';
+import { audio, isQuiet } from './sound.js';
 
 /* Who's speaking: which voices they'd like (names to look for, best
    first), and how they say things. The natural-sounding voices - Edge's
@@ -80,7 +80,7 @@ export const voice = {
   /* Say text, as who. */
   say(text, who = 'nova', polite = false){
     const s = synth(), U = Utterance();
-    if (!s || !U || audio.muted) return;
+    if (!s || !U || audio.muted || isQuiet()) return;
     const speak = () => {
       if (!polite) s.cancel();
       const u = new U(text), sp = SPEAKERS[who];
