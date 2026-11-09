@@ -34,7 +34,9 @@ test('a line said before the natural voices arrive waits for them, so Nova never
 
 /* ---------- the recorded lines (voice-lines.js) ---------- */
 
-import { clipsFor, lineTime, voice as said } from '../src/audio/voice.js';
+import { clipsFor, lineTime, voice as said, RECORDED } from '../src/audio/voice.js';
+/* (the recordings, switched on for these) */
+RECORDED.on = true;
 import { LINES } from '../src/audio/voice-lines.js';
 import { lines as script } from '../tools/voice-script.mjs';
 import { stub } from '../src/audio/sound.js';
@@ -60,7 +62,7 @@ test('every recording is of a line still in the game, by who says it, and timed 
 
 test('the script has the game\'s lines: the level\'s, the ones written in, and each way a template comes out', () => {
   const all = script().map(l => l.text);
-  for (const t of ['Low branch! Duck!', 'Clean. The planet. Of everything.', 'Crew, do you read me? ...You\'re okay! Now, on your feet. Follow the path and I\'ll talk you through it.',
+  for (const t of ['Low branch! Duck!', 'Clean. The planet. Of everything.', 'Crew, do you read me? ...You\'re okay!', 'On your feet! Follow the path, and I\'ll talk you through it.',
     'Run! Run round the ring!', 'Freeze on red!', 'Purple, brilliant teamwork!', 'Pop Orange\'s bubble!', 'Traps on the left, who knows what on the right. Your call!'])
     assert.ok(all.includes(t), t);
   assert.ok(!all.some(t => t === t.toUpperCase()), 'not the words under her window');

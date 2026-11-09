@@ -401,7 +401,9 @@ class LastKnownPosition {
       /* Each a good while after the tip before it, so she's never
          talking over herself - her story in the quiet between the
          lessons, each lesson in a quiet of its own. */
-      if (story.on) [-9, 12, 26].forEach((secs, k) => add(secs, { kind: 'say', line: k }));
+      if (story.on) [-3, 12, 26].forEach((secs, k) => add(secs, { kind: 'say', line: k }));
+      /* crystals the moment they're off, to run into */
+      crystalLine(-6.5, 0, 6);
       crystalLine(6, 0, 6); crystalLine(9, -0.5, 5);
       blocker(22, 1, 0.8);
       crystalLine(25, 0.4, 5);
@@ -1216,7 +1218,8 @@ class LastKnownPosition {
       /* The boss's own things draw themselves. */
       case 'boss': it.draw(c, W, H, this.t); break;
       case 'crew': this._drawCrew(c, it.i, W, H, it.at || null); break;
-      case 'ship': worldShip(c, W, H, it.rel, it.lane, this.t, it.s); shipFire(c, W, H, it.rel, it.lane, this.t, it.s); break;
+      /* (not while the opening draws it coming down itself) */
+      case 'ship': if (!this.shipOff){ worldShip(c, W, H, it.rel, it.lane, this.t, it.s); shipFire(c, W, H, it.rel, it.lane, this.t, it.s); } break;
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
       case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
@@ -1294,7 +1297,17 @@ class LastKnownPosition {
     if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */
     const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
-    if (at && at.noBar != null ? !at.noBar : !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, rn.hp / rn.max, PLAYER_COLORS[i], rn.hp / rn.max < 0.3);
+    /* Hurt (in the crash, or since), and nothing else going on: the bar
+       pulsing orange, and now and then a spark fizzing off the suit - so
+       it's seen, not read. Healed, it stops. */
+    const frac = rn.hp / rn.max, sore = frac < 0.6 && !this.fight && !this.inIntro && !this.over;
+    if (sore && ((this.t + i * 0.45) % 1.4) < 0.16){
+      const sx = p.x + h * (i % 2 ? 0.16 : -0.16), sy = top + h * 0.3, u = h * 0.12;
+      glow(c, sx, sy, u * 1.6, '#ffd27a', 0.7);
+      c.save(); c.strokeStyle = '#fff3a6'; c.lineWidth = Math.max(2, u * 0.2); c.lineJoin = 'round';
+      c.beginPath(); c.moveTo(sx - u * 0.3, sy + u * 0.6); c.lineTo(sx + u * 0.2, sy); c.lineTo(sx - u * 0.1, sy - u * 0.1); c.lineTo(sx + u * 0.35, sy - u * 0.7); c.stroke(); c.restore();
+    }
+    if (at && at.noBar != null ? !at.noBar : !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, frac, sore && Math.sin(this.t * 6) > 0 ? '#ff9c3b' : PLAYER_COLORS[i], frac < 0.3);
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 

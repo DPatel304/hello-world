@@ -76,7 +76,9 @@ export const LEVELS = [
     },
     lines: {
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
-      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay! Now, on your feet. Follow the path and I\'ll talk you through it.', '']],
+      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay!', '']],
+      /* ...and once they're up, on the path. */
+      rise: [['nova', 'On your feet! Follow the path, and I\'ll talk you through it.', '']],
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */
       walk: [

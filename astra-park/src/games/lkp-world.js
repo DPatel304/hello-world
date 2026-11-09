@@ -192,7 +192,9 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
     const off = ((VIEW.heading + BEND.curve * 0.04) % 1 + 1) % 1 * pano.w;
     /* (round the strip, as far as the view goes) */
     const copies = [-off]; if (pano.w - off < W) copies.push(pano.w - off); if (SKY.wide > off) copies.push(-off - pano.w);
-    for (const dx of copies) c.drawImage(pano.cv, dx, -pano.pt, pano.w + 1, pano.h);
+    /* (leaving out its very edges, softened by the blur, so no seam shows
+       where two copies meet) */
+    for (const dx of copies) c.drawImage(pano.cv, 6, 0, pano.cv.width - 12, pano.cv.height, dx - 1, -pano.pt, pano.w + 2, pano.h);
     /* A camera looking up sees more sky: its top row, stretched on up. */
     if (above > 0){
       if (PANO.top) for (const dx of copies) c.drawImage(PANO.top, dx, -above, pano.w + 1, Math.max(1, above - pano.pt + 10));

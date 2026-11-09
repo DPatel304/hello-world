@@ -26,8 +26,14 @@ import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { SKY } from './lkp-world.js';
 import { Radio, script } from './lkp-captain.js';
+import { commanderFace } from './lkp-cast.js';
+import { figure } from './lkp-guide.js';
+import { P } from './lkp-art.js';
+import { worldShip } from './lkp-places.js';
+import { shipFire } from './lkp-crashsite.js';
 
 export const INTRO_BEATS = [
+  { id: 'fall', time: 4.6, shot: 'the crash site from above, the ship streaking down out of the sky, trailing smoke - THUD - the eyes closing', blocking: 'a rising whoosh, the boom' },
   { id: 'dark', time: 3, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, clear', blocking: 'the suit display rings: INCOMING CALL - NOVA; a hand to the ear answers' },
@@ -35,7 +41,9 @@ export const INTRO_BEATS = [
   { id: 'rise', time: 2.4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
-export const DARK = BEAT.dark.time, RISE = BEAT.rise.time;
+export const FALL = BEAT.fall.time, DARK = BEAT.dark.time, RISE = BEAT.rise.time;
+/* The fall: seconds till it hits the ground. */
+export const IMPACT = 2.6;
 export const WAKE_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max;
 /* Waking: moving (body sizes a second) more than STIR counts; WIGGLE
    seconds of it each and your share of the eyes is open - it slips back
@@ -119,10 +127,11 @@ export class Intro {
 
   draw(c, W, H){
     const s = this.stage;
-    if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
+    if (s === 'fall') this._fall(c, W, H);
+    else if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
     else this._helmet(c, W, H);
     this._lids(c, W, H);
-    if (s === 'wake') banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6), this.wiggled);
+    if (s === 'wake'){ this._sparkles(c, W, H); banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6), this.wiggled); }
     if (s === 'call') this._ringing(c, W, H);
     this.radio.draw(c, W, H);
   }
@@ -158,11 +167,49 @@ export class Intro {
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
     this._visor(c, W, H);
   }
+  /* The crash, from outside: the site from the game's own world, framed
+     on the clearing; the ship coming down out of the sky over it,
+     trailing smoke - and the impact, a flash, the ground shaking, dust. */
+  _fall(c, W, H){
+    const g = this.g, st = this.st, f = Math.min(1, st / IMPACT), e = f * f;
+    const th = g.things.find(t => t.kind === 'ship'), rel = th ? th.d - g.z : 0.45, lane = th ? th.lane : -5, s = th ? th.s : 1.3;
+    const hit = st - IMPACT, shake = hit > 0 ? Math.max(0, 1 - hit / 0.9) : 0;
+    c.save();
+    if (shake) c.translate((Math.random() - 0.5) * H * 0.04 * shake, (Math.random() - 0.5) * H * 0.04 * shake);
+    c.translate(W / 2, H / 2); c.scale(FALL_VIEW.s, FALL_VIEW.s); c.translate(-FALL_VIEW.cx * W, -FALL_VIEW.cy * H);
+    g.inIntro = true; g.introCrew = []; g.shipOff = true; SKY.above = H; SKY.wide = W * 1.3;
+    g._drawPlay(c, W, H);
+    g.shipOff = false; g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
+    /* where it lands, and where it is: coming in from high up and away to the left */
+    const p = P(lane, rel, W, H), off = 1 - e, dx = -off * W * 1.1, dy = -off * H * 1.3;
+    /* its smoke trail, back along the way it came */
+    for (let k = 0; k < 40; k++){
+      const u = k / 40, back = off + u * 0.7, wob = Math.sin(k * 1.7 + this.t) * H * 0.015 * (1 + u * 3);
+      const px = p.x - back * W * 1.1 - W * 0.05 + wob, py = p.y - H * 0.12 - back * H * 1.3, r = H * (0.05 + u * 0.12);
+      const sg = c.createRadialGradient(px, py, 0, px, py, r);
+      sg.addColorStop(0, `rgba(110,104,124,${0.4 * (1 - u)})`); sg.addColorStop(1, 'rgba(110,104,124,0)');
+      c.fillStyle = sg; c.beginPath(); c.arc(px, py, r, 0, 6.2832); c.fill();
+    }
+    c.save(); c.translate(dx, dy); c.translate(p.x, p.y); c.rotate(-0.3 * off); c.translate(-p.x, -p.y);
+    worldShip(c, W, H, rel, lane, this.t, s); shipFire(c, W, H, rel, lane, this.t, s);
+    c.restore();
+    /* the impact: dust bursting out along the ground */
+    if (hit > 0){
+      const k = Math.min(1, hit / 1.4);
+      for (let j = 0; j < 9; j++){
+        const a = j / 9 * Math.PI, r = H * (0.15 + 0.5 * k) * (0.7 + 0.3 * Math.sin(j * 7));
+        c.fillStyle = `rgba(200,190,175,${0.55 * (1 - k)})`; c.beginPath(); c.arc(p.x + Math.cos(a) * r * 1.6 - r * 0.2, p.y - Math.sin(a) * r * 0.35, H * 0.08 * (0.6 + k), 0, 6.2832); c.fill();
+      }
+    }
+    c.restore();
+    if (hit > 0 && hit < 0.5){ c.fillStyle = `rgba(255,248,230,${0.85 * (1 - hit / 0.5)})`; c.fillRect(0, 0, W, H); }
+  }
+
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
   _clear(){
     const s = this.stage;
     if (s === 'dark') return 0;
-    if (s === 'wake') return Math.pow(this.wiggled, 1.3) * 0.9;
+    if (s === 'wake') return Math.pow((this.notch || 0) / 4, 1.3) * 0.9;
     return 1;
   }
 
@@ -175,16 +222,21 @@ export class Intro {
     c.beginPath(); cr.forEach(([x, y], k) => (k ? c.lineTo(x * W, y * H) : c.moveTo(x * W, y * H))); c.stroke();
     c.beginPath(); c.moveTo(0.86 * W, 0.17 * H); c.lineTo(0.9 * W, 0.27 * H); c.moveTo(0.71 * W, 0.3 * H); c.lineTo(0.68 * W, 0.21 * H); c.stroke();
     c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(1, H * 0.0015); c.beginPath(); cr.forEach(([x, y], k) => (k ? c.lineTo(x * W + 2, y * H + 2) : c.moveTo(x * W + 2, y * H + 2))); c.stroke();
-    /* the display, bottom left: flickering */
+    /* the display, bottom left - a picture, no words: the suit's battery,
+       half gone, flashing, a spark jumping off it */
     const on = this.stage !== 'dark' && (Math.sin(this.t * 23) > -0.85 || this.stage !== 'wake');
     if (on){
-      const x = W * 0.05, y = H * 0.84, w = H * 0.34;
-      c.globalAlpha = 0.85;
-      c.font = `700 ${Math.round(H * 0.026)}px Fredoka, sans-serif`; c.textBaseline = 'middle'; c.textAlign = 'left';
-      c.fillStyle = Math.sin(this.t * 5) > 0 ? '#ff6b5b' : '#ffb35b'; c.fillText('⚠ SUIT DAMAGED', x, y);
-      c.fillStyle = 'rgba(5,6,15,.6)'; c.fillRect(x, y + H * 0.03, w, H * 0.018);
-      c.fillStyle = '#ff9c5b'; c.fillRect(x, y + H * 0.03, w * START, H * 0.018);
-      c.font = `600 ${Math.round(H * 0.018)}px Fredoka, sans-serif`; c.fillStyle = '#ffd7b8'; c.fillText(`POWER ${Math.round(START * 100)}%`, x + w + H * 0.015, y + H * 0.039);
+      const x = W * 0.05, y = H * 0.8, w = H * 0.16, h = H * 0.075, flash = Math.sin(this.t * 6) > 0;
+      c.globalAlpha = 0.9;
+      c.fillStyle = 'rgba(5,6,15,.6)'; c.beginPath(); c.roundRect(x, y, w, h, h * 0.18); c.fill();
+      c.strokeStyle = flash ? '#ff6b5b' : '#ffb35b'; c.lineWidth = H * 0.007; c.stroke();
+      c.fillStyle = c.strokeStyle; c.fillRect(x + w, y + h * 0.3, h * 0.14, h * 0.4);
+      c.fillStyle = flash ? '#ff9c5b' : '#ff7a4a'; c.beginPath(); c.roundRect(x + h * 0.12, y + h * 0.12, (w - h * 0.24) * START, h * 0.76, h * 0.1); c.fill();
+      if ((this.t % 1.3) < 0.18){
+        const sx = x + w * 0.75, sy = y - h * 0.15;
+        c.strokeStyle = '#fff3a6'; c.lineWidth = H * 0.005; c.lineJoin = 'round';
+        c.beginPath(); c.moveTo(sx, sy + h * 0.4); c.lineTo(sx + h * 0.15, sy); c.lineTo(sx - h * 0.05, sy - h * 0.05); c.lineTo(sx + h * 0.12, sy - h * 0.45); c.stroke();
+      }
     }
     c.restore();
   }
@@ -207,19 +259,50 @@ export class Intro {
     c.restore();
   }
 
+  /* Wiggling: sparkles in each one's own colour, rising up the edges of
+     the screen - their side of it - while they move: you see it's you. */
+  _sparkles(c, W, H){
+    const here = this.g.here;
+    c.save();
+    here.forEach((i, k) => {
+      const on = this.stirring && this.stirring[i], side = here.length < 2 ? (k ? 1 : -1) : (k / (here.length - 1)) * 2 - 1;
+      for (let j = 0; j < 14; j++){
+        const u = (this.t * 0.6 + j / 14 + i * 0.13) % 1, a = on ? (1 - u) : (1 - u) * 0.15;
+        const edge = side < 0 ? W * 0.04 : side > 0 ? W * 0.96 : W * (0.3 + 0.4 * ((j * 7) % 14) / 14);
+        const x = edge + Math.sin(u * 9 + j) * W * 0.02 + (side === 0 ? 0 : -side * ((j * 5) % 14) / 14 * W * 0.06), y = H * (1 - u) + (side === 0 ? H * 0.15 : 0);
+        c.globalAlpha = a; c.fillStyle = PLAYER_COLORS[i];
+        c.beginPath(); c.arc(x, y, H * (0.006 + 0.008 * (1 - u)), 0, 6.2832); c.fill();
+      }
+    });
+    c.restore();
+  }
+
   /* The suit's display ringing: INCOMING CALL - NOVA, and who's answered. */
   _ringing(c, W, H){
-    const g = this.g, x = W / 2, y = H * 0.32, ring = 0.5 + 0.5 * Math.sin(this.t * 9);
+    const g = this.g, ring = 0.5 + 0.5 * Math.sin(this.t * 9);
+    /* it rings in bursts: two buzzes, a pause - the box shaking with each */
+    const ph = this.t % 1.6, buzz = ph < 0.25 || (ph > 0.35 && ph < 0.6);
+    const x = W / 2 + (buzz ? Math.sin(this.t * 70) * H * 0.008 : 0), y = H * 0.4;
+    const bw = H * 0.78, bh = H * 0.26;
     c.save();
-    c.fillStyle = 'rgba(5,12,30,.78)'; c.beginPath(); c.roundRect(x - H * 0.3, y - H * 0.07, H * 0.6, H * 0.18, H * 0.03); c.fill();
-    c.strokeStyle = `rgba(127,243,255,${0.5 + 0.4 * ring})`; c.lineWidth = H * 0.004; c.stroke();
-    c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.font = `700 ${Math.round(H * 0.03)}px Fredoka, sans-serif`; c.fillStyle = '#7ff3ff'; c.fillText('INCOMING CALL', x, y - H * 0.025);
-    c.font = `700 ${Math.round(H * 0.045)}px Fredoka, sans-serif`; c.fillStyle = '#ffffff'; c.fillText('COMMANDER NOVA', x, y + H * 0.025);
+    c.fillStyle = 'rgba(5,12,30,.82)'; c.beginPath(); c.roundRect(x - bw / 2, y - bh / 2, bw, bh, H * 0.03); c.fill();
+    c.strokeStyle = `rgba(127,243,255,${buzz ? 0.95 : 0.5 + 0.2 * ring})`; c.lineWidth = H * (buzz ? 0.007 : 0.004); c.stroke();
+    /* her face, calling */
+    const fx = x - bw / 2 + bh * 0.52, fr = bh * 0.36;
+    c.save(); c.beginPath(); c.arc(fx, y, fr, 0, 6.2832); c.fillStyle = '#16264a'; c.fill(); c.clip();
+    commanderFace(c, fx, y - fr * 0.1, fr * 0.62, this.t, false);
+    c.restore();
+    c.strokeStyle = '#7ff3ff'; c.lineWidth = H * 0.005; c.beginPath(); c.arc(fx, y, fr, 0, 6.2832); c.stroke();
+    if (buzz) for (const k of [1, 1.3]){ c.globalAlpha = 0.5 / k; c.beginPath(); c.arc(fx, y, fr * k * (1 + 0.1 * Math.sin(this.t * 20)), 0, 6.2832); c.stroke(); }
+    c.globalAlpha = 1;
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    const tx = fx + fr + H * 0.04;
+    c.font = `700 ${Math.round(H * 0.032)}px Fredoka, sans-serif`; c.fillStyle = '#7ff3ff'; c.fillText('INCOMING CALL', tx, y - H * 0.05);
+    c.font = `700 ${Math.round(H * 0.05)}px Fredoka, sans-serif`; c.fillStyle = '#ffffff'; c.fillText('NOVA', tx, y + H * 0.005);
     /* each of them: a dot filling as they hold a hand to their ear, full when they have */
-    const here = g.here, r = H * 0.016;
+    const here = g.here, r = H * 0.018;
     here.forEach((i, k) => {
-      const dx = x + (k - (here.length - 1) / 2) * r * 3.2, dy = y + H * 0.075;
+      const dx = tx + r + k * r * 3.2, dy = y + H * 0.07;
       c.fillStyle = 'rgba(255,255,255,.15)'; c.beginPath(); c.arc(dx, dy, r, 0, 6.2832); c.fill();
       c.fillStyle = PLAYER_COLORS[i];
       if (this.answered[i]){ c.beginPath(); c.arc(dx, dy, r, 0, 6.2832); c.fill(); }
@@ -227,6 +310,12 @@ export class Intro {
     });
     c.restore();
     banner(c, W, H, 'HAND TO YOUR EAR TO ANSWER', '#7ff3ff', 1 + 0.03 * Math.sin(this.t * 6));
+    /* the move, big, in the middle underneath: a hand going up to the ear */
+    c.save();
+    c.fillStyle = 'rgba(5,12,30,.6)'; c.beginPath(); c.arc(W / 2, H * 0.72, H * 0.15, 0, 6.2832); c.fill();
+    c.strokeStyle = '#ffffff'; c.fillStyle = '#ffffff'; c.lineWidth = H * 0.012; c.lineCap = 'round'; c.lineJoin = 'round';
+    figure(c, W / 2, H * 0.74, H * 0.26, 'ear', this.t);
+    c.restore();
   }
 
   /* Outside, after the blink: the game's own view, the crew getting up
@@ -248,14 +337,26 @@ const BEGIN = {
 };
 /* Each step: true once it's done. */
 const STEP = {
+  fall(){
+    if (this.st < 0.05) sfx.whoosh?.();
+    if (!this.boomed && this.st >= IMPACT){ this.boomed = true; sfx.boom?.(); }
+    return false;
+  },
   dark(){ if (this.st < 0.05) sfx.ringing?.(); return false; },
   wake(dt){
     const here = this.g.here;
     for (const i of here){
       const moving = this.moves[i].step(pose.players[i], dt, pose.mouse.active);
+      this.stirring = this.stirring || [];
+      this.stirring[i] = moving > STIR;
       if (moving > STIR){ this.woke[i] = Math.min(WIGGLE, this.woke[i] + dt); if (Math.random() < dt * 4) sfx.step(i, 0.25); }
       else if (this.woke[i] < WIGGLE) this.woke[i] = Math.max(0, this.woke[i] - dt * DROOP);
     }
+    /* the eyes open in big blinks - a quarter at a time - each one heard;
+       all the way, the suit's display booting up */
+    const notch = Math.floor(this.wiggled * 4 + 1e-6);
+    if (notch > (this.notch || 0)){ this.notch = notch; this.blinkAt = this.t; if (notch >= 4) sfx.boot?.(); else sfx.pick(); }
+    if (notch < (this.notch || 0)) this.notch = notch;
     return this._settled(dt, (here.length > 0 && this.wiggled >= 1) || (!here.length && this.st > 3));
   },
   call(dt){
@@ -270,17 +371,26 @@ const STEP = {
   },
   answer(){ return !this.radio.busy; },
   rise(dt){
-    /* up off the ground, one after another */
+    /* up off the ground, one after another - and, as they get up, the
+       rest of what she has to say */
     this.g.here.forEach((i, k) => { if (this.st > 0.6 + k * 0.15) this.up[i] = Math.min(1, this.up[i] + dt / 0.8); });
+    if (!this.toldRise && this.st > 0.7){ this.toldRise = true; const l = this.g.level.lines.rise; if (l) this.g.captain.say(l[0][1], l[0][2] || ''); }
     return false;
   }
 };
 /* How open the eyes want to be, in each beat. */
 const EYES = {
+  /* watching it come down; then, a moment after the thud, the eyes closing */
+  fall(){ return this.st < FALL - 0.9 ? 1 : Math.max(0, 1 - (this.st - FALL + 0.9) / 0.7); },
   /* closed - a flutter open - closed again */
   dark(){ const u = (this.st - 1.1) / 1.3; return u > 0 && u < 1 ? 0.35 * Math.sin(u * Math.PI) * (0.8 + 0.2 * Math.sin(this.t * 20)) : 0; },
   /* opening as they wiggle, a little heavy flicker while they're still low */
-  wake(){ const w = this.wiggled; return Math.min(1, 0.08 + w * 0.95 + (w < 0.6 ? 0.04 * Math.sin(this.t * 3) : 0)); },
+  wake(){
+    /* a notch at a time, with a quick flutter as each one opens */
+    const n = this.notch || 0, since = this.blinkAt != null ? this.t - this.blinkAt : 9;
+    const flutter = since < 0.35 ? 0.25 * Math.sin(since / 0.35 * Math.PI) : 0;
+    return Math.min(1, 0.1 + n / 4 * 0.9 - flutter + (n < 2 ? 0.03 * Math.sin(this.t * 3) : 0));
+  },
   call(){ return 1; },
   answer(){ return 1; },
   /* the blink: shut, then open outside */
@@ -296,6 +406,9 @@ Intro.prototype._settled = function (dt, ok){
   this.afterT = (this.afterT || 0) + dt;
   return this.afterT >= AFTER;
 };
+
+/* The crash shot's framing: looking at (cx, cy) - screens - s times closer. */
+const FALL_VIEW = { cx: -0.18, cy: 0.42, s: 1.15 };
 
 /* (the crew's own depth, in play: lkp-art.js RUN) */
 const RUN_AT = 0.03;

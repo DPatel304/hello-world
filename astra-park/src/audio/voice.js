@@ -44,6 +44,11 @@ export function pick(who, list = null){
   return voices.slice().sort((a, b) => score(a) - score(b))[0] || null;
 }
 
+/* The recordings, on or off. Off for now, while the script's being
+   reworked: every line in the computer's own voice, new ones and old
+   alike, so she doesn't change voice from line to line. */
+export const RECORDED = { on: false };
+
 /* The recordings that say text: the line's own, or one for each of its
    sentences - or null, when it isn't all recorded. */
 export function clipsFor(text, lines = LINES){
@@ -62,7 +67,7 @@ const GAP = 0.15;
    same whether or not there's a voice to hear - the recording's own
    length when there is one. */
 export function lineTime(text, who = 'nova'){
-  const clips = clipsFor(text);
+  const clips = RECORDED.on ? clipsFor(text) : null;
   if (clips) return clips.reduce((n, c) => n + c.secs, 0) + GAP * (clips.length - 1) + 0.2;
   const words = text.trim().split(/\s+/).length;
   return 0.4 + words / (2.6 * SPEAKERS[who].rate);
@@ -134,7 +139,7 @@ export const voice = {
   /* Say text, as who. */
   say(text, who = 'nova', polite = false){
     if (audio.muted || isQuiet()) return;
-    const clips = clipsFor(text);
+    const clips = RECORDED.on ? clipsFor(text) : null;
     if (clips && Player()){
       if (polite && now){ later.push(() => play(clips)); return; }
       voice.hush(); play(clips); return;
