@@ -5,12 +5,12 @@ import { Scene } from './pop-party-scene.js';
 import { Avatars } from '../ui/avatars.js';
 import { ANIMALS, animalParts, animalCol, touches, drawAnimal } from './pop-party-animals.js';
 
-/* Five-minute rounds; the storm is always the last ten seconds. */
-export const ROUND = 300;
+/* Three-minute rounds; the storm is always the last ten seconds. */
+export const ROUND = 180;
 export const FINALE = ROUND - 10;
 /* The opening: one balloon at a time, so the first thing anyone learns is
    simply to reach for it. */
-export const OPENING = 30;
+export const OPENING = 20;
 
 /* Pop Party. Balloons rise, hands pop them. The gentlest game in the set and
    the one a two-year-old can play without being told anything - so nothing
@@ -39,7 +39,7 @@ export const SIZES = [
 export const GIANT_R = 0.425;
 /* Two giants a round, one at a random moment in each window: never in the
    calm opening, and early enough to rise into view well before the storm. */
-export const GIANT_WINDOWS = [[75, 140], [175, 250]];
+export const GIANT_WINDOWS = [[50, 80], [105, 140]];
 /* Something that size would pop the instant any hand reached it, before
    anyone had seen it. Instead it takes slaps - separate ones, so a hand
    resting on it counts once - each one answered with a wobble and a boing
@@ -686,9 +686,15 @@ class PopParty {
     c.fillStyle = g; c.fillRect(0, 0, W, H);
   }
 
+  /* No numbers on screen: nobody wins, and how well everyone did is the
+     size of their bouquet at the end. (The count's still kept, for that.) */
   hud(){
-    return { score: this.score, showLives: false };
+    return { score: this.score, showLives: false, hideScore: true };
   }
+  /* No pausing by gesture: reaching up with both hands is how you pop the
+     high ones. The game waits by itself when everyone steps out of view,
+     and the remote's Back still pauses it. */
+  pausable(){ return false; }
 
   tally(){
     const rows = [];
@@ -712,10 +718,10 @@ class PopParty {
    round from just after the opening to fifteen seconds before the storm is
    cut into windows of about a minute; in each, every kind has its own
    chance of turning up at a random moment, at least EVENT_GAP from any other
-   surprise. Over five minutes that is the two giants, a couple of parades and
-   three or so balloon animals on average, and never the same round twice. */
-export const EVENTS = { parade: 0.5, dog: 0.3, giraffe: 0.25, elephant: 0.25 };
-export const EVENT_GAP = 15;
+   surprise. Over three minutes that is the two giants, a parade and a
+   balloon animal or two on average, and never the same round twice. */
+export const EVENTS = { parade: 0.5, dog: 0.45, giraffe: 0.45, elephant: 0.45 };
+export const EVENT_GAP = 12;
 export function planEvents(finale){
   const from = OPENING + 5, to = finale - 15;
   const n = Math.max(1, Math.round((to - from) / 60)), span = (to - from) / n;

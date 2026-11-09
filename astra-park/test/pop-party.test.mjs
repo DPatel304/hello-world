@@ -101,7 +101,8 @@ test('the sky starts nearly empty and fills up as the round goes', () => {
   inst.events = [];   /* a parade would hold regular spawns back on purpose */
   const count = () => inst.balloons.filter(b => !b.giant).length;
   let most = 0, seen = 0;
-  for (let i = 0; i < OPENING * 60; i++){
+  /* (to just before the opening ends: the moment it does, a second comes) */
+  for (let i = 0; i < OPENING * 60 - 2; i++){
     inst.step(1 / 60, 1920, 1080);
     most = Math.max(most, count()); seen += count() > 0;
   }
@@ -112,7 +113,7 @@ test('the sky starts nearly empty and fills up as the round goes', () => {
   const minuteLater = count();
   for (let i = 0; i < (FINALE - OPENING - 70) * 60; i++) inst.step(1 / 60, 1920, 1080);
   const late = count();
-  assert.ok(minuteLater >= 2 && minuteLater <= 5, `a minute after the opening: ${minuteLater} balloons`);
+  assert.ok(minuteLater >= 3 && minuteLater <= 7, `a minute after the opening: ${minuteLater} balloons`);
   assert.ok(late >= 9, `expected a busy sky just before the storm, got ${late}`);
 });
 
@@ -380,10 +381,11 @@ test('surprises are spread through the round, never crowded, and vary', () => {
     }
     for (const kind of Object.keys(EVENTS)) if (!plan.some(e => e.kind === kind)) none[kind] = (none[kind] || 0) + 1;
   }
-  /* Four windows of about a minute, each with its own chance per kind;
+  /* Windows of about a minute, each with its own chance per kind;
      crowding near the giants trims a little off. */
+  const windows = Math.max(1, Math.round((FINALE - 15 - (OPENING + 5)) / 60));
   for (const [kind, chance] of Object.entries(EVENTS)){
-    const mean = (total[kind] || 0) / N, expected = 4 * chance;
+    const mean = (total[kind] || 0) / N, expected = windows * chance;
     assert.ok(mean >= expected * 0.7 && mean <= expected * 1.05, `${kind}: ${mean.toFixed(2)} a round, expected about ${expected}`);
     const rare = (none[kind] || 0) / N;
     assert.ok(rare > 0.01 && rare < 0.5, `${kind}: missing from ${(rare * 100).toFixed(0)}% of rounds`);
@@ -411,7 +413,7 @@ test('the opening never sends a bunch, even when the dice say so', () => {
     const inst = popParty.create(1);
     inst.events = [];
     let most = 0;
-    for (let i = 0; i < OPENING * 60; i++){
+    for (let i = 0; i < OPENING * 60 - 2; i++){
       inst.step(1 / 60, 1920, 1080);
       most = Math.max(most, inst.balloons.filter(b => !b.giant).length);
     }
@@ -522,4 +524,12 @@ test('the giant carries no number', () => {
   });
   inst._balloon(c, g, 1920, 1080);
   assert.deepEqual(texts, []);
+});
+
+test('three-minute rounds, no score numbers on screen, and no pausing by raising both hands', () => {
+  assert.equal(ROUND, 180);
+  const inst = popParty.create(2);
+  assert.equal(inst.hud().hideScore, true);
+  assert.equal(inst.pausable(), false);
+  for (const [a, b] of GIANT_WINDOWS) assert.ok(a > OPENING && b < FINALE - 15, 'both giants fit well inside the shorter round');
 });
