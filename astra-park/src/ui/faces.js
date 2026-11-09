@@ -171,10 +171,13 @@ export class FaceCam {
   }
 
   /* A picture of this moment of player i, kept apart from their own -
-     for a game to show (drawMoment). False if they can't be seen. */
-  photo(i){
+     for a game to show (drawMoment). good: only if it'd be a good one -
+     their face held still, straight on, big enough - right now. False if
+     none was taken. */
+  photo(i, good = false){
     const v = this.video, b = this.boxes[i];
     if (!this.live || !b || !pose.players[i].present) return false;
+    if (good && steady[i] < 0.1) return false;
     const cv = this._grab(v, b);
     if (!cv) return false;
     moments[i] = { canvas: cv, age: FLASH, rough: false };

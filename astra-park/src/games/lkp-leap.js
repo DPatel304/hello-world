@@ -1,11 +1,13 @@
 /* Last Known Position - the team jump: a corridor's event. A gorge across
    the path; coming up to its edge, everything drops into slow motion and
    Nova calls it - JUMP! - with READY seconds to do it. Anyone who really
-   jumps has their picture taken, there and then (lkp-faces photo). If at
+   jumps is in the hero shot. If at
    least one of them jumped, the whole team leaps it: the camera swings
    round in front of them, and they float across towards us in slow motion
    (HERO seconds), each in their helmet in their own colour, the face in
-   it theirs - as they jumped. Then back behind them as they land on the
+   it theirs - from the countdown, just before they jumped: while they
+   wait, facing the TV, a good picture (held still, straight on) is tried
+   for every SNAP seconds, and the last before their jump kept. Then back behind them as they land on the
    far side (LAND), running on. If nobody jumped, they run off the edge
    (FALL): that's the end of the run.
 
@@ -17,6 +19,8 @@ import { glow, mix, rgba } from './lkp-world.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 
 export const READY = 3.5, HERO = 3.6, LAND = 0.7, FALL = 1.6;
+/* Waiting to jump: how often a good picture is tried for. */
+const SNAP = 0.2;
 /* Slow motion: how fast the run goes, waiting for the jump. */
 export const CRAWL = 0.06;
 /* Everyone jumped: a bonus, for the team. */
@@ -38,9 +42,14 @@ export class TeamJump {
     const g = this.g;
     this.t += dt;
     if (this.phase === 'ready'){
+      /* their pictures: good ones, while they wait - none once they've jumped */
+      this.snapT = (this.snapT || 0) - dt;
+      if (this.snapT <= 0 && g.faces && g.faces.photo){
+        this.snapT = SNAP;
+        for (const i of g.here) if (!this.jumped.includes(i)) g.faces.photo(i, true);
+      }
       for (const i of jumped) if (!this.jumped.includes(i) && g.here.includes(i)){
         this.jumped.push(i);
-        g.faces && g.faces.photo && g.faces.photo(i);
         sfx.pick(); g._sparkle(0.5, 0.75, 6, 50);
       }
       const all = g.here.length && g.here.every(i => this.jumped.includes(i));
