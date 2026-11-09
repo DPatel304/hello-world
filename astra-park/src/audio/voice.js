@@ -10,21 +10,31 @@
    speech (in the tests). */
 import { audio } from './sound.js';
 
-/* Who's speaking: which voice they'd like (names to look for, in order),
-   and how they say things. */
+/* Who's speaking: which voices they'd like (names to look for, best
+   first), and how they say things. The natural-sounding voices - Edge's
+   "Natural" ones on Windows, Chrome's online Google ones - come first:
+   far more human than the old built-in ones, which are the fallback. (A
+   natural voice is said at its own pitch: nudging it sounds wrong.) */
 export const SPEAKERS = {
-  nova: { want: ['aria', 'jenny', 'zira', 'samantha', 'female', 'woman', 'susan', 'hazel', 'libby'], pitch: 1.1, rate: 1.05 },
-  robot: { want: ['guy', 'david', 'mark', 'male', 'daniel', 'george'], pitch: 0.3, rate: 0.8 }
+  nova: { want: ['aria', 'jenny', 'ava', 'emma', 'michelle', 'sonia', 'libby', 'natasha', 'google uk english female', 'google us english', 'zira', 'samantha', 'female', 'woman', 'susan', 'hazel'], pitch: 1.1, rate: 1.05 },
+  robot: { want: ['guy', 'andrew', 'christopher', 'ryan', 'google uk english male', 'david', 'mark', 'male', 'daniel', 'george'], pitch: 0.3, rate: 0.8 }
 };
 
 const synth = () => (typeof window !== 'undefined' && window.speechSynthesis) || null;
 const Utterance = () => (typeof window !== 'undefined' && window.SpeechSynthesisUtterance) || null;
 
-function pick(who){
+/* A natural (neural) voice? Edge names them "... Online (Natural) ...";
+   Chrome's Google voices are online, and nearly as good. */
+export const natural = (v) => /natural|online/i.test(v.name) || (/^google/i.test(v.name) && !v.localService);
+
+/* The best voice for who: a natural one they'd like most, then a natural
+   one of any name, then any they'd like, then any English one. */
+export function pick(who, list = null){
   const s = synth(), want = SPEAKERS[who].want;
-  const voices = s ? s.getVoices().filter(v => /^en/i.test(v.lang)) : [];
-  for (const w of want){ const v = voices.find(v => v.name.toLowerCase().includes(w)); if (v) return v; }
-  return voices[0] || null;
+  const voices = (list || (s ? s.getVoices() : [])).filter(v => /^en/i.test(v.lang));
+  const liked = (v) => { const n = v.name.toLowerCase(), k = want.findIndex(w => n.includes(w)); return k < 0 ? 99 : k; };
+  const score = (v) => (natural(v) ? 0 : 1000) + liked(v) * 10 + (/en-(us|gb)/i.test(v.lang) ? 0 : 1);
+  return voices.slice().sort((a, b) => score(a) - score(b))[0] || null;
 }
 
 /* About how long a line takes to say, in seconds: for timing scenes the
@@ -43,7 +53,9 @@ export const voice = {
     const u = new U(text), sp = SPEAKERS[who];
     const v = pick(who);
     if (v) u.voice = v;
-    u.pitch = sp.pitch; u.rate = sp.rate; u.volume = Math.min(1, audio.volume * 1.4);
+    /* (a natural voice at its own pitch; the robot always made low) */
+    u.pitch = v && natural(v) && who !== 'robot' ? 1 : sp.pitch; u.rate = v && natural(v) ? Math.min(1, sp.rate) : sp.rate;
+    u.volume = Math.min(1, audio.volume * 1.4);
     s.speak(u);
   },
   hush(){ const s = synth(); if (s) s.cancel(); }
