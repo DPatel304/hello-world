@@ -31,7 +31,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Astra Park</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d0b1a'/%3E%3Ccircle cx='12' cy='13' r='5' fill='%233da9ff'/%3E%3Ccircle cx='21' cy='19' r='5' fill='%23ff8a3d'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1.25 -1.3 2.5 2.5'%3E%3Crect x='-1.25' y='-1.3' width='2.5' height='2.5' rx='.55' fill='%23f3f4f7'/%3E%3Cpath d='M-.866 -.5 L0 0 L0 1 L-.866 .5Z' fill='%235eead4'/%3E%3Cpath d='M0 0 L.866 -.5 L.866 .5 L0 1Z' fill='%238b9cf7'/%3E%3Cpath d='M-.866 -.5 L0 -1 L.866 -.5 L0 0Z' fill='%23eef2ff'/%3E%3C/svg%3E">
 <style>${css}</style>
 </head>
 <body>

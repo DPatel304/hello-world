@@ -556,3 +556,44 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 .screen.tvhome .buildstamp{ bottom:1.2vh; left:auto; right:4vw; z-index:3; color:#4b4f5e; text-shadow:none; opacity:.55; font-size:1.4vh; }
 /* the remote's highlight, on every other button */
 body.remote .btn.kfocus:not(.tvtile):not(.play){ outline:.5vh solid #fff; outline-offset:.5vh; transform:scale(1.05); }
+
+/* ---------- MoveCube: everything else, in the same light style ----------
+   Windows (settings, help, family, pause, "step back in", the camera check)
+   are frosted glass over whatever's behind; buttons are white pills with
+   dark type; the end of a round fades up to paper at the bottom. */
+body{ font-family:var(--sys); }
+.screen{ font-family:var(--sys); }
+.screen.dim{ background:rgba(236,238,244,.66); -webkit-backdrop-filter:blur(22px) saturate(1.3); backdrop-filter:blur(22px) saturate(1.3); color:#16161d; }
+.screen.dim.pause{ background:rgba(236,238,244,.5); }
+.screen.dim.lost{ background:rgba(236,238,244,.55); }
+.screen.dim.family{ background:rgba(236,238,244,.7); }
+.screen.lost .lede{ color:#2b2d3a; text-shadow:none; }
+.stepin{ color:#3a3d50; }
+.stepin svg{ filter:none; }
+h1, h2{ font-family:var(--sys); color:#16161d; font-weight:700; letter-spacing:-.02em; }
+.lede{ color:#5b5f6e; font-weight:400; }
+.bullets{ color:#24242e; font-weight:400; text-align:left; }
+label.slider{ color:#24242e; font-weight:600; }
+input[type=range]{ accent-color:#6d5efc; }
+.btn{
+  font-family:var(--sys); font-weight:600; color:#16161d; background:#fff;
+  border:2px solid rgba(20,24,50,.08); border-radius:999px;
+  box-shadow:0 .6vh 1.8vh rgba(30,40,90,.12);
+}
+.btn .fill{ background:var(--who,#6d5efc); opacity:.18; }
+.btn.hot{ border-color:var(--who,#6d5efc); transform:scale(1.05); }
+body.remote .btn.kfocus:not(.tvtile):not(.play){ outline:none; transform:scale(1.07); border-color:transparent; box-shadow:0 0 0 .5vh #6d5efc, 0 1.2vh 3vh rgba(30,40,90,.22); }
+.screen.dim .row{ gap:clamp(10px,1.6vw,24px); }
+/* the end of a round, and pause: two big pills */
+.screen.end{ background:linear-gradient(180deg, rgba(243,244,247,0) 40%, rgba(243,244,247,.92) 100%); }
+.endname{ font-family:var(--sys); color:#16161d; font-weight:700; letter-spacing:-.02em; text-shadow:0 0 1.5vh rgba(255,255,255,.8); }
+.btn.big{ font-family:var(--sys); font-weight:700; border:none; box-shadow:0 1.2vh 3vh rgba(30,40,90,.2); }
+.btn.big.go{ background:var(--accent,#6d5efc); color:#fff; text-shadow:0 .1vh .4vh rgba(0,0,0,.25); }
+.btn.big.home{ background:#fff; color:#16161d; }
+.btn.big .fill{ background:#fff; opacity:.3; }
+.btn.big.hot{ transform:scale(1.06); box-shadow:0 0 0 .5vh var(--who,#6d5efc), 0 1.4vh 3.4vh rgba(30,40,90,.25); }
+.warn, .warnstrip{ background:#fff1f2; color:#be123c; border:2px solid #fecdd3; font-family:var(--sys); font-weight:600; }
+.screen.boot .bootwait{ color:#5b5f6e; }
+.screen.dim .bullets{ max-width:min(80vw,62ch); font-size:clamp(14px,2.6vh,30px); gap:.8em; }
+.screen.dim.family{ background:transparent; -webkit-backdrop-filter:none; backdrop-filter:none; }
+:root{ --dim:#5b5f6e; --faint:#8a8ea0; --good:#16a34a; --bad:#e11d48; }

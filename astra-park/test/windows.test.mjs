@@ -16,7 +16,7 @@ test('the PowerShell scripts are plain ASCII', () => {
 });
 
 test('the batch file and read-me use CRLF line endings', () => {
-  for (const f of ['Set up Astra Park.bat', 'Read me.txt', 'setup.ps1', 'launch.ps1']){
+  for (const f of ['Set up MoveCube.bat', 'Read me.txt', 'setup.ps1', 'launch.ps1']){
     const s = read(f).toString('latin1');
     assert.ok(!/[^\r]\n/.test(s), `${f} has a bare LF`);
   }
@@ -46,9 +46,19 @@ test('the launcher only installs a download that is plainly the game', () => {
 
 test('the launcher lists the music folder into playlist.js for the game', () => {
   const s = read('launch.ps1').toString();
-  assert.ok(s.includes("GetFolderPath('MyMusic')") && s.includes("'Astra Park'"), 'reads Music\\Astra Park');
+  assert.ok(s.includes("GetFolderPath('MyMusic')") && s.includes("'MoveCube'"), 'reads Music\\MoveCube');
+  assert.ok(s.includes("'Astra Park'"), 'or the old Astra Park folder, if setup has not moved it yet');
   assert.ok(s.includes('window.ASTRA_MUSIC') && s.includes("'playlist.js'"), 'writes the playlist the game reads');
   for (const ext of ['mp3', 'm4a', 'wav', 'flac', 'ogg']) assert.ok(s.includes(ext), `accepts .${ext}`);
   const build = readFileSync(new URL('../build-single.mjs', import.meta.url), 'utf8');
   assert.ok(build.includes('src="playlist.js"'), 'the built game loads the playlist');
+});
+
+test('setup renames Astra Park to MoveCube: new shortcuts, old ones gone, the music folder moved', () => {
+  const s = read('setup.ps1').toString();
+  assert.ok(s.includes("'MoveCube.lnk'") && s.includes("'MoveCube Music.lnk'"), 'MoveCube shortcuts');
+  assert.ok(s.includes("'Astra Park.lnk'") && s.includes("'Astra Park Music.lnk'") && s.includes('Remove-Item'), 'the old shortcuts removed');
+  assert.ok(s.includes('Move-Item -LiteralPath $oldMusic'), 'the old music folder moved over');
+  assert.ok(s.includes("'movecube.ico'"), 'the cube icon');
+  assert.ok(s.includes("$env:LOCALAPPDATA 'AstraPark'"), 'the same install folder, so scores and settings carry over');
 });

@@ -1,5 +1,5 @@
-/* Packs the Windows download: dist/AstraPark-Windows.zip, holding one
-   "Astra Park" folder with the game, the icon, setup and a read-me. Run
+/* Packs the Windows download: dist/MoveCube-Windows.zip, holding one
+   "MoveCube" folder with the game, the icon, setup and a read-me. Run
    after build-single.mjs (npm run windows does both). */
 import { mkdirSync, rmSync, copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const win  = join(root, 'windows');
 const dist = join(root, 'dist');
-const box  = join(dist, 'Astra Park');
-const zip  = join(dist, 'AstraPark-Windows.zip');
+const box  = join(dist, 'MoveCube');
+const zip  = join(dist, 'MoveCube-Windows.zip');
 
 if (!existsSync(join(root, 'astra-park.html'))) throw new Error('build astra-park.html first');
 
@@ -18,7 +18,7 @@ rmSync(box, { recursive: true, force: true });
 rmSync(zip, { force: true });
 mkdirSync(box, { recursive: true });
 copyFileSync(join(root, 'astra-park.html'), join(box, 'astra-park.html'));
-for (const f of ['astra-park.ico', 'setup.ps1', 'Set up Astra Park.bat', 'Read me.txt']){
+for (const f of ['movecube.ico', 'setup.ps1', 'Set up MoveCube.bat', 'Read me.txt']){
   copyFileSync(join(win, f), join(box, f));
 }
 
@@ -30,5 +30,5 @@ const repo = git('remote', 'get-url', 'origin').replace(/\.git$/, '').split('/')
 if (branch === 'HEAD' || !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`can't tell the branch or repo (${branch}, ${repo})`);
 writeFileSync(join(box, 'launch.ps1'),
   readFileSync(join(win, 'launch.ps1'), 'utf8').replace('__REPO__', repo).replace('__BRANCH__', branch));
-execFileSync('zip', ['-r', '-q', '-X', zip, 'Astra Park'], { cwd: dist });
-console.log(`dist/AstraPark-Windows.zip  (updates from ${repo} @ ${branch})`);
+execFileSync('zip', ['-r', '-q', '-X', zip, 'MoveCube'], { cwd: dist });
+console.log(`dist/MoveCube-Windows.zip  (updates from ${repo} @ ${branch})`);

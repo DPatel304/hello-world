@@ -1,4 +1,4 @@
-# Starts Astra Park. The desktop shortcut runs this rather than the browser
+# Starts MoveCube. The desktop shortcut runs this rather than the browser
 # directly, so that every launch first picks up the newest build from GitHub
 # and then opens the game full screen.
 #
@@ -48,7 +48,7 @@ function Update-Game {
     # and has no progress bar, which makes 5.1 downloads crawl.
     $client = New-Object System.Net.Http.HttpClient
     $client.Timeout = [TimeSpan]::FromSeconds(5)
-    $client.DefaultRequestHeaders.UserAgent.ParseAdd('AstraPark-launcher')
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('MoveCube-launcher')
     $client.DefaultRequestHeaders.Accept.ParseAdd('application/vnd.github.raw')
 
     # The API serves a push within a minute; the raw address can lag five,
@@ -65,7 +65,9 @@ function Update-Game {
             # Only ever replace the game with something that is plainly the
             # game: an error page or a cut-off download stays out.
             $text = [Text.Encoding]::UTF8.GetString($bytes)
-            if ($bytes.Length -lt 50000 -or -not $text.Contains('<title>Astra Park</title>')) { continue }
+            # (Its page title is still 'Astra Park' from before the name changed;
+            # 'MoveCube' is accepted too, for when it does.)
+            if ($bytes.Length -lt 50000 -or -not ($text.Contains('<title>Astra Park</title>') -or $text.Contains('<title>MoveCube</title>'))) { continue }
             [IO.File]::WriteAllBytes($tmp, $bytes)
             if ((Test-Path -LiteralPath $game) -and
                 (Get-FileHash -LiteralPath $tmp).Hash -eq (Get-FileHash -LiteralPath $game).Hash) {
@@ -83,10 +85,11 @@ function Update-Game {
 
 try { $result = Update-Game } catch { $result = "update skipped: $($_.Exception.Message)" }
 
-# The soundtrack: every song in the family's "Astra Park" music folder,
+# The soundtrack: every song in the family's "MoveCube" music folder,
 # listed into playlist.js beside the game, which reads it as it starts.
 # Re-listed on every launch, so adding or removing a song is all it takes.
-$musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'Astra Park'
+$musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'MoveCube'
+if (-not (Test-Path -LiteralPath $musicDir)) { $musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'Astra Park' }
 $songs = @()
 if (Test-Path -LiteralPath $musicDir) {
     $songs = Get-ChildItem -LiteralPath $musicDir -File |

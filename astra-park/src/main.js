@@ -148,37 +148,37 @@ function drawHUD(){
     const left = i % 2 === 0, row = Math.floor(i / 2);
     c.textAlign = left ? 'left' : 'right';
     const x = left ? pad : W - pad, y = pad + row * H * (hud.showLives ? 0.13 : 0.095);
-    c.font = `700 ${Math.round(H * 0.075)}px Fredoka, ui-rounded, system-ui, sans-serif`;
-    pill(c, x, y, c.measureText(String(hud.score[i])).width, H * 0.075, left ? 'left' : 'right');
-    c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
-    c.strokeText(String(hud.score[i]), x, y);
+    c.font = `700 ${Math.round(H * 0.075)}px "Segoe UI Variable Display","Segoe UI",-apple-system,Inter,system-ui,sans-serif`;
+    pill(c, x, y, c.measureText(String(hud.score[i])).width, H * 0.075, left ? 'left' : 'right', PLAYER_COLORS[i]);
     c.fillStyle = PLAYER_COLORS[i]; c.fillText(String(hud.score[i]), x, y);
     if (hud.showLives){
-      c.font = `600 ${Math.round(H * 0.034)}px Fredoka, ui-rounded, system-ui, sans-serif`;
+      c.font = `600 ${Math.round(H * 0.034)}px "Segoe UI Variable Display","Segoe UI",-apple-system,Inter,system-ui,sans-serif`;
       c.fillText('♥'.repeat(hud.lives[i]) || '—', x, y + H * 0.082);
     }
   }
   /* A game that lasts as long as you hold out has no clock to show. */
   if (hud.hideClock){ c.textAlign = 'start'; c.textBaseline = 'alphabetic'; return; }
   c.textAlign = 'center';
-  c.font = `600 ${Math.round(H * 0.062)}px Fredoka, ui-rounded, system-ui, sans-serif`;
+  c.font = `600 ${Math.round(H * 0.062)}px "Segoe UI Variable Display","Segoe UI",-apple-system,Inter,system-ui,sans-serif`;
   const t = Math.max(0, Math.ceil(roundLeft));
   /* Minutes and seconds once a round runs past one; plain seconds below. */
   const clock = t >= 60 ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}` : String(t);
   pill(c, W / 2, pad, c.measureText(clock).width, H * 0.062, 'center');
-  c.lineWidth = Math.max(4, H * 0.008); c.strokeStyle = 'rgba(0,0,0,.55)';
-  c.strokeText(clock, W / 2, pad);
-  c.fillStyle = t <= 10 ? '#ff5d73' : '#f3f0ff';
+  c.fillStyle = t <= 10 ? '#e11d48' : '#16161d';
   c.fillText(clock, W / 2, pad);
   c.textAlign = 'start'; c.textBaseline = 'alphabetic';
 }
 
 /* A game can paint any sky it likes; the numbers on top of it must still
-   read from the sofa. */
-function pill(c, x, y, w, h, align){
-  const px = h * 0.32, left = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
-  c.fillStyle = 'rgba(16,12,40,.42)';
-  c.beginPath(); c.roundRect(left - px, y - h * 0.12, w + px * 2, h * 1.12, h * 0.3); c.fill();
+   read from the sofa: white frosted pills, edged in the player's colour. */
+function pill(c, x, y, w, h, align, edge = null){
+  const px = h * 0.36, left = align === 'left' ? x : align === 'right' ? x - w : x - w / 2;
+  c.save();
+  c.shadowColor = 'rgba(20,24,50,.22)'; c.shadowBlur = h * 0.35; c.shadowOffsetY = h * 0.06;
+  c.fillStyle = 'rgba(255,255,255,.9)';
+  c.beginPath(); c.roundRect(left - px, y - h * 0.14, w + px * 2, h * 1.16, h * 0.58); c.fill();
+  c.restore();
+  if (edge){ c.strokeStyle = edge; c.lineWidth = Math.max(2, h * 0.06); c.stroke(); }
 }
 
 /* ---------- loop ---------- */
@@ -189,7 +189,8 @@ function tick(now){
 
   pose.update(now, dt);
 
-  c.fillStyle = '#0d0b1a';
+  /* paper, under the menus; dark under a game while it loads */
+  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' ? '#0d0b1a' : '#f3f4f7';
   c.fillRect(0, 0, W, H);
 
   if (mode === 'play' && inst && !paused && !lost){
