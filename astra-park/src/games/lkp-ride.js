@@ -22,10 +22,12 @@ import { P, RUN } from './lkp-art.js';
 import { glow } from './lkp-world.js';
 import { banner, smooth } from './lkp-zip.js';
 
-/* How far ahead it is to start with (depths); its pace, ambling (of the
-   game's SPEED); the crew's, from not running to all-out; how close
-   counts as caught; how long before it stops and waits. */
-export const START_GAP = 0.55, WALK = 0.55, CHASE_SLOW = 0.3, CHASE_FAST = 1.6, CATCH = 0.06, WAIT = 16;
+/* How far ahead it is to start with (depths, and never further); its
+   pace, ambling (of the game's SPEED); how fast the crew close the gap
+   (depths a second, all-out - running harder, sooner: about 10 seconds
+   running well); how close counts as caught; how long before it stops
+   and waits for them (closing at WAITING then, running or not). */
+export const START_GAP = 0.8, WALK = 0.7, CATCH_UP = 0.085, CATCH = 0.04, WAIT = 16, WAITING = 0.05;
 /* Seconds: climbing on; sitting and riding along (at RIDE_PACE); getting
    off and waving it goodbye. */
 export const BOARD = 2.6, RELAX = 22, RIDE_PACE = 0.75, OFF = 4;
@@ -59,12 +61,12 @@ export class Ride {
   constructor(game, talk = false){
     this.g = game; this.t = 0; this.done = false; this.talk = talk;
     this.phase = 'chase'; this.pt = 0;
-    this.d = game.z + RUN + AHEAD + START_GAP; this.lane = 0;
+    this.gapV = START_GAP; this.d = game.z + RUN + AHEAD + this.gapV; this.lane = 0; this.closing = 0;
     this.riders = []; this.march = pose.players.map(() => 0);
     this.mw = pose.players.map(() => new MarchWatch());
     this.team = 0; this.walk = 1; this.step_ = 0; this.gift = 0;
     this.sitters = pose.keepSitters;
-    this._say('rideMeet');
+    this.met = false;
   }
   _say(key){ const l = this.g.level.lines[key]; if (l && this.talk) this.g.captain.say(l[0][1], l[0][2] || ''); }
 
@@ -80,7 +82,7 @@ export class Ride {
   /* How fast down the path: theirs, chasing it; stopped to climb on;
      its pace, carrying them; slowing, to get down. */
   speed(run){
-    if (this.phase === 'chase') return run * (CHASE_SLOW + (CHASE_FAST - CHASE_SLOW) * this.team);
+    if (this.phase === 'chase') return run * WALK * this.walk + this.closing;
     if (this.phase === 'board') return 0;
     if (this.phase === 'relax') return run * RIDE_PACE * smooth(this.pt / 2);
     return run * RIDE_PACE * Math.max(0, 1 - this.pt / 1);
@@ -114,6 +116,8 @@ export class Ride {
 
   step(dt, W = 1920, H = 1080){
     const g = this.g;
+    /* (her word on it once the scene before - the robots waking - is over) */
+    if (!this.met){ this.met = true; this._say('rideMeet'); }
     this.t += dt; this.pt += dt;
     for (const i of g.here) this.march[i] = g.marchOf ? g.marchOf(i, dt) : this.mw[i].step(pose.players[i], dt, pose.mouse.active);
     const was = this.step_;
@@ -123,9 +127,12 @@ export class Ride {
       /* ambling on - till it's waited long enough, then it stops for them */
       const want = this.pt < WAIT ? 1 : 0;
       this.walk += (want - this.walk) * Math.min(1, dt * 1.2);
-      this.d += 0.3 * WALK * this.walk * dt;
+      /* the crew gaining on it as they run - however they run, once it's waiting */
+      this.closing = Math.max(CATCH_UP * this.team, this.pt > WAIT ? WAITING : 0);
+      this.gapV = Math.max(0, this.gapV - this.closing * dt);
+      this.d = g.z + RUN + AHEAD + this.gapV;
       this.step_ += dt * 3.2 * this.walk;
-      if (this.gap <= CATCH){
+      if (this.gapV <= CATCH){
         this.phase = 'board'; this.pt = 0; this.walk = 0;
         this.riders = [...here].sort((a, b) => g.crew[a].x - g.crew[b].x);
         sfx.whoosh();
