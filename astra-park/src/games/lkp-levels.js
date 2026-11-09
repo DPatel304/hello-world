@@ -55,7 +55,7 @@ export const LEVELS = [
     enemies: { wild: 'beast', awake: 'rustbot', wildName: 'wild beasts', awakeName: 'robots' },
     boss: 'scout', bossName: 'Sweeper',
     tips: {
-      crystal: ['See those glowing crystals? They power your suits. Lean to grab them!', 'CRYSTALS!'],
+      crystal: ['See those glowing crystals? Collect them to level up! Lean to grab them!', 'CRYSTALS!'],
       blocker: ['Debris! Lean around it.', 'LEAN!'],
       beam: ['Low branch! Duck!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
@@ -67,7 +67,7 @@ export const LEVELS = [
     },
     lines: {
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
-      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re alive! Okay, on your feet. Follow the path and I\'ll talk you through it.', '']],
+      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay! Now, on your feet. Follow the path and I\'ll talk you through it.', '']],
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */
       walk: [

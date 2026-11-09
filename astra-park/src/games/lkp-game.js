@@ -663,7 +663,7 @@ class LastKnownPosition {
     const xp = n * each;
     if (this.flyers.length >= FLYING){ this.addXp(xp); this.xpPulse = 1; return; }
     const first = this.flown < SHOW; this.flown++;
-    if (this.flown === 1) this.captain?.say('Grab the energy crystals, crew! Your suits run on them.', 'CRYSTALS POWER YOU UP', { once: 'crystal', polite: true });
+    if (this.flown === 1) this.captain?.say('Grab the crystals, crew! Fill up the bar to level up.', 'CRYSTALS LEVEL YOU UP', { once: 'crystal', polite: true });
     this.flyers.push({ x, y, t: 0, dur: first ? FLY_FIRST : FLY, xp, n: Math.min(n, 4), big: first, bend: Math.random() < 0.5 ? -1 : 1 });
   }
   /* Calm enough to stop for level ups - between rooms: a corridor just
