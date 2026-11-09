@@ -6,6 +6,7 @@ import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
 import { audio, music, sfx, ambience } from './audio/sound.js';
+import { voice } from './audio/voice.js';
 import { scores } from './games/common.js';
 import { PLAYER_COLORS, MAX_PLAYERS } from './tracking/pose.js';
 
@@ -42,6 +43,9 @@ function go(next, build){
    picked and fades away on the way back out. */
 function toMenu(arrive = false){
   music.stop();
+  /* and anything still being said - Nova mid-sentence, lines waiting their
+     turn - stops too: the game's over, its voice goes with it */
+  voice.hush();
   if (mode === 'results' || mode === 'play' || mode === 'outro') sfx.back();
   pose.keepSitters = false;
   go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, arrive }));
