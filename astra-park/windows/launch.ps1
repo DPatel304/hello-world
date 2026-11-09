@@ -146,10 +146,14 @@ $page = ([System.Uri]$game).AbsoluteUri
 # camera permission remembered), sound allowed before anyone clicks, and a
 # browser profile of its own: that keeps those flags away from normal
 # browsing, and is what makes them apply when the browser is already open.
+# Full screen for playing; a window, while the game's being worked on and
+# tried out (set $Windowed = $false for full screen again).
+$Windowed = $true
+$screenMode = if ($Windowed) { '--window-size=1280,760 --window-position=60,40' } else { '--start-fullscreen' }
 $arguments = @(
     "--user-data-dir=`"$(Join-Path $here 'browser-profile')`"",
     "--app=`"$page`"",
-    '--start-fullscreen',
+    $screenMode,
     '--autoplay-policy=no-user-gesture-required',
     '--use-fake-ui-for-media-stream',
     '--no-first-run',

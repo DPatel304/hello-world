@@ -24,7 +24,7 @@ test('the batch file and read-me use CRLF line endings', () => {
 
 test('the launcher opens the game the way it is meant to', () => {
   const s = read('launch.ps1').toString();
-  for (const flag of ['--user-data-dir=', '--app=', '--start-fullscreen',
+  for (const flag of ['--user-data-dir=', '--app=', '--start-fullscreen', '--window-size=',
                       '--autoplay-policy=no-user-gesture-required',
                       '--use-fake-ui-for-media-stream', '--no-first-run', '--test-type']){
     assert.ok(s.includes(flag), `missing ${flag}`);

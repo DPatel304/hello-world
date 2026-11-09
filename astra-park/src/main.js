@@ -8,6 +8,7 @@ import { calibration, results, pauseOverlay, lostOverlay,
 import { audio, music, sfx, ambience } from './audio/sound.js';
 import { voice } from './audio/voice.js';
 import { scores } from './games/common.js';
+import { byId } from './games/index.js';
 import { PLAYER_COLORS, MAX_PLAYERS } from './tracking/pose.js';
 
 const stage = document.getElementById('stage');
@@ -293,14 +294,21 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------- boot ---------- */
+/* While a game's being worked on, launching goes straight into it - no
+   boot show, no home screen - so each try starts at its beginning. null
+   for the usual way in (and ?home on the address goes that way anyway). */
+const START_IN = 'last-known-position';
+
 /* The boot show plays while the camera starts; the front door opens when
    both are done. */
 (async function boot(){
   document.title = 'MoveCube';
-  const debug = new URLSearchParams(location.search).has('debug');
+  const params = new URLSearchParams(location.search), debug = params.has('debug');
+  const straight = START_IN && !params.has('home') ? byId(START_IN) : null;
   audio.resume();
   let show = null;
-  go('boot', () => (show = bootShow()));
+  if (straight) show = { done: true };
+  else go('boot', () => (show = bootShow()));
   requestAnimationFrame(tick);
   const started = pose.start(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
@@ -312,6 +320,8 @@ document.addEventListener('visibilitychange', () => {
     const wait = () => { if (show.done && ready) res(); else setTimeout(wait, 50); };
     wait();
   });
-  /* Straight from the intro to the home screen: its tiles fly out of the cube. */
-  toMenu(true);
+  /* Straight into the game being worked on; or from the intro to the home
+     screen, its tiles flying out of the cube. */
+  if (straight) toGame(straight);
+  else toMenu(true);
 })();
