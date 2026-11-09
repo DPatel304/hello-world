@@ -85,6 +85,38 @@ function Update-Game {
 
 try { $result = Update-Game } catch { $result = "update skipped: $($_.Exception.Message)" }
 
+# The launcher keeps itself up to date too, the same way: the newest
+# launch.ps1 from the same branch, with this install's repo and branch put
+# in, used from the next start on. Only ever something that is plainly the
+# launcher, and plain ASCII, replaces it.
+function Update-Launcher {
+    Add-Type -AssemblyName System.Net.Http
+    $client = New-Object System.Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(5)
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('MoveCube-launcher')
+    $client.DefaultRequestHeaders.Accept.ParseAdd('application/vnd.github.raw')
+    $me = $PSCommandPath
+    if (-not $me) { $me = Join-Path $here 'launch.ps1' }
+    # (in two pieces, so only the real placeholders above are ever filled in)
+    $phRepo = "'__" + "REPO__'"; $phBranch = "'__" + "BRANCH__'"
+    try {
+        foreach ($url in @(
+            "https://api.github.com/repos/$Repo/contents/astra-park/windows/launch.ps1?ref=$($Branch)",
+            "https://raw.githubusercontent.com/$Repo/$Branch/astra-park/windows/launch.ps1")) {
+            try { $bytes = $client.GetByteArrayAsync($url).GetAwaiter().GetResult() } catch { continue }
+            if (($bytes | Where-Object { $_ -gt 127 } | Select-Object -First 1) -ne $null) { continue }
+            $text = [Text.Encoding]::ASCII.GetString($bytes)
+            if (-not ($text.Contains('function Update-Game') -and $text.Contains('Start-Process') -and $text.Contains($phRepo))) { continue }
+            $text = $text.Replace($phRepo, "'$Repo'").Replace($phBranch, "'$Branch'")
+            if ((Test-Path -LiteralPath $me) -and ([IO.File]::ReadAllText($me) -eq $text)) { return 'launcher up to date' }
+            [IO.File]::WriteAllText($me, $text, [Text.Encoding]::ASCII)
+            return 'launcher updated'
+        }
+        return 'launcher not checked'
+    } finally { $client.Dispose() }
+}
+try { $result = "$result; $(Update-Launcher)" } catch { $result = "$result; launcher update skipped" }
+
 # The soundtrack: every song in the family's "MoveCube" music folder,
 # listed into playlist.js beside the game, which reads it as it starts.
 # Re-listed on every launch, so adding or removing a song is all it takes.
@@ -121,7 +153,10 @@ $arguments = @(
     '--autoplay-policy=no-user-gesture-required',
     '--use-fake-ui-for-media-stream',
     '--no-first-run',
-    '--no-default-browser-check'
+    '--no-default-browser-check',
+    # (hides the yellow "unsupported command-line flag" bar the camera flag
+    # would otherwise bring up on every start)
+    '--test-type'
 ) -join ' '
 
 Start-Process -FilePath $browser -ArgumentList $arguments

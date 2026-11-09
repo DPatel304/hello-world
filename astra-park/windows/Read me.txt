@@ -50,5 +50,6 @@ folder.
 
 IF YOU SEE A YELLOW BAR
 "You are using an unsupported command-line flag: --use-fake-ui-for-media-stream"
-That flag is what skips the camera question. It only applies to the
-MoveCube window, not your normal browsing. Click the X to close the bar.
+That flag is what skips the camera question, and it only applies to the
+MoveCube window. The launcher now hides the bar; if it ever shows, click
+the X to close it.

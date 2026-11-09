@@ -26,7 +26,7 @@ test('the launcher opens the game the way it is meant to', () => {
   const s = read('launch.ps1').toString();
   for (const flag of ['--user-data-dir=', '--app=', '--start-fullscreen',
                       '--autoplay-policy=no-user-gesture-required',
-                      '--use-fake-ui-for-media-stream', '--no-first-run']){
+                      '--use-fake-ui-for-media-stream', '--no-first-run', '--test-type']){
     assert.ok(s.includes(flag), `missing ${flag}`);
   }
   /* $PROFILE is a PowerShell automatic variable, and names are not case
@@ -61,4 +61,11 @@ test('setup renames Astra Park to MoveCube: new shortcuts, old ones gone, the mu
   assert.ok(s.includes('Move-Item -LiteralPath $oldMusic'), 'the old music folder moved over');
   assert.ok(s.includes("'movecube.ico'"), 'the cube icon');
   assert.ok(s.includes("$env:LOCALAPPDATA 'AstraPark'"), 'the same install folder, so scores and settings carry over');
+});
+
+test('the launcher keeps itself up to date, filling in only its own two placeholders', () => {
+  const s = read('launch.ps1').toString();
+  assert.ok(s.includes('function Update-Launcher') && s.includes('windows/launch.ps1'), 'fetches the newest launcher');
+  assert.equal((s.match(/'__REPO__'/g) || []).length, 1, 'the repo placeholder appears once, where it is filled in');
+  assert.equal((s.match(/'__BRANCH__'/g) || []).length, 1, 'and the branch one');
 });
