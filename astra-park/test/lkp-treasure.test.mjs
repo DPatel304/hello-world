@@ -23,7 +23,7 @@ function treasure(n = 2){
   crew(n);
   const inst = game.create(n);
   inst.step(DT, W, H);
-  inst.things = []; inst.rooms.push('treasure'); inst.step_ = 1; inst._next();
+  inst.things = []; inst.rooms.push('treasure'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   assert.ok(inst.treasure);
   return inst;
 }

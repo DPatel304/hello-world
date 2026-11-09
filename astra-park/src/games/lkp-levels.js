@@ -41,7 +41,12 @@ export const LEVELS = [
         warm: '#ffbe8c', cool: '#1e3278'
       }
     },
-    plan: ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
+    /* The way through: the tutorial run (and the healing pond); a first,
+       easy fight, straight in, to learn fighting; a run with the team
+       jump over a gorge; the engine piece (the robots wake); a run with
+       the zip line; a fork and a room; a run with a bigger gorge; the
+       boss. */
+    plan: ['corridor', 'tutorial', 'corridor', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     /* What happens in each corridor (lkp-game.js _layout): one event
        apiece - the path squeezing narrow then opening wide, a big jump
        over a ravine, a zip line - and the run of obstacles round it,
@@ -62,7 +67,7 @@ export const LEVELS = [
       roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
       narrow: ['The path\'s closing in! Squeeze together!', 'SQUEEZE IN!'],
       wide: ['It opens right up! Spread out and grab them all!', 'SPREAD OUT!'],
-      ravine: ['A ravine! Keep running, you\'ll jump it. Hop right at the edge to fly higher!', 'HOP AT THE EDGE!'],
+      ravine: ['A gorge! Everyone, get ready to JUMP!', 'GET READY TO JUMP!'],
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
     lines: {

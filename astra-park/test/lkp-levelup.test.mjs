@@ -49,7 +49,7 @@ test('XP is energy crystals: a knockout drops some, clearing a fight a pile - ea
   crew(1);
   const inst = game.create(1);
   inst.step(DT, W, H);
-  inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
+  inst.things = []; inst.rooms.push('combat'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   const f = inst.fight; f.len = 999;
   const xp = () => inst.xp + Array.from({ length: inst.lvl - 1 }, (_, k) => needFor(k + 1)).reduce((s, n) => s + n, 0);
   const before = xp();
@@ -71,7 +71,7 @@ test('levelling up mid-fight is fine - but the picking waits till the room is ov
   crew(1);
   const inst = game.create(1);
   inst.step(DT, W, H);
-  inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
+  inst.things = []; inst.rooms.push('combat'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   inst.addXp(needFor(1));
   run(inst, 1);
   assert.equal(inst.levelup, null, 'not in a fight');
@@ -121,7 +121,7 @@ test('DAMAGE hits harder, both weapons; MAX HP adds health; they stack', () => {
   take('maxhp', rn);
   assert.equal(rn.max, MAX_HP + HP_UP);
   inst.step(DT, W, H);
-  inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
+  inst.things = []; inst.rooms.push('combat'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   run(inst, 0.3);
   const b = { x: rn.x, d: FRONT, hp: 999, max: 999, hitT: 0, target: -1, flash: 0, swing: 0, seed: 0 };
   inst.fight.bots = [b]; inst.fight.queue = 0; inst.fight.wave = 1;

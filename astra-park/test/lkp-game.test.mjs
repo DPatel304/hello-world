@@ -137,6 +137,8 @@ const toDoor = (inst, i, d) => hand(0.5 + [-0.36, 0.36][d], 0.5, i);
    kinds says otherwise. */
 function atDoors(doors, kinds = ['combat', 'traps']){
   const inst = quiet(doors.length);
+  /* (to the corridor before the fork) */
+  inst.step_ = inst.level.plan.indexOf('cross') - 2; inst.things = []; inst._next();
   doors.forEach((d, i) => toDoor(inst, i, d));
   inst.seg.t = inst.seg.len;
   run(inst, 0.1);
@@ -176,24 +178,22 @@ test('a tie goes the way the crowned guide is standing', () => {
 test('the guide crown passes on at each crossroads', () => {
   const inst = atDoors([0, 1]);
   const first = inst.guide;
-  do inst._next(); while (inst.phase !== 'cross' && inst.phase !== 'end');
+  inst.step_ = inst.level.plan.indexOf('cross') - 1; inst._next();
   assert.equal(inst.phase, 'cross');
   assert.notEqual(inst.guide, first);
 });
 
-test('each crossroads is two different doors of the elite, traps and ? - never the elite at the first', () => {
-  const first = new Set(), later = new Set();
+test('the fork is two different doors of the elite, traps and ? - the elite allowed, a fight having been taught', () => {
+  const seen = new Set();
   for (let k = 0; k < 40; k++){
-    const inst = quiet(); inst.seg.t = inst.seg.len; run(inst, 0.1);
+    const inst = quiet();
+    inst.step_ = inst.level.plan.indexOf('cross') - 1; inst._next();
     const [a, b] = inst.seg.kinds;
     assert.notEqual(a, b);
     assert.ok(DOOR_KINDS.includes(a) && DOOR_KINDS.includes(b));
-    first.add(a); first.add(b);
-    inst.step_ = inst.level.plan.lastIndexOf('cross') - 1; inst._next();
-    inst.seg.kinds.forEach(d => later.add(d));
+    seen.add(a); seen.add(b);
   }
-  assert.ok(!first.has('elite'), 'not at the first');
-  assert.equal(later.size, 3);
+  assert.equal(seen.size, 3);
 });
 
 test('the ? door is monsters, traps or treasure - treasure most often', () => {
@@ -205,7 +205,7 @@ test('the ? door is monsters, traps or treasure - treasure most often', () => {
   assert.ok(['combat', 'traps', 'treasure'].includes(a.rooms[0]));
 });
 
-test('level 1 runs as its plan says - corridors, crossroads, rooms, the depot, the boss - and ends', () => {
+test('level 1 runs as its plan says - the tutorial run, the tutorial fight, the depot, a fork, the boss - and ends', () => {
   const inst = quiet();
   /* Too tough to fall asleep: just going through. */
   for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
@@ -215,7 +215,7 @@ test('level 1 runs as its plan says - corridors, crossroads, rooms, the depot, t
     if (inst.phase === 'corridor') inst.seg.t = inst.seg.len;
     run(inst, 0.5);
   }
-  assert.deepEqual(seen, ['corridor', 'cross', 'room', 'depot', 'corridor', 'cross', 'room', 'corridor', 'cross', 'room', 'corridor', 'boss']);
+  assert.deepEqual(seen, ['corridor', 'room', 'corridor', 'depot', 'corridor', 'cross', 'room', 'corridor', 'boss']);
   assert.ok(inst.over);
 });
 

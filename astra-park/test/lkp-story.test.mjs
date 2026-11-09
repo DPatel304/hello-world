@@ -121,12 +121,14 @@ test('the captain gives each tip once, as it comes', () => {
   const said = [];
   const say = inst.captain.say.bind(inst.captain);
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
-  for (let k = 0; k < 70 / DT && inst.phase === 'corridor'; k++) inst.step(DT, W, H);
+  for (let k = 0; k < 120 / DT && inst.phase === 'corridor'; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   for (const w of ['CRYSTALS!', 'LEAN!', 'DUCK!', 'SQUEEZE IN!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
   assert.ok(said.indexOf('LEAN!') < said.indexOf('DUCK!') && said.indexOf('DUCK!') < said.indexOf('SQUEEZE IN!') && said.indexOf('SQUEEZE IN!') < said.indexOf('SPREAD OUT!'));
-  /* And at the doors. */
-  for (let k = 0; k < 8 / DT && inst.phase === 'cross'; k++) inst.step(DT, W, H);
-  assert.ok(said.includes('PICK A PATH'));
+  /* And then the tutorial fight, straight in: its first lesson. */
+  assert.equal(inst.phase, 'room');
+  assert.ok(inst.fight && inst.fight.tutorial);
+  for (let k = 0; k < 3 / DT; k++) inst.step(DT, W, H);
+  assert.ok(said.includes('STAND TOGETHER'));
 });
 
 test('her window comes up while she talks and goes again', () => {

@@ -19,7 +19,7 @@ import { CARDS, MAX_LEVEL, draw, level, take, MELEE } from './lkp-weapons.js';
 
 /* The XP from one level to the next: FIRST to level 2, then STEP more
    each level after - often at first, and steadily less often. */
-export const FIRST = 75, STEP = 45;
+export const FIRST = 55, STEP = 32;
 export const PICK_TIME = 30;
 
 /* The XP needed to go from level lvl to the next. */

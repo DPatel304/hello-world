@@ -35,7 +35,7 @@ function room(n = 1){
   const inst = game.create(n);
   inst.step(DT, W, H);
   inst.things = [];
-  inst.step_ = 1; inst.rooms.push('traps'); inst._next();
+  inst.step_ = inst.level.plan.indexOf('room') - 1; inst.rooms.push('traps'); inst._next();
   assert.ok(inst.trap);
   inst.trap.len = TRAP_MAX;
   return inst;

@@ -11,7 +11,7 @@ import { RUN } from './lkp-art.js';
 /* Each move, and the word under him. */
 export const MOVES = {
   clap: 'CLAP!', handsup: 'HANDS UP!', hop: 'HOP!', duck: 'DUCK!', lean: 'LEAN!', hug: 'HUG!',
-  run: 'RUN ON THE SPOT!', freeze: 'FREEZE!', reach: 'REACH!', wiggle: 'WIGGLE!', ear: 'HAND TO EAR', pick: 'LEAN, THEN WAVE'
+  roll: 'ROLL YOUR ARMS!', run: 'RUN ON THE SPOT!', freeze: 'FREEZE!', reach: 'REACH!', wiggle: 'WIGGLE!', ear: 'HAND TO EAR', pick: 'LEAN, THEN WAVE'
 };
 
 /* What should the crew be doing, right now? The most urgent first. */
@@ -29,6 +29,8 @@ export function guideMove(g){
   const crew = g.here.map(i => g.crew[i]);
   /* someone to wake or to pop out of a bubble */
   if (g.fight && !g.fight.done && crew.some(rn => rn.down)) return 'clap';
+  /* the tutorial fight: the move of the lesson */
+  if (g.fight && g.fight.tutorial && !g.fight.done){ const m = [null, 'hop', 'roll'][Math.min(2, g.fight.wave)]; if (m) return m; }
   const zip = g.zip;
   if (crew.some(rn => rn.bubble) && !(zip && zip.riding)) return 'clap';
   if (zip){
@@ -39,7 +41,7 @@ export function guideMove(g){
   if (g.rest) return 'hug';
   if (g.trap && !g.trap.done) return g.trap.light === 'green' ? 'run' : 'freeze';
   if (g.treasure && !g.treasure.done) return g.treasure.pool > 0 ? 'hug' : 'reach';
-  if (g.leap) return 'lean';
+  if (g.leap) return g.leap.phase === 'ready' ? 'hop' : null;
   const seg = g.seg;
   if (seg.kind === 'cross' && seg.choice == null) return 'lean';
   if (seg.kind === 'corridor'){
@@ -98,6 +100,12 @@ export function figure(c, x, y, s, move, t){
       legs = [[[-0.07, 0.2 - 0.16 * Math.max(0, a)], [-0.09, 0.45 - 0.22 * Math.max(0, a)]], [[0.07, 0.2 - 0.16 * Math.max(0, -a)], [0.09, 0.45 - 0.22 * Math.max(0, -a)]]];
       arms = [[[-0.15, -0.22], [-0.13 + 0.06 * a, -0.08 - 0.14 * a]], [[0.15, -0.22], [0.13 + 0.06 * a, -0.08 + 0.14 * a]]];
       lift = 0.03 * Math.abs(a);
+      break;
+    }
+    case 'roll': {
+      /* arms rolling round each other, in front - the wheels on the bus */
+      const a = t * 9;
+      arms = [[[-0.16, -0.3], [-0.04 + Math.cos(a) * 0.1, -0.3 + Math.sin(a) * 0.1]], [[0.16, -0.3], [0.04 + Math.cos(a + Math.PI) * 0.1, -0.3 + Math.sin(a + Math.PI) * 0.1]]];
       break;
     }
     case 'freeze': arms = [[[-0.2, -0.3], [-0.32, -0.24]], [[0.2, -0.3], [0.32, -0.24]]]; break;

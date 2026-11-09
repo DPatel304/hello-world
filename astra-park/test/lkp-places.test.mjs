@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import game, { story, ROLLER, NARROW, WIDE, LEAP_H, LEAP_BIG, SPEED } from '../src/games/lkp-game.js';
+import game, { story, ROLLER, NARROW, WIDE, SPEED } from '../src/games/lkp-game.js';
+import { READY, HERO, LAND as LEAP_LAND, FALL as LEAP_FALL, ALL_BONUS } from '../src/games/lkp-leap.js';
 import { PAL, RUN } from '../src/games/lkp-art.js';
 import { PATH_HALF } from '../src/games/lkp-world.js';
 import { COUNT, LATE, HOLD, RIDE, LAND, FALL } from '../src/games/lkp-zip.js';
@@ -50,27 +51,43 @@ test('the path squeezes everyone together, then opens out and spreads them wide'
   inst.draw(fake(), W, H);
 });
 
-test('at the ravine everyone leaps it - higher for a hop at the edge, high enough for the gold', () => {
-  story.on = false; crew(2);
-  const inst = game.create(2); quiet(inst);
+/* Up to the gorge, three of them, slowing into the jump. */
+function toGorge(n = 3){
+  story.on = false; crew(n);
+  const inst = game.create(n); quiet(inst);
   corridor(inst, 1);
-  const rv = upTo(inst, 'ravine', SPEED * 0.5);
-  /* player 0 hops at the edge */
-  let hopped = false;
-  inst.jumps = { step: () => (!hopped ? (hopped = true, [0]) : []) };
-  inst.step(DT, W, H); inst.jumps = { step: () => [] };
-  assert.ok(rv.bonus.has(0) && !rv.bonus.has(1));
-  let peak = [0, 0], crystals = inst.crystals;
-  for (let k = 0; k < 300 && (!inst.leap || inst.leapU < 1) ; k++){
-    inst.step(DT, W, H);
-    peak = peak.map((m, i) => Math.max(m, inst.crew[i].air));
-    if (k % 15 === 0) inst.draw(fake(), W, H);
-  }
-  assert.ok(peak[1] > LEAP_H * 0.9 && peak[1] < LEAP_BIG * 0.7, 'over it');
-  assert.ok(peak[0] > LEAP_BIG * 0.9, 'higher');
-  for (let k = 0; k < 30; k++) inst.step(DT, W, H);
+  for (let k = 0; k < 4000 && !inst.leap; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  return inst;
+}
+const hopNow = (inst, who) => { let done = false; inst.jumps = { step: () => (done ? [] : (done = true, who)) }; inst.step(DT, W, H); inst.jumps = { step: () => [] }; };
+
+test('the gorge: slow motion, JUMP! - one jumping is enough for the whole team to fly across', () => {
+  const inst = toGorge(3);
+  assert.equal(inst.leap.phase, 'ready');
+  for (let k = 0; k < 15; k++) inst.step(DT, W, H);
+  assert.ok(inst.speed < SPEED * 0.15, 'slow motion');
+  inst.draw(fake(), W, H);
+  hopNow(inst, [1]);
+  assert.deepEqual(inst.leap.jumped, [1]);
+  for (let k = 0; k < READY / DT && inst.leap.phase === 'ready'; k++) inst.step(DT, W, H);
+  assert.equal(inst.leap.phase, 'hero');
+  inst.draw(fake(), W, H);
+  const th = inst.leap.th;
+  for (let k = 0; k < (HERO + LEAP_LAND + 0.5) / DT && inst.leap; k++){ inst.step(DT, W, H); if (k % 20 === 0) inst.draw(fake(), W, H); }
   assert.equal(inst.leap, null, 'landed');
-  assert.ok(inst.crew.slice(0, 2).every(rn => rn.air === 0));
+  assert.ok(inst.z + RUN > th.d + th.len, 'on the far side');
+  assert.ok(!inst.over);
+});
+
+test('the gorge: everyone jumping is a bonus; nobody jumping, they run off the edge - the run is over', () => {
+  const a = toGorge(2), got = a.crystals;
+  hopNow(a, [0, 1]);
+  for (let k = 0; k < 30; k++) a.step(DT, W, H);
+  assert.equal(a.leap.phase, 'hero', 'no waiting once everyone has');
+  assert.ok(a.crystals + a.flyers.reduce((s, f) => s + f.n, 0) > got || a.xp > 0, 'the bonus');
+  const b = toGorge(2);
+  for (let k = 0; k < (READY + LEAP_FALL + 0.5) / DT && !b.over; k++) b.step(DT, W, H);
+  assert.ok(b.over && b.lost);
 });
 
 const up = (i, on = true) => { pose.players[i].hands.right = { x: 0.5, y: on ? 0.1 : 0.5, vx: 0, vy: 0, speed: 0 }; };
@@ -145,13 +162,15 @@ test('miss the zip line and you float along in a bubble, getting nothing - till 
   crew(2);
 });
 
-test('a bubble nobody pops pops by itself at the fork', () => {
+test('a bubble nobody pops pops by itself when the run stops - at the next fork or room', () => {
   story.on = false; crew(2);
   const inst = game.create(2); quiet(inst);
   corridor(inst, 1);
   inst.crew[1].bubble = { t: 0, claps: 0 };
+  /* (someone jumps the gorge on the way) */
+  inst.jumps = { step: () => (inst.leap && inst.leap.phase === 'ready' ? [0] : []) };
   for (let k = 0; k < 6000 && inst.seg.kind === 'corridor'; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
-  assert.equal(inst.seg.kind, 'cross');
+  assert.notEqual(inst.seg.kind, 'corridor');
   assert.equal(inst.crew[1].bubble, null);
 });
 

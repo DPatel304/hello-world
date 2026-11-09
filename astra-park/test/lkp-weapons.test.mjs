@@ -16,7 +16,7 @@ function fight(n = 1){
   });
   const inst = game.create(n);
   inst.step(DT, W, H);
-  inst.things = []; inst.rooms.push('combat'); inst.step_ = 1; inst._next();
+  inst.things = []; inst.rooms.push('combat'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);
   return inst;
 }

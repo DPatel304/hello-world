@@ -123,8 +123,12 @@ export function enhance(data, w, h){
 
 /* The pictures, one per player, shared by every game for the session. */
 const snaps = Array(MAX_PLAYERS).fill(null);
+/* And a picture of a moment - each player's face as they jumped, say -
+   taken when a game asks (photo), shown in its place (drawMoment). Memory
+   only, like the rest. */
+const moments = Array(MAX_PLAYERS).fill(null);
 const gone = Array(MAX_PLAYERS).fill(0), steady = Array(MAX_PLAYERS).fill(0), looked = Array(MAX_PLAYERS).fill(0);
-export function forgetFaces(){ snaps.fill(null); gone.fill(0); steady.fill(0); looked.fill(0); }
+export function forgetFaces(){ snaps.fill(null); moments.fill(null); gone.fill(0); steady.fill(0); looked.fill(0); }
 const makeCanvas = (n) => typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n)
   : typeof document !== 'undefined' ? Object.assign(document.createElement('canvas'), { width: n, height: n }) : null;
 
@@ -145,7 +149,7 @@ export class FaceCam {
       const p = pose.players[i];
       /* Gone a while: forget them, so the next to play here is snapped anew. */
       gone[i] = p.present ? 0 : gone[i] + dt;
-      if (gone[i] > FORGET){ snaps[i] = null; this.boxes[i] = null; looked[i] = 0; }
+      if (gone[i] > FORGET){ snaps[i] = null; moments[i] = null; this.boxes[i] = null; looked[i] = 0; }
       if (snaps[i]) snaps[i].age += dt;
       const box = this.live && p.present ? faceBox(p.lm, v.videoWidth, v.videoHeight) : null;
       if (!box){ this.seen[i] = Math.max(0, this.seen[i] - dt * 2); steady[i] = 0; continue; }
@@ -164,6 +168,35 @@ export class FaceCam {
       /* Still nothing after a while: the first roughly facing the TV will do. */
       else if (!snaps[i] && looked[i] >= LATE && box.turn < ROUGHLY && box.size >= BIG) this._snap(i, v, { ...box }, true);
     }
+  }
+
+  /* A picture of this moment of player i, kept apart from their own -
+     for a game to show (drawMoment). False if they can't be seen. */
+  photo(i){
+    const v = this.video, b = this.boxes[i];
+    if (!this.live || !b || !pose.players[i].present) return false;
+    const cv = this._grab(v, b);
+    if (!cv) return false;
+    moments[i] = { canvas: cv, age: FLASH, rough: false };
+    return true;
+  }
+  hasMoment(i){ return !!moments[i]; }
+
+  /* Player i's face from the video, cleaned up, as a picture. */
+  _grab(v, b){
+    const cv = makeCanvas(SNAP);
+    if (!cv) return null;
+    try {
+      const g = cv.getContext('2d');
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(v, b.x - b.size / 2, b.y - b.size / 2, b.size, b.size, 0, 0, SNAP, SNAP);
+      if (g.getImageData){
+        const img = g.getImageData(0, 0, SNAP, SNAP);
+        enhance(img.data, SNAP, SNAP);
+        g.putImageData(img, 0, 0);
+      }
+    } catch (e){ return null; }
+    return cv;
   }
 
   /* Take player i's picture from the video. */
@@ -191,8 +224,11 @@ export class FaceCam {
   /* Paint player i's picture at (x, y): cut to a circle of radius r,
      mirrored like a mirror, outlined thickly in col, with a white flash
      just after it's taken. */
-  draw(c, i, x, y, r, col = '#ffffff'){
-    const sn = snaps[i];
+  draw(c, i, x, y, r, col = '#ffffff'){ return this._paint(c, snaps[i], x, y, r, col); }
+  /* The same, with the picture of the moment if there is one (else their
+     own). */
+  drawMoment(c, i, x, y, r, col = '#ffffff'){ return this._paint(c, moments[i] || snaps[i], x, y, r, col); }
+  _paint(c, sn, x, y, r, col){
     if (!sn) return false;
     const rim = r * RIM, rc = r - rim / 2;
     c.save();

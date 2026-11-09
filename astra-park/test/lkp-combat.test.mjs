@@ -27,7 +27,7 @@ function fight(n = 1){
   const inst = game.create(n);
   run(inst, 0.2);
   inst.things = [];
-  inst.step_ = 1; inst.rooms.push('combat'); inst._next();
+  inst.step_ = inst.level.plan.indexOf('room') - 1; inst.rooms.push('combat'); inst._next();
   assert.equal(inst.phase, 'room');
   assert.ok(inst.fight);
   inst.fight.len = FIGHT_MAX;   /* the full length, whatever we're playtesting */
@@ -68,7 +68,7 @@ test('while playtesting, a fight is over in PLAYTEST seconds, whatever is left',
   crew(2);
   const inst = game.create(2);
   run(inst, 0.2);
-  inst.step_ = 1; inst.rooms.push('combat'); inst._next();
+  inst.step_ = inst.level.plan.indexOf('room') - 1; inst.rooms.push('combat'); inst._next();
   for (const rn of inst.crew){ rn.max = rn.hp = 1e6; }
   let t = 0;
   while (inst.fight && t < FIGHT_MAX + 5){ inst.step(DT, W, H); t += DT; }
@@ -248,7 +248,7 @@ test('behind the skull, always the elite: one big one and its escorts - beaten, 
   const inst = game.create(2);
   run(inst, 0.2);
   inst.things = [];
-  inst.step_ = 1; inst.rooms.push('elite'); inst._next();
+  inst.step_ = inst.level.plan.indexOf('room') - 1; inst.rooms.push('elite'); inst._next();
   const f = inst.fight;
   assert.ok(f && f.elite);
   const big = f.bots.filter(b => b.big);

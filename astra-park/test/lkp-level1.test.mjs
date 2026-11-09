@@ -47,7 +47,7 @@ test('level 1 is the Verdant Crash Site, in its forest colours', () => {
 test('before the depot the fights are wild beasts; after it, robots', () => {
   crew(1);
   const inst = game.create(1);
-  inst.rooms.push('combat'); inst.step_ = 1; inst._next();
+  inst.rooms.push('combat'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   assert.ok(inst.fight.bots.every(b => b.kind === 'beast'));
   const later = at('depot');
   for (let k = 0; k < (AUTO + SURGE + 3) / DT && later.phase === 'depot'; k++) later.step(DT, W, H);

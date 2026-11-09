@@ -92,16 +92,20 @@ export const waveSize = (n, w, waves = WAVE) => Math.max(1, n) * waves[w];
    BIG_HP times a robot's, hitting BIG_HIT times as hard, BIG_EVERY
    seconds apart, BIG_SIZE times as big) leading its escorts (ELITE_WAVE,
    per player), and a pile of ELITE_CRYSTALS for beating it. */
+/* The tutorial fight: three tiny waves (per player), the beasts this
+   much less tough and this much less hurtful - super easy, one lesson a
+   wave (lkp-game.js). */
+export const TUTORIAL_WAVE = [1, 1, 2], TUTORIAL_HP = 0.45, TUTORIAL_HIT = 0.3;
 export const ELITE_WAVE = [2, 3], BIG_HP = 10, BIG_HIT = 2.5, BIG_EVERY = 2, BIG_SIZE = 1.8, ELITE_CRYSTALS = 35;
 
 export class Fight {
-  constructor(game, len = FIGHT_MAX, { waves = true, elite = false } = {}){
-    this.g = game; this.len = len; this.waves = waves; this.elite = elite;
-    this.waveList = elite ? ELITE_WAVE : WAVE;
+  constructor(game, len = FIGHT_MAX, { waves = true, elite = false, tutorial = false } = {}){
+    this.g = game; this.len = len; this.waves = waves; this.elite = elite; this.tutorial = tutorial;
+    this.waveList = elite ? ELITE_WAVE : tutorial ? TUTORIAL_WAVE : WAVE;
     this.t = 0; this.wave = -1; this.bots = []; this.queue = 0; this.streamT = 0;
     this.done = false; this.lost = false; this.clearT = 0; this.allAsleep = 0; this.banner = 0;
     /* Tougher the more there are: a full crew of four meets the full BOT_HP. */
-    this.toughness = Math.max(0.5, Math.max(1, game.here.length) / 4);
+    this.toughness = Math.max(0.5, Math.max(1, game.here.length) / 4) * (tutorial ? TUTORIAL_HP : 1);
     /* A boss, alone against the crew, is as tough as the crew is strong
        together: n players, each hitting harder for the others close by
        (crewPower) - a full crew of four meeting its full health. */
@@ -219,7 +223,7 @@ export class Fight {
     this._nibble(near, W, H, b);
   }
 
-  _nibble(i, W, H, b){ this.hurt(i, Math.round(BOT_HIT * this.heat * this.fury * (b && b.big ? BIG_HIT : 1)), W, H); }
+  _nibble(i, W, H, b){ this.hurt(i, Math.max(1, Math.round(BOT_HIT * this.heat * this.fury * (b && b.big ? BIG_HIT : 1) * (this.tutorial ? TUTORIAL_HIT : 1))), W, H); }
 
   /* Damage to a crew member: a nibble's a little flash; a big hit (over
      BIG) a jolt and a number. Out of health, asleep. */
