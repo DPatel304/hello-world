@@ -27,14 +27,11 @@ test('the opening: waking up in the helmet, sitting in the grass - hopshells jus
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['crash', 'title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'move', 'rise', 'pull', 'go']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'move', 'rise', 'pull', 'go']);
   const z = inst.z;
-  /* coming down in the ship, then the title card - a film starting */
-  assert.equal(intro.stage, 'crash');
-  inst.draw(fake(), W, H);
-  run(inst, CRASH_SHOT / 2); inst.draw(fake(), W, H);
-  run(inst, CRASH_SHOT / 2 + 0.05);
+  /* the title card first - a film starting (the crash, before it, is out for now) */
   assert.equal(intro.stage, 'title');
+  inst.draw(fake(), W, H);
   run(inst, TITLE_CARD + 0.05);
   assert.equal(intro.stage, 'dark');
   run(inst, DARK + 0.1);

@@ -41,7 +41,8 @@ import { skyJellies } from './lkp-critters.js';
 import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 
 export const INTRO_BEATS = [
-  { id: 'crash', time: CRASH, shot: 'inside the helmet: the visor display - WARNING, the height falling, BRACE - over a blurred, burning, rolling view; a white flash, black', blocking: 'the alarm, the rumble, a thump' },
+  /* (the crash, inside the helmet - lkp-cockpit.js - is left out for now, being reworked; the opening starts at the title:
+  { id: 'crash', time: CRASH, shot: 'inside the helmet: the visor display - WARNING, the height falling, BRACE - over a blurred, burning, rolling view; a white flash, black', blocking: 'the alarm, the rumble, a thump' }, ) */
   { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', time: 4, shot: 'through the helmet, sitting in the grass: the eyes coming open, the blur clearing', blocking: 'nothing asked' },
@@ -57,7 +58,7 @@ export const INTRO_BEATS = [
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, WAKE = BEAT.wake.time, WATCH = BEAT.watch.time, NOTICE = BEAT.notice.time, RISE = BEAT.rise.time, PULL_TIME = BEAT.pull.time, GO = BEAT.go.time;
 export const MOVE_MAX = BEAT.move.max, RING_MAX = BEAT.call.max;
-export const TITLE_CARD = BEAT.title.time, CRASH_SHOT = BEAT.crash.time;
+export const TITLE_CARD = BEAT.title.time, CRASH_SHOT = BEAT.crash ? BEAT.crash.time : 0;
 /* The call rings at least RING_FIRST before an answer counts.
    After she's spoken, a pause of SAID before you're up. */
 export const RING_FIRST = 2, SAID = 1.4;
