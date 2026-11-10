@@ -149,19 +149,25 @@ $page = ([System.Uri]$game).AbsoluteUri
 # Full screen for playing; a window, while the game's being worked on and
 # tried out (set $Windowed = $false for full screen again).
 $Windowed = $true
-# The window: about 80% of the screen's free area (inside the taskbar), the
-# game's own 16:9, in the middle - so it fits a small laptop screen as well
-# as a big one. (Measured in the same scaled units the browser uses; if the
-# screen can't be measured, a modest 1024 x 576.)
-$winW = 1024; $winH = 576; $winX = 40; $winY = 30
+# The window: small - about 55% of the screen's width (inside the taskbar),
+# the game's own 16:9, in the middle. Measured in the browser's own scaled
+# units: a screen with Windows' display scaling turned up (125%, 150%...)
+# can report its size in real pixels, which would make the window far too
+# big - so the size is divided by that scaling. (If the screen can't be
+# measured, a modest 960 x 540.)
+$winW = 960; $winH = 540; $winX = 40; $winY = 30
 try {
     Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
     $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    $winW = [int]($area.Width * 0.8)
+    $scale = 1.0
+    try { $g = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $scale = [Math]::Max(1.0, $g.DpiX / 96.0); $g.Dispose() } catch { }
+    $aw = $area.Width / $scale; $ah = $area.Height / $scale; $ax = $area.X / $scale; $ay = $area.Y / $scale
+    $winW = [int]($aw * 0.55)
     $winH = [int]($winW * 9 / 16)
-    if ($winH -gt $area.Height * 0.85) { $winH = [int]($area.Height * 0.85); $winW = [int]($winH * 16 / 9) }
-    $winX = $area.X + [int](($area.Width - $winW) / 2)
-    $winY = $area.Y + [int](($area.Height - $winH) / 2)
+    if ($winH -gt $ah * 0.6) { $winH = [int]($ah * 0.6); $winW = [int]($winH * 16 / 9) }
+    $winX = [int]($ax + ($aw - $winW) / 2)
+    $winY = [int]($ay + ($ah - $winH) / 2)
 } catch { }
 $screenMode = if ($Windowed) { "--window-size=$winW,$winH --window-position=$winX,$winY" } else { '--start-fullscreen' }
 $arguments = @(
