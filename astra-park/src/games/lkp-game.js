@@ -19,7 +19,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { worldLake, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
+import { worldLake, worldLakeAhead, wading, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -1135,7 +1135,7 @@ class LastKnownPosition {
     }
     /* the crash site's pond: part of the floor too */
     for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
-    for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel - LAKE / 2 < 1 && rel + LAKE / 2 > -0.15) worldLake(c, W, H, rel, this.t, PAL.world); }
+    for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel - LAKE / 2 < 1 && rel + LAKE / 2 > -0.15) worldLake(c, W, H, rel, this.t, PAL.world); else if (rel - LAKE / 2 >= 1) worldLakeAhead(c, W, H, rel - LAKE / 2, this.t); }
     if (dropY){ c.restore(); SKY.above = 0; }
     if (this.zip) this.zip.drawCable(c, W, H);
     const items = [];
@@ -1170,7 +1170,12 @@ class LastKnownPosition {
     if (this.zip) this.zip.marks(c, W, H);
     if (this.ride) this.ride.marks(c, W, H);
     if (this.leap) this.leap.marks(c, W, H);
-    if (this.rest){ const th = this.rest.th; pondBeauty(c, W, H, th.lane, th.d - this.z, this.t, PAL.world, th.r * 0.6, Math.min(1, this.rest.t / 1.5)); }
+    if (this.rest){
+      const th = this.rest.th, k = Math.min(1, this.rest.t / 1.5);
+      pondBeauty(c, W, H, th.lane, th.d - this.z, this.t, PAL.world, th.r * 0.6, k);
+      /* each of them wading: rings round their feet, motes rising off them */
+      for (const i of this.here){ const p = P(this.crew[i].x, RUN, W, H); wading(c, p.x, p.y, H * CREW_SIZE, this.t + i * 0.4, k); }
+    }
     /* At the fork, still choosing: over each one's head an arrow, in their
        colour, pointing the way they're going. */
     if (seg.kind === 'cross' && seg.choice == null && seg.wall - this.z <= DOOR_STOP + 0.02) for (const i of this.here){

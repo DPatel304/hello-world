@@ -104,6 +104,24 @@ export function worldPond(c, W, H, lane, rel, t, L, r = 0.6){
     const q = at((hash(k + 1520) - 0.5) * r * 1.2, (0.35 - k * 0.18) * r * 0.26), w = rx * 0.35 * (0.5 + hash(k + 1521) * 0.6);
     c.fillStyle = `rgba(255,255,255,${0.14 + 0.08 * Math.sin(t * 0.8 + k)})`; c.beginPath(); c.ellipse(q.x + Math.sin(t * 0.3 + k) * w * 0.1, q.y, w, Math.max(1, w * 0.035), 0, 0, 6.2832); c.fill();
   }
+  /* the far shore's trees, upside down in the still water, faint */
+  for (let k = 0; k < 22; k++){
+    const ln = (hash(k + 1580) - 0.5) * 2 * SPAN, q = P(ln, farAt(ln), W, H), h = H * (0.07 + hash(k + 1581) * 0.06) * q.k;
+    if (q.x < -60 || q.x > W + 60 || Math.abs(ln) < 1.2) continue;
+    c.fillStyle = 'rgba(20,70,80,.22)'; c.beginPath(); c.moveTo(q.x - h * 0.3, q.y); c.lineTo(q.x + h * 0.3, q.y); c.lineTo(q.x, q.y + h); c.closePath(); c.fill();
+  }
+  /* sparkles: points of light winking on and off across it */
+  for (let k = 0; k < 26; k++){
+    const tw = Math.sin(t * (1.5 + hash(k + 1590) * 2) + k * 2.3); if (tw < 0.55) continue;
+    const q = P((hash(k + 1591) - 0.5) * 9, n0 + len * (0.1 + 0.8 * hash(k + 1592)), W, H), r = H * 0.022 * q.k * (tw - 0.55) * 2.2;
+    c.fillStyle = 'rgba(255,255,255,.9)'; c.beginPath(); c.moveTo(q.x, q.y - r); c.lineTo(q.x + r * 0.22, q.y); c.lineTo(q.x, q.y + r); c.lineTo(q.x - r * 0.22, q.y); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(q.x - r * 1.3, q.y); c.lineTo(q.x, q.y + r * 0.18); c.lineTo(q.x + r * 1.3, q.y); c.lineTo(q.x, q.y - r * 0.18); c.closePath(); c.fill();
+  }
+  /* bubbles, rising and popping: it's alive */
+  for (let k = 0; k < 18; k++){
+    const u = (t * (0.3 + hash(k + 1595) * 0.3) + hash(k + 1596)) % 1, q = P((hash(k + 1597) - 0.5) * 8, n0 + len * (0.15 + 0.7 * hash(k + 1598)), W, H), r = H * 0.006 * q.k * (0.6 + u);
+    c.strokeStyle = `rgba(220,255,250,${0.7 * (1 - u)})`; c.lineWidth = Math.max(1, r * 0.3); c.beginPath(); c.arc(q.x, q.y - u * H * 0.012 * q.k, r, 0, 6.2832); c.stroke();
+  }
   /* slow rings */
   c.strokeStyle = 'rgba(255,255,255,.22)';
   for (let k = 0; k < 2; k++){
@@ -166,7 +184,8 @@ export function pondBeauty(c, W, H, lane, rel, t, L, r = 0.6, k = 1){
    pads, the sky in the water, and a soft healing light. */
 export const LAKE = 0.3;
 const SPAN = 9;          /* lanes either side: always past the screen's edges */
-const shore = (lane, side) => 0.035 * Math.sin(lane * 1.3 + side * 2.1) + 0.02 * Math.sin(lane * 2.9 + side) + 0.012 * Math.sin(lane * 6.1 + side * 3);
+/* (wandering, with rounded bays and points: a pond's edge, not a river's) */
+const shore = (lane, side) => 0.055 * Math.sin(lane * 0.55 + side * 1.7) + 0.035 * Math.sin(lane * 1.3 + side * 2.1) + 0.02 * Math.sin(lane * 2.9 + side) + 0.01 * Math.sin(lane * 6.1 + side * 3);
 export function worldLake(c, W, H, rel, t, L, len = LAKE){
   const n0 = rel - len / 2, n1 = rel + len / 2;
   if (n1 < -0.15 || n0 > 1.05) return;
@@ -181,8 +200,9 @@ export function worldLake(c, W, H, rel, t, L, len = LAKE){
   };
   const far = P(0, farAt(0), W, H), near = P(0, nearAt(0), W, H);
   /* the damp bank, then the water: the sky in it at the far side, deeper near */
-  c.fillStyle = mix(L.ground[2], '#3b3326', 0.4); band(0.03); c.fill();
-  c.fillStyle = mix(L.ground[2], '#2f2a20', 0.55); band(0.012); c.fill();
+  /* (a soft, pale margin - wet sand and moss - not a hard dark edge) */
+  c.fillStyle = mix(L.ground[0], '#cfe8d0', 0.35); band(0.022); c.fill();
+  c.fillStyle = mix(L.water, '#bfeee8', 0.55); band(0.008); c.fill();
   const g = c.createLinearGradient(0, far.y, 0, Math.max(far.y + 1, Math.min(near.y, H)));
   g.addColorStop(0, mix(L.sky[2], L.water, 0.4)); g.addColorStop(0.35, mix(L.water, '#1f7489', 0.45)); g.addColorStop(1, '#174f63');
   c.fillStyle = g; band(0); c.fill();
@@ -208,13 +228,23 @@ export function worldLake(c, W, H, rel, t, L, len = LAKE){
     lanes.forEach((ln, k) => { const q = P(ln, at(ln), W, H); k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
     c.stroke();
   }
+  /* smooth stones along both shores, clear of the path */
+  for (let k = 0; k < 40; k++){
+    const ln = (hash(k + 1570) - 0.5) * 2 * SPAN; if (Math.abs(ln) < 1.35) continue;
+    const side = k % 2, q = P(ln, side ? farAt(ln, 0.012) : nearAt(ln, 0.014), W, H);
+    if (q.x < -40 || q.x > W + 40) continue;
+    const rr = H * (0.014 + hash(k + 1571) * 0.018) * q.k;
+    c.fillStyle = 'rgba(20,30,40,.25)'; c.beginPath(); c.ellipse(q.x + rr * 0.2, q.y + rr * 0.3, rr * 1.3, rr * 0.4, 0, 0, 6.2832); c.fill();
+    c.fillStyle = mix(L.rock[1], L.rock[0], 0.4); c.beginPath(); c.ellipse(q.x, q.y, rr * 1.3, rr * 0.75, 0, 0, 6.2832); c.fill();
+    c.fillStyle = rgba(L.rock[0], 0.8); c.beginPath(); c.ellipse(q.x - rr * 0.3, q.y - rr * 0.3, rr * 0.6, rr * 0.28, -0.2, 0, 6.2832); c.fill();
+  }
   /* lily pads, here and there, clear of the path */
   for (let k = 0; k < 16; k++){
     const ln = (hash(k + 1550) - 0.5) * 12; if (Math.abs(ln) < 1.4) continue;
     const q = P(ln, n0 + len * (0.2 + 0.6 * hash(k + 1551)), W, H), rr = H * 0.02 * q.k;
     c.fillStyle = '#3f9a55'; c.beginPath(); c.ellipse(q.x, q.y, rr * 1.6, rr * 0.55, 0, 0.35, 6.2832 - 0.35); c.lineTo(q.x, q.y); c.closePath(); c.fill();
     c.fillStyle = '#5cb96c'; c.beginPath(); c.ellipse(q.x - rr * 0.3, q.y - rr * 0.1, rr * 0.7, rr * 0.22, 0, 0, 6.2832); c.fill();
-    if (k % 3 === 0){ c.fillStyle = '#ffb6d9'; for (let j = 0; j < 5; j++){ const b = j / 5 * 6.2832; circ(c, q.x + Math.cos(b) * rr * 0.3, q.y - rr * 0.35 + Math.sin(b) * rr * 0.12, rr * 0.22); } c.fillStyle = '#ffe28a'; circ(c, q.x, q.y - rr * 0.35, rr * 0.14); }
+    if (k % 3 === 0){ glow(c, q.x, q.y - rr * 0.35, rr * 2.4, '#ffb6f0', 0.55 + 0.25 * Math.sin(t * 2 + k)); c.fillStyle = '#ffb6d9'; for (let j = 0; j < 5; j++){ const b = j / 5 * 6.2832; circ(c, q.x + Math.cos(b) * rr * 0.3, q.y - rr * 0.35 + Math.sin(b) * rr * 0.12, rr * 0.22); } c.fillStyle = '#ffe28a'; circ(c, q.x, q.y - rr * 0.35, rr * 0.14); }
   }
   /* reeds and bulrushes along both shores, leaving the path's way in and out */
   for (let k = 0; k < 70; k++){
@@ -228,6 +258,30 @@ export function worldLake(c, W, H, rel, t, L, len = LAKE){
     }
     if (k % 4 === 0){ c.fillStyle = '#6b4a2e'; c.beginPath(); c.ellipse(q.x + sway, q.y - h * 0.9, h * 0.05, h * 0.14, 0, 0, 6.2832); c.fill(); }
   }
+}
+
+/* The pond, still a way off (its near edge at depth n0, past what's
+   drawn): a shimmer of light where the path meets the land, brighter as
+   it comes - so you see it coming. */
+export function worldLakeAhead(c, W, H, n0, t){
+  const k = Math.max(0, Math.min(1, (3.2 - n0) / 2.2)); if (k <= 0) return;
+  const q = P(0, 1, W, H), w = W * 0.6;
+  c.save();
+  glow(c, q.x, q.y, w * 0.55, '#bff8ff', 0.7 * k * (0.85 + 0.15 * Math.sin(t * 2)));
+  /* a bright line of water, right along the land's edge */
+  c.fillStyle = `rgba(190,250,255,${0.75 * k})`; c.beginPath(); c.ellipse(q.x, q.y + H * 0.004, w * 0.5, H * 0.006, 0, 0, 6.2832); c.fill();
+  c.fillStyle = `rgba(220,255,255,${0.55 * k})`;
+  for (let j = 0; j < 9; j++){ const tw = Math.sin(t * 3 + j * 1.7); if (tw < 0.3) continue; const x = q.x + (hash(j + 1620) - 0.5) * w, y = q.y + (hash(j + 1621) - 0.5) * H * 0.01, r = H * 0.004 * (tw - 0.3) * 3; c.fillRect(x - r * 2, y - 0.5, r * 4, 1.5); c.fillRect(x - 0.5, y - r, 1.5, r * 2); }
+  c.restore();
+}
+
+/* Someone standing in the healing water: rings spreading round their
+   feet, and little glowing motes drifting up off them. */
+export function wading(c, x, y, size, t, k = 1){
+  for (let j = 0; j < 2; j++) healRipple(c, x, y, size * 0.9, (t * 0.6 + j * 0.5) % 1);
+  c.save();
+  for (let j = 0; j < 7; j++){ const u = (t * 0.35 + j / 7) % 1; glow(c, x + Math.sin(u * 7 + j * 2) * size * 0.25, y - u * size * 1.2, size * 0.06, '#9ff6ff', 0.8 * k * (1 - u)); }
+  c.restore();
 }
 
 /* Healing, shown: a ripple ring spreading from where someone stands in the
