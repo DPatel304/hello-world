@@ -20,6 +20,7 @@ import { WaveWatch, handsFrom } from '../tracking/wave.js';
 import { voice, lineTime } from '../audio/voice.js';
 import { sfx } from '../audio/sound.js';
 import { commanderFace } from './lkp-cast.js';
+import { novaFeed } from './lkp-nova.js';
 
 export const NOVA = 'Nova';
 /* Each player by their colour, as she'd call them. */
@@ -61,8 +62,9 @@ export class Captain {
   /* The window, top left: her face and, under it, her few words. */
   draw(c, W, H){
     if (this.show < 0.02) return;
-    const s = H * 0.17, x = H * 0.03 - (1 - this.show) * (s + H * 0.05), y = H * 0.03;
-    radio(c, x, y, s, s, this.t, this.talking, 1 - this.show);
+    /* (a wide video window, 4:3) */
+    const s = H * 0.2, sw = s * 1.33, x = H * 0.03 - (1 - this.show) * (sw + H * 0.05), y = H * 0.03;
+    radio(c, x, y, sw, s, this.t, this.talking, 1 - this.show);
     const w = this.line && this.line.words;
     if (w){
       c.save(); c.globalAlpha = this.show;
@@ -104,8 +106,8 @@ export class Radio {
   }
   draw(c, W, H){
     if (this.show > 0.02){
-      const s = H * 0.2, x = H * 0.03 - (1 - this.show) * (s + H * 0.05), y = H * this.top;
-      radio(c, x, y, s, s, this.t, this.talking, Math.max(0, 1 - this.show * 1.5), 'nova');
+      const s = H * 0.24, sw = s * 1.33, x = H * 0.03 - (1 - this.show) * (sw + H * 0.05), y = H * this.top;
+      radio(c, x, y, sw, s, this.t, this.talking, Math.max(0, 1 - this.show * 1.5), 'nova');
     }
     /* (subtitles: off for now, while the script's being settled - subtitles: true) */
     if (this.subtitles && this.line) subtitle(c, W, H, this.line.text, Math.min(1, this.line.t * 6));
@@ -131,11 +133,13 @@ export function subtitle(c, W, H, text, a = 1){
    called label - talking or not; static, 0..1, over it. */
 export function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', label = 'ROBOT'){
   c.save();
-  c.fillStyle = '#0b1220'; c.strokeStyle = who === 'robot' ? '#ff3b3b' : '#3fd0ff'; c.lineWidth = h * 0.03;
+  c.fillStyle = '#0b1220'; c.strokeStyle = who === 'robot' ? '#ff3b3b' : 'rgba(255,255,255,.6)'; c.lineWidth = who === 'robot' ? h * 0.03 : Math.max(1.5, h * 0.008);
   c.beginPath(); c.roundRect(x, y, w, h, h * 0.08); c.fill();
   c.save(); c.clip();
   if (who === 'robot') robotFace(c, x + w / 2, y + h * 0.5, h * 0.42, t, talking);
-  else { const bg = c.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, '#2a5a86'); bg.addColorStop(1, '#0f2240'); c.fillStyle = bg; c.fillRect(x, y, w, h); commanderFace(c, x + w / 2, y + h * 0.5, h * 0.3, t, talking); }
+  /* Nova: her video feed, far off, the signal weak (lkp-nova.js) - or, with
+     nowhere to paint it, her drawn face */
+  else if (!novaFeed(c, x, y, w, h, t, talking)){ const bg = c.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, '#2a5a86'); bg.addColorStop(1, '#0f2240'); c.fillStyle = bg; c.fillRect(x, y, w, h); commanderFace(c, x + w / 2, y + h * 0.5, h * 0.3, t, talking); }
   /* Scan lines, and a fizz of static. */
   c.fillStyle = 'rgba(0,0,0,.18)';
   for (let k = 0; k < h; k += 4) c.fillRect(x, y + k, w, 1.5);
@@ -148,7 +152,8 @@ export function radio(c, x, y, w, h, t, talking, staticK = 0, who = 'nova', labe
   /* Her name, small, on the frame. */
   c.font = `700 ${Math.round(h * 0.11)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = who === 'robot' ? '#ff3b3b' : '#3fd0ff';
-  c.fillText(who === 'robot' ? label : 'CMDR ' + NOVA.toUpperCase(), x + w / 2, y + h * 0.92);
+  if (who === 'robot') c.fillText(label, x + w / 2, y + h * 0.92);
+  else { c.textAlign = 'right'; c.fillStyle = '#ffffff'; c.font = `700 ${Math.round(h * 0.075)}px Fredoka, sans-serif`; c.fillText('CMDR ' + NOVA.toUpperCase(), x + w * 0.95, y + h * 0.08); }
   c.restore();
 }
 
