@@ -594,28 +594,22 @@ export function worldShip(c, W, H, rel, lane, t, s = 1){
   c.fillStyle = '#8a90a6'; c.fillRect(0, 0, 120 * u, 60 * u); c.restore();
   /* the near fin, crumpled under it */
   c.fillStyle = '#7a8198'; c.beginPath(); c.moveTo(400 * u, 150 * u); c.lineTo(560 * u, 260 * u); c.lineTo(620 * u, 220 * u); c.lineTo(560 * u, 140 * u); c.closePath(); c.fill();
-  /* the engines at the back, scorched, flickering */
-  for (const y of [-70, 70]){
-    c.fillStyle = '#2c3042'; c.beginPath(); c.ellipse(650 * u, y * u, 40 * u, 55 * u, 0, 0, 6.2832); c.fill();
-    glow(c, 670 * u, y * u, 90 * u, '#ff9a3d', 0.4 + 0.35 * Math.abs(Math.sin(t * 9 + y)));
-  }
+  /* the engines at the back, scorched, cold */
+  for (const y of [-70, 70]){ c.fillStyle = '#2c3042'; c.beginPath(); c.ellipse(650 * u, y * u, 40 * u, 55 * u, 0, 0, 6.2832); c.fill(); }
   c.strokeStyle = 'rgba(255,240,215,.75)'; c.lineWidth = 5 * u; c.beginPath(); c.moveTo(-560 * u, -150 * u); c.lineTo(520 * u, -165 * u); c.stroke();
   c.restore();
-  /* smoke pouring out of the engines and a crack in the hull, sparks */
+  /* black smoke pouring out of the engines and a crack in the hull - no
+     fire: it's broken, not burning (it'll fly again) */
   for (const [sx, sy, n] of [[700, -170, 0], [690, -330, 1], [130, -300, 2]]){
-    for (let k = 0; k < 7; k++){
-      const a = (t * 0.22 + k / 7 + n * 0.17) % 1;
-      glow(c, p.x + (sx + a * 260 + Math.sin(a * 6 + n) * 40) * u, p.y + (sy - a * 900) * u, (70 + a * 260) * u, '#5d5d72', 0.75 * (1 - a));
+    for (let k = 0; k < 8; k++){
+      const a = (t * 0.2 + k / 8 + n * 0.17) % 1;
+      glow(c, p.x + (sx + a * 300 + Math.sin(a * 6 + n) * 40) * u, p.y + (sy - a * 1000) * u, (70 + a * 280) * u, a < 0.45 ? '#1c1c24' : '#4a4a56', 0.85 * (1 - a));
     }
-  }
-  for (let k = 0; k < 4; k++){
-    const a = (t * 1.6 + k / 4) % 1;
-    c.fillStyle = `rgba(255,210,110,${1 - a})`; circ(c, p.x + (120 + k * 20 + a * 40) * u, p.y - (300 + a * 200) * u, 5 * u + 1);
   }
 }
 
 /* A piece of wreckage thrown off in the crash: a twisted hull shard on
-   the ground at depth rel, embers glowing, smoke rising. */
+   the ground at depth rel, smoke rising. */
 export function worldWreck(c, W, H, rel, lane, t, s = 1, n = 0){
   const p = P(lane, rel, W, H), u = H * 0.0011 * p.k * s;
   if (p.x < -300 * u || p.x > W + 300 * u) return;
@@ -626,9 +620,8 @@ export function worldWreck(c, W, H, rel, lane, t, s = 1, n = 0){
   c.fillStyle = '#e8b830'; c.beginPath(); c.moveTo(-100 * u, -80 * u); c.lineTo(60 * u, -110 * u); c.lineTo(66 * u, -94 * u); c.lineTo(-94 * u, -64 * u); c.closePath(); c.fill();
   c.fillStyle = '#1d2030'; c.beginPath(); c.ellipse(10 * u, -60 * u, 30 * u, 18 * u, 0.3, 0, 6.2832); c.fill();
   c.restore();
-  glow(c, p.x + 10 * u, p.y - 70 * u, 70 * u, '#ff9a3d', 0.5 + 0.3 * Math.sin(t * 7 + n));
   for (let k = 0; k < 5; k++){
     const a = (t * 0.25 + k / 5 + n * 0.13) % 1;
-    glow(c, p.x + 10 * u + Math.sin(a * 5 + n) * 30 * u + a * 80 * u, p.y - (90 + a * 520) * u, (45 + a * 140) * u, '#5d5d72', 0.6 * (1 - a));
+    glow(c, p.x + 10 * u + Math.sin(a * 5 + n) * 30 * u + a * 80 * u, p.y - (90 + a * 520) * u, (45 + a * 140) * u, a < 0.45 ? '#1c1c24' : '#4a4a56', 0.7 * (1 - a));
   }
 }

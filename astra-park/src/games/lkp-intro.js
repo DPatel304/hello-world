@@ -72,10 +72,10 @@ export const HOLD = 0.4;
 export const START = 0.5;
 /* Through the helmet: looking at (cx, cy) - screens - s times closer,
    tilted (lying on your side). */
-const POV = { cx: 0.067, cy: 0.44, s: 1.75, tilt: -0.24 };
+const POV = { cx: 0.152, cy: 0.41, s: 1.75, tilt: -0.24 };
 /* Where to look, lying there (POV pans: + left): the hopshells off on
    the meadow to the left; the chimeblooms, a little right of the ship. */
-const AT_HOPPERS = 1.02, AT_CHIMES = -0.39;
+const AT_HOPPERS = 1.2, AT_CHIMES = -0.33;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -158,7 +158,7 @@ export class Intro {
      call comes, and gone once you're up. */
   _sounds(dt){
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
-    if (s === 'go' || this.done){ if (!this.fireOut){ this.fireOut = true; sfx.fireOut?.(); } return; }
+    if (s === 'go' || this.done) return;
     /* once the eyes are open it settles: the fire further off, quieter;
        wind and birds; a soft calm hum coming in */
     const calm = s === 'dark' || s === 'wake' ? 0 : s === 'look' ? Math.min(1, this.st / 3) : 1;
@@ -174,8 +174,7 @@ export class Intro {
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
     /* the fire: burning steadily, crackling all the time */
-    sfx.fireBed?.(near * (0.7 + 0.3 * clear), clear);
-    if (Math.random() < dt * (5 - 3.5 * calm)) sfx.fireCrackle?.(near * (0.3 + 0.2 * clear), clear);
+    /* (no fire now: the ship's just smoking) */
     this.talkT = (this.talkT ?? 2.2) - dt;
     if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear, clear); }
     /* outside, as the eyes open: wind in the trees, birds singing - it's
