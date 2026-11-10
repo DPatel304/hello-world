@@ -292,6 +292,20 @@ export const sfx = {
     hiss({ dur: 0.6, gain: 0.4, hp: 700, type: 'lowpass', q: 0.5 });
     hiss({ dur: 0.25, gain: 0.15, hp: 2500 });
   },
+  /* Waking, and it's calm out there: a soft warm chord humming in slowly,
+     breathing a little, then fading away. */
+  calmPad(k = 1, dur = 16){
+    const c = ctx(), t = c.currentTime;
+    for (const [f, g] of [[196, 0.035], [246.9, 0.025], [293.7, 0.025], [392, 0.012]]){
+      const o = c.createOscillator(), o2 = c.createOscillator(), gn = c.createGain(), lp = c.createBiquadFilter(), lfo = c.createOscillator(), lg = c.createGain();
+      o.type = 'triangle'; o.frequency.value = f; o2.type = 'sine'; o2.frequency.value = f * 1.003;
+      lp.type = 'lowpass'; lp.frequency.value = 900;
+      lfo.frequency.value = 0.15 + Math.random() * 0.1; lg.gain.value = g * k * 0.3; lfo.connect(lg); lg.connect(gn.gain);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(g * k, t + 4); gn.gain.setValueAtTime(g * k, t + dur - 5); gn.gain.linearRampToValueAtTime(0.0001, t + dur);
+      o.connect(lp); o2.connect(lp); lp.connect(gn); gn.connect(master); if (reverbIn) gn.connect(reverbIn);
+      for (const n of [o, o2, lfo]){ n.start(t); n.stop(t + dur + 0.1); }
+    }
+  },
   /* The title card: a deep, soft swell coming up out of the black, and
      fading away under it. */
   titleSwell(k = 1){

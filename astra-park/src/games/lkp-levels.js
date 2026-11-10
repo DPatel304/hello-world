@@ -82,8 +82,6 @@ export const LEVELS = [
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
     lines: {
-      /* The opening (lkp-intro.js): coming down in the ship... */
-      crash: [['nova', 'Hold on tight, crew! We\'re coming down!', '']],
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
       wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay!', '']],
       /* ...and once they're up, on the path. */

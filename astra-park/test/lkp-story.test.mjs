@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, LOOK, HANDS_MAX, RING_FIRST, SAID, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, LOOK, RING_FIRST, SAID, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
@@ -23,11 +23,11 @@ const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' |
 const say = (inst, kind) => script(kind, inst).reduce((s, [who, text]) => s + lineTime(text.replace(/^k+s+h+\s*[-\u2014]\s*/i, ''), who) + 0.5, 0);
 const hands = (i, x, y, speed = 0) => { pose.players[i].hands.right = { x, y, vx: 0, vy: 0, speed }; };
 
-test('the opening: waking up in the helmet - wiggle the eyes open, a look round, your hands, answer Nova, a blink, and off - each step given time', () => {
+test('the opening: waking up in the helmet - wiggle the eyes open, a slow look round, answer Nova, a blink, and off - each step given time', () => {
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['crash', 'title', 'dark', 'wake', 'look', 'hands', 'call', 'answer', 'rise']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['crash', 'title', 'dark', 'wake', 'look', 'call', 'answer', 'rise']);
   const z = inst.z;
   /* coming down in the ship, then the title card - a film starting */
   assert.equal(intro.stage, 'crash');
@@ -57,14 +57,6 @@ test('the opening: waking up in the helmet - wiggle the eyes open, a look round,
   run(inst, LOOK - intro.st - 0.3);
   assert.equal(intro.stage, 'look', 'nothing hurried');
   run(inst, 0.5);
-  assert.equal(intro.stage, 'hands');
-  inst.draw(fake(), W, H);
-  /* your hands: waiting till they're moved */
-  run(inst, 3);
-  assert.equal(intro.stage, 'hands', 'waits for your hands');
-  for (let k = 0; k < 2.5 / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
-  hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
-  run(inst, 0.6);
   assert.equal(intro.stage, 'call');
   inst.draw(fake(), W, H);
   /* it rings a while before an answer counts */
@@ -94,7 +86,7 @@ test('the opening: waking up in the helmet - wiggle the eyes open, a look round,
 test('nobody waking or answering never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE_MAX + 1 + LOOK + HANDS_MAX + 1 + RING_MAX + 1 + say(inst, 'wakeup') + SAID + 1 + RISE + 1;
+  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE_MAX + 1 + LOOK + RING_MAX + 1 + say(inst, 'wakeup') + SAID + 1 + RISE + 1;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   story.on = false;

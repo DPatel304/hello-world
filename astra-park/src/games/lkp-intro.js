@@ -32,12 +32,11 @@ import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 
 export const INTRO_BEATS = [
-  { id: 'crash', time: CRASH, shot: 'through your helmet on the flight deck: red light, shaking, the sky rolling, the ground coming up; a white flash, black', blocking: 'Nova: hold on tight! - the alarm, the rumble, a thump' },
+  { id: 'crash', time: CRASH, shot: 'inside the helmet: the visor display - WARNING, the height falling, BRACE - over a blurred, burning, rolling view; a white flash, black', blocking: 'the alarm, the rumble, a thump' },
   { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
-  { id: 'look', time: 2.8, shot: 'through the helmet, clear: the ship burning', blocking: 'nothing asked - a moment to take it in' },
-  { id: 'hands', until: 'fingers wiggled', max: 10, shot: 'the suit\'s gloves rising slowly into view', blocking: 'LOOK AT YOUR HANDS - wiggle your fingers' },
+  { id: 'look', time: 8, shot: 'through the helmet, clear: a slow look round - the glade, the trees, the ship - the head lifting a little', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, clear', blocking: 'the suit display rings: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re alive, on your feet' },
   { id: 'rise', time: 4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
@@ -45,12 +44,11 @@ export const INTRO_BEATS = [
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, RISE = BEAT.rise.time;
 export const WAKE_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max;
-export const LOOK = BEAT.look.time, HANDS_MAX = BEAT.hands.max;
+export const LOOK = BEAT.look.time;
 export const TITLE_CARD = BEAT.title.time, CRASH_SHOT = BEAT.crash.time;
-/* Your hands: this long (seconds) of them moving each and you've seen
-   them; and the call rings at least RING_FIRST before an answer counts.
+/* The call rings at least RING_FIRST before an answer counts.
    After she's spoken, a pause of SAID before you're up. */
-export const FINGERS = 1, RING_FIRST = 2, SAID = 1.4;
+export const RING_FIRST = 2, SAID = 1.4;
 /* Waking: moving (body sizes a second) more than STIR counts; WIGGLE
    seconds of it each and your share of the eyes is open - it slips back
    DROOP a second when you stop. */
@@ -103,9 +101,6 @@ export class Intro {
       for (const i of g.here){ g.crew[i].played = true; g.crew[i].x = g._home(i); }
     }
     this.radio.step(dt);
-    /* the gloves: in view once the eyes are opening, until they get up */
-    const handsOn = ['hands', 'call', 'answer'].includes(this.stage);
-    this.gloves = Math.max(0, Math.min(1, (this.gloves || 0) + (handsOn ? dt * 0.45 : -dt * 2)));
     /* the heartbeat, while you're coming round */
     if (this.stage === 'dark' || this.stage === 'wake'){
       /* (the fire first; your heartbeat coming in after it) */
@@ -114,8 +109,8 @@ export class Intro {
         if (this.beatT <= 0){ sfx.heartbeat?.(1.5); this.beatT = 1.05; this.beatAt = this.t; }
       }
     }
-    if (this.stage === 'crash'){ cockpitSound(this.st, dt, this.crashSnd); if (!this.toldCrash && this.st > 1.2){ this.toldCrash = true; this.radio.visible = true; this.radio.say(...script('crash', this.g)); } }
-    else if (this.stage === 'title'){ this.radio.visible = false; titleSound(this.st, dt, this.titleSnd); }
+    if (this.stage === 'crash') cockpitSound(this.st, dt, this.crashSnd);
+    else if (this.stage === 'title') titleSound(this.st, dt, this.titleSnd);
     else this._sounds(dt);
     const b = this.beat;
     const over = STEP[b.id].call(this, dt);
@@ -125,46 +120,8 @@ export class Intro {
     if (over || (b.time && this.st >= b.time) || (b.max && this.st >= b.max && (FORCE[b.id] ? (FORCE[b.id].call(this), true) : true))) this._next();
   }
 
-  /* How far the team's shown their hands, 0..1. */
-  _fingers(){ const here = this.g.here, w = this.waggle || []; return here.length ? here.reduce((a, i) => a + Math.min(1, (w[i] || 0) / FINGERS), 0) / here.length : 0; }
 
-  /* Your hands, in the suit's gloves, coming up into view - and moving as
-     your real hands move (the first of you the camera sees): wiggle your
-     fingers, and there you are, in the suit. */
-  _gloves(c, W, H){
-    const a = this.gloves || 0; if (a <= 0.01) return;
-    const i = this.g.here[0]; if (i == null) return;
-    const col = PLAYER_COLORS[i];
-    /* (not copying your hands - just there, in front of you, with a slow
-       gentle flex of the fingers while you're wiggling yours) */
-    const want = this.stage === 'hands' && this.g.here.some(j => (pose.players[j].hands.left.speed || 0) > 0.5 || (pose.players[j].hands.right.speed || 0) > 0.5) ? 1 : 0;
-    this.flex = (this.flex || 0) + (want - (this.flex || 0)) * 0.04;
-    c.save(); c.globalAlpha = a;
-    for (const side of ['left', 'right']){
-      const d = side === 'left' ? -1 : 1;
-      const hx = W * (0.5 + d * 0.2) + Math.sin(this.t * 0.7 + d) * W * 0.006, hy = H * 0.74 + Math.sin(this.t * 0.9 + d * 2) * H * 0.008 + (1 - a) * H * 0.3;
-      const wig = this.flex * (0.5 + 0.5 * Math.sin(this.t * 2.2 + d)) * 0.5, sz = H * 0.13, ax = W * (0.5 + d * 0.26), ay = H * 1.15;
-      /* the forearm, up from the bottom edge */
-      c.lineCap = 'round';
-      c.strokeStyle = mix(col, '#0a0f2a', 0.45); c.lineWidth = sz * 0.95; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo((ax + hx) / 2 + d * W * 0.02, (ay + hy) / 2, hx, hy + sz * 0.45); c.stroke();
-      c.strokeStyle = col; c.lineWidth = sz * 0.8; c.stroke();
-      /* the cuff, glowing */
-      c.strokeStyle = mix(col, '#ffffff', 0.6); c.lineWidth = sz * 0.12; c.beginPath(); c.ellipse(hx, hy + sz * 0.42, sz * 0.42, sz * 0.12, 0, 0, 6.2832); c.stroke();
-      /* the glove: the back of the hand, four fingers, a thumb - spreading as you wiggle */
-      const gc = mix(col, '#ffffff', 0.25), gd = mix(col, '#0a0f2a', 0.35);
-      for (let f = 0; f < 4; f++){
-        const ang = -Math.PI / 2 + (f - 1.5) * (0.22 + wig * 0.18) + Math.sin(this.t * 2.5 + f * 0.6) * wig * 0.05, len = sz * (0.55 - Math.abs(f - 1.5) * 0.06);
-        c.strokeStyle = gd; c.lineWidth = sz * 0.2; c.beginPath(); c.moveTo(hx + (f - 1.5) * sz * 0.14, hy - sz * 0.1); c.lineTo(hx + (f - 1.5) * sz * 0.14 + Math.cos(ang) * len, hy - sz * 0.1 + Math.sin(ang) * len); c.stroke();
-        c.strokeStyle = gc; c.lineWidth = sz * 0.15; c.stroke();
-      }
-      c.strokeStyle = gd; c.lineWidth = sz * 0.2; c.beginPath(); c.moveTo(hx - d * sz * 0.28, hy + sz * 0.05); c.lineTo(hx - d * sz * 0.55, hy - sz * 0.2 - wig * sz * 0.1); c.stroke();
-      c.strokeStyle = gc; c.lineWidth = sz * 0.15; c.stroke();
-      c.fillStyle = gc; c.beginPath(); c.ellipse(hx, hy + sz * 0.05, sz * 0.36, sz * 0.32, 0, 0, 6.2832); c.fill();
-      c.strokeStyle = gd; c.lineWidth = Math.max(2, sz * 0.03); c.stroke();
-      c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.ellipse(hx - sz * 0.1, hy - sz * 0.05, sz * 0.15, sz * 0.08, -0.4, 0, 6.2832); c.fill();
-    }
-    c.restore();
-  }
+
 
   /* What you hear, coming round: the ears ringing (loud at first, then
      less, again each time you wake a little more); the fire burning,
@@ -174,12 +131,16 @@ export class Intro {
   _sounds(dt){
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
     if (s === 'rise' || this.done){ if (!this.fireOut){ this.fireOut = true; sfx.fireOut?.(); } return; }
-    const near = ['dark', 'wake', 'look', 'hands'].includes(s) ? 1 : 0.5;
+    /* once the eyes are open it settles: the fire further off, quieter;
+       wind and birds; a soft calm hum coming in */
+    const calm = s === 'dark' || s === 'wake' ? 0 : s === 'look' ? Math.min(1, this.st / 3) : 1;
+    const near = 1 - 0.65 * calm;
+    if (calm > 0 && !this.pad){ this.pad = true; sfx.calmPad?.(); }
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
     /* the fire: burning steadily, crackling all the time */
     sfx.fireBed?.(near * (0.7 + 0.3 * clear), clear);
-    if (Math.random() < dt * 5) sfx.fireCrackle?.(near * (0.3 + 0.2 * clear), clear);
+    if (Math.random() < dt * (5 - 3.5 * calm)) sfx.fireCrackle?.(near * (0.3 + 0.2 * clear), clear);
     this.talkT = (this.talkT ?? 2.2) - dt;
     if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear, clear); }
     /* outside, as the eyes open: wind in the trees, birds singing - it's
@@ -187,10 +148,10 @@ export class Intro {
     if (clear > 0.2){
       this.windT = (this.windT ?? 0) - dt;
       if (this.windT <= 0){ this.windT = 5 + Math.random() * 3; sfx.wind?.(clear * 0.4); }
-      if (Math.random() < dt * 0.6 * clear) sfx.bird?.(clear);
+      if (Math.random() < dt * (0.6 + 0.5 * calm) * clear) sfx.bird?.(clear);
     }
     /* and once, far off, something big calling across the hills */
-    if (!this.called && s === 'look' && this.st > 0.8){ this.called = true; sfx.giantCall?.(0.8); }
+    if (!this.called && s === 'look' && this.st > 4.5){ this.called = true; sfx.giantCall?.(0.8); }
   }
 
   /* Hand to the ear: a wrist up beside the head, near where the ear is.
@@ -211,13 +172,12 @@ export class Intro {
 
   draw(c, W, H){
     const s = this.stage;
-    if (s === 'crash'){ cockpit(c, W, H, this.st); if (this.radio.visible) this.radio.draw(c, W, H); return; }
+    if (s === 'crash'){ cockpit(c, W, H, this.st); return; }
     if (s === 'title'){ const lv = this.g.level, n = (this.g.levelNo ?? 0) + 1; titleCard(c, W, H, this.st, `LEVEL ${n}  |  ${(lv && lv.name || '').toUpperCase()}`); return; }
     if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
     else this._helmet(c, W, H);
     this._lids(c, W, H);
     if (s === 'wake'){ this._sparkles(c, W, H); banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6), this.wiggled); }
-    if (s === 'hands' && this.st > 1.2) banner(c, W, H, this.st < 3.2 ? 'LOOK AT YOUR HANDS!' : 'WIGGLE YOUR FINGERS!', '#ffd24a', 1 + 0.02 * Math.sin(this.t * 5), this.st < 3.2 ? 0 : this._fingers());
     if (s === 'call') this._ringing(c, W, H);
     this.radio.draw(c, W, H);
   }
@@ -226,10 +186,10 @@ export class Intro {
      doubled till you're properly awake - the visor cracked, the suit's
      display, the edges dark (red with each heartbeat). */
   _helmet(c, W, H){
-    const g = this.g, clear = this._clear(), sway = Math.sin(this.t * 0.6) * 0.02 * (1 - clear * 0.6);
+    const g = this.g, clear = this._clear(), sway = Math.sin(this.t * 0.6) * 0.02 * (1 - clear * 0.6), look = this._looking();
     const view = (cx) => {
       cx.save();
-      cx.translate(W / 2, H / 2); cx.rotate(POV.tilt + sway); cx.scale(POV.s, POV.s); cx.translate(-POV.cx * W, -POV.cy * H);
+      cx.translate(W / 2 + look.pan * W, H / 2 + look.rise * H * 0.06); cx.rotate(POV.tilt * (1 - look.rise * 0.45) + sway); cx.scale(POV.s, POV.s); cx.translate(-POV.cx * W, -POV.cy * H);
       g.inIntro = true; g.introCrew = []; SKY.above = H; SKY.wide = W * 1.3;
       g._drawPlay(cx, W, H);
       g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
@@ -246,14 +206,20 @@ export class Intro {
       c.globalAlpha = 0.45 * (1 - clear); c.drawImage(buf, W * 0.035 * (1 - clear), H * 0.01 * (1 - clear), W, H);
       c.restore();
     } else view(c);
-    /* your own hands, in the suit's gloves, in front of you */
-    this._gloves(c, W, H);
     /* the edges: dark, pulsing red with the heartbeat */
     const beat = Math.exp(-(this.t - (this.beatAt ?? -9)) * 4) * (1 - clear * 0.7);
     const vg = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.62);
     vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(${Math.round(60 + 120 * beat)},0,0,${0.55 + 0.25 * beat})`);
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
     this._visor(c, W, H);
+  }
+  /* The slow look round, once the eyes are open: the view turning one
+     way, then the other, then back - and the head lifting a little off
+     the ground, and staying up. */
+  _looking(){
+    if (this.stage !== 'look'){ return { pan: 0, rise: ['dark', 'wake'].includes(this.stage) ? 0 : 1 }; }
+    const u = Math.min(1, this.st / LOOK), e = (k) => k * k * (3 - 2 * k);
+    return { pan: 0.11 * Math.sin(e(u) * Math.PI * 2), rise: e(Math.min(1, u * 1.6)) };
   }
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
   _clear(){
@@ -405,12 +371,6 @@ const STEP = {
     return this._settled(dt, (here.length > 0 && this.wiggled >= 1) || (!here.length && this.st > 3));
   },
   look(){ return false; },
-  hands(dt){
-    /* their hands moving - waving, wiggling - each FINGERS seconds' worth */
-    const here = this.g.here; this.waggle = this.waggle || pose.players.map(() => 0);
-    for (const i of here){ const p = pose.players[i], sp = Math.max(p.hands.left.speed || 0, p.hands.right.speed || 0); if (sp > 0.5 && this.st > 1.2) this.waggle[i] = Math.min(FINGERS, this.waggle[i] + dt); }
-    return this._settled(dt, this.st > 2.5 && (here.length ? here.every(i => this.waggle[i] >= FINGERS) : this.st > 4));
-  },
   crash(){ return false; },
   title(){ return false; },
   call(dt){
@@ -445,7 +405,6 @@ const EYES = {
     return Math.min(1, 0.1 + n / 4 * 0.9 - flutter + (n < 2 ? 0.03 * Math.sin(this.t * 3) : 0));
   },
   look(){ return 1; },
-  hands(){ return 1; },
   crash(){ return 0; },
   title(){ return 0; },
   call(){ return 1; },
@@ -455,7 +414,6 @@ const EYES = {
 };
 /* When a beat's waited as long as it will: as if everyone had done it. */
 const FORCE = {
-  hands(){ this.waggle = pose.players.map(() => FINGERS); },
   wake(){ for (const i of this.g.here) this.woke[i] = WIGGLE; },
   call(){ for (const i of this.g.here) this.answered[i] = true; }
 };
