@@ -38,7 +38,7 @@ export const IN = 3, ROLL = 30, STOP = 6;
 /* How far up the hill she is to start with (distances), as close as she
    gets before the BOING, and where that bounces her back to; how far she
    can drop behind. */
-export const START = 3.6, NEAR = 0.85, BACK = 1.8, FAR = 4.5;
+export const START = 2.2, NEAR = 0.7, BACK = 1.4, FAR = 3;
 /* How fast she gains on them (distances a second), and how fast running
    all-out pulls them away. */
 export const GAIN = 0.16, PULL = 0.3;
@@ -50,13 +50,18 @@ const KINDS = ['log', 'rock', 'gem', 'fruit', 'gem', 'rock', 'log', 'gem', 'frui
 
 /* Looking up the hill: the crew's feet low on the screen; the top of the
    hill near the top. */
-const TOP = 0.13, FEET = 0.9, PERSP = 0.9, HALF = 0.36;
+/* (steep: the top of the hill well above the screen - no sky - and the
+   ground right at the bottom edge where the crew are) */
+const TOP = -0.25, FEET = 1, PERSP = 0.9, HALF = 0.36;
 export function R(lane, dist, W, H){
   const k = 1 / (1 + Math.max(-0.45, dist) * PERSP);
   return { x: W * (0.5 + lane * HALF * k), y: H * (TOP + (FEET - TOP) * k), k };
 }
-/* How big the crew are, at the front. */
-export const CREW_H = 0.3;
+/* How big the crew are, close up at the front, and where their feet are:
+   below the bottom of the screen - seen from the waist up. */
+export const CREW_H = 0.6, CREW_FEET = 1.25;
+/* Where their heads are (screen heights), for words and sparkles over them. */
+const HEADS = 0.6;
 
 const rand = ([a, b]) => a + Math.random() * (b - a);
 const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -65,7 +70,7 @@ export class Roll {
   constructor(game, talk = false, len = ROLL){
     this.g = game; this.talk = talk; this.len = len;
     this.t = 0; this.pt = 0; this.phase = 'in'; this.done = false; this.clearT = 0;
-    this.gap = START; this.spin = 0; this.hop = 0; this.hopV = 0; this.shake = 0;
+    this.gap = START; this.lane = 0; this.laneV = 0; this.spin = 0; this.hop = 0; this.hopV = 0; this.shake = 0;
     this.team = 0; this.pace = 0; this.slide = 0;   /* how far down the hill they've come, for the scenery */
     this.mw = pose.players.map(() => new MarchWatch());
     this.march = pose.players.map(() => 0);
@@ -98,6 +103,11 @@ export class Roll {
     this.pace += (want - this.pace) * Math.min(1, dt * 3);
     this.slide += dt * (0.4 + 0.8 * this.pace) * (this.phase === 'stop' ? 1 - smooth(this.pt / 3) : 1);
 
+    /* rolling from side to side down the hill as she comes */
+    const weave = this.phase === 'run' ? 1 : this.phase === 'in' ? smooth(this.pt / IN) : 1 - smooth(this.pt / 2);
+    const was = this.lane;
+    this.lane = weave * (0.75 * Math.sin(this.t * 0.55) + 0.2 * Math.sin(this.t * 1.4 + 1));
+    this.laneV = (this.lane - was) / Math.max(dt, 1e-3);
     /* her roll: spinning, bouncing - each landing a thump and a shake */
     const roll = this.phase === 'stop' ? 1 - smooth(this.pt / (STOP * 0.6)) : 1;
     /* (rolling to a stop face up - her sleepy face towards us) */
@@ -126,7 +136,7 @@ export class Roll {
       if (this.next <= 0 && this.pt < this.len - 4){
         this.next = rand(EVERY);
         const kind = KINDS[this.count++ % KINDS.length];
-        const lane = kind === 'log' ? (hash(this.t) - 0.5) * 0.8 : (hash(this.t * 3.1) * 2 - 1) * 0.85;
+        const lane = kind === 'log' ? (hash(this.t) - 0.5) * 0.8 : Math.max(-0.9, Math.min(0.9, this.lane + (hash(this.t * 3.1) * 2 - 1) * 0.5));
         this.rolling.push({ kind, lane, dist: this.dist - 0.1, v: kind === 'gem' ? 0.9 : 1.05 + hash(this.t * 7) * 0.3, spin: 0, up: 0, upV: 2, passed: false, n: this.count });
       }
       if (this.pt >= this.len){ this.phase = 'stop'; this.pt = 0; this.rest = Math.ceil(this.spin / (Math.PI * 2) + 0.4) * Math.PI * 2; this._say('rollEnd'); }
@@ -158,13 +168,13 @@ export class Roll {
       const p = R(rn.x, 0, W, H);
       if (th.kind === 'gem'){
         if (th.got) continue;
-        th.got = true; g.gain(3, p.x / W, (p.y - H * 0.2) / H); sfx.jar(1 + (g.crystals % 8)); g._sparkle(p.x / W, (p.y - H * 0.2) / H, 8, 185);
+        th.got = true; g.gain(3, p.x / W, HEADS); sfx.jar(1 + (g.crystals % 8)); g._sparkle(p.x / W, HEADS, 8, 185);
         continue;
       }
       if (rn.air > 0.25 || rn.safe > 0) continue;
       rn.safe = 1; this.bonks++;
-      g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.34) / H, vy: -0.08, age: 0, life: 0.9, text: 'BOING!', col: '#ffffff' });
-      g._sparkle(p.x / W, (p.y - H * 0.2) / H, 6, 140);
+      g.bits.push({ kind: 'num', x: p.x / W, y: HEADS - 0.08, vy: -0.08, age: 0, life: 0.9, text: 'BOING!', col: '#ffffff' });
+      g._sparkle(p.x / W, HEADS, 6, 140);
       sfx.boing(1 + i * 0.2);
     }
   }
@@ -188,8 +198,8 @@ export class Roll {
   }
   /* where she is on the screen, and how big */
   _zubuAt(W, H){
-    const p = R(0, this.dist, W, H), r = H * 1.05 * p.k;
-    return { x: p.x + Math.sin(this.t * 0.45) * W * 0.06 * p.k, y: p.y - r * 0.92 - this.hop * H * 0.6 * p.k, r, k: p.k };
+    const p = R(this.lane, this.dist, W, H), r = H * 0.85 * p.k;
+    return { x: p.x, y: p.y - r * 0.92 - this.hop * H * 0.6 * p.k, r, k: p.k };
   }
 
   /* ---------- drawing ---------- */
@@ -198,7 +208,10 @@ export class Roll {
     const g = this.g, L = PAL.world;
     c.save();
     /* her landings: the camera shaking */
-    if (this.shake > 0){ const s = this.shake * this.shake * H * 0.025; c.translate(Math.sin(this.t * 61) * s, Math.cos(this.t * 47) * s * 0.8); }
+    /* her landings shaking the camera, and a rumble all the while she rolls */
+    const rumble = this.phase === 'run' ? H * 0.003 : this.phase === 'in' ? H * 0.003 * smooth(this.pt / IN) : 0;
+    const s = this.shake * this.shake * H * 0.025 + rumble;
+    if (s > 0) c.translate(Math.sin(this.t * 61) * s, Math.cos(this.t * 47) * s * 0.8);
     /* stopped: the camera easing back, to see all of her, snoring on */
     const back = this.phase === 'stop' || this.done ? smooth((this.phase === 'stop' ? this.pt : STOP) / 3) * 0.32 : 0;
     if (back > 0){ c.translate(W / 2, H); c.scale(1 - back, 1 - back); c.translate(-W / 2, -H); }
@@ -210,7 +223,7 @@ export class Roll {
     for (const tr of this._trees()) items.push({ dist: tr.dist, draw: () => { const p = R(tr.lane, tr.dist, W, H); if (L) treeKind(c, p.x, p.y, H * 0.0011 * p.k * tr.s, tr.kind, L, Math.min(0.6, Math.max(0, tr.dist * 0.12)), tr.n); } });
     for (const th of this.rolling) items.push({ dist: th.dist, draw: () => this._thing(c, W, H, th) });
     const order = g.here.slice().sort((a, b) => g.crew[a].x - g.crew[b].x);
-    items.push({ dist: 0, draw: () => { for (const i of order){ const rn = g.crew[i], p = R(rn.x, 0, W, H); drawCrew(i, p.x, p.y, H * CREW_H, 0); } } });
+    items.push({ dist: 0, draw: () => { for (const i of order){ const rn = g.crew[i], p = R(rn.x, 0, W, H); drawCrew(i, p.x, H * CREW_FEET, H * CREW_H, 0); } } });
     items.sort((a, b) => b.dist - a.dist);
     for (const it of items) it.draw();
     /* petals, drifting down over everything */
@@ -222,23 +235,17 @@ export class Roll {
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }
   }
 
-  /* The hill, climbing away behind them: sky over the top, grass, a path
+  /* The hill, climbing steeply away behind them - no sky - grass, a path
      down the middle of it, tufts streaming up it as they run. */
   _hill(c, W, H, L){
-    const sky = L ? L.sky : ['#4f9be0', '#8cc4ec', '#cfe6f5', '#ffe6c8'];
     const ground = L ? L.ground : ['#5aa391', '#3f8f78', '#2f7c66'], path = L ? L.path : ['#857a98', '#6c6083'], grass = L ? L.grass : ['#78c8a0', '#328c73'];
-    const sg = c.createLinearGradient(0, 0, 0, H * TOP);
-    sg.addColorStop(0, sky[0]); sg.addColorStop(1, sky[2]);
-    c.fillStyle = sg; c.fillRect(-W * 0.3, -H * 0.6, W * 1.6, H * (TOP + 0.66));
-    /* the crest of the hill: a soft curve */
-    const gg = c.createLinearGradient(0, H * TOP, 0, H);
-    gg.addColorStop(0, mix(ground[0], '#d6e6f2', 0.35)); gg.addColorStop(0.35, ground[0]); gg.addColorStop(1, ground[2]);
-    c.fillStyle = gg; c.beginPath(); c.moveTo(-W * 0.3, H * (TOP + 0.03));
-    for (let k = 0; k <= 16; k++){ const x = W * (-0.3 + k / 16 * 1.6); c.lineTo(x, H * (TOP + 0.012 * Math.sin(k * 1.3) + 0.02 * Math.abs(k - 8) / 8)); }
-    c.lineTo(W * 1.3, H * 1.05); c.lineTo(-W * 0.3, H * 1.05); c.closePath(); c.fill();
+    /* all hill: no sky - the far slope a little hazier */
+    const gg = c.createLinearGradient(0, 0, 0, H);
+    gg.addColorStop(0, mix(ground[0], '#d6e6f2', 0.25)); gg.addColorStop(0.4, ground[0]); gg.addColorStop(1, ground[2]);
+    c.fillStyle = gg; c.fillRect(-W * 0.3, -H * 0.6, W * 1.6, H * 1.7);
     /* the path, wide at the front */
-    const a = R(-0.75, 8, W, H), b = R(0.75, 8, W, H), d = R(0.75, -0.45, W, H), e = R(-0.75, -0.45, W, H);
-    const pg = c.createLinearGradient(0, H * TOP, 0, H);
+    const a = R(-0.75, 14, W, H), b = R(0.75, 14, W, H), d = R(0.75, -0.45, W, H), e = R(-0.75, -0.45, W, H);
+    const pg = c.createLinearGradient(0, 0, 0, H);
     pg.addColorStop(0, mix(path[0], '#d6e6f2', 0.4)); pg.addColorStop(1, path[1]);
     c.fillStyle = pg; c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.lineTo(d.x, d.y); c.lineTo(e.x, e.y); c.closePath(); c.fill();
     /* tufts, streaming up the hill as they come down it */
@@ -272,9 +279,10 @@ export class Roll {
   /* Zubu: curled up in a ball, rolling down at them, fast asleep. */
   _zubu(c, W, H, zb){
     /* her shadow on the hill, staying on the ground as she bounces */
-    const g = R(0, this.dist, W, H);
+    const g = R(this.lane, this.dist, W, H);
     c.fillStyle = 'rgba(20,40,30,.3)'; c.beginPath(); c.ellipse(zb.x, g.y, zb.r * (0.9 - Math.min(0.4, this.hop * 0.2)), zb.r * 0.16, 0, 0, 6.2832); c.fill();
-    drawZubuBall(c, zb.x, zb.y, zb.r, this.spin, this.t, Math.max(0, 0.07 - this.hop * 0.5));
+    c.save(); c.translate(zb.x, zb.y); c.rotate(Math.max(-0.35, Math.min(0.35, -this.laneV * 0.4)));   /* (leaning into each swerve) */
+    drawZubuBall(c, 0, 0, zb.r, this.spin, this.t, Math.max(0, 0.07 - this.hop * 0.5)); c.restore();
     /* the snore, floating up off her */
     const ph = (this.t % (SNORE / 2)) / (SNORE / 2), word = snoreWord(this.t);
     c.save(); c.globalAlpha = Math.sin(Math.min(1, ph * 1.15) * Math.PI);

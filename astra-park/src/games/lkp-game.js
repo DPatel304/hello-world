@@ -1168,7 +1168,7 @@ class LastKnownPosition {
     /* The sleepy roll: its own view, looking back up the hill at them. */
     if (this.roll){
       c.save();
-      this.roll.draw(c, W, H, (i, x, y, h) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, moment: !!(this.sneakFace && this.sneakFace.has(i)) }));
+      this.roll.draw(c, W, H, (i, x, y, h) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, noBar: true, moment: !!(this.sneakFace && this.sneakFace.has(i)) }));
       this._drawBits(c, W, H);
       c.restore();
       this.roll.marks(c, W, H);
