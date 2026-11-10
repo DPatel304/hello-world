@@ -19,9 +19,9 @@ import { arms, armored, take, KNIFE } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
-import { Intro } from './lkp-intro.js';
+import { Intro, START } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { glowfins, glimmerback, driftJellies, DRIFT, chimeblooms, jellycrawl } from './lkp-critters.js';
+import { glowfins, glimmerback, driftJellies, DRIFT, herdMass, trumbler, chimeblooms, jellycrawl } from './lkp-critters.js';
 import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -55,10 +55,15 @@ const BOSSES = { scout: Scout, warden: Warden };
    trap room - red light, green light (lkp-trap.js); and treasure, only
    ever behind the ? door, a crystal grab (lkp-treasure.js). */
 
-export const SPEED = 0.3;                       /* corridor depths a second */
+export const SPEED = 0.21;                       /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
    play itself). */
 export const story = { on: true };
+/* For now, while the world's being built: the real game starts where the
+   crew first set off running, the opening skipped (skipOpening: false to
+   see it again). Only in the browser - the tests and the screenshot tool
+   always have the opening. */
+export const DEV = { skipOpening: !(typeof process !== 'undefined' && process.versions && process.versions.node) && typeof location !== 'undefined' && !/[?&]opening\b/.test(location.search) };
 /* The choosing screens, on or off. Off (for now, while they're
    reworked): a level up is more health for everyone, straight away; and
    at the depot everyone's handed a knife. */
@@ -122,11 +127,19 @@ export const REST_MIN = 12, VIEW_EASE = 2.5;
 export const VISTA_AT = 5.5, VISTA = DRIFT.for;
 /* (the camera tipping up a little while they're overhead: from, till - seconds in) */
 const UP_FROM = 3.6, UP_TILL = 10.5;
-/* The herd of glimmerbacks (seconds from when it starts): coming up from
-   behind and filling the path's right side by full; running alongside
-   till off, then zooming away, the camera watching them go till end. How
-   many, and how far over everyone's pushed (0..1: the right side theirs). */
-export const HERD = { full: 2.6, off: 9, end: 12.5, n: 125, push: 1 };
+/* The herd of glimmerbacks (seconds from when it starts): first just one,
+   trotting up alongside the crew, chirping; two more at SCOUTS[1], three
+   more after that - and then at mass the rest of them, sweeping in
+   from the right and taking the right of the path by full (everyone
+   pushed over to the left), holding it, thick as anything, till call -
+   when a trumbler, stood off on the left, trumpets - and they scatter,
+   off to the right and gone by end. edge: the herd's left edge (lanes);
+   push: how far over everyone's pushed (0..1). The trumbler stands at
+   TRUMBLER (lane), seen depth `at` away when it calls. */
+export const HERD = { mass: 6, full: 1.8, call: 10.8, scatter: 1.6, end: 13, edge: -0.15, push: 1 };
+/* The first few, each its own: when it turns up, and where it trots along (lane, depth). */
+export const SCOUTS = [[0, 1.05, 0.04], [2, 1.35, 0.01], [2.3, 0.95, 0.12], [4, 1.2, 0.15], [4.2, 1.6, 0.06], [4.5, 1.0, -0.015]];
+export const TRUMBLER = { lane: -3.4, at: 0.75 };
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
 const SQUEEZE_AT = 46;
 /* Something big, far off, while they rest - never seen: the woods on
@@ -240,7 +253,9 @@ class LastKnownPosition {
     this.faces = new FaceCam();
     this.captain = new Captain();
     /* The opening: down from space onto the crash site, waking up, Nova's call, the pond (lkp-intro.js). */
-    this.scene = story.on ? new Intro(this) : null;
+    this.scene = story.on && !DEV.skipOpening ? new Intro(this) : null;
+    /* (skipping it: hurt in the crash all the same, on the path, ready - lkp-intro.js) */
+    this.fromRun = story.on && DEV.skipOpening;
     this.jumps = new JumpWatch({ rise: HOP_RISE, speed: HOP_SPEED, feet: true });
     this.heads = pose.players.map(() => null);
     this.crew = pose.players.map((_, i) => ({ x: 0, lean: 0, air: 0, airV: 0, duck: 0, lastDuck: -9, hp: MAX_HP, max: MAX_HP, down: false, safe: 0, hit: 0, played: false, falling: 0, fall: null, bubble: null }));
@@ -394,8 +409,10 @@ class LastKnownPosition {
          with them, running past - everyone pushed over to the left - then
          off they zoom, the camera watching them go: _flock) */
       squeeze: (s) => {
-        add(s - HERD.full, { kind: 'herd' });
+        add(s - HERD.mass - HERD.full, { kind: 'herd' });
         add(s - 1, { kind: 'narrow' });
+        /* (the trumbler, off on the left: there to be seen as it calls, and passed after) */
+        add(s - HERD.mass - HERD.full + HERD.call + (TRUMBLER.at - RUN) / (SPEED * squeeze), { kind: 'trumbler', lane: TRUMBLER.lane });
         crystalLine(s + 0.5, -0.65, 14);
         add(s + 10, { kind: 'wide' });
         ROAD.spans.push({ d0: at(s + 11), d1: at(s + 18.5), half: WIDE });
@@ -522,6 +539,11 @@ class LastKnownPosition {
   /* ---------- the loop ---------- */
 
   step(dt, W, H){
+    if (this.fromRun){
+      this.fromRun = false;
+      for (const rn of this.crew) rn.hp = Math.round(rn.max * START);
+      for (const i of this.here){ this.crew[i].played = true; this.crew[i].x = this._home(i); }
+    }
     /* the pond's view: the camera easing up while they rest, back after */
     this.quake = Math.max(0, (this.quake || 0) - dt * 1.6);
     /* the camera's moves: looking down into the pond, away to the far
@@ -532,7 +554,7 @@ class LastKnownPosition {
     this.viewFar = ease(this.viewFar, rp === 'far', 2.2);
     this.viewUp = ease(this.viewUp, !!this.vista && this.vista.t > UP_FROM && this.vista.t < UP_TILL, 1.8);
     if (this.vista){ this.vista.t += dt; if (this.vista.t >= VISTA) this.vista = null; }
-    this.viewHerd = ease(this.viewHerd, !!this.herd && this.herd.t > HERD.off - 0.3 && this.herd.t < HERD.end - 1.2, 1.3);
+    this.viewHerd = 0;
     this.t += dt;
     stepGuide(this, dt);
     this.faces.step(dt);
@@ -684,8 +706,16 @@ class LastKnownPosition {
       if (th){ th.taken = true; this.herd = { t: 0 }; }
     } else {
       const h = this.herd; h.t += dt;
-      if (h.t < HERD.off && Math.random() < dt * 4) sfx.warble?.(Math.random());
-      if (Math.random() < dt * 10 && h.t < HERD.end) sfx.step?.(Math.random() * 3, 0.12);
+      /* the first few: a chirp as each turns up, and now and then as they trot along */
+      h.seen = h.seen || 0;
+      while (h.seen < SCOUTS.length && h.t >= SCOUTS[h.seen][0]){ h.seen++; sfx.chirp?.(h.seen); }
+      if (h.t < HERD.mass && Math.random() < dt * 0.8 * h.seen) sfx.chirp?.(Math.floor(Math.random() * 6));
+      /* the rest of them: a busy warbling, a thunder of little feet */
+      if (h.t >= HERD.mass && h.t < HERD.call && Math.random() < dt * 5) sfx.warble?.(Math.random());
+      if (h.t >= HERD.mass && Math.random() < dt * (h.t > HERD.call ? 22 : 12) && h.t < HERD.call + HERD.scatter) sfx.step?.(Math.random() * 3, 0.12);
+      /* the trumbler's call - and they're off */
+      if (!h.called && h.t >= HERD.call){ h.called = true; this.trumpT = this.t; sfx.trumpet?.(); sfx.boom?.(); this.shake = Math.max(this.shake || 0, 0.35); }
+      if (h.called && h.t >= HERD.call + 0.3 && h.t < HERD.call + 1.2 && Math.random() < dt * 14) sfx.warble?.(Math.random());
       if (h.t >= HERD.end) this.herd = null;
     }
     /* (the road's narrows and ravines, once they're behind) */
@@ -772,7 +802,7 @@ class LastKnownPosition {
   get herdPush(){
     const h = this.herd; if (!h) return 0;
     const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
-    return HERD.push * e(h.t / HERD.full) * (1 - e((h.t - HERD.off) / 1.4));
+    return HERD.push * e((h.t - HERD.mass) / HERD.full) * (1 - e((h.t - HERD.call - 0.4) / 1.2));
   }
   /* The glimmerbacks, where they are now: each its own spot on the right of
      the path, sprinting up from behind into it, bobbing along there, then
@@ -780,20 +810,36 @@ class LastKnownPosition {
   _flock(){
     const h = this.herd; if (!h) return [];
     const hs = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
-    const out = [];
-    for (let j = 0; j < HERD.n; j++){
-      const lane = 0.25 + 2.3 * Math.pow(hs(j + 1), 0.85), relT = -0.06 + 0.42 * Math.pow(hs(j + 2), 1.15), delay = 0.1 + (HERD.full - 0.9) * hs(j + 3);
-      /* (how far into the mass: from its near edge - nearest the crew, and nearest us) */
-      const deep = Math.max(0, Math.min(1, ((lane - 0.3) / 1.3 + (relT + 0.06) / 0.3) * 0.75));
-      const u = (h.t - delay) / 0.9; if (u <= 0) continue;
-      let rel = -0.3 + (relT + 0.3) * (1 - Math.pow(1 - Math.min(1, u), 2)) + 0.015 * Math.sin(h.t * 3 + j), ln = lane, side = 0;
-      const go = h.t - HERD.off - hs(j + 4) * 0.6;
-      if (go > 0){ rel += go * go * (0.35 + 0.25 * hs(j + 5)); ln += go * (0.9 + 0.7 * hs(j + 6)); side = Math.min(1, go * 2); }
-      if (rel > 1.4) continue;
-      out.push({ rel, lane: ln, side, n: j, deep });
+    const m = this.herdMassAt(), out = [];
+    /* the first few, trotting up from the right, bouncing along happily */
+    SCOUTS.forEach(([at, lane0, rel0], j) => {
+      const u = (h.t - at) / 1.1; if (u <= 0) return;
+      const come = 1 - Math.pow(1 - Math.min(1, u), 3), go = m.scatter;
+      const lane = lane0 + 2.6 * (1 - come) + 7 * go * go * (0.8 + 0.4 * hs(j + 40)), rel = rel0 + 0.01 * Math.sin(h.t * 2 + j) + go * go * 0.2;
+      out.push({ rel, lane, side: Math.min(1, go * 2), n: 100 + j, deep: 0, hop: 1 - go });
+    });
+    /* the clear ones: along the herd's near edge (by the crew), and its
+       front rows (nearest us), each its own; the rest is the mass */
+    for (let j = 0; j < 34; j++){
+      const front = j >= 12, lane0 = front ? HERD.edge + 0.25 + (j - 12) * 0.16 + (hs(j) - 0.5) * 0.08 : HERD.edge + 0.06 * hs(j + 1);
+      const rel0 = front ? -0.06 + 0.06 * hs(j + 2) : -0.03 + j * 0.045;
+      const go = m.scatter;
+      const lane = lane0 + m.dx * (1 + go * (0.6 * hs(j + 7) - 0.2)), rel = rel0 + go * go * 0.25 * hs(j + 5) + 0.008 * Math.sin(h.t * 3 + j);
+      out.push({ rel, lane, side: Math.min(1, go * 2), n: j, deep: front ? 0 : 0.1 });
     }
     return out;
   }
+  /* The herd's mass, now: how far it's shifted (dx lanes: coming in from
+     the right, or streaming off right), how much it's scattered (0..1),
+     and how much is still there (a). */
+  herdMassAt(){
+    const h = this.herd; if (!h) return { dx: 0, scatter: 0, a: 0 };
+    const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
+    const inn = 1 - Math.pow(1 - Math.max(0, Math.min(1, (h.t - HERD.mass) / HERD.full)), 3);
+    const go = Math.max(0, Math.min(1, (h.t - HERD.call - 0.3) / HERD.scatter));
+    return { dx: 5 * (1 - inn) + 7 * go * go, scatter: go, a: 1 - e((go - 0.6) / 0.4) };
+  }
+
   /* How far along the far ridge whatever it is has got (0..1), as the
      camera watches from the pond; or -1. */
   get farStirU(){ const r = this.rest; return r && r.phase === 'far' ? Math.max(0, Math.min(1.1, (r.ft - 0.5) / 7)) : -1; }
@@ -810,7 +856,7 @@ class LastKnownPosition {
     const f = roadHalf(this.z + RUN) / PATH_HALF;
     /* the herd taking up the right: everyone over on the left */
     const q = this.herdPush;
-    if (q > 0) return clamp(x * f * (1 - 0.55 * q) - 0.5 * q, -f, f);
+    if (q > 0) return clamp(x * f * (1 - 0.62 * q) - 0.6 * q, -f, f);
     return clamp(x * f, -f, f);
   }
 
@@ -1349,6 +1395,7 @@ class LastKnownPosition {
     if (this.boss) this.boss.items(items);
     if (this.depot) this.depot.items(items);
     if (this.ride) this.ride.items(items);
+    if (this.herd && this.herd.t >= HERD.mass) items.push({ kind: 'herdMass', rel: 0.66 });
     for (const f of this._flock()) items.push({ kind: 'herd1', rel: f.rel, lane: f.lane, f });
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
@@ -1454,7 +1501,9 @@ class LastKnownPosition {
       case 'chimes': chimeblooms(c, W, H, it.lane, it.rel, this.t); break;
       case 'patch': worldPatch(c, W, H, it.lane, it.rel, this.t, PAL.world); break;
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
-      case 'herd1': if (it.rel > -0.12) glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep); break;
+      case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter); break; }
+      case 'trumbler': { const call = this.trumpT != null ? (this.t - this.trumpT) / 1.6 : 0; trumbler(c, p.x, p.y, H * 0.5 * p.k, this.t, call > 0 && call < 1.6 ? call : 0); break; }
+      case 'herd1': if (it.rel > -0.12) glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep, it.f.hop || 0); break;
     }
   }
 

@@ -585,6 +585,8 @@ export const sfx = {
   dunno(){ blip({ freq: 560, to: 430, dur: 0.14, type: 'triangle', gain: 0.12 }); blip({ freq: 430, to: 600, dur: 0.18, type: 'triangle', gain: 0.12, delay: 0.17 }); },
   /* The visor's display coming away: a soft electronic swish, down. */
   hudOff(){ blip({ freq: 1400, to: 300, dur: 0.45, type: 'sine', gain: 0.08 }); hiss({ dur: 0.4, gain: 0.04, hp: 3000, sweep: -2400 }); },
+  /* A glimmerback, little and happy: a squeaky, bouncy "pip-pip!" - a little different each time. */
+  chirp(k = 0){ const f = 1100 + (k % 6) * 90; blip({ freq: f, to: f * 1.45, dur: 0.07, type: 'sine', gain: 0.09 }); blip({ freq: f * 1.2, to: f * 1.7, dur: 0.08, type: 'sine', gain: 0.08, delay: 0.1 }); },
   /* A glimmerback calling to the herd: a soft, wobbly alien trill. */
   warble(k = 0.5){ const f = 700 + 500 * k; blip({ freq: f, to: f * 1.35, dur: 0.09, type: 'sine', gain: 0.05 }); blip({ freq: f * 1.3, to: f * 0.9, dur: 0.12, type: 'sine', gain: 0.05, delay: 0.08 }); blip({ freq: f * 1.1, to: f * 1.5, dur: 0.1, type: 'sine', gain: 0.04, delay: 0.19 }); },
   /* A pat on the suit: a soft, padded thump. */

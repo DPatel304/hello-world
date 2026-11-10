@@ -32,7 +32,7 @@ test('all of level 1 is the one place, and the only jump is the big one', () => 
   for (const k of ['narrow', 'wide', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
 });
 
-test('a herd of puffhens takes the right of the path - everyone pushed over to the left - then it opens out and spreads them wide', () => {
+test('a herd of glimmerbacks takes the right of the path - everyone pushed over to the left - then it opens out and spreads them wide', () => {
   story.on = false; crew(4);
   const inst = game.create(4); quiet(inst);
   inst.scene = null;
@@ -43,9 +43,15 @@ test('a herd of puffhens takes the right of the path - everyone pushed over to t
   while (inst.z + RUN < nar.d + 0.5) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);
   assert.ok(inst.herd && inst._flock().length > 10, 'the herd, alongside');
-  assert.ok(inst._flock().every(f => f.lane > 0.1), 'all on the right');
-  assert.ok(inst.here.every(i => inst.crew[i].x < 0.12), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
+  assert.ok(inst._flock().every(f => f.lane > -0.3), 'all on the right');
+  assert.ok(inst.here.every(i => inst.crew[i].x < -0.15), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
   assert.ok(spread() < normal * 0.6, 'pushed together');
+  /* the trumbler calls - and they scatter, off to the right */
+  assert.ok(inst.things.some(t => t.kind === 'trumbler'), 'a trumbler, off on the left');
+  while (inst.herd && !inst.herd.called) inst.step(DT, W, H);
+  assert.ok(inst.trumpT != null, 'its call');
+  while (inst.herd) inst.step(DT, W, H);
+  assert.equal(inst.herdPush, 0, 'the path theirs again');
   const wide = inst.things.find(t => t.kind === 'wide');
   while (inst.z + RUN < wide.d + 0.6) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);

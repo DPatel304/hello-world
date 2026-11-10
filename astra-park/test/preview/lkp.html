@@ -8,7 +8,8 @@
 <script type="module">
 /* Last Known Position at any moment, for screenshots (test/preview/lkp-shots.mjs):
    window.LKP has the game, the pose, and helpers to run it forward. */
-import game, { story } from '/src/games/lkp-game.js';
+import game, { story, DEV } from '/src/games/lkp-game.js';
+DEV.skipOpening = false;   /* (the screenshots always have the opening) */
 import { pose } from '/src/tracking/pose.js';
 import * as ride from '/src/games/lkp-ride.js';
 const W = 1920, H = 1080, DT = 1 / 60, c = document.getElementById('c').getContext('2d');

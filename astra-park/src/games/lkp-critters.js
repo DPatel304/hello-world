@@ -6,6 +6,8 @@
                  trailing, pulsing slowly; big ones near, small ones far
      driftJellies  the same, out in the world: drifting across the land
                  on their own way, over the path, and off into the haze
+     herdMass    the herd as a whole: too thick to tell one from another
+     trumbler    a great slow alien beast that scatters the herd
      glimmerback the herd animal: soft, glowing, six-legged, in a mass
      glowfins    looking down into the healing pond: little glowing fish
                  swimming round the crew's boots, in and out of each other
@@ -272,8 +274,9 @@ export function driftJellies(c, W, H, t, vt, a = 1){
    up the path), turning off to the right (side 0..1). deep 0..1: how far
    into the herd - the deeper, the darker and simpler, so together they
    run into one mass, only those along its near edge clear. */
-export function glimmerback(c, x, y, s, t, side = 0, deep = 0){
-  const run = t * 14, bob = Math.abs(Math.sin(run)) * s * 0.05, by = y - s * 0.3 - bob;
+export function glimmerback(c, x, y, s, t, side = 0, deep = 0, hop = 0){
+  /* (hop: bouncing along happily - bigger, springier bounces) */
+  const run = t * (14 - 5 * hop), bob = Math.abs(Math.sin(run)) * s * (0.05 + 0.14 * hop), by = y - s * 0.3 - bob;
   /* (deeper in: softer and paler, into the herd's own haze - one mass) */
   const body = mixHex('#5b4fc0', '#8d86c8', deep * 0.75), belly = mixHex('#3fd0c4', '#9fb0d8', deep * 0.8), top = mixHex('#a99bff', '#b7b0e0', deep * 0.7);
   c.save();
@@ -317,4 +320,112 @@ function mixHex(a, b, k){
   k = Math.max(0, Math.min(1, k));
   const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
   return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * k).toString(16).padStart(2, '0')).join('');
+}
+
+/* The herd as one mass: so many, so thick, you can't tell one from
+   another - row after row of soft round backs, the far ones paler in the
+   haze, a glint of a frond or a feeler-light here and there. Its left
+   edge at lane edge (and dx, lanes, the whole lot's offset - coming in,
+   or scattering, when each streams off at its own speed); from depth
+   near to far. a: how much there. Drawn far rows first. */
+export function herdMass(c, W, H, t, edge, dx, a = 1, scatter = 0){
+  if (a <= 0.01) return;
+  c.save(); c.globalAlpha = a;
+  for (let r = 18; r >= 0; r--){
+    const far = r / 18;
+    for (let n = 0; n < 46; n++){
+      const id = r * 53 + n, rel = -0.04 + r * 0.036 + (hash(id + 9) - 0.5) * 0.03;
+      const lane0 = edge + n * 0.11 + (hash(id) - 0.5) * 0.12 + (r % 2) * 0.055;
+      const lane = lane0 + dx * (1 + scatter * (0.6 * hash(id + 7) - 0.2));
+      const p = P(lane, rel, W, H);
+      if (p.x < -60 || p.x > W + 80) continue;
+      const s = H * 0.11 * p.k * (0.95 + 0.55 * hash(id + 1)), bob = Math.abs(Math.sin(t * 14 + id)) * s * 0.05;
+      const x = p.x, y = p.y - s * 0.3 - bob;
+      c.fillStyle = mixHex('#4d42a8', '#b9b2e2', far * 0.85); circ0(c, x, y, s * 0.38);
+      c.fillStyle = mixHex('#8f80f0', '#d6d0f2', far * 0.85); circ0(c, x - s * 0.1, y - s * 0.12, s * 0.2);
+      /* (now and then, a frond's glow or a feeler's light) */
+      if (hash(id + 3) < 0.18){ c.fillStyle = far < 0.5 ? '#ffe27a' : '#f4ecc8'; circ0(c, x + (hash(id + 4) - 0.5) * s * 0.4, y - s * 0.55, s * 0.05); }
+      if (hash(id + 5) < 0.25){ c.fillStyle = `rgba(160,255,235,${0.7 * (1 - far)})`; circ0(c, x + s * 0.05, y - s * 0.02, s * 0.04); }
+    }
+  }
+  c.restore();
+}
+
+/* A trumbler: a great slow alien beast, elephant-ish - four pillar legs,
+   a huge domed back grown over with moss and little glowing crystals,
+   fan-like ear-fins that glow, a long ringed trunk ending in a flower of
+   a bell. Standing, at (x, y), s tall, facing right; breathing, its trunk
+   swaying. call 0..1: trumpeting - the trunk up, the bell open, the fins
+   flared, rings of sound going out. */
+export function trumbler(c, x, y, s, t, call = 0){
+  const u = s / 300, br = Math.sin(t * 1.1) * 3 * u, cl = Math.sin(Math.min(1, call) * Math.PI);
+  const skin = '#5f7fa8', dark = '#3b5378', lite = '#9bb6d8';
+  c.save();
+  c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(x, y, 160 * u, 26 * u, 0, 0, TAU); c.fill();
+  c.translate(x, y);
+  /* legs: thick pillars, glowing toe pads */
+  for (const [lx, near] of [[-95, 0], [55, 0], [-70, 1], [80, 1]]){
+    c.fillStyle = near ? skin : dark; c.beginPath(); c.roundRect((lx - 22) * u, -120 * u, 44 * u, 120 * u, 16 * u); c.fill();
+    c.fillStyle = '#9ff0e0'; for (const k of [-12, 0, 12]) circ0(c, (lx + k) * u, -6 * u, 5 * u);
+  }
+  /* the body: a great dome, breathing */
+  const g = c.createRadialGradient(-30 * u, -230 * u, 10 * u, 0, -170 * u, 170 * u);
+  g.addColorStop(0, lite); g.addColorStop(0.6, skin); g.addColorStop(1, dark);
+  c.fillStyle = g; c.beginPath(); c.ellipse(-10 * u, (-170 - br) * u * 1, 150 * u, (95 + br * 0.3) * u, 0, 0, TAU); c.fill();
+  /* moss along the top, little crystals growing out of it */
+  c.fillStyle = '#5fae7a';
+  for (let k = 0; k < 9; k++) circ0(c, (-120 + k * 28) * u, (-245 - br + Math.abs(k - 4) * 6) * u, 18 * u);
+  for (let k = 0; k < 4; k++){
+    const cx = (-80 + k * 45) * u, cy = (-265 - br + Math.abs(k - 1.5) * 8) * u;
+    glow(c, cx, cy - 10 * u, 22 * u, '#a8f4ff', 0.4 + 0.15 * Math.sin(t * 2 + k));
+    c.fillStyle = '#c8f8ff'; c.beginPath(); c.moveTo(cx - 6 * u, cy); c.lineTo(cx, cy - 26 * u); c.lineTo(cx + 6 * u, cy); c.closePath(); c.fill();
+  }
+  /* a little tail */
+  c.strokeStyle = dark; c.lineWidth = 8 * u; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(-155 * u, -170 * u); c.quadraticCurveTo(-180 * u, -140 * u + Math.sin(t * 2) * 8 * u, -172 * u, -110 * u); c.stroke();
+  /* the head, at the front */
+  const hx = 120 * u, hy = (-190 - br) * u;
+  /* ear-fins: fans, glowing at their ribs - flared when it calls */
+  c.save(); c.translate(hx - 20 * u, hy - 10 * u); c.rotate(-0.3 - 0.6 * cl + Math.sin(t * 0.9) * 0.05);
+  c.fillStyle = `rgba(150,210,255,${0.55 + 0.3 * cl})`;
+  c.beginPath(); c.moveTo(0, 0); for (let k = 0; k <= 6; k++){ const a = -Math.PI * 0.95 + k * 0.32; c.lineTo(Math.cos(a) * 90 * u, Math.sin(a) * 90 * u); } c.closePath(); c.fill();
+  c.strokeStyle = `rgba(220,250,255,${0.6 + 0.4 * cl})`; c.lineWidth = 3 * u;
+  for (let k = 0; k <= 6; k++){ const a = -Math.PI * 0.95 + k * 0.32; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 88 * u, Math.sin(a) * 88 * u); c.stroke(); }
+  c.restore();
+  const hg = c.createRadialGradient(hx - 10 * u, hy - 20 * u, 5 * u, hx, hy, 70 * u); hg.addColorStop(0, lite); hg.addColorStop(1, skin);
+  c.fillStyle = hg; circ0(c, hx, hy, 62 * u);
+  /* its eye, sleepy-kind; shut tight when it calls */
+  c.fillStyle = '#1a2240';
+  if (cl > 0.3){ c.strokeStyle = '#1a2240'; c.lineWidth = 4 * u; c.beginPath(); c.arc(hx + 22 * u, hy - 12 * u, 9 * u, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); }
+  else { circ0(c, hx + 22 * u, hy - 12 * u, 8 * u); c.fillStyle = '#ffffff'; circ0(c, hx + 19 * u, hy - 15 * u, 3 * u); }
+  /* the trunk: ringed, swaying down - or flung up, calling */
+  const pts = [];
+  for (let k = 0; k <= 10; k++){
+    const v = k / 10, sway = Math.sin(t * 1.3 + v * 2) * 10 * u * (1 - cl);
+    const down = [hx + 45 * u + v * 40 * u + sway, hy + 20 * u + v * 150 * u - v * v * 40 * u];
+    const up = [hx + 50 * u + v * 70 * u, hy - v * 170 * u + v * v * 30 * u];
+    pts.push([down[0] + (up[0] - down[0]) * cl, down[1] + (up[1] - down[1]) * cl]);
+  }
+  for (let k = 0; k < pts.length - 1; k++){
+    const w = (30 - k * 1.8) * u;
+    c.strokeStyle = k % 2 ? skin : mixHex('#5f7fa8', '#3b5378', 0.4); c.lineWidth = w;
+    c.beginPath(); c.moveTo(pts[k][0], pts[k][1]); c.lineTo(pts[k + 1][0], pts[k + 1][1]); c.stroke();
+  }
+  /* its bell: a flower of a tip, petals open wide when it calls */
+  const [bx, by] = pts[10], open = 0.35 + 0.65 * cl;
+  for (let k = 0; k < 5; k++){
+    const a = -Math.PI / 2 + (k - 2) * 0.55 * open + (cl > 0 ? 0 : Math.PI);
+    c.fillStyle = k % 2 ? '#ff9fd0' : '#ffc6e8';
+    c.beginPath(); c.ellipse(bx + Math.cos(a) * 14 * u, by + Math.sin(a) * 14 * u, 16 * u, 8 * u, a, 0, TAU); c.fill();
+  }
+  c.fillStyle = '#fff1c4'; circ0(c, bx, by, 8 * u);
+  /* rings of sound, going out from it */
+  if (call > 0 && call < 1.6){
+    for (let k = 0; k < 4; k++){
+      const r = (call * 1.2 - k * 0.18); if (r <= 0) continue;
+      c.strokeStyle = `rgba(255,240,250,${Math.max(0, 0.7 - r * 0.45)})`; c.lineWidth = 6 * u;
+      c.beginPath(); c.arc(bx, by, r * 260 * u, -1.2, 1.2); c.stroke();
+    }
+  }
+  c.restore();
 }
