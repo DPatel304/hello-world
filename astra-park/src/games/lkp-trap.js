@@ -107,6 +107,13 @@ export class Lights {
       const moving = this.moves[i].step(p, dt, mouse);
       const go = Math.max(0, Math.min(1, (moving - GO_MIN) / (GO_FULL - GO_MIN)));
       rn.marching = go;
+      /* In the glade: frozen stock-still on red, trying not to wake her -
+         a quiet picture of that face (no flash), for their visor when
+         she rolls down the hill after them (lkp-roll.js). */
+      if (this.giant && this.light === 'red' && moving <= STILL && g.faces && g.faces.photo){
+        g.sneakFace = g.sneakFace || new Set();
+        if (!g.sneakFace.has(i) && g.faces.photo(i, true)) g.sneakFace.add(i);
+      }
       if (rn.over) continue;
       if (this.light !== 'red'){ rn.along = Math.min(1, rn.along + STRIDE * go * dt); rn.caught = 0; }
       else if (looking && rn.safe <= 0){

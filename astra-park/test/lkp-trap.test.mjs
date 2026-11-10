@@ -199,3 +199,22 @@ test('level 1\'s sneak: past the friendly giant asleep in a glade - caught movin
   for (let k = 0; k < (AFTER.trap + 1) / DT && inst.phase === 'sneak'; k++){ body(0, inst.t, 'march'); inst.step(DT, W, H); }
   assert.equal(inst.phase, 'roll', 'and then she rolls down the hill after them');
 });
+
+test('sneaking past Zubu: frozen on red, each player\'s face is quietly snapped - for their visor in the roll after', () => {
+  pose.mouse.active = false;
+  pose.players.forEach((p, i) => { p.present = i < 2; });
+  body(0); body(1);
+  const inst = game.create(2);
+  inst.step(DT, W, H); inst.things = [];
+  inst.step_ = inst.level.plan.indexOf('sneak') - 1; inst._next();
+  const took = [];
+  inst.faces.photo = (i) => { took.push(i); return true; };
+  const tr = inst.trap;
+  tr.light = 'green'; tr.left = 9;
+  for (let k = 0; k < 20; k++){ body(0); body(1); inst.step(DT, W, H); }
+  assert.equal(took.length, 0, 'not while sneaking along');
+  tr.light = 'red'; tr.redT = tr.t; tr.left = 9;
+  for (let k = 0; k < 30; k++){ body(0); body(1); inst.step(DT, W, H); }
+  assert.deepEqual(took.sort(), [0, 1], 'one each, frozen');
+  assert.ok(inst.sneakFace.has(0) && inst.sneakFace.has(1));
+});
