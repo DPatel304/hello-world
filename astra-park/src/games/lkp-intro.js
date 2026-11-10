@@ -27,7 +27,6 @@ import { MoveWatch } from '../tracking/gestures.js';
 import { SKY, mix } from './lkp-world.js';
 import { Radio, script } from './lkp-captain.js';
 import { commanderFace } from './lkp-cast.js';
-import { figure } from './lkp-guide.js';
 import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { P } from './lkp-art.js';
 import { CREW_SIZE } from './lkp-game.js';
@@ -332,13 +331,7 @@ export class Intro {
       else { c.beginPath(); c.moveTo(dx, dy); c.arc(dx, dy, r, -Math.PI / 2, -Math.PI / 2 + 6.2832 * Math.min(1, this.ear[i] / HOLD)); c.closePath(); c.fill(); }
     });
     c.restore();
-    banner(c, W, H, 'HAND TO YOUR EAR TO ANSWER', '#7ff3ff', 1 + 0.03 * Math.sin(this.t * 6));
-    /* the move, big, in the middle underneath: a hand going up to the ear */
-    c.save();
-    c.fillStyle = 'rgba(5,12,30,.6)'; c.beginPath(); c.arc(W / 2, H * 0.72, H * 0.15, 0, 6.2832); c.fill();
-    c.strokeStyle = '#ffffff'; c.fillStyle = '#ffffff'; c.lineWidth = H * 0.012; c.lineCap = 'round'; c.lineJoin = 'round';
-    figure(c, W / 2, H * 0.74, H * 0.26, 'ear', this.t);
-    c.restore();
+    /* (what to do: the helper icon in the corner shows it - lkp-guide.js) */
   }
 
   /* Outside, after the blink: the game's own view, the crew getting up
@@ -502,11 +495,3 @@ function bufOf(w, h){
   return cv;
 }
 
-function banner(c, W, H, text, col, scale = 1, fill = 0){
-  c.save(); c.translate(W / 2, H * 0.2); c.scale(scale, scale);
-  c.font = `700 ${Math.round(H * 0.075)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.lineWidth = H * 0.014; c.strokeStyle = '#05060f'; c.strokeText(text, 0, 0);
-  c.fillStyle = col; c.fillText(text, 0, 0);
-  if (fill > 0){ const w = H * 0.5; c.fillStyle = 'rgba(5,6,15,.7)'; c.fillRect(-w / 2, H * 0.06, w, H * 0.015); c.fillStyle = col; c.fillRect(-w / 2, H * 0.06, w * Math.min(1, fill), H * 0.015); }
-  c.restore();
-}
