@@ -47,8 +47,8 @@ export const INTRO_BEATS = [
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
   { id: 'look', time: 6, shot: 'through the helmet, clear: a slow look round - the glade, the trees, the ship - the head lifting a little', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
   { id: 'stand', time: 5.5, shot: 'through the helmet: getting up - the view righting itself and rising; a look round, standing', blocking: 'nothing asked - a shuffle of feet' },
-  { id: 'pull', time: 6.5, shot: 'slowly pulling back out through your visor - your view shrinking into it - to a close shot of the crew on the grass by the ship, the path beside them', blocking: 'the others getting up' },
-  { id: 'gather', time: 7, shot: 'close on the crew, the camera drifting: looking round, a bit lost; dusting themselves off; checking their arms', blocking: 'nothing asked' },
+  { id: 'pull', time: 4.5, shot: 'a soft dissolve from your view to the establishing shot: the camera out in front, facing the crew, the burning ship behind them', blocking: 'the others getting up' },
+  { id: 'gather', time: 6, shot: 'the establishing shot, the camera drifting: the crew looking round, a bit lost; a quick dust-off; checking their arms', blocking: 'nothing asked' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'close on the crew', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'close on the crew; her window top left', blocking: 'Nova: you\'re okay' },
   { id: 'go', time: 5, shot: 'they walk over from the grass onto the path, the camera easing back and up into the game\'s own view behind them', blocking: 'Nova: follow the path' }
@@ -79,7 +79,11 @@ const GRASS = 2.4;
 const HINT = 4;
 /* Pulling back out of the visor: from, to (seconds into the pull), and
    how close it starts. */
-const PULL = [0.3, 6.2], ZOOM = 7;
+/* The dissolve from your view to the establishing shot (seconds into
+   the pull), and from it to the game's view (into the go). */
+const DISSOLVE = [0.9, 2.5], INTO_PLAY = 1.6;
+/* The establishing shot: the crash site behind them, this close. */
+const FRONT = { s: 1.3, y: 0.56 };
 /* A moment after it's done. */
 const AFTER = 0.5;
 
@@ -171,8 +175,6 @@ export class Intro {
       if (this.windT <= 0){ this.windT = 5 + Math.random() * 3; sfx.wind?.(clear * 0.4); }
       if (Math.random() < dt * (0.6 + 0.5 * calm) * clear) sfx.bird?.(clear);
     }
-    /* and once, far off, something big calling across the hills */
-    if (!this.called && s === 'look' && this.st > 4.5){ this.called = true; sfx.giantCall?.(0.8); }
   }
 
   /* Hand to the ear: a wrist up beside the head, near where the ear is.
@@ -389,76 +391,66 @@ export class Intro {
     const u = Math.min(1, this.st / (GO * 0.85)), e = u * u * (3 - 2 * u);
     return home - GRASS * (1 - e);
   }
-  /* The close shot of the crew (not the game's view): where it looks
-     (a point in the scene), where that sits on the screen, how close -
-     drifting slowly. */
-  _shot(W, H){
-    const g = this.g, ps = g.here.map(i => { const p = P(g._home(i) - GRASS, RUN_AT, W, H); return { x: p.x, y: p.y - H * CREW_SIZE * p.k * 0.55 }; });
-    if (!ps.length) ps.push({ x: W / 2, y: H * 0.7 });
-    const x0 = Math.min(...ps.map(p => p.x)), x1 = Math.max(...ps.map(p => p.x)), y = ps.reduce((a, p) => a + p.y, 0) / ps.length;
-    const drift = Math.sin((this.cineT || 0) * 0.25);
-    /* (a little to the left, to keep the ship in it; low, so the sky's there) */
-    return { ax: (x0 + x1) / 2 - W * 0.1 + drift * W * 0.012, ay: y, sx: W * 0.56, sy: H * 0.74, z: Math.min(1.45, W * 0.5 / Math.max(1, x1 - x0)) * (1 + 0.03 * drift) };
-  }
-  /* Drawn with a camera: anchor (ax, ay) in the scene at (sx, sy) on
-     screen, z times closer. */
-  _withCam(c, W, H, cam){
-    /* (behind it all, the meadow's own green, so no edge ever shows) */
-    c.save(); const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#9cc4d8'); bg.addColorStop(0.45, '#6fae86'); bg.addColorStop(1, '#2f6a48'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
-    c.translate(cam.sx, cam.sy); c.scale(cam.z, cam.z); c.translate(-cam.ax, -cam.ay);
-    /* (the world drawn wider than the game's view, off to the left where they stand) */
-    SKY.above = H; SKY.wide = W * 1.3;
-    this._outside(c, W, H);
-    SKY.above = 0; SKY.wide = 0;
+  /* The establishing shot, the camera out in front of them turned round to
+     face the crew, the crash site behind them: the same scene you saw
+     through your visor, level now - and the crew standing in front of it,
+     facing us (lkp-cast.js worldCrewFront), each doing their own thing. */
+  _front(c, W, H){
+    const g = this.g, T = this.cineT || 0, drift = Math.sin(T * 0.25), push = 1 + Math.min(1, T / 20) * 0.05;
+    c.save();
+    c.fillStyle = '#6fae86'; c.fillRect(0, 0, W, H);
+    c.translate(W / 2 + drift * W * 0.01, H * FRONT.y); c.scale(FRONT.s * push, FRONT.s * push); c.translate(-POV.cx * W, -POV.cy * H);
+    g.inIntro = true; g.introCrew = []; SKY.above = H; SKY.wide = W * 1.3;
+    g._drawPlay(c, W, H);
+    g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
     c.restore();
+    /* (the backdrop a touch hazier than them: depth) */
+    c.fillStyle = 'rgba(225,238,246,.14)'; c.fillRect(0, 0, W, H);
+    const here = g.here, n = here.length, gap = Math.min(0.22, 0.7 / Math.max(1, n));
+    here.forEach((i, k) => {
+      const a = this._act(i, k), rise = easeOut(this.up[i]), h = H * 0.6 * push;
+      const x = W * (0.5 + (k - (n - 1) / 2) * gap + drift * 0.004), y = H * 1.04 + (1 - rise) * h * 0.55;
+      g._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, noBar: true, pose: a.pose, look: a.look });
+    });
   }
+  /* One picture over another, fading (a: how much of the top one). */
+  _over(c, W, H, a, draw){
+    if (a <= 0) return;
+    const buf = bufOf(W, H);
+    if (!buf){ if (a > 0.5) draw(c); return; }
+    const bc = buf.getContext('2d'); bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H); draw(bc);
+    c.save(); c.globalAlpha = Math.min(1, a); c.drawImage(buf, 0, 0, W, H); c.restore();
+  }
+  /* Out of your view: holding it a moment, then a soft dissolve - a breath
+     of light - into the establishing shot. */
   _pullBack(c, W, H){
-    const u = Math.max(0, Math.min(1, (this.st - PULL[0]) / (PULL[1] - PULL[0]))), e = u * u * u * (u * (u * 6 - 15) + 10);
+    const u = Math.max(0, Math.min(1, (this.st - DISSOLVE[0]) / (DISSOLVE[1] - DISSOLVE[0]))), e = u * u * (3 - 2 * u);
     if (u <= 0){ this._helmet(c, W, H); return; }
-    const head = this._headAt(W, H), shot = this._shot(W, H);
-    /* from your helmet, filling the screen, out to the close shot */
-    const lerp = (a, b) => a + (b - a) * e;
-    const cam = { ax: lerp(head.x, shot.ax), ay: lerp(head.y, shot.ay), sx: lerp(W / 2, shot.sx), sy: lerp(H / 2, shot.sy), z: Math.exp(lerp(Math.log(ZOOM), Math.log(shot.z))) };
-    this._withCam(c, W, H, cam);
-    /* where the helmet is on screen now */
-    const fx = cam.sx + (head.x - cam.ax) * cam.z, fy = cam.sy + (head.y - cam.ay) * cam.z, Z = cam.z;
-    /* your view, still there in the visor, shrinking away: the visor
-       first filling the screen, closing in to the helmet's own */
-    const show = 1 - Math.max(0, Math.min(1, (e - 0.1) / 0.45));
-    if (show > 0){
-      const k = Math.min(1, u * 2.2), kk = k * k * (3 - 2 * k);
-      const rx = W * 0.8 + (head.h * 0.2 * Z - W * 0.8) * kk, ry = H * 0.95 + (head.h * 0.16 * Z - H * 0.95) * kk;
-      const buf = bufOf(W, H);
-      if (buf){ const bc = buf.getContext('2d'); bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H); this._helmet(bc, W, H); }
-      c.save(); c.globalAlpha = show;
-      c.translate(fx, fy); c.rotate(head.tilt * kk);
-      c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 6.2832); c.clip();
-      if (buf){ const sc = Math.max(rx * 2 / W, ry * 2 / H); c.rotate(-head.tilt * kk); c.drawImage(buf, -W * sc / 2, -H * sc / 2, W * sc, H * sc); }
-      c.restore();
-      /* the visor's rim, and a gleam on the glass */
-      c.save(); c.globalAlpha = show * kk; c.translate(fx, fy); c.rotate(head.tilt * kk);
-      c.strokeStyle = '#e9eef8'; c.lineWidth = Math.max(3, rx * 0.1); c.beginPath(); c.ellipse(0, 0, rx * 1.06, ry * 1.08, 0, 0, 6.2832); c.stroke();
-      c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = Math.max(2, rx * 0.05); c.beginPath(); c.ellipse(0, 0, rx * 0.8, ry * 0.75, 0, Math.PI * 1.1, Math.PI * 1.4); c.stroke();
-      c.restore();
-    }
+    this._front(c, W, H);
+    this._over(c, W, H, 1 - e, (cx) => this._helmet(cx, W, H));
+    const bloom = Math.sin(e * Math.PI) * 0.22;
+    if (bloom > 0){ c.fillStyle = `rgba(255,250,240,${bloom})`; c.fillRect(0, 0, W, H); }
   }
-  /* The close shot, held (drifting); and, at the end, easing back and up
-     into the game's own view. */
+  /* The establishing shot, held; and at the end, a dissolve into the
+     game's own view behind them, walking over to the path. */
   _cine(c, W, H){
-    const shot = this._shot(W, H);
-    if (this.stage !== 'go'){ this._withCam(c, W, H, shot); return; }
-    const u = Math.min(1, this.st / (GO * 0.9)), e = u * u * (3 - 2 * u);
-    this._withCam(c, W, H, { ax: shot.ax, ay: shot.ay, sx: shot.sx + (shot.ax - shot.sx) * e, sy: shot.sy + (shot.ay - shot.sy) * e, z: Math.exp(Math.log(shot.z) * (1 - e)) });
+    if (this.stage !== 'go'){ this._front(c, W, H); return; }
+    const u = Math.min(1, this.st / INTO_PLAY), e = u * u * (3 - 2 * u);
+    this._outside(c, W, H);
+    this._over(c, W, H, 1 - e, (cx) => this._front(cx, W, H));
   }
   /* What each of them is doing in the close shot: looking round, dusting
      themselves off, checking an arm - each on their own time. */
   _act(i, k){
     const s = this.stage;
+    /* answered: a hand up at the helmet, listening */
+    if ((s === 'call' || s === 'answer') && this.answered[i]) return { pose: 'ear', look: Math.sin(this.t * 0.6 + k) * 0.2 };
     if (s === 'go' || s === 'answer') return { pose: null, look: s === 'answer' ? Math.sin(this.t * 0.6 + k) * 0.3 : 0 };
-    const T = (this.cineT || 0) + k * 1.9, ph = T % 9;
-    if (ph < 2.6) return { pose: null, look: Math.sin(T * 1.4) };
-    if (ph < 5) return { pose: 'dust', look: 0 };
-    if (ph < 7.2) return { pose: 'check', look: 0 };
+    /* (a quick dust-off - a second or so - not a long one) */
+    const T = (this.cineT || 0) + k * 1.9, ph = T % 8;
+    if (ph < 2.4) return { pose: null, look: Math.sin(T * 1.4) };
+    if (ph < 3.5) return { pose: 'dust', look: 0 };
+    if (ph < 5.2) return { pose: 'check', look: -0.5 };
     return { pose: null, look: Math.sin(T * 1.1) * 0.7 };
   }
   _outside(c, W, H){

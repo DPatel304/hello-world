@@ -155,6 +155,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
    up at us, and the helmet's big visor with their face in it (face(x, y,
    r): their photo or their kid, as from behind). Same st as worldCrew. */
 export function worldCrewFront(c, x, base, h, t, col, st, face){
+  const pose = st.pose || null;
   const u = h / 330, run = st.run || 0, ph = st.runPh || 0;
   const lite = mix(col, '#ffffff', 0.28), dark = mix(col, '#0a0f2a', 0.38), deep = mix(col, '#05081a', 0.55), line = mix(col, '#05081a', 0.62);
   const gl = hexMix(col, '#ffffff', 0.62);
@@ -197,6 +198,12 @@ export function worldCrewFront(c, x, base, h, t, col, st, face){
   /* arms, pumping: the fist coming forward gets bigger */
   for (const d of [-1, 1]){
     const sh = [d * 46 * u, -222 * u];
+    /* (standing about, in the opening: patting the dust off; an arm up
+       to look it over; a hand to the helmet, listening to the radio) */
+    if (pose === 'dust'){ const k = Math.sin(t * 8 + (d < 0 ? 0 : Math.PI)); const el = [d * 64 * u, -170 * u], fi = [d * (36 - 6 * k) * u, (-112 + 14 * k) * u]; limb([sh, el], 22 * u, d); limb([el, fi], 19 * u, d); trim(el[0], el[1], 22 * u); c.fillStyle = dark; circ(c, fi[0], fi[1], 13 * u); continue; }
+    if (pose === 'check' && d < 0){ const k = Math.sin(t * 2.2); const el = [-72 * u, -186 * u], fi = [(-28 + 6 * k) * u, -214 * u]; limb([sh, el], 22 * u, d); limb([el, fi], 19 * u, d); trim(el[0], el[1], 22 * u); c.fillStyle = dark; circ(c, fi[0], fi[1], 14 * u); continue; }
+    if (pose === 'ear' && d > 0){ const el = [80 * u, -206 * u], fi = [50 * u, -266 * u]; limb([sh, el], 22 * u, d); limb([el, fi], 19 * u, d); trim(el[0], el[1], 22 * u); c.fillStyle = dark; circ(c, fi[0], fi[1], 14 * u); continue; }
+    if (pose === 'dust' || pose === 'check' || pose === 'ear'){ const el = [d * 60 * u, -172 * u], fi = [d * 62 * u, -128 * u]; limb([sh, el], 22 * u, d); limb([el, fi], 19 * u, d); trim(el[0], el[1], 22 * u); c.fillStyle = dark; circ(c, fi[0], fi[1], 13 * u); continue; }
     const p = run * Math.sin(ph + (d < 0 ? Math.PI : 0));
     const elbow = run > 0.2 ? [d * (68 - 4 * p) * u, (-176 + 14 * p) * u] : [d * 60 * u, -172 * u];
     const fist = run > 0.2 ? [d * (52 - 18 * Math.max(0, p)) * u, (-150 - 26 * p) * u] : [d * 62 * u, -128 * u];
