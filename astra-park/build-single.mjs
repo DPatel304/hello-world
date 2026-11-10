@@ -20,10 +20,12 @@ const out = await build({
 const js  = out.outputFiles[0].text;
 /* The font goes in as a data URL, like everything else, so the one file
    needs nothing beside it. */
-const font = (await readFile('src/fonts/fredoka.woff2')).toString('base64');
-const css = (await readFile('src/style.css', 'utf8'))
-  .replace('url(fonts/fredoka.woff2)', `url(data:font/woff2;base64,${font})`);
-if (!css.includes('base64,' + font.slice(0, 20))) throw new Error('font was not inlined');
+let css = await readFile('src/style.css', 'utf8');
+for (const name of ['fredoka', 'inter-title-600', 'inter-title-400']){
+  const font = (await readFile(`src/fonts/${name}.woff2`)).toString('base64');
+  css = css.replace(`url(fonts/${name}.woff2)`, `url(data:font/woff2;base64,${font})`);
+  if (!css.includes('base64,' + font.slice(0, 20))) throw new Error(`font ${name} was not inlined`);
+}
 
 const html = `<!doctype html>
 <html lang="en">

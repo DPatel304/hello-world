@@ -6,6 +6,10 @@
   font-family:"Fredoka"; font-weight:300 700; font-display:block;
   src:url(fonts/fredoka.woff2) format("woff2");
 }
+/* For Last Known Position's title cards: Inter (SIL Open Font License),
+   cut down to capitals, digits and a little punctuation. */
+@font-face{ font-family:"Inter Title"; font-weight:600; font-display:block; src:url(fonts/inter-title-600.woff2) format("woff2"); }
+@font-face{ font-family:"Inter Title"; font-weight:400; font-display:block; src:url(fonts/inter-title-400.woff2) format("woff2"); }
 :root{
   --bg:#0d0b1a; --bg2:#151130; --line:#2c2752;
   --fg:#f3f0ff; --dim:#9b94c4; --faint:#635c92;

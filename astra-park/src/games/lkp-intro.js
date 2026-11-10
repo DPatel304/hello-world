@@ -28,13 +28,16 @@ import { SKY, mix } from './lkp-world.js';
 import { Radio, script } from './lkp-captain.js';
 import { commanderFace } from './lkp-cast.js';
 import { figure } from './lkp-guide.js';
+import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
+import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 
 export const INTRO_BEATS = [
+  { id: 'crash', time: CRASH, shot: 'through your helmet on the flight deck: red light, shaking, the sky rolling, the ground coming up; a white flash, black', blocking: 'Nova: hold on tight! - the alarm, the rumble, a thump' },
+  { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
   { id: 'look', time: 2.8, shot: 'through the helmet, clear: the ship burning', blocking: 'nothing asked - a moment to take it in' },
   { id: 'hands', until: 'fingers wiggled', max: 10, shot: 'the suit\'s gloves rising slowly into view', blocking: 'LOOK AT YOUR HANDS - wiggle your fingers' },
-  { id: 'drone', time: 6, shot: 'a little helper drone drifting in close, peering, shining its light; then aside', blocking: 'its chirp; then the call starts ringing' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, clear', blocking: 'the suit display rings: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re alive, on your feet' },
   { id: 'rise', time: 4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
@@ -42,7 +45,8 @@ export const INTRO_BEATS = [
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, RISE = BEAT.rise.time;
 export const WAKE_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max;
-export const LOOK = BEAT.look.time, HANDS_MAX = BEAT.hands.max, DRONE = BEAT.drone.time;
+export const LOOK = BEAT.look.time, HANDS_MAX = BEAT.hands.max;
+export const TITLE_CARD = BEAT.title.time, CRASH_SHOT = BEAT.crash.time;
 /* Your hands: this long (seconds) of them moving each and you've seen
    them; and the call rings at least RING_FIRST before an answer counts.
    After she's spoken, a pause of SAID before you're up. */
@@ -73,6 +77,7 @@ export class Intro {
     this.open = 0;                                /* how open the eyes are, 0..1, shown */
     this.beatT = 0;
     this.radio = new Radio(); this.radio.visible = false; this.radio.top = 0.11;
+    this.titleSnd = {}; this.crashSnd = {}; loadTitleFonts();
   }
   get beat(){ return INTRO_BEATS[this.k]; }
   _next(){
@@ -98,19 +103,20 @@ export class Intro {
       for (const i of g.here){ g.crew[i].played = true; g.crew[i].x = g._home(i); }
     }
     this.radio.step(dt);
-    this._stepDrone(dt);
     /* the gloves: in view once the eyes are opening, until they get up */
-    const handsOn = ['hands', 'drone', 'call', 'answer'].includes(this.stage);
+    const handsOn = ['hands', 'call', 'answer'].includes(this.stage);
     this.gloves = Math.max(0, Math.min(1, (this.gloves || 0) + (handsOn ? dt * 0.45 : -dt * 2)));
     /* the heartbeat, while you're coming round */
     if (this.stage === 'dark' || this.stage === 'wake'){
       /* (the fire first; your heartbeat coming in after it) */
-      if (this.t > 1.6){
+      if (this.stage === 'wake' || this.st > 1.6){
         this.beatT -= dt;
         if (this.beatT <= 0){ sfx.heartbeat?.(1.5); this.beatT = 1.05; this.beatAt = this.t; }
       }
     }
-    this._sounds(dt);
+    if (this.stage === 'crash'){ cockpitSound(this.st, dt, this.crashSnd); if (!this.toldCrash && this.st > 1.2){ this.toldCrash = true; this.radio.visible = true; this.radio.say(...script('crash', this.g)); } }
+    else if (this.stage === 'title'){ this.radio.visible = false; titleSound(this.st, dt, this.titleSnd); }
+    else this._sounds(dt);
     const b = this.beat;
     const over = STEP[b.id].call(this, dt);
     /* the eyes: how open, eased */
@@ -121,60 +127,6 @@ export class Intro {
 
   /* How far the team's shown their hands, 0..1. */
   _fingers(){ const here = this.g.here, w = this.waggle || []; return here.length ? here.reduce((a, i) => a + Math.min(1, (w[i] || 0) / FINGERS), 0) / here.length : 0; }
-
-  /* The helper drone - a little round robot from the ship, a friendly
-     screen for a face. Once your eyes are mostly open it floats in close,
-     peering at you, shines its little light in your eyes and chirps; then
-     it hovers by the call it's put through, and off it goes once she's
-     talking. */
-  _stepDrone(dt){
-    const s = this.stage, d = this.drone || (this.drone = { x: 1.25, y: 0.3, on: false, t: 0, light: 0 });
-    d.t += dt;
-    const want = s === 'drone' ? (this.st < 4.4 ? [0.62, 0.42] : [0.2, 0.36]) : s === 'call' ? [0.2, 0.36] : s === 'answer' ? [1.3, -0.2] : null;
-    if (want){
-      if (!d.on && s === 'drone'){ d.on = true; d.arrive = d.t; }
-      const k = Math.min(1, dt * (s === 'answer' ? 0.8 : 0.9));
-      d.x += (want[0] - d.x) * k; d.y += (want[1] - d.y) * k;
-    }
-    /* arriving: a peer, a flash of its light, a chirp */
-    if (d.on && !d.chirped && d.t - d.arrive > 3){ d.chirped = true; d.light = 1; sfx.chirp?.(); }
-    if (s === 'call' && !d.patched){ d.patched = true; sfx.chirp?.(); }
-    d.light = Math.max(0, d.light - dt * 0.9);
-  }
-  _drone(c, W, H, clear){
-    const d = this.drone; if (!d || !d.on || d.x > 1.25) return;
-    const near = this.stage === 'drone' && this.st < 4.4 ? Math.min(1, this.st / 2.5) : 0;
-    const x = d.x * W, y = d.y * H + Math.sin(this.t * 2.2) * H * 0.012, r = H * (0.07 + 0.05 * near);
-    c.save();
-    if (clear < 0.95){ try { c.filter = `blur(${Math.round((1 - clear) * 10)}px)`; } catch (e){} }
-    /* its hover glow underneath */
-    const hg = c.createRadialGradient(x, y + r * 1.1, 0, x, y + r * 1.1, r * 1.2); hg.addColorStop(0, 'rgba(127,243,255,.55)'); hg.addColorStop(1, 'rgba(127,243,255,0)');
-    c.fillStyle = hg; c.beginPath(); c.arc(x, y + r * 1.1, r * 1.2, 0, 6.2832); c.fill();
-    /* little side fans */
-    for (const s of [-1, 1]){ c.fillStyle = '#c9d4e6'; c.beginPath(); c.ellipse(x + s * r * 1.05, y + r * 0.1, r * 0.32, r * 0.14, s * 0.3, 0, 6.2832); c.fill(); c.fillStyle = 'rgba(127,243,255,.6)'; c.beginPath(); c.ellipse(x + s * r * 1.05, y + r * 0.2, r * 0.22, r * 0.06, 0, 0, 6.2832); c.fill(); }
-    /* its round shell */
-    const sg = c.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r * 1.1); sg.addColorStop(0, '#ffffff'); sg.addColorStop(0.6, '#e4ecf6'); sg.addColorStop(1, '#9fb0c8');
-    c.fillStyle = sg; c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.fill();
-    c.strokeStyle = '#6f80a0'; c.lineWidth = Math.max(2, r * 0.04); c.stroke();
-    /* the antenna, its light blinking */
-    c.strokeStyle = '#6f80a0'; c.beginPath(); c.moveTo(x + r * 0.2, y - r * 0.95); c.lineTo(x + r * 0.32, y - r * 1.35); c.stroke();
-    c.fillStyle = Math.floor(this.t * 3) % 2 ? '#7ff3ff' : '#ffd24a'; c.beginPath(); c.arc(x + r * 0.32, y - r * 1.4, r * 0.09, 0, 6.2832); c.fill();
-    /* its screen face: two happy eyes, blinking */
-    c.fillStyle = '#16264a'; c.beginPath(); c.roundRect(x - r * 0.62, y - r * 0.42, r * 1.24, r * 0.78, r * 0.3); c.fill();
-    c.fillStyle = '#7ff3ff'; const blink = (this.t % 3.2) < 0.12;
-    for (const s of [-1, 1]){
-      if (blink || this.stage === 'call'){ c.strokeStyle = '#7ff3ff'; c.lineWidth = r * 0.08; c.lineCap = 'round'; c.beginPath(); c.arc(x + s * r * 0.26, y + r * 0.02, r * 0.13, 1.15 * Math.PI, 1.85 * Math.PI); c.stroke(); }
-      else { c.beginPath(); c.ellipse(x + s * r * 0.26, y - r * 0.04, r * 0.1, r * 0.15, 0, 0, 6.2832); c.fill(); }
-    }
-    c.restore();
-    /* its little light, shone in your eyes */
-    if (d.light > 0){
-      const lg = c.createRadialGradient(x, y, 0, x, y, W * 0.5); lg.addColorStop(0, `rgba(255,250,225,${0.9 * d.light})`); lg.addColorStop(0.3, `rgba(255,250,225,${0.35 * d.light})`); lg.addColorStop(1, 'rgba(255,250,225,0)');
-      c.fillStyle = lg; c.fillRect(0, 0, W, H);
-    }
-    /* putting the call through: a faint beam to the call box */
-    if (this.stage === 'call'){ c.save(); c.strokeStyle = `rgba(127,243,255,${0.25 + 0.15 * Math.sin(this.t * 8)})`; c.lineWidth = H * 0.006; c.setLineDash?.([H * 0.015, H * 0.012]); c.beginPath(); c.moveTo(x + r, y); c.lineTo(W * 0.5 - H * 0.39, H * 0.4); c.stroke(); c.restore(); }
-  }
 
   /* Your hands, in the suit's gloves, coming up into view - and moving as
      your real hands move (the first of you the camera sees): wiggle your
@@ -220,12 +172,12 @@ export class Intro {
   _sounds(dt){
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
     if (s === 'rise' || this.done){ if (!this.fireOut){ this.fireOut = true; sfx.fireOut?.(); } return; }
-    const near = ['dark', 'wake', 'look', 'hands', 'drone'].includes(s) ? 1 : 0.5;
+    const near = ['dark', 'wake', 'look', 'hands'].includes(s) ? 1 : 0.5;
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
     /* the fire: burning steadily, crackling all the time */
     sfx.fireBed?.(near * (0.7 + 0.3 * clear), clear);
-    if (Math.random() < dt * 16) sfx.fireCrackle?.(near * (0.6 + 0.4 * clear), clear);
+    if (Math.random() < dt * 5) sfx.fireCrackle?.(near * (0.3 + 0.2 * clear), clear);
     this.talkT = (this.talkT ?? 2.2) - dt;
     if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear, clear); }
     /* outside, as the eyes open: wind in the trees, birds singing - it's
@@ -257,6 +209,8 @@ export class Intro {
 
   draw(c, W, H){
     const s = this.stage;
+    if (s === 'crash'){ cockpit(c, W, H, this.st); if (this.radio.visible) this.radio.draw(c, W, H); return; }
+    if (s === 'title'){ const lv = this.g.level, n = (this.g.levelNo ?? 0) + 1; titleCard(c, W, H, this.st, `LEVEL ${n}  |  ${(lv && lv.name || '').toUpperCase()}`); return; }
     if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
     else this._helmet(c, W, H);
     this._lids(c, W, H);
@@ -290,8 +244,6 @@ export class Intro {
       c.globalAlpha = 0.45 * (1 - clear); c.drawImage(buf, W * 0.035 * (1 - clear), H * 0.01 * (1 - clear), W, H);
       c.restore();
     } else view(c);
-    /* the helper drone, out there in front of you (as blurred as the rest) */
-    this._drone(c, W, H, clear);
     /* your own hands, in the suit's gloves, in front of you */
     this._gloves(c, W, H);
     /* the edges: dark, pulsing red with the heartbeat */
@@ -457,7 +409,8 @@ const STEP = {
     for (const i of here){ const p = pose.players[i], sp = Math.max(p.hands.left.speed || 0, p.hands.right.speed || 0); if (sp > 0.5 && this.st > 1.2) this.waggle[i] = Math.min(FINGERS, this.waggle[i] + dt); }
     return this._settled(dt, this.st > 2.5 && (here.length ? here.every(i => this.waggle[i] >= FINGERS) : this.st > 4));
   },
-  drone(){ return false; },
+  crash(){ return false; },
+  title(){ return false; },
   call(dt){
     const here = this.g.here;
     if (Math.random() < dt * 1.5) sfx.trill?.();
@@ -491,7 +444,8 @@ const EYES = {
   },
   look(){ return 1; },
   hands(){ return 1; },
-  drone(){ return 1; },
+  crash(){ return 0; },
+  title(){ return 0; },
   call(){ return 1; },
   answer(){ return 1; },
   /* the blink: shut, then open outside */

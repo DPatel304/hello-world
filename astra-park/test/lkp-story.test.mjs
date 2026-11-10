@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, DARK, LOOK, HANDS_MAX, DRONE, RING_FIRST, SAID, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, LOOK, HANDS_MAX, RING_FIRST, SAID, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
@@ -23,12 +23,22 @@ const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' |
 const say = (inst, kind) => script(kind, inst).reduce((s, [who, text]) => s + lineTime(text.replace(/^k+s+h+\s*[-\u2014]\s*/i, ''), who) + 0.5, 0);
 const hands = (i, x, y, speed = 0) => { pose.players[i].hands.right = { x, y, vx: 0, vy: 0, speed }; };
 
-test('the opening: waking up in the helmet - wiggle the eyes open, a look round, your hands, the drone, answer Nova, a blink, and off - each step given time', () => {
+test('the opening: waking up in the helmet - wiggle the eyes open, a look round, your hands, answer Nova, a blink, and off - each step given time', () => {
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['dark', 'wake', 'look', 'hands', 'drone', 'call', 'answer', 'rise']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['crash', 'title', 'dark', 'wake', 'look', 'hands', 'call', 'answer', 'rise']);
   const z = inst.z;
+  /* coming down in the ship, then the title card - a film starting */
+  assert.equal(intro.stage, 'crash');
+  inst.draw(fake(), W, H);
+  run(inst, CRASH_SHOT / 2); inst.draw(fake(), W, H);
+  run(inst, CRASH_SHOT / 2 + 0.05);
+  assert.equal(intro.stage, 'title');
+  inst.draw(fake(), W, H);
+  run(inst, TITLE_CARD / 2); inst.draw(fake(), W, H);
+  run(inst, TITLE_CARD / 2 + 0.05);
+  assert.equal(intro.stage, 'dark');
   run(inst, DARK + 0.1);
   assert.equal(intro.stage, 'wake');
   assert.equal(inst.crew[0].hp, inst.crew[0].max * START, 'hurt in the crash');
@@ -55,9 +65,6 @@ test('the opening: waking up in the helmet - wiggle the eyes open, a look round,
   for (let k = 0; k < 2.5 / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
   hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
   run(inst, 0.6);
-  assert.equal(intro.stage, 'drone');
-  inst.draw(fake(), W, H);
-  run(inst, DRONE + 0.1);
   assert.equal(intro.stage, 'call');
   inst.draw(fake(), W, H);
   /* it rings a while before an answer counts */
@@ -87,7 +94,7 @@ test('the opening: waking up in the helmet - wiggle the eyes open, a look round,
 test('nobody waking or answering never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = DARK + WAKE_MAX + 1 + LOOK + HANDS_MAX + 1 + DRONE + RING_MAX + 1 + say(inst, 'wakeup') + SAID + 1 + RISE + 1;
+  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE_MAX + 1 + LOOK + HANDS_MAX + 1 + RING_MAX + 1 + say(inst, 'wakeup') + SAID + 1 + RISE + 1;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   story.on = false;

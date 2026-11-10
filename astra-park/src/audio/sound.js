@@ -68,7 +68,7 @@ function ctx(){
   return AC;
 }
 
-let noiseBuf = null, fireBedNodes = null;
+let noiseBuf = null, fireBedNodes = null, crashNodes = null;
 function noiseBuffer(){
   const c = ctx();
   if (!noiseBuf){
@@ -271,8 +271,43 @@ export const sfx = {
       o.start(t); o.stop(t + 2.9); v.start(t); v.stop(t + 2.9);
     }
   },
-  /* A little helper drone: a happy two-note chirp. */
-  chirp(){ blip({ freq: 1500, to: 2200, dur: 0.08, type: 'sine', gain: 0.08 }); blip({ freq: 2000, to: 2700, dur: 0.1, type: 'sine', gain: 0.07, delay: 0.1 }); },
+  /* Coming down in the ship: a deep rumble building and building, the
+     hull roaring - cut short by crashImpact. */
+  crashRumble(dur = 7.4){
+    const c = ctx(), t = c.currentTime, s = noise(), f = c.createBiquadFilter(), g = c.createGain(); s.loop = true;
+    f.type = 'lowpass'; f.Q.value = 0.7; f.frequency.setValueAtTime(180, t); f.frequency.linearRampToValueAtTime(1400, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.25, t + 1); g.gain.linearRampToValueAtTime(0.7, t + dur);
+    const o = c.createOscillator(), og = c.createGain(), ol = c.createBiquadFilter(); o.type = 'sawtooth'; o.frequency.setValueAtTime(42, t); o.frequency.linearRampToValueAtTime(70, t + dur);
+    ol.type = 'lowpass'; ol.frequency.value = 160;
+    og.gain.setValueAtTime(0.0001, t); og.gain.linearRampToValueAtTime(0.18, t + dur);
+    s.connect(f); f.connect(g); g.connect(master); o.connect(ol); ol.connect(og); og.connect(master);
+    s.start(t); o.start(t); s.stop(t + dur + 2); o.stop(t + dur + 2);
+    crashNodes = { g, og };
+  },
+  /* The ground: one big soft thump, the rumble gone at once - then quiet. */
+  crashImpact(){
+    const c = ctx(), t = c.currentTime;
+    if (crashNodes){ for (const n of [crashNodes.g, crashNodes.og]){ n.gain.cancelScheduledValues(t); n.gain.setValueAtTime(n.gain.value, t); n.gain.linearRampToValueAtTime(0.0001, t + 0.08); } crashNodes = null; }
+    blip({ freq: 90, to: 28, dur: 1.2, type: 'sine', gain: 0.7 });
+    hiss({ dur: 0.6, gain: 0.4, hp: 700, type: 'lowpass', q: 0.5 });
+    hiss({ dur: 0.25, gain: 0.15, hp: 2500 });
+  },
+  /* The title card: a deep, soft swell coming up out of the black, and
+     fading away under it. */
+  titleSwell(k = 1){
+    const c = ctx(), t = c.currentTime;
+    for (const [f, g, type] of [[55, 0.14, 'sine'], [82.4, 0.06, 'sine'], [110, 0.035, 'triangle']]){
+      const o = c.createOscillator(), gn = c.createGain(), lp = c.createBiquadFilter();
+      o.type = type; o.frequency.value = f; lp.type = 'lowpass'; lp.frequency.setValueAtTime(200, t); lp.frequency.linearRampToValueAtTime(700, t + 3.5); lp.frequency.linearRampToValueAtTime(250, t + 7);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.linearRampToValueAtTime(g * k, t + 3.5); gn.gain.linearRampToValueAtTime(g * k * 0.7, t + 5.5); gn.gain.linearRampToValueAtTime(0.0001, t + 7.5);
+      o.connect(lp); lp.connect(gn); gn.connect(master); if (reverbIn) gn.connect(reverbIn);
+      o.start(t); o.stop(t + 7.6);
+    }
+  },
+  /* ...and a faint shimmer as the light passes through the title. */
+  titleShimmer(k = 1){
+    for (const [f, d] of [[1318.5, 0], [1975.5, 0.12], [2637, 0.26]]) blip({ freq: f, dur: 1.6, type: 'sine', gain: 0.018 * k, delay: d });
+  },
   /* The radio ringing: a quick two-tone trill. */
   trill(){ for (let k = 0; k < 6; k++) blip({ freq: k % 2 ? 1320 : 1760, dur: 0.06, type: 'square', gain: 0.05, delay: k * 0.07 }); },
   /* ---- urgency (Last Known Position) ---- */
