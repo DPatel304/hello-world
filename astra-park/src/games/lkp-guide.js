@@ -20,7 +20,7 @@ export function guideMove(g){
   if (sc){
     if (sc.kind !== 'intro') return null;
     const here = g.here;
-    if (sc.stage === 'wake') return 'wiggle';
+    if (sc.stage === 'move') return 'wiggle';
     if (sc.stage === 'call' && here.some(i => !sc.answered[i])) return 'ear';
     return null;
   }

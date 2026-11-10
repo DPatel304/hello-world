@@ -31,7 +31,7 @@ export const SITE = {
   /* chimeblooms (tall ringing flowers), a little right of the ship; a few
      hopshells out on the meadow, off to the left (lkp-critters.js) */
   chimes: [-1.4, 0.45],
-  hoppers: [-10, 0.55],
+  hoppers: [-5.6, 0.27],
   wreck: [-7.0, 0.75, 1],
   /* the woods round the site, [lane, rel] */
   trees: [[-8.2, 0.75], [-6.9, 0.9], [-5.4, 0.95], [-3.6, 0.92], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.9, 0.62], [-2.6, 0.98], [-11.5, 0.6], [-12, 0.42]]

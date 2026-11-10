@@ -5,22 +5,21 @@
 
      crash   inside your helmet as the ship comes down (lkp-cockpit.js)
      title   the title card (lkp-title.js)
-     dark    black; a heartbeat, the fire; the eyes flutter open on a
-             blurred, tilted, burning crash site - and close again
-     wake    everyone's wiggling together opens the eyes - the more they
-             wiggle, the wider, the less blurred and doubled the view
-     look    a slow look round, lying there; the noise settling
-     stand   getting up - the view righting itself and rising - a look
-             round, standing; then down at your own boots
-     pull    slowly pulling back out through your visor to a close shot
-             of the crew by the ship, the others getting up
-     gather  the close shot: looking round, a bit lost, dusting
-             themselves off, checking their arms
+     dark    black; a heartbeat; the eyes flutter open on a blurred,
+             tilted view - and close again
+     wake    the eyes coming open by themselves, the blur clearing
+     watch   sitting there in the grass: just in front, little hopshells
+             (bunny-turtles) hopping about - a moment, watching them
+     notice  and then, beyond them, in the distance: the ship. Crashed.
      call    their suits ring - INCOMING CALL, NOVA - a hand to the ear
              answers it
-     answer  her first words, in her window
-     go      the camera easing back and up into the game's own view;
-             then they're off
+     answer  her words: you're okay... can you move?
+     move    everyone wiggling, to get up - the view straining, lifting
+             a little with them
+     rise    "On your feet!" - and the head turns to the path
+     pull    the camera pulls straight back out over your shoulder into
+             the game's view - and there they are, getting up
+     go      on the path, ready to set off
 
    The view through the helmet is the game's own world (the burning ship
    off the left of the path, lkp-crashsite.js), lying on your side: low,
@@ -44,27 +43,27 @@ import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 export const INTRO_BEATS = [
   { id: 'crash', time: CRASH, shot: 'inside the helmet: the visor display - WARNING, the height falling, BRACE - over a blurred, burning, rolling view; a white flash, black', blocking: 'the alarm, the rumble, a thump' },
   { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
-  { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
-  { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
-  { id: 'look', time: 21, shot: 'through the helmet, clear, still lying there - taking it in: the head lifting; turning left, to hopshells (bunny-turtles) hopping on the meadow, holding; a little right, to chimeblooms swaying and ringing, holding; up to the sky, jellies drifting high up; back down to the ship', blocking: 'nothing asked - the fire fading, wind, birds, the chimeblooms ringing' },
-  { id: 'stand', time: 6, shot: 'through the helmet: getting up - the view righting itself and rising - then turning right, past the ship, to the path running away into the woods', blocking: 'nothing asked - a shuffle of feet' },
-  { id: 'pull', time: 4.5, shot: 'still looking down the path, the camera pulls straight back out of your eyes and up over your shoulder - your own astronaut, then the crew, rising into view - into the game\'s own view behind them', blocking: 'the others getting up' },
-  { id: 'gather', time: 6, shot: 'the game\'s view, behind them on the path: the crew looking round, a bit lost; a quick dust-off; checking their arms', blocking: 'nothing asked' },
-  { id: 'call', until: 'everyone answered', max: 15, shot: 'close on the crew', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
-  { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'close on the crew; her window top left', blocking: 'Nova: you\'re okay' },
-  { id: 'go', time: 1.2, shot: 'behind them on the path, ready to set off', blocking: 'Nova: follow the path' }
+  { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
+  { id: 'wake', time: 4, shot: 'through the helmet, sitting in the grass: the eyes coming open, the blur clearing', blocking: 'nothing asked' },
+  { id: 'watch', time: 7, shot: 'through the helmet, sitting: just in front, hopshells (bunny-turtles) hopping about in the grass - watching them a moment', blocking: 'nothing asked - wind, birds' },
+  { id: 'notice', time: 6, shot: 'the view drifting up and on, past them - and there in the distance, the ship: crashed, smoking', blocking: 'nothing asked' },
+  { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, looking at the ship', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
+  { id: 'answer', until: 'her lines said', lines: 'wakeup', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re okay... can you move?' },
+  { id: 'move', until: 'everyone wiggled', max: 20, shot: 'through the helmet: the view straining, lifting a little as they wiggle', blocking: 'everyone wiggling, to get up' },
+  { id: 'rise', time: 3.4, shot: 'through the helmet: the head turning, past the ship, to the path running away into the woods', blocking: 'Nova: on your feet!' },
+  { id: 'pull', time: 5, shot: 'looking down the path, the camera pulls straight back out of your eyes and up over your shoulder into the game\'s own view - the crew in the grass, getting up, one after another', blocking: 'nothing asked' },
+  { id: 'go', time: 1.5, shot: 'behind them on the path, ready to set off', blocking: 'nothing asked' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
-export const DARK = BEAT.dark.time, STAND = BEAT.stand.time, PULL_TIME = BEAT.pull.time, GATHER = BEAT.gather.time, GO = BEAT.go.time;
-export const WAKE_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max;
-export const LOOK = BEAT.look.time;
+export const DARK = BEAT.dark.time, WAKE = BEAT.wake.time, WATCH = BEAT.watch.time, NOTICE = BEAT.notice.time, RISE = BEAT.rise.time, PULL_TIME = BEAT.pull.time, GO = BEAT.go.time;
+export const MOVE_MAX = BEAT.move.max, RING_MAX = BEAT.call.max;
 export const TITLE_CARD = BEAT.title.time, CRASH_SHOT = BEAT.crash.time;
 /* The call rings at least RING_FIRST before an answer counts.
    After she's spoken, a pause of SAID before you're up. */
 export const RING_FIRST = 2, SAID = 1.4;
-/* Waking: moving (body sizes a second) more than STIR counts; WIGGLE
-   seconds of it each and your share of the eyes is open - it slips back
-   DROOP a second when you stop. */
+/* Getting up: moving (body sizes a second) more than STIR counts; WIGGLE
+   seconds of it each and you've done your share - it slips back DROOP a
+   second when you stop. */
 export const STIR = 0.45, WIGGLE = 1.6, DROOP = 0.35;
 /* The call: a hand held at the ear HOLD seconds answers it. */
 export const HOLD = 0.4;
@@ -72,15 +71,14 @@ export const HOLD = 0.4;
 export const START = 0.5;
 /* Through the helmet: looking at (cx, cy) - screens - s times closer,
    tilted (lying on your side). */
-const POV = { cx: 0.152, cy: 0.41, s: 1.75, tilt: -0.24 };
-/* Where to look, lying there (POV pans: + left): the hopshells off on
-   the meadow to the left; the chimeblooms, a little right of the ship. */
-const AT_HOPPERS = 1.2, AT_CHIMES = -0.33;
+const POV = { cx: 0.152, cy: 0.41, s: 1.75, tilt: -0.12 };
+/* Where to look, sitting there (POV pans: + left; down: lower): the
+   hopshells, close, just in front; the chimeblooms, a little right of
+   the ship (heard, not looked at). */
+const AT_HOPPERS = 0.98, HOPPERS_DOWN = 0.66, AT_CHIMES = -0.33;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
-/* The wake hint shows once nobody's moved for HINT seconds. */
-const HINT = 4;
 /* Pulling back out of the visor: from, to (seconds into the pull), and
    how close it starts. */
 /* Out of your eyes and back over your shoulder: how long (seconds into
@@ -120,7 +118,7 @@ export class Intro {
   step(dt){
     if (this.done) return;
     this.t += dt; this.st += dt;
-    if (['pull', 'gather', 'call', 'answer', 'go'].includes(this.stage)) this.cineT = (this.cineT || 0) + dt;
+    if (['pull', 'go'].includes(this.stage)) this.cineT = (this.cineT || 0) + dt;
     const g = this.g;
     /* Hurt in the crash; on the path, where play starts. */
     if (!this.hurt){
@@ -130,8 +128,8 @@ export class Intro {
     }
     this.radio.step(dt);
     /* the heartbeat, while you're coming round */
-    if (this.stage === 'dark' || this.stage === 'wake'){
-      /* (the fire first; your heartbeat coming in after it) */
+    if (this.stage === 'dark' || (this.stage === 'wake' && this.st < WAKE * 0.6)){
+      /* (your heartbeat, coming in in the dark) */
       if (this.stage === 'wake' || this.st > 1.6){
         this.beatT -= dt;
         if (this.beatT <= 0){ sfx.heartbeat?.(1.5); this.beatT = 1.05; this.beatAt = this.t; }
@@ -157,16 +155,13 @@ export class Intro {
      off, crackling over a radio somewhere in the wreck. Quieter once the
      call comes, and gone once you're up. */
   _sounds(dt){
-    const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
+    const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? this._clear() : 1;
     if (s === 'go' || this.done) return;
     /* once the eyes are open it settles: the fire further off, quieter;
        wind and birds; a soft calm hum coming in */
-    const calm = s === 'dark' || s === 'wake' ? 0 : s === 'look' ? Math.min(1, this.st / 3) : 1;
-    /* (and the fire fading right back as you start to look round, the ship further off) */
-    const away = s === 'look' ? Math.min(1, Math.max(0, (this.st - 1.5) / 4)) : s === 'dark' || s === 'wake' ? 0 : 1;
-    const near = (1 - 0.65 * calm) * (1 - 0.82 * away);
+    const calm = s === 'dark' ? 0 : s === 'wake' ? Math.min(1, this.st / 3) : 1;
     /* the chimeblooms ringing, softly, now and then: louder the more you're looking their way */
-    if (s === 'look' || s === 'stand'){
+    if (!['dark', 'wake', 'pull'].includes(s)){
       const f = Math.max(0.12, 1 - Math.abs(this._looking().pan - AT_CHIMES) / 0.45);
       if (Math.random() < dt * 1.6 * (0.4 + f)) sfx.chime?.(f);
     }
@@ -207,10 +202,10 @@ export class Intro {
     if (s === 'crash'){ cockpit(c, W, H, this.st); return; }
     if (s === 'title'){ const lv = this.g.level, n = (this.g.levelNo ?? 0) + 1; titleCard(c, W, H, this.st, `LEVEL ${n}  |  ${(lv && lv.name || '').toUpperCase()}`); return; }
     if (s === 'pull') this._pullBack(c, W, H);
-    else if (['gather', 'call', 'answer', 'go'].includes(s)) this._cine(c, W, H);
+    else if (s === 'go') this._cine(c, W, H);
     else this._helmet(c, W, H);
     this._lids(c, W, H);
-    if (s === 'wake'){ this._sparkles(c, W, H); this._wakeHint(c, W, H); }
+    if (s === 'move') this._sparkles(c, W, H);
     if (s === 'call') this._ringing(c, W, H);
     this.radio.draw(c, W, H);
   }
@@ -249,34 +244,29 @@ export class Intro {
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
     this._visor(c, W, H);
   }
-  /* The slow look round, once the eyes are open: the view turning one
-     way, then the other, then back - and the head lifting a little off
-     the ground, and staying up. */
+  /* Where you're looking, sitting there: at the hopshells, close in front
+     (waking, watching); drifting up and on to the ship in the distance
+     (noticing it), and staying on it (the call); straining to get up
+     (moving: up a little with the team's wiggling); then the head turning
+     to the path (rise, and where the pull starts from). */
   _looking(){
     const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
-    /* lying there: the head lifting and turning a little to the left,
-       holding; then up to the sky a while; then back down to the ship */
-    if (this.stage === 'look'){
-      /* slowly, holding at each: left to the hopshells (2.6-5, holding to
-         8); a little right, to the chimeblooms (8-10.5, to 13.5); up to the sky
-         (13.5-15.5, to 18); back down to the ship (18-20.5) */
-      const t = this.st, toS = e((t - 8) / 2.5), up = e((t - 13.5) / 2) * (1 - e((t - 18) / 2.5));
-      const pan = AT_HOPPERS * e((t - 2.6) / 2.4) * (1 - toS) + AT_CHIMES * toS * (1 - e((t - 13.5) / 2.2));
-      return { pan, rise: e(t / 2.6), up: 0, down: 0, sky: up };
-    }
-    /* standing up (the view righting itself, rising); then turning right,
-       past the ship, to look down the path */
-    if (this.stage === 'stand' || this.stage === 'pull'){
-      const t = this.stage === 'pull' ? STAND : this.st;
-      return { pan: TO_PATH * e((t - 2.2) / 2.8), rise: 1, up: e(t / 2), down: 0, sky: 0 };
-    }
-    return { pan: 0, rise: ['dark', 'wake'].includes(this.stage) ? 0 : 1, up: 0, down: 0, sky: 0 };
+    const s = this.stage, t = this.st, at = { pan: AT_HOPPERS, rise: 1, up: 0, down: HOPPERS_DOWN, sky: 0 };
+    if (s === 'dark') return { ...at, rise: 0 };
+    if (s === 'wake') return { ...at, rise: e(t / WAKE) };
+    if (s === 'watch') return { ...at, pan: AT_HOPPERS + 0.03 * Math.sin(t * 0.5) };
+    if (s === 'notice'){ const u = e((t - 0.6) / 3.4); return { ...at, pan: AT_HOPPERS * (1 - u), down: HOPPERS_DOWN * (1 - u) }; }
+    if (s === 'call' || s === 'answer') return { ...at, pan: 0, down: 0 };
+    const strain = 0.3;
+    if (s === 'move'){ const k = this.wiggled, shake = this.stirring && this.g.here.some(i => this.stirring[i]) ? Math.sin(this.t * 17) * 0.004 : 0; return { ...at, pan: shake, down: -0.02 * k, up: strain * k }; }
+    if (s === 'rise' || s === 'pull'){ const u = s === 'pull' ? 1 : e((t - 0.6) / 2.4); return { ...at, pan: TO_PATH * u, down: 0, up: strain }; }
+    return { ...at, pan: 0, down: 0 };
   }
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
   _clear(){
     const s = this.stage;
     if (s === 'dark') return 0;
-    if (s === 'wake') return Math.pow((this.notch || 0) / 4, 1.3) * 0.9;
+    if (s === 'wake') return Math.min(1, Math.pow(this.st / (WAKE * 0.85), 1.2));
     return 1;
   }
 
@@ -285,7 +275,7 @@ export class Intro {
     c.save();
     /* the display, bottom left - a picture, no words: the suit's battery,
        half gone, flashing, a spark jumping off it */
-    const on = this.stage !== 'dark' && (Math.sin(this.t * 23) > -0.85 || this.stage !== 'wake');
+    const on = this.stage !== 'dark' && (Math.sin(this.t * 23) > -0.85 || this.stage !== 'wake') && !(this.stage === 'wake' && this.st < WAKE * 0.8);
     if (on){
       const x = W * 0.05, y = H * 0.8, w = H * 0.16, h = H * 0.075, flash = Math.sin(this.t * 6) > 0;
       c.globalAlpha = 0.9;
@@ -374,20 +364,6 @@ export class Intro {
 
   /* Outside, after the blink: the game's own view, the crew getting up
      on the path, by the burning ship. */
-  /* Waking: nothing on screen - unless nobody's moved for a while, when
-     the visor shows, faint and flickering, what it needs. */
-  _wakeHint(c, W, H){
-    const a = Math.min(1, Math.max(0, (this.still || 0) - HINT) / 1.2);
-    if (a <= 0) return;
-    const flick = Math.sin(this.t * 31) > -0.7 ? 1 : 0.35;
-    c.save(); c.globalAlpha = a * flick * (0.8 + 0.2 * Math.sin(this.t * 2));
-    c.font = `600 ${Math.round(H * 0.03)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillStyle = 'rgba(127,243,255,.95)'; c.shadowColor = 'rgba(127,243,255,.6)'; c.shadowBlur = H * 0.01;
-    const txt = 'MOVEMENT NEEDED TO WAKE', bars = Math.floor(this.t * 2) % 4;
-    c.fillText(txt + ' ' + '.'.repeat(bars), W / 2, H * 0.86);
-    c.restore();
-  }
-
   /* Up and out: the camera pulling back out through your own visor - your
      view still in it, shrinking - up and back to the game's view, the crew
      getting up by the ship. Where the lead one's helmet is: */
@@ -460,7 +436,7 @@ export class Intro {
   }
   _outside(c, W, H){
     const g = this.g;
-    const cine = ['pull', 'gather', 'call', 'answer'].includes(this.stage);
+    const cine = ['pull', 'go'].includes(this.stage);
     g.introCrew = g.here.map((i, k) => { const a = this.up[i] > 0.99 && cine ? this._act(i, k) : { pose: null, look: 0 }; return { i, lane: this._lane(i), rel: RUN_AT, down: 1 - easeOut(this.up[i]), noBar: this.stage !== 'go', pose: a.pose, look: a.look }; });
     g.inIntro = true;
     g._drawPlay(c, W, H);
@@ -472,14 +448,19 @@ export class Intro {
 
 const BEGIN = {
   answer(){ this.radio.visible = true; this.radio.say(...script('wakeup', this.g)); },
-  stand(){ const i = this.g.here[0]; if (i != null) this.up[i] = 1; },
+  rise(){ this.radio.say(...script('rise', this.g)); sfx.step(0, 0.4); },
   pull(){ sfx.pullBack?.(); },
-  go(){ this.radio.visible = false; const l = this.g.level.lines.rise; if (l) this.g.captain.say(l[0][1], l[0][2] || ''); }
+  go(){ this.radio.visible = false; }
 };
 /* Each step: true once it's done. */
 const STEP = {
   dark(){ return false; },
-  wake(dt){
+  /* the eyes opening by themselves; the suit's display coming on */
+  wake(){ if (!this.booted && this.st > WAKE * 0.8){ this.booted = true; sfx.visorOn?.(); } return false; },
+  watch(){ return false; },
+  notice(){ return false; },
+  /* Nova: can you move? - everyone wiggling, to get up */
+  move(dt){
     const here = this.g.here;
     for (const i of here){
       const moving = this.moves[i].step(pose.players[i], dt, pose.mouse.active);
@@ -488,20 +469,16 @@ const STEP = {
       if (moving > STIR){ this.woke[i] = Math.min(WIGGLE, this.woke[i] + dt); if (Math.random() < dt * 4) sfx.step(i, 0.25); }
       else if (this.woke[i] < WIGGLE) this.woke[i] = Math.max(0, this.woke[i] - dt * DROOP);
     }
-    /* nobody moving: how long (for the hint) */
-    this.still = here.some(i => this.stirring && this.stirring[i]) ? 0 : (this.still || 0) + dt;
-    /* the eyes open in big blinks - a quarter at a time - each one heard;
-       all the way, the suit's display booting up */
+    /* (each quarter of the way: a scuff, an effort) */
     const notch = Math.floor(this.wiggled * 4 + 1e-6);
-    if (notch > (this.notch || 0)){ this.notch = notch; this.blinkAt = this.t; if (notch >= 4) sfx.visorOn?.(); }
+    if (notch > (this.notch || 0)){ this.notch = notch; sfx.step(notch, 0.45); }
     if (notch < (this.notch || 0)) this.notch = notch;
     return this._settled(dt, (here.length > 0 && this.wiggled >= 1) || (!here.length && this.st > 3));
   },
-  look(){ return false; },
+  rise(){ return false; },
   crash(){ return false; },
   title(){ return false; },
   call(dt){
-    this._getUp(dt, 0);
     const here = this.g.here;
     if (Math.random() < dt * 1.5) sfx.trill?.();
     for (const i of here){
@@ -513,41 +490,30 @@ const STEP = {
   },
   /* her words; then a quiet moment */
   answer(dt){ this.quiet = this.radio.busy ? 0 : (this.quiet || 0) + dt; return this.quiet >= SAID; },
-  stand(dt){
-    /* a shuffle of feet, getting up and looking down */
-    if (!this.stoodSnd && this.st > 1.4){ this.stoodSnd = true; sfx.step(0, 0.4); }
-    return false;
-  },
-  /* the others getting up as the camera pulls back */
-  pull(dt){ this._getUp(dt, 2.2); return false; },
-  gather(dt){ this._getUp(dt, 0); return false; },
-  go(){ return false; }
+  /* and as the camera comes out, there they are, getting up, one after another */
+  pull(dt){ this._getUp(dt, 1.2); return false; },
+  go(dt){ this._getUp(dt, 0); return false; }
 };
 /* How open the eyes want to be, in each beat. */
 const EYES = {
   /* closed - a flutter open - closed again */
   dark(){ const u = (this.st - 2.6) / 1.4; return u > 0 && u < 1 ? 0.35 * Math.sin(u * Math.PI) * (0.8 + 0.2 * Math.sin(this.t * 20)) : 0; },
-  /* opening as they wiggle, a little heavy flicker while they're still low */
-  wake(){
-    /* a notch at a time, with a quick flutter as each one opens */
-    const n = this.notch || 0, since = this.blinkAt != null ? this.t - this.blinkAt : 9;
-    const flutter = since < 0.35 ? 0.25 * Math.sin(since / 0.35 * Math.PI) : 0;
-    return Math.min(1, 0.1 + n / 4 * 0.9 - flutter + (n < 2 ? 0.03 * Math.sin(this.t * 3) : 0));
-  },
-  look(){ return 1; },
+  /* coming open by themselves: heavy, a slow blink on the way */
+  wake(){ const u = this.st / WAKE, blink = u > 0.35 && u < 0.5 ? Math.sin((u - 0.35) / 0.15 * Math.PI) * 0.6 : 0; return Math.min(1, 0.15 + u * 1.1 - blink); },
+  watch(){ return 1; },
+  notice(){ return 1; },
+  move(){ return 1; },
+  rise(){ return 1; },
   crash(){ return 0; },
   title(){ return 0; },
   call(){ return 1; },
   answer(){ return 1; },
-  /* the blink: shut, then open outside */
-  stand(){ return 1; },
   pull(){ return 1; },
-  gather(){ return 1; },
   go(){ return 1; }
 };
 /* When a beat's waited as long as it will: as if everyone had done it. */
 const FORCE = {
-  wake(){ for (const i of this.g.here) this.woke[i] = WIGGLE; },
+  move(){ for (const i of this.g.here) this.woke[i] = WIGGLE; },
   call(){ for (const i of this.g.here) this.answered[i] = true; }
 };
 /* Up off the ground, one after another (after a while, from). */
