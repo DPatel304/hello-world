@@ -95,6 +95,10 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
     if (pose === 'sit'){ limb([sh, [d * 58 * u, -178 * u], [d * 52 * u, -132 * u]], 26 * u, d); trim(d * 58 * u, -178 * u, 22 * u); c.fillStyle = dark; circ(c, d * 52 * u, -128 * u, 14 * u); continue; }
     if (pose === 'hug'){ limb([sh, [d * 62 * u, -188 * u], [d * 30 * u, -178 * u]], 26 * u, d); trim(d * 62 * u, -186 * u, 22 * u); continue; }
     if (pose === 'hang'){ limb([sh, [d * 52 * u, -282 * u], [d * 26 * u, -334 * u]], 24 * u, d); trim(d * 52 * u, -282 * u, 22 * u); c.fillStyle = dark; circ(c, d * 26 * u, -338 * u, 14 * u); continue; }
+    /* dusting themselves off: patting the fronts of their legs, one hand then the other */
+    if (pose === 'dust'){ const k = Math.sin(t * 8 + (d < 0 ? 0 : Math.PI)); const elbow = [d * 66 * u, -172 * u], fist = [d * (34 - 6 * k) * u, (-112 + 16 * k) * u]; limb([sh, elbow], 22 * u, d); limb([elbow, fist], 19 * u, d); trim(elbow[0], elbow[1], 22 * u); c.fillStyle = dark; circ(c, fist[0], fist[1], 12 * u); continue; }
+    /* checking themselves over: one arm held up in front, turned this way and that */
+    if (pose === 'check' && d < 0){ const k = Math.sin(t * 2.2); limb([sh, [-70 * u, -196 * u], [(-34 + 6 * k) * u, -222 * u]], 22 * u, d); trim(-70 * u, -196 * u, 22 * u); c.fillStyle = dark; circ(c, (-34 + 6 * k) * u, -226 * u, 12 * u); continue; }
     if (pose === 'reach' && d < 0){ limb([sh, [-62 * u, -270 * u], [-56 * u, -322 * u]], 26 * u); c.fillStyle = dark; circ(c, -56 * u, -326 * u, 15 * u); continue; }
     const p = run * Math.sin(ph + (d < 0 ? Math.PI : 0));
     const elbow = run > 0.2 ? [d * (66 + 8 * p) * u, (-176 + 12 * p) * u] : [d * 60 * u, -172 * u];
@@ -123,6 +127,9 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   if (pose === 'sit') c.translate(0, 120 * u);
+  /* the head turning: looking round (st.look, -1..1), or down at an arm, or at their legs */
+  const turn = (st.look || 0) * 0.3 + (pose === 'check' ? -0.28 : 0), nod = pose === 'dust' ? 10 * u : pose === 'check' ? 4 * u : 0;
+  if (turn || nod){ c.translate((st.look || 0) * 8 * u, nod); c.translate(0, -238 * u * f); c.rotate(turn); c.translate(0, 238 * u * f); }
   const hy = -238 * u * f - 40 * u, r = 44 * u;
   c.fillStyle = deep; c.beginPath(); c.ellipse(0, -238 * u * f, 26 * u, 10 * u, 0, 0, 6.2832); c.fill();
   const hg = c.createRadialGradient(-16 * u, hy - 18 * u, 4 * u, 0, hy, r); hg.addColorStop(0, lite); hg.addColorStop(0.6, col); hg.addColorStop(1, dark);

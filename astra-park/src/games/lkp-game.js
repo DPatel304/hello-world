@@ -1279,7 +1279,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
