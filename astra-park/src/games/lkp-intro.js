@@ -128,6 +128,7 @@ export class Intro {
     this.t += dt; this.st += dt;
     if (['out', 'rise', 'move', 'go'].includes(this.stage)) this.cineT = (this.cineT || 0) + dt;
     /* the hopshell, hopping along (it's out in the world: lkp-crashsite.js) */
+    if (!['title', 'dark'].includes(this.stage)) this.hopT = (this.hopT || 0) + dt * (this.stage === 'wake' ? 0.25 : 1);
     const hs = this.g.things.find(t => t.kind === 'hoppers');
     if (hs){ hs.one = true; hs.lane = this._hopLane(); hs.d = this.g.z + HOP.rel; }
     const g = this.g;
@@ -176,7 +177,7 @@ export class Intro {
       const f = Math.max(0.12, 1 - Math.abs(this._looking().pan - AT_CHIMES) / 0.45);
       if (Math.random() < dt * 1.6 * (0.4 + f)) sfx.chime?.(f);
     }
-    if (calm > 0 && !this.pad){ this.pad = true; sfx.calmPad?.(); }
+    /* (no soft calm hum for now - left out while the sound's worked out) */
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
     /* the fire: burning steadily, crackling all the time */
@@ -257,8 +258,9 @@ export class Intro {
   }
   /* The hopshell's lane, now (it's hopping along, slowly, to the right). */
   _hopLane(){
-    const s = this.stage, T = s === 'dark' ? 0 : s === 'wake' ? this.st * 0.2 : s === 'watch' ? WAKE * 0.2 + this.st : s === 'notice' ? WAKE * 0.2 + WATCH + this.st * 0.6 : WAKE * 0.2 + WATCH + NOTICE * 0.6 + this.st * 0.15;
-    return HOP.from + (HOP.to - HOP.from) * Math.min(1.25, T / (WATCH + 1));
+    /* (it never stops: on past the ship and away, while you stare at the ship) */
+    if (this.hopT == null) this.hopT = 0;
+    return HOP.from + (HOP.to - HOP.from) * this.hopT / (WATCH + 1);
   }
   /* Where you're looking, sitting there: following the hopshell (waking,
      watching); then on to the ship beyond it, settling there (noticing,
@@ -282,9 +284,38 @@ export class Intro {
     return 1;
   }
 
-  /* The visor: the suit's display - damaged, half its power. */
+  /* The visor: you're inside a helmet - its rim round the edge of the
+     view, the glass's faint curve and gleam, thin HUD brackets in the
+     corners and a heading strip at the top - minimal, but clearly a
+     helmet; and the suit's display - damaged, half its power. */
   _visor(c, W, H){
     c.save();
+    const hud = this.stage === 'dark' ? 0 : this.stage === 'wake' ? Math.min(1, Math.max(0, (this.st - WAKE * 0.7) / (WAKE * 0.3))) : 1;
+    /* the helmet's rim: dark, rounded, round the whole view */
+    const rim = c.createRadialGradient(W / 2, H / 2, H * 0.62, W / 2, H / 2, W * 0.6);
+    rim.addColorStop(0, 'rgba(8,10,22,0)'); rim.addColorStop(0.7, 'rgba(8,10,22,.55)'); rim.addColorStop(1, 'rgba(8,10,22,.95)');
+    c.fillStyle = rim; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(230,240,255,.18)'; c.lineWidth = H * 0.008;
+    c.beginPath(); c.ellipse(W / 2, H / 2, W * 0.52, H * 0.6, 0, 0, Math.PI * 2); c.stroke();
+    /* a gleam across the glass */
+    c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = H * 0.05; c.lineCap = 'round';
+    c.beginPath(); c.ellipse(W / 2, H * 0.55, W * 0.46, H * 0.52, 0, Math.PI * 1.12, Math.PI * 1.36); c.stroke();
+    if (hud > 0){
+      c.globalAlpha = hud * (0.75 + 0.05 * Math.sin(this.t * 3));
+      c.strokeStyle = '#7ff3ff'; c.lineWidth = Math.max(2, H * 0.003); c.lineCap = 'square';
+      /* corner brackets */
+      const m = H * 0.09, L = H * 0.05;
+      for (const [x, y, dx, dy] of [[W * 0.12, m, 1, 1], [W * 0.88, m, -1, 1], [W * 0.12, H - m, 1, -1], [W * 0.88, H - m, -1, -1]]){
+        c.beginPath(); c.moveTo(x, y + dy * L); c.lineTo(x, y); c.lineTo(x + dx * L, y); c.stroke();
+      }
+      /* a heading strip at the top, ticks sliding as you look round */
+      const look = this._looking(), y0 = H * 0.075, off = (look.pan || 0) * W * 0.25;
+      c.lineWidth = Math.max(1.5, H * 0.002);
+      c.beginPath(); c.moveTo(W * 0.4, y0); c.lineTo(W * 0.6, y0); c.stroke();
+      for (let k = -12; k <= 12; k++){ const x = W / 2 + k * W * 0.015 + (off % (W * 0.015)); if (x < W * 0.4 || x > W * 0.6) continue; c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y0 - H * (k % 4 === 0 ? 0.014 : 0.007)); c.stroke(); }
+      c.fillStyle = '#7ff3ff'; c.beginPath(); c.moveTo(W / 2, y0 + H * 0.006); c.lineTo(W / 2 - H * 0.008, y0 + H * 0.018); c.lineTo(W / 2 + H * 0.008, y0 + H * 0.018); c.fill();
+      c.globalAlpha = 1;
+    }
     /* the display, bottom left - a picture, no words: the suit's battery,
        half gone */
     const on = this.stage !== 'dark' && (Math.sin(this.t * 23) > -0.85 || this.stage !== 'wake') && !(this.stage === 'wake' && this.st < WAKE * 0.8);
