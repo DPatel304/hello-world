@@ -1030,3 +1030,23 @@ export function worldFountain(c, W, H, rel, lane, t, len, L){
     circ(c, q.x, q.y - u * H * 0.12 * q.k, (H * 0.004 * (1 - u * 0.6)) * q.k + 0.5);
   }
 }
+
+/* Where the path turns off: the way it was going, carrying straight on -
+   the main path, on ahead past the turning - from the corner (rel) on,
+   while the way they're taking bends away (lkp-art.js BEND: the corner's
+   bend undone, so this stays straight). */
+export function worldStraightOn(c, W, H, L){
+  if (BEND.corner == null || BEND.corner > 1) return;
+  const c0 = BEND.corner, N = 24, Ls = [], Rs = [];
+  for (let i = 0; i <= N; i++){
+    const rel = c0 + (0.98 - c0) * (i / N), off = -BEND.dir * (rel - c0) * (rel - c0) * 70;
+    Ls.push(P(-PATH_HALF + off, rel, W, H)); Rs.push(P(PATH_HALF + off, rel, W, H));
+  }
+  const HY = HORIZON * H, pg = c.createLinearGradient(0, HY, 0, H);
+  pg.addColorStop(0, mix(L.path[0], L.haze, 0.4)); pg.addColorStop(1, L.path[1]);
+  c.fillStyle = pg; c.beginPath();
+  Ls.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); for (let i = N; i >= 0; i--) c.lineTo(Rs[i].x, Rs[i].y);
+  c.closePath(); c.fill();
+  /* its edge stones */
+  for (let i = 1; i <= N; i++) for (const q of [Ls[i], Rs[i]]){ c.fillStyle = mix('#8f88a8', L.haze, Math.min(0.7, i / N)); circ(c, q.x, q.y, H * 0.006 * q.k + 0.5); }
+}

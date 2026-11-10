@@ -71,15 +71,17 @@ export function skyJellies(c, W, H, t, k, u = 0, size = 1){
 /* A little glowing fish at (x, y), s long, swimming dir (-1 left, 1 right),
    under the water: a soft light round it, its tail flicking. */
 function fin(c, x, y, s, t, dir, col, a){
-  const wag = Math.sin(t * 9) * 0.35;
-  c.save(); c.globalAlpha = a;
-  glow(c, x, y, s * 1.4, col[1], 0.5);
+  /* (under the water: its colours softened into the water's, flat - dark
+     back, lighter belly - no glow; a soft ripple over it now and then) */
+  const wag = Math.sin(t * 7) * 0.3, water = '#5fc8d8';
+  const back = mixHex(col[1], water, 0.55), belly = mixHex(col[0], water, 0.45);
+  c.save(); c.globalAlpha = a * 0.75;
   c.translate(x, y); c.scale(dir, 1);
-  c.fillStyle = col[1];
-  c.beginPath(); c.moveTo(-s * 0.35, 0); c.lineTo(-s * 0.7, -s * 0.22 + wag * s * 0.2); c.lineTo(-s * 0.7, s * 0.22 + wag * s * 0.2); c.closePath(); c.fill();
-  c.fillStyle = col[0]; c.beginPath(); c.ellipse(0, 0, s * 0.42, s * 0.2, 0, 0, TAU); c.fill();
-  c.fillStyle = 'rgba(255,255,255,.7)'; c.beginPath(); c.ellipse(s * 0.05, -s * 0.06, s * 0.2, s * 0.05, 0, 0, TAU); c.fill();
-  c.fillStyle = '#1a2a40'; c.beginPath(); c.arc(s * 0.24, -s * 0.03, s * 0.04, 0, TAU); c.fill();
+  c.fillStyle = back;
+  c.beginPath(); c.moveTo(-s * 0.32, 0); c.lineTo(-s * 0.62, -s * 0.18 + wag * s * 0.16); c.lineTo(-s * 0.62, s * 0.18 + wag * s * 0.16); c.closePath(); c.fill();
+  c.beginPath(); c.ellipse(0, 0, s * 0.4, s * 0.17, 0, 0, TAU); c.fill();
+  c.fillStyle = belly; c.beginPath(); c.ellipse(s * 0.04, s * 0.05, s * 0.28, s * 0.08, 0, 0, TAU); c.fill();
+  c.fillStyle = mixHex('#1a2a40', water, 0.3); c.beginPath(); c.arc(s * 0.24, -s * 0.03, s * 0.03, 0, TAU); c.fill();
   c.restore();
 }
 

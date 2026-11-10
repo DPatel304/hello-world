@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { farStir, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { farStir, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
@@ -149,9 +149,12 @@ const SQUEEZE_AT = 46;
    seconds in, for ZUBU_FAR[1]; a deep footfall every STEP_EVERY seconds,
    rippling the water; then its call. */
 export const ZUBU_FAR = [2.5, 9], STEP_EVERY = 1.3;
-/* The pond's end: RUMBLE seconds of the ground shaking, then the camera
-   off on the far ridge at least FAR_HOLD seconds. */
-export const RUMBLE = 2.6, FAR_HOLD = 8;
+/* The pond's end, a scene of its own: big stomps, one at a time (STOMPS,
+   seconds in), the crew startled, looking round - RUMBLE seconds of it;
+   then the camera swinging out (FAR_EASE seconds) all the way to the far
+   woods where the trees are coming down, holding there at least
+   FAR_HOLD seconds; then back. */
+export const RUMBLE = 5.2, FAR_HOLD = 8, FAR_EASE = 3.5, STOMPS = [0.4, 2.1, 3.6];
 /* The team jump: how deep the gorge (depths; a wider one before the
    boss). (The jump itself: lkp-leap.js.) */
 export const RAVINE = 0.42, RAVINE_BIG = 0.56;
@@ -499,7 +502,8 @@ class LastKnownPosition {
       /* out of it: off the trail - turning onto the swathe of trampled
          woods something huge left (seen from the pond: _rest) - fallen
          trees across it to dodge, and a log rolling down */
-      this.seg.corner = { d: at(s + 0.6), dir: side(), at: null };
+      /* (off to the left - towards the stomping - the main path going on straight) */
+      this.seg.corner = { d: at(s + 0.6), dir: -1, at: null, straightOn: true };
       ROAD.surfaces.push({ d0: at(s + 1.2), d1: at(s + 30), kind: 'trampled' });
       for (const [t, sd] of [[2.5, -1], [5, 1], [8, -1], [12.5, 1], [15.5, -1]]) this.things.push({ d: at(s + t), kind: 'trail', lane: sd * 1.9 });
       const fallen = (t, sd, w = 0.85) => { const a = sd < 0 ? -1.05 : 1.05 - w; add(t, { kind: 'blocker', a, b: a + w, seed: Math.floor(Math.random() * 100), fallen: true }); crystalLine(t - 0.6, sd < 0 ? 0.6 : -0.6, 4); };
@@ -559,7 +563,7 @@ class LastKnownPosition {
     const ease = (v, on, secs) => Math.max(0, Math.min(1, (v || 0) + (on ? 1 : -1) * dt / secs));
     const rp = this.rest && this.rest.phase;
     this.viewDown = ease(this.viewDown, rp === 'heal' && this.rest.t > 2.5, VIEW_EASE);
-    this.viewFar = ease(this.viewFar, rp === 'far', 2.2);
+    this.viewFar = ease(this.viewFar, rp === 'far', FAR_EASE);
     /* (barely a glance their way, as the nearest of the sky jellies drift by) */
     const jl = this.things.find(t => t.kind === 'skyjelly' && t.d - this.z > 0.12 && t.d - this.z < 0.45);
     this.viewUp = ease(this.viewUp, !!jl, 2.5);
@@ -776,9 +780,17 @@ class LastKnownPosition {
     for (const i of this.here){
       const rn = this.crew[i], hug = this.hugWatch[i].step(pose.players[i], dt);
       rn.pose = hug ? 'hug' : null; rn.heal = 0.6;
-      /* looking down at the fish; then up, and off to the far ridge */
+      /* looking down at the fish; startled by the stomps - flinching, arms
+         up, looking this way and that; then all looking off left, where
+         it's coming from */
       rn.nod = r.phase === 'heal' ? this.viewDown || 0 : 0;
-      rn.look = r.phase === 'heal' ? Math.sin(r.t * (0.4 + 0.1 * i) + i * 1.7) * 0.35 : 0.85 + 0.1 * Math.sin(r.t * 2 + i);
+      if (r.phase === 'heal') rn.look = Math.sin(r.t * (0.4 + 0.1 * i) + i * 1.7) * 0.35;
+      else if (r.phase === 'rumble'){
+        const since = Math.min(...STOMPS.map(at => r.rt - at).filter(d => d >= 0), 9);
+        if (since < 0.45){ rn.pose = 'hang'; }
+        rn.look = since < 9 ? Math.sin(r.rt * (4 + i) + i * 2) * 0.9 : 0;
+      }
+      else rn.look = -0.85 + 0.1 * Math.sin(r.t * 2 + i);
       if (rn.hp >= rn.max) continue;
       const was = rn.hp;
       rn.hp = Math.min(rn.max, rn.hp + rn.max * REST_FILL * (hug ? 2 : 1) * dt);
@@ -795,18 +807,24 @@ class LastKnownPosition {
       return;
     }
     r.rt += dt;
-    /* the ground shaking: deep thuds, far off, the water trembling */
-    r.stepT = (r.stepT ?? 0) - dt;
-    if (r.stepT <= 0){ r.stepT = r.phase === 'rumble' ? 0.75 : STEP_EVERY; sfx.farStep?.(r.phase === 'rumble' ? 1.1 : 0.8); this.quake = 1; }
+    /* the stomps: one, and another - big, the ground jumping, the water
+       shaking; then, watching it far off, its steps going on, further away */
+    if (r.phase === 'rumble'){
+      r.stomped = r.stomped || 0;
+      if (r.stomped < STOMPS.length && r.rt >= STOMPS[r.stomped]){ r.stomped++; sfx.farStep?.(1.6); sfx.boom?.(); this.quake = 1; this.shake = Math.min(1, (this.shake || 0) + 0.7); }
+    } else {
+      r.stepT = (r.stepT ?? 0) - dt;
+      if (r.stepT <= 0){ r.stepT = STEP_EVERY; sfx.farStep?.(0.8); this.quake = 0.6; }
+    }
     if (r.phase === 'rumble'){
       if (r.rt >= RUMBLE){ r.phase = 'far'; r.ft = 0; }
       return;
     }
     r.ft += dt;
-    if (talk && !r.pointed && r.ft > 2.2){ r.pointed = true; cap.say(...line(L.offTrail[0]), { polite: true, story: true }); }
+    if (talk && !r.pointed && r.ft > FAR_EASE + 1.5){ r.pointed = true; cap.say(...line(L.offTrail[0]), { polite: true, story: true }); }
     /* she's said it: off they go - the story's start over, the music
        back to the run's own */
-    if ((r.ft > FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_HOLD + 14){
+    if ((r.ft > FAR_EASE + FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_EASE + FAR_HOLD + 14){
       for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; rn.nod = 0; }
       this.rest = null; cap.stay = false; this.cozy = false;
     }
@@ -870,7 +888,7 @@ class LastKnownPosition {
 
   /* How far along the far ridge whatever it is has got (0..1), as the
      camera watches from the pond; or -1. */
-  get farStirU(){ const r = this.rest; return r && r.phase === 'far' ? Math.max(0, Math.min(1.1, (r.ft - 0.5) / 7)) : -1; }
+  get farStirU(){ const r = this.rest; return r && r.phase === 'far' ? Math.max(0, Math.min(1.1, (r.ft - FAR_EASE + 0.5) / 7)) : -1; }
   /* How high off the ground a crystal floats (px at depth scale k): low,
      or high for a hop. */
   _crystalUp(th, H, k){
@@ -1345,9 +1363,10 @@ class LastKnownPosition {
       if (dn > 0){ const ay = P(0, RUN, W, H).y, z = 1 + 0.45 * dn, sy = ay + (H * 0.62 - ay) * dn; c.translate(W / 2, sy); c.scale(z, z); c.translate(-W / 2, -ay); }
       /* herd: the camera swinging over to watch the glimmerbacks zoom away, off the path to the right */
       if (hd > 0){ c.translate(-W * 0.26 * hd, -H * 0.04 * hd); c.translate(W * 0.75, H * 0.5); c.scale(1 + 0.18 * hd, 1 + 0.18 * hd); c.translate(-W * 0.75, -H * 0.5); SKY.wide = Math.max(SKY.wide, W * 0.45 * hd); }
+      /* far: the camera swinging away left from the crew, out across the land - and on, in a long lens, to the far woods */
+      if (far > 0){ const ax = W * 0.12, ay = H * 0.42, z = 1 + 0.7 * far; c.translate(W * 0.5 * far, H * 0.08 * far); c.translate(ax, ay); c.scale(z, z); c.translate(-ax, -ay); SKY.wide = Math.max(SKY.wide, W * 0.8 * far); SKY.above = Math.max(SKY.above, H * 0.2 * far); }
       this._drawPlay(c, W, H);
-      /* far: the camera away across the valley to the far ridge (a long lens), cross-fading in */
-      if (far > 0 && PAL.world){ c.save(); c.globalAlpha = far; worldFarRidge(c, W, H, this.t, Math.max(0, this.farStirU), PAL.world); c.restore(); }
+      if (far > 0 && PAL.world){ const k = Math.max(0, Math.min(1, (far - 0.45) / 0.55)); c.restore(); c.save(); c.globalAlpha = k * k * (3 - 2 * k); worldFarRidge(c, W, H, this.t, Math.max(0, this.farStirU), PAL.world); }
       SKY.above = 0; SKY.wide = 0; SKY.far = null; this.noHud = false; c.restore();
       this._drawHud(c, W, H);
     }
@@ -1403,6 +1422,8 @@ class LastKnownPosition {
     if (dropY){ c.save(); c.translate(0, dropY); SKY.above = H; }
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
+    /* (where they turn off the main path: the main path carrying on, straight ahead) */
+    if (seg.corner && seg.corner.straightOn && PAL.world && seg.corner.at == null) worldStraightOn(c, W, H, PAL.world);
     /* Springs are part of the floor: under everything, there all the way
        along until the last of them has gone by. */
     for (const th of this.things) if (th.kind === 'fountain'){
