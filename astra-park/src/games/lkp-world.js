@@ -212,7 +212,7 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   /* The ground. */
   const gg = c.createLinearGradient(0, HY, 0, H);
   gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
-  c.fillStyle = gg; c.fillRect(-SKY.wide, HY + H * 0.005, W + SKY.wide, H - HY);
+  c.fillStyle = gg; c.fillRect(-SKY.wide, HY + H * 0.005, W + SKY.wide * 2, H - HY + H * 0.1);
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
   /* The path. */
@@ -222,7 +222,7 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   /* The far end fades into the haze. */
   const fh = c.createLinearGradient(0, HY - H * 0.07, 0, HY + H * 0.08);
   fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75)); fh.addColorStop(1, rgba(L.haze, 0));
-  c.fillStyle = fh; c.fillRect(-SKY.wide, HY - H * 0.07, W + SKY.wide, H * 0.15);
+  c.fillStyle = fh; c.fillRect(-SKY.wide, HY - H * 0.07, W + SKY.wide * 2, H * 0.15);
   if (alarm > 0){ c.fillStyle = `rgba(255,60,60,${0.06 * alarm})`; c.fillRect(0, 0, W, H); }
 }
 

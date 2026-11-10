@@ -110,6 +110,10 @@ export const BUBBLE_CLAPS = 4, BUBBLE_R = 0.6, BUBBLE_HP = 0.5;
 /* The healing pond stop: its size (lanes), how much health a second it
    heals (twice that hugging), and the longest it waits. */
 export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 25;
+/* At the pond they stay at least REST_MIN seconds, healed or not: a
+   pause to look round - the camera tilting up to the sky and the land,
+   VIEW_EASE seconds to get there and back. */
+export const REST_MIN = 9, VIEW_EASE = 2.5;
 /* The team jump: how deep the gorge (depths; a wider one before the
    boss). (The jump itself: lkp-leap.js.) */
 export const RAVINE = 0.42, RAVINE_BIG = 0.56;
@@ -462,6 +466,8 @@ class LastKnownPosition {
   /* ---------- the loop ---------- */
 
   step(dt, W, H){
+    /* the pond's view: the camera easing up while they rest, back after */
+    this.restCam = Math.max(0, Math.min(1, (this.restCam || 0) + (this.rest && this.rest.t > 0.8 ? 1 : -1) * dt / VIEW_EASE));
     this.t += dt;
     stepGuide(this, dt);
     this.faces.step(dt);
@@ -633,17 +639,20 @@ class LastKnownPosition {
     for (const i of this.here){
       const rn = this.crew[i], hug = this.hugWatch[i].step(pose.players[i], dt);
       rn.pose = hug ? 'hug' : null; rn.heal = 0.6;
+      /* looking round, taking it in - each at their own pace */
+      rn.look = hug ? 0 : Math.sin(r.t * (0.5 + 0.12 * i) + i * 1.7) * Math.min(1, r.t / 2);
       if (rn.hp >= rn.max) continue;
       const was = rn.hp;
       rn.hp = Math.min(rn.max, rn.hp + rn.max * REST_FILL * (hug ? 2 : 1) * dt);
       if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)){ const p = P(rn.x, RUN, W, H); this.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.25) / H, vy: -0.06, age: 0, life: 0.8, text: '+5', col: '#7ff3ff' }); }
       if (rn.hp >= rn.max) sfx.twinkle();
     }
-    if (story.on && !r.waited && r.t > 10 && !this.captain.busy){ r.waited = true; this.captain.say(...line(this.level.lines.pondWait[0])); }
+    if (story.on && !r.viewed && r.t > 3.5 && !this.captain.busy && this.level.lines.pondView){ r.viewed = true; this.captain.say(...line(this.level.lines.pondView[0]), { polite: true }); }
+    if (story.on && !r.waited && r.t > 14 && !this.captain.busy){ r.waited = true; this.captain.say(...line(this.level.lines.pondWait[0])); }
     const full = this.here.every(i => this.crew[i].hp >= this.crew[i].max);
     r.ok = full ? r.ok + dt : 0;
-    if (r.ok > 0.8 || r.t >= REST_MAX){
-      for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; }
+    if ((r.ok > 0.8 && r.t >= REST_MIN) || r.t >= REST_MAX){
+      for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; }
       if (story.on) this.captain.say(...line(this.level.lines.pondDone[0]), { polite: true });
       this.rest = null;
     }
@@ -1094,6 +1103,17 @@ class LastKnownPosition {
     }
     /* the team jump's hero shot, from in front, in place of the run */
     if (this.leap && this.leap.phase === 'hero') this.leap.view(c, W, H, PAL.world);
+    else if ((this.restCam || 0) > 0.001){
+      /* at the pond: the camera tilting up and easing back - more sky,
+         the land laid out, the crew small in it (the HUD stays put) */
+      const k = this.restCam * this.restCam * (3 - 2 * this.restCam), s = 1 - 0.3 * k;
+      /* (pulling back round their feet: they stay put, small, the sky opens above) */
+      c.save(); c.translate(W / 2, H * 0.97); c.scale(s, s); c.translate(-W / 2, -H * 0.97);
+      SKY.above = H * 0.5 * k; SKY.wide = W * 0.3 * k; this.noHud = true;
+      this._drawPlay(c, W, H);
+      SKY.above = 0; SKY.wide = 0; this.noHud = false; c.restore();
+      this._drawHud(c, W, H);
+    }
     else this._drawPlay(c, W, H);
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
     /* (playing itself in the home screen's banner, demo: just the play) */
@@ -1201,7 +1221,7 @@ class LastKnownPosition {
     this._drawBits(c, W, H);
     if (this.depot) this.depot.draw(c, W, H);
     c.restore();
-    if (!this.inIntro) this._drawHud(c, W, H);
+    if (!this.inIntro && !this.noHud) this._drawHud(c, W, H);
   }
 
   /* The path's bends, for the look: gentle curves along a corridor, a
@@ -1298,7 +1318,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     drawCrew(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
