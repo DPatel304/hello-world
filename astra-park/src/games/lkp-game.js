@@ -452,7 +452,7 @@ class LastKnownPosition {
       const atD = (dist) => this.z + RUN + dist;
       /* her story first - where they are, what's wrong, what to do - with
          nothing on the path at all (each waits for the one before) */
-      if (story.on) [0.05, 0.3].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', line: k }));
+      /* (her story's told in the opening now, on the radio: lkp-intro.js answer) */
       /* then: look up! - the sky, and what lives up there (_vista) */
       this.things.push({ d: atD(VISTA_AT), kind: 'vista' });
       /* and only then, crystals to catch, picking up speed */
@@ -1350,7 +1350,7 @@ class LastKnownPosition {
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
       const p = P(ic.lane, ic.rel, W, H), h = H * CREW_SIZE * p.k;
-      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x + (ic.dx || 0) * h, y: p.y, h, bob: 0, down: ic.down, pose: ic.pose, noBar: ic.noBar } });
+      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x + (ic.dx || 0) * h, y: p.y, h, bob: (ic.bob || 0) * h, down: ic.down, pose: ic.pose, noBar: ic.noBar, ground: ic.ground || 0, look: ic.look || 0 } });
     }
     else for (let i = 0; i < this.players; i++) if (this.crew[i].played && !(this.zip && this.zip.holding(i))) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
@@ -1447,7 +1447,7 @@ class LastKnownPosition {
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
       case 'trail': worldTrail(c, W, H, it.lane, it.rel, PAL.world); break;
       case 'chimes': chimeblooms(c, W, H, it.lane, it.rel, this.t); break;
-      case 'hoppers': hopshells(c, W, H, it.lane, it.rel, this.t); break;
+      case 'hoppers': hopshells(c, W, H, it.lane, it.rel, this.t, it.one); break;
       case 'puffhen': if (it.rel > -0.12) puffhen(c, p.x, p.y, H * 0.11 * p.k, this.t + it.f.n * 0.37, it.f.side); break;
     }
   }
@@ -1495,7 +1495,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     (at && at.front ? worldCrewFront : drawCrew)(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: rn.nod || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: rn.nod || 0, ground: (at && at.ground) || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       /* (noFace: the visor just dark glass - the opening's shot, before anyone's face is in it) */
       at && at.noFace ? null : (x, y, r) => {
         /* (the sleepy roll: the face they pulled sneaking past her, frozen on red) */
@@ -1529,12 +1529,6 @@ class LastKnownPosition {
        pulsing orange, and now and then a spark fizzing off the suit - so
        it's seen, not read. Healed, it stops. */
     const frac = rn.hp / rn.max, sore = frac < 0.6 && !this.fight && !this.inIntro && !this.over;
-    if (sore && ((this.t + i * 0.45) % 1.4) < 0.16){
-      const sx = p.x + h * (i % 2 ? 0.16 : -0.16), sy = top + h * 0.3, u = h * 0.12;
-      glow(c, sx, sy, u * 1.6, '#ffd27a', 0.7);
-      c.save(); c.strokeStyle = '#fff3a6'; c.lineWidth = Math.max(2, u * 0.2); c.lineJoin = 'round';
-      c.beginPath(); c.moveTo(sx - u * 0.3, sy + u * 0.6); c.lineTo(sx + u * 0.2, sy); c.lineTo(sx - u * 0.1, sy - u * 0.1); c.lineTo(sx + u * 0.35, sy - u * 0.7); c.stroke(); c.restore();
-    }
     if (at && at.noBar != null ? !at.noBar : !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, frac, PLAYER_COLORS[i], frac < 0.2);
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }

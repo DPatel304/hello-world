@@ -155,7 +155,9 @@ function hopshell(c, x, y, s, hop, dir, t){
 }
 /* A few hopshells out on the meadow (round lane, rel): hopping about,
    each its own little way, drifting back and forth. */
-export function hopshells(c, W, H, lane, rel, t){
+export function hopshells(c, W, H, lane, rel, t, one = false){
+  /* (one: just the one, at (lane, rel), facing right, hopping slowly along - the opening moves it) */
+  if (one){ const ph = t * 0.8, f = ph - Math.floor(ph), p = P(lane, rel, W, H); hopshell(c, p.x, p.y, H * 0.2 * p.k, f < 0.5 ? f / 0.5 : 0, 1, t); return; }
   for (let i = 0; i < 6; i++){
     const ph = t * (0.9 + 0.25 * hash(i + 80)) + hash(i + 81) * 5, n = Math.floor(ph), f = ph - n;
     const wander = Math.sin(t * 0.12 + i * 2) * 0.6, dir = Math.cos(t * 0.12 + i * 2) > 0 ? 1 : -1;

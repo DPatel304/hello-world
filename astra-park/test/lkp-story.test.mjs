@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, WAKE, WATCH, NOTICE, RISE, RING_FIRST, SAID, WIGGLE, PULL_TIME, GO, MOVE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, WAKE, WATCH, NOTICE, OUT_TIME, RING_FIRST, SAID, WIGGLE, GO, MOVE_MAX, RING_MAX, RISE_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
@@ -23,11 +23,11 @@ const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' |
 const say = (inst, kind) => script(kind, inst).reduce((s, [who, text]) => s + lineTime(text.replace(/^k+s+h+\s*[-\u2014]\s*/i, ''), who) + 0.5, 0);
 const hands = (i, x, y, speed = 0) => { pose.players[i].hands.right = { x, y, vx: 0, vy: 0, speed }; };
 
-test('the opening: waking up in the helmet, sitting in the grass - hopshells just in front, then the ship beyond; answer Nova; wiggle to get up; on your feet, out to the crew getting up, and off', () => {
+test('the opening: eyes open on a hopshell, following it to the ship; answer Nova - her story; out to the crew sat in the grass; on your feet; wiggle, each their own astronaut; and off', () => {
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'move', 'rise', 'pull', 'go']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'out', 'rise', 'move', 'go']);
   const z = inst.z;
   /* the title card first - a film starting (the crash, before it, is out for now) */
   assert.equal(intro.stage, 'title');
@@ -62,9 +62,19 @@ test('the opening: waking up in the helmet, sitting in the grass - hopshells jus
   assert.equal(intro.stage, 'answer');
   assert.ok(intro.radio.busy && intro.radio.visible);
   inst.draw(fake(), W, H);
-  run(inst, say(inst, 'wakeup') + SAID + 0.3);
-  /* can you move? - everyone wiggling, to get up */
+  run(inst, say(inst, 'wakeup') + say(inst, 'walk') + SAID + 0.3);
+  /* out of the helmet to the game's view: the crew sat in the grass */
+  assert.equal(intro.stage, 'out');
+  run(inst, OUT_TIME / 2); inst.draw(fake(), W, H);
+  run(inst, OUT_TIME / 2 + 0.05);
+  assert.equal(intro.stage, 'rise');
+  assert.ok(inst.here.every(i => intro.up[i] < 0.1), 'still sat down as she says it');
+  inst.draw(fake(), W, H);
+  for (let k = 0; k < RISE_MAX / DT && intro.stage === 'rise'; k++) inst.step(DT, W, H);
+  assert.ok(inst.here.every(i => intro.up[i] >= 1), 'all up');
+  /* can you move? - everyone wiggling, the team has to do it */
   assert.equal(intro.stage, 'move');
+  run(inst, 1.3);
   for (let k = 0; k < (WIGGLE + 0.5) / DT; k++){ hands(0, 0.5, 0.5, 2); inst.step(DT, W, H); }
   assert.ok(intro.wiggled > 0.45 && intro.wiggled < 0.55, 'one isn\'t enough');
   assert.equal(intro.stage, 'move');
@@ -73,19 +83,10 @@ test('the opening: waking up in the helmet, sitting in the grass - hopshells jus
   assert.ok(intro.wiggled <= was, 'stopping, they droop');
   for (let k = 0; k < (WIGGLE + 1.5) / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
   hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
-  /* on your feet! - the head turning to the path; then out, to watch them get up */
-  assert.equal(intro.stage, 'rise');
-  run(inst, RISE / 2); inst.draw(fake(), W, H);
-  run(inst, RISE / 2 + 0.05);
-  assert.equal(intro.stage, 'pull');
-  assert.ok(inst.here.every(i => intro.up[i] < 0.1), 'still down in the grass as it starts');
-  run(inst, PULL_TIME / 2); inst.draw(fake(), W, H);
-  run(inst, PULL_TIME / 2 + 0.05);
   assert.equal(intro.stage, 'go');
   for (let k = 0; k < 40 && inst.scene; k++){ inst.step(DT, W, H); assert.equal(inst.z, z, 'nothing moves till it\'s done'); if (k % 10 === 0) inst.draw(fake(), W, H); }
-  run(inst, GO);
+  for (let k = 0; k < 10 / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
-  assert.ok(inst.here.every(i => intro.up[i] > 0.9), 'all up');
   assert.equal(inst.introCrew, null, 'in their places');
   run(inst, 1);
   assert.ok(inst.z > z, 'and off they go');
@@ -95,7 +96,7 @@ test('the opening: waking up in the helmet, sitting in the grass - hopshells jus
 test('nobody answering or wiggling never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE + WATCH + NOTICE + RING_MAX + 1 + say(inst, 'wakeup') + SAID + 1 + MOVE_MAX + 1 + RISE + PULL_TIME + GO + 1;
+  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE + WATCH + NOTICE + RING_MAX + 1 + say(inst, 'wakeup') + say(inst, 'walk') + SAID + 1 + OUT_TIME + RISE_MAX + 1 + MOVE_MAX + 2 + say(inst, 'ready') + GO + 2;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   story.on = false;
@@ -114,8 +115,8 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   assert.ok(pond, 'a pond stop');
   for (let k = 0; k < 200 / DT && !inst.rest; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   assert.ok(inst.rest, 'stopped at the pond');
-  const walk = inst.level.lines.walk.map(l => l[1]);
-  assert.ok(walk.every(l => said.includes(l)), 'the whole story told on the way');
+  /* (her story's told in the opening now: nothing more of it on the way) */
+  assert.ok(!inst.things.some(t => t.kind === 'say'), 'the story told before they set off');
   assert.ok(!inst.captain.stay, 'her window stayed up for the story, and went once it was told');
   assert.equal(inst.mood, -2, 'no music for now, the calm start');
   for (let k = 0; k < 15; k++) inst.step(DT, W, H);

@@ -84,14 +84,17 @@ export const LEVELS = [
     },
     lines: {
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
-      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay!', ''], ['nova', 'Can you move? Give your arms and legs a wiggle!', 'WIGGLE!']],
+      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay!', '']],
       /* ...and once they're up, on the path. */
-      rise: [['nova', 'On your feet, crew! Follow the path.', '']],
+      rise: [['nova', 'On your feet, crew!', '']],
+      /* ...and up: can they move? - everyone wiggling, each one their own astronaut */
+      canMove: [['nova', 'Can you move? Give your arms and legs a wiggle!', 'WIGGLE!']],
+      ready: [['nova', 'There you all are! Now follow that path.', '']],
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */
       walk: [
-        ['nova', 'Your ship came down hard \u2014 but you\'re all okay. Trouble is, the crash knocked out your Star Core. It\'s what powers your ship. Without it, you can\'t fly home.', ''],
-        ['nova', 'I\'m picking up its glow, somewhere ahead. Find that Star Core!', 'FIND THE STAR CORE']
+        ['nova', 'Your ship came down hard, on a planet nobody\'s ever explored. Trouble is, the crash knocked out your Star Core \u2014 it\'s what powers your ship. Without it, you can\'t fly home.', ''],
+        ['nova', 'I\'m picking up its glow, somewhere out there. We need to find that Star Core!', 'FIND THE STAR CORE']
       ],
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],

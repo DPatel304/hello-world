@@ -51,6 +51,9 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   c.scale(1, f);
   /* (sitting: the seat is where the hips are) */
   if (pose === 'sit') c.translate(0, 120 * u);
+  /* (st.ground: sat on the grass, 0..1 - lower, legs out in front of them, just the knees showing) */
+  const gk = st.ground || 0;
+  if (gk > 0) c.translate(0, 112 * u * gk);
   c.lineCap = 'round'; c.lineJoin = 'round';
   /* a limb: a dark edge, its colour, lit down one side */
   const limb = (pts, w, side = -1) => {
@@ -61,7 +64,12 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const trim = (x0, y0, w) => { glow(c, x0, y0, w * 1.4, gl, 0.5); c.strokeStyle = gl; c.lineWidth = 4 * u; c.beginPath(); c.ellipse(x0, y0, w * 0.55, w * 0.18, 0, 0, Math.PI); c.stroke(); };
   /* legs: running, one planted, the other's heel kicking up behind -
      its sole towards us */
-  if (pose === 'sit') for (const d of [-1, 1]){
+  if (gk > 0.5) for (const d of [-1, 1]){
+    /* sat on the grass: their knees, up either side */
+    c.fillStyle = dark; c.beginPath(); c.ellipse(d * 50 * u, -112 * u, 24 * u, 18 * u, 0, 0, 6.2832); c.fill();
+    trim(d * 50 * u, -108 * u, 30 * u);
+  }
+  else if (pose === 'sit') for (const d of [-1, 1]){
     /* astride: thighs out over its sides, shins hanging down, swinging a little */
     const swing = Math.sin(t * 1.6 + d) * 6 * u;
     const hip = [d * 22 * u, -128 * u], knee = [d * 70 * u, -112 * u], foot = [d * 78 * u + swing, -40 * u];
@@ -129,6 +137,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   if (pose === 'sit') c.translate(0, 120 * u);
+  if (gk > 0) c.translate(0, 112 * u * gk);
   /* the head turning: looking round (st.look, -1..1), or down at an arm, or at their legs */
   /* (st.nod: looking down at their feet, 0..1) */
   const turn = (st.look || 0) * 0.3 + (pose === 'check' ? -0.28 : 0), nod = (pose === 'dust' ? 10 * u : pose === 'check' ? 4 * u : 0) + (st.nod || 0) * 12 * u;
