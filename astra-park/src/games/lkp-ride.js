@@ -1,25 +1,26 @@
-/* Last Known Position - Mossy, after the boss: the level's reward, a calm
+/* Last Known Position - the ride on Zubu: the level's reward, a calm
    ride home before "level clear".
 
-   Mossy is a huge, gentle, long-necked dinosaur (all lilac, moss along
-   its back, little glowing flowers), ambling away up the path ahead.
+   Zubu (lkp-zubu.js) is the huge, gentle sky-ray from the glade - half
+   ray, half whale - gliding away up the path ahead; the crew sit in the
+   moss garden on its head.
 
      chase   RUN TO CATCH UP: running on the spot - the team's average -
              closes the gap; it ambles on at WALK, and after WAIT seconds
              it stops and waits (nobody's left behind)
-     board   caught up: it crouches, and up they climb onto its back
+     board   caught up: it dips down, and up they climb into its garden
      relax   SIT DOWN AND RELAX: no steering, nothing to do - they sit on
-             its back and it carries them along for RELAX seconds, a few
+             its head and it carries them along for RELAX seconds, a few
              crystals drifting into their hands
      off     it stops, they hop down, and off it wanders up the path
 
    Sitting down is fine while it lasts: the camera keeps players who sit
    (pose.keepSitters). */
+import { drawZubu, ZUBU } from './lkp-zubu.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch } from '../tracking/gestures.js';
 import { P, RUN } from './lkp-art.js';
-import { glow } from './lkp-world.js';
 import { banner, smooth } from './lkp-zip.js';
 
 /* How far ahead it is to start with (depths, and never further); its
@@ -41,21 +42,6 @@ const SEATS = { 1: [0], 2: [-0.13, 0.13], 3: [-0.2, 0, 0.2], 4: [-0.27, -0.09, 0
 /* A crystal drifting into someone's hands every so often, riding. */
 const GIFT = 2.2;
 
-export const MOSSY = { skin: '#b9a8e6', light: '#d8cdf6', shade: '#8c7cc6', dark: '#5f5196', belly: '#f6eed6',
-  moss: ['#7cc98f', '#4f9e6e'], glow: '#bdf7ff', leaf: '#9be27a', bulb: '#ff8cd8', nail: '#fff4dc', spot: 'rgba(95,81,150,.25)',
-  neck: 1, spine: 'moss', ears: false };
-/* The looks it can have (being chosen): colours, how long its neck, and
-   what grows along its back. */
-export const LOOKS = {
-  lilac: { ...MOSSY },
-  leafy: { skin: '#7fc48a', light: '#b5e6b0', shade: '#5a9e6c', dark: '#3c6e52', belly: '#f3ecc8', moss: ['#ffb24d', '#f07a3a'], glow: '#fff3a6',
-    leaf: '#c6f07a', bulb: '#ffd24a', nail: '#fff4dc', spot: 'rgba(240,160,70,.35)', neck: 0.55, spine: 'leaves', ears: false },
-  fluffy: { skin: '#f3d9e6', light: '#fff4fa', shade: '#d9aac4', dark: '#a7708f', belly: '#fffaf0', moss: ['#ffffff', '#f6e3ee'], glow: '#ffe1f4',
-    leaf: '#9be27a', bulb: '#ff8cd8', nail: '#ffffff', spot: 'rgba(255,255,255,.4)', neck: 0.35, spine: 'fluff', ears: true },
-  starry: { skin: '#4a68c9', light: '#7f9cf0', shade: '#34489a', dark: '#232f6b', belly: '#dfe8ff', moss: ['#6ff6ff', '#b28cff'], glow: '#ffffff',
-    leaf: '#7ff3e0', bulb: '#6ff6ff', nail: '#dfe8ff', spot: 'rgba(255,255,255,.18)', neck: 1.2, spine: 'crystals', ears: false }
-};
-export function setLook(name){ Object.assign(MOSSY, LOOKS[name] || LOOKS.lilac); }
 /* (its name: lkp-levels.js GIANT) */
 
 export class Ride {
@@ -185,7 +171,7 @@ export class Ride {
     const fade = this.phase === 'off' ? 1 - smooth((this.pt - OFF + 1.2) / 1.2) : 1;
     if (fade <= 0) return;
     c.save(); c.globalAlpha = fade;
-    drawMossy(c, p.x, p.y, H * SIZE * p.k, this.t, { step: this.step_, walk: this.walk, crouch: this.crouch, bob: this.bob * H * p.k, look: this.phase === 'off' && this.pt > 0.8 && this.pt < 2.4 ? 1 : 0 });
+    drawZubu(c, p.x, p.y, H * SIZE * p.k, this.t, { step: this.step_, walk: this.walk, crouch: this.crouch, bob: this.bob * H * p.k });
     c.restore();
   }
 
@@ -193,11 +179,12 @@ export class Ride {
   drawTop(c, W, H){
     if (!(this.phase === 'relax' || this.phase === 'board' && this.pt > 1.2 || this.phase === 'off' && this.pt < 0.8)) return;
     const rel = this.d - this.g.z, p = P(this.lane, rel, W, H), s = H * SIZE * p.k, y = p.y - s * BACK * (1 - this.crouch * 0.12) + this.bob * H * p.k;
-    c.save();
-    for (let k = -6; k <= 6; k++){
-      const x = p.x + k / 6 * s * 0.42, r = s * (0.018 + 0.006 * ((k * 7 + 21) % 3));
-      c.fillStyle = MOSSY.moss[(k + 6) % 2]; c.beginPath(); c.ellipse(x, y + s * 0.03 + Math.abs(k) * s * 0.004, r * 1.6, r * 0.6, 0, 0, Math.PI * 2); c.fill();
-      if (k % 3 === 0){ glow(c, x, y - r * 0.2, r * 1.5, MOSSY.bulb, 0.45); c.fillStyle = MOSSY.bulb; c.beginPath(); c.arc(x, y - r * 0.2, r * 0.35, 0, Math.PI * 2); c.fill(); }
+    /* the front edge of its garden, over their legs: tufts and flowers */
+    c.save(); c.lineCap = 'round';
+    for (let k = -8; k <= 8; k++){
+      const x = p.x + k / 8 * s * 0.4, yy = y + s * 0.035 + Math.abs(k) * s * 0.003, l = s * (0.03 + 0.01 * ((k * 7 + 24) % 3));
+      c.strokeStyle = ZUBU.moss[(k + 8) % 3]; c.lineWidth = Math.max(1, s * 0.01); c.beginPath(); c.moveTo(x, yy + l * 0.3); c.quadraticCurveTo(x + l * 0.2, yy - l * 0.4, x + Math.sin(this.t * 1.5 + k) * l * 0.2, yy - l * 0.7); c.stroke();
+      if ((k + 8) % 4 === 0){ c.fillStyle = ['#ffc4d8', '#fff3d6', '#ffe39a', '#d8c8ff'][((k + 8) / 4) % 4]; c.beginPath(); c.arc(x, yy - l * 0.5, s * 0.012, 0, Math.PI * 2); c.fill(); }
     }
     c.restore();
   }
@@ -205,7 +192,7 @@ export class Ride {
   /* The words: catch up (and how close), climb on, sit and relax. */
   marks(c, W, H){
     if (this.phase === 'chase'){
-      banner(c, W, H, this.pt > WAIT && this.walk < 0.3 ? 'MOSSY\'S WAITING - RUN!' : 'RUN TO CATCH UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6));
+      banner(c, W, H, this.pt > WAIT && this.walk < 0.3 ? 'ZUBU\'S WAITING - RUN!' : 'RUN TO CATCH UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6));
       /* how close: a bar filling as they gain on it */
       const w = W * 0.3, x = (W - w) / 2, y = H * 0.28, h = H * 0.024, u = Math.max(0, Math.min(1, 1 - this.gap / START_GAP));
       c.save();
@@ -227,181 +214,9 @@ export class Ride {
   }
 }
 
-/* Mossy from behind, standing on the ground at (x, y), s tall (to the top
-   of its back; its neck and head rise well above). o: step (its stride),
-   walk (0..1: walking), crouch (0..1), bob (px), look (0..1: its head
-   turned back to look at them). */
-export function drawMossy(c, x, y, s, t, o = {}){
-  const walk = o.walk ?? 0, step = o.step || 0, crouch = o.crouch || 0, bob = o.bob || 0;
-  const leg = s * (0.42 - crouch * 0.12);                 /* legs: ground to belly */
-  const by = y - leg + bob, rx = s * 0.6, ry = s * 0.36;   /* the body */
-  const cy = by - ry * 0.45, top = cy - ry;
-  c.save();
-  c.lineCap = 'round'; c.lineJoin = 'round';
-  /* its shadow */
-  c.fillStyle = 'rgba(10,20,25,.3)'; c.beginPath(); c.ellipse(x, y, rx * 1.15, s * 0.09, 0, 0, Math.PI * 2); c.fill();
-  /* the neck, rising away from us, swaying; its small head at the top */
-  const sway = Math.sin(t * 0.7) * s * 0.06 + (o.look || 0) * s * 0.28;
-  const nx = x + sway, ny = top - s * 0.75 * MOSSY.neck;
-  const neck = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x, cy - ry * 0.4); c.bezierCurveTo(x, top - s * 0.3, nx - sway * 0.3, ny + s * 0.25, nx, ny); c.stroke(); };
-  neck(s * 0.24, MOSSY.dark); neck(s * 0.2, MOSSY.shade); neck(s * 0.11, MOSSY.skin);
-  /* little glowing freckles down the neck */
-  for (let k = 0; k < 4; k++){ const u = 0.25 + k * 0.17; c.fillStyle = MOSSY.glow; c.globalAlpha *= 0.8; c.beginPath(); c.arc(x + (nx - x) * u * u + s * 0.05, cy - ry * 0.4 + (ny - cy + ry * 0.4) * u, s * 0.012, 0, Math.PI * 2); c.fill(); c.globalAlpha /= 0.8; }
-  /* the head: from behind, a rounded dome; turned back, a smiling face */
-  if (MOSSY.ears) for (const d of [-1, 1]){ c.fillStyle = MOSSY.shade; c.beginPath(); c.arc(nx + d * s * 0.12, ny - s * 0.1, s * 0.06, 0, Math.PI * 2); c.fill(); c.fillStyle = MOSSY.bulb; c.beginPath(); c.arc(nx + d * s * 0.12, ny - s * 0.1, s * 0.03, 0, Math.PI * 2); c.fill(); }
-  c.fillStyle = MOSSY.shade; c.beginPath(); c.ellipse(nx, ny - s * 0.03, s * 0.13, s * 0.1, 0, 0, Math.PI * 2); c.fill();
-  c.fillStyle = MOSSY.skin; c.beginPath(); c.ellipse(nx - s * 0.02, ny - s * 0.05, s * 0.1, s * 0.075, 0, 0, Math.PI * 2); c.fill();
-  if (o.look){
-    const d = sway > 0 ? 1 : -1;
-    c.fillStyle = '#2b2350'; c.beginPath(); c.arc(nx + d * s * 0.06, ny - s * 0.06, s * 0.018, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = '#4a3a78'; c.lineWidth = Math.max(1.5, s * 0.01); c.beginPath(); c.arc(nx + d * s * 0.08, ny - s * 0.02, s * 0.03, 0.1 * Math.PI, 0.8 * Math.PI); c.stroke();
-    c.fillStyle = 'rgba(247,140,180,.6)'; c.beginPath(); c.ellipse(nx + d * s * 0.09, ny - s * 0.01, s * 0.02, s * 0.012, 0, 0, Math.PI * 2); c.fill();
-  }
-  /* a sprout on its head, a glowing bulb at the tip */
-  const tip = { x: nx + Math.sin(t * 2) * s * 0.03, y: ny - s * 0.2 };
-  c.strokeStyle = MOSSY.moss[1]; c.lineWidth = Math.max(1.5, s * 0.012);
-  c.beginPath(); c.moveTo(nx, ny - s * 0.1); c.quadraticCurveTo(nx, ny - s * 0.15, tip.x, tip.y); c.stroke();
-  for (const d of [-1, 1]){ c.fillStyle = MOSSY.leaf; c.beginPath(); c.ellipse(nx + d * s * 0.03, ny - s * 0.14, s * 0.035, s * 0.014, d * 0.5, 0, Math.PI * 2); c.fill(); }
-  glow(c, tip.x, tip.y, s * 0.08, MOSSY.bulb, 0.6 + 0.2 * Math.sin(t * 3));
-  c.fillStyle = MOSSY.bulb; c.beginPath(); c.arc(tip.x, tip.y, s * 0.025, 0, Math.PI * 2); c.fill();
-  /* the far legs (the front ones), between the near ones and a little up */
-  const legAt = (lx, ph, w, far) => {
-    const lift = walk * Math.max(0, Math.sin(step + ph)) * s * 0.05, foot = y - (far ? s * 0.035 : 0) - lift, h = foot - (by - ry * 0.2);
-    c.fillStyle = far ? MOSSY.dark : MOSSY.shade; c.beginPath(); c.roundRect(lx - w, by - ry * 0.2, w * 2, h, [w * 0.6, w * 0.6, w * 0.45, w * 0.45]); c.fill();
-    if (!far){ c.fillStyle = MOSSY.skin; c.beginPath(); c.roundRect(lx - w * 0.85, by - ry * 0.2, w * 0.7, h * 0.95, w * 0.4); c.fill(); }
-    c.fillStyle = MOSSY.nail; for (const k of [-1, 0, 1]){ c.beginPath(); c.ellipse(lx + k * w * 0.55, foot - w * 0.08, w * 0.22, w * 0.14, 0, 0, Math.PI * 2); c.fill(); }
-  };
-  legAt(x - rx * 0.38, Math.PI, s * 0.075, true); legAt(x + rx * 0.38, 0, s * 0.075, true);
-  /* the body: a great round back, lit from the top left */
-  const gr = c.createRadialGradient(x - rx * 0.35, cy - ry * 0.55, s * 0.05, x, cy, rx * 1.1);
-  gr.addColorStop(0, MOSSY.light); gr.addColorStop(0.5, MOSSY.skin); gr.addColorStop(1, MOSSY.shade);
-  c.fillStyle = MOSSY.dark; c.beginPath(); c.ellipse(x, cy, rx * 1.02, ry * 1.03, 0, 0, Math.PI * 2); c.fill();
-  c.fillStyle = gr; c.beginPath(); c.ellipse(x, cy, rx, ry, 0, 0, Math.PI * 2); c.fill();
-  /* soft patterned spots, and moss and flowers along its spine */
-  c.fillStyle = MOSSY.spot;
-  for (const [mx, my, mr] of [[-0.6, 0.1, 0.1], [0.55, 0.2, 0.09], [-0.3, 0.45, 0.07], [0.3, -0.25, 0.08], [0.75, -0.1, 0.06]]){ c.beginPath(); c.ellipse(x + mx * rx, cy + my * ry, mr * s, mr * s * 0.65, 0.3, 0, Math.PI * 2); c.fill(); }
-  /* fluffy: soft tufts all round its outline */
-  if (MOSSY.spine === 'fluff') for (let k = 0; k < 30; k++){
-    const a = Math.PI + k / 29 * Math.PI, r = s * (0.05 + 0.015 * (k % 3));
-    c.fillStyle = MOSSY.moss[k % 2]; c.beginPath(); c.arc(x + Math.cos(a) * rx * 0.98, cy + Math.sin(a) * ry * 0.98, r, 0, Math.PI * 2); c.fill();
-  }
-  for (let k = -5; k <= 5; k++){
-    const u = k / 5, mx = x + u * rx * 0.75, my = top + ry * (1 - Math.sqrt(1 - u * u * 0.56)) + s * 0.01, r = s * (0.035 + 0.01 * ((k + 5) % 3));
-    if (MOSSY.spine === 'leaves' && k % 2 === 0){
-      /* big leaves standing up along its back */
-      c.fillStyle = MOSSY.moss[(k / 2 + 3) % 2]; c.beginPath(); c.moveTo(mx - r * 1.4, my + r * 0.4); c.quadraticCurveTo(mx - r * 1.3, my - r * 2.5, mx, my - r * 3.4); c.quadraticCurveTo(mx + r * 1.3, my - r * 2.5, mx + r * 1.4, my + r * 0.4); c.fill();
-      c.strokeStyle = 'rgba(0,0,0,.15)'; c.lineWidth = Math.max(1, r * 0.12); c.beginPath(); c.moveTo(mx, my + r * 0.3); c.lineTo(mx, my - r * 3); c.stroke();
-      continue;
-    }
-    if (MOSSY.spine === 'crystals' && k % 2 === 0){
-      /* glowing crystals growing out of its back */
-      glow(c, mx, my - r * 1.5, r * 3, MOSSY.moss[0], 0.5);
-      c.fillStyle = MOSSY.moss[(k / 2 + 3) % 2]; c.beginPath(); c.moveTo(mx - r * 0.8, my + r * 0.3); c.lineTo(mx - r * 0.4, my - r * 2.6); c.lineTo(mx, my - r * 3.2); c.lineTo(mx + r * 0.4, my - r * 2.6); c.lineTo(mx + r * 0.8, my + r * 0.3); c.fill();
-      c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.moveTo(mx - r * 0.2, my); c.lineTo(mx - r * 0.3, my - r * 2.4); c.lineTo(mx, my - r * 3); c.fill();
-      continue;
-    }
-    if (MOSSY.spine === 'fluff') continue;
-    c.fillStyle = MOSSY.moss[(k + 5) % 2]; c.beginPath(); c.ellipse(mx, my, r * 1.5, r * 0.75, 0, 0, Math.PI * 2); c.fill();
-    if ((k + 5) % 3 === 0){ glow(c, mx, my - r * 0.3, r * 1.4, MOSSY.bulb, 0.45); c.fillStyle = MOSSY.bulb; c.beginPath(); c.arc(mx, my - r * 0.3, r * 0.3, 0, Math.PI * 2); c.fill(); }
-  }
-  for (let k = 0; k < 6; k++) for (const d of [-1, 1]){
-    c.fillStyle = MOSSY.glow; c.globalAlpha *= 0.6 + 0.4 * Math.sin(t * 2 + k); c.beginPath(); c.arc(x + d * rx * (0.88 - k * 0.06), cy - ry * 0.1 + k * ry * 0.13, s * 0.011, 0, Math.PI * 2); c.fill(); c.globalAlpha /= 0.6 + 0.4 * Math.sin(t * 2 + k);
-  }
-  /* the near legs (the back ones), thick, either side */
-  legAt(x - rx * 0.62, 0, s * 0.11, false); legAt(x + rx * 0.62, Math.PI, s * 0.11, false);
-  /* the tail: thick at its root, curving down towards us and off to one
-     side along the ground, swaying */
-  const ts = Math.sin(t * 1.1) * s * 0.12;
-  const tail = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x, cy + ry * 0.55); c.bezierCurveTo(x, y + s * 0.02, x + s * 0.25 + ts, y + s * 0.12, x + s * 0.5 + ts * 1.6, y + s * 0.17); c.stroke(); };
-  tail(s * 0.2, MOSSY.dark); tail(s * 0.16, MOSSY.shade); tail(s * 0.08, MOSSY.skin);
-  c.restore();
-}
-
-/* Mossy out in the world, rel ahead in lane, standing still (for a
+/* Zubu out in the world, rel ahead in lane, standing still (for a
    picture: the home screen's trailer). */
 export function worldMossy(c, W, H, rel, lane, t){
   const p = P(lane, rel, W, H);
-  drawMossy(c, p.x, p.y, H * SIZE * p.k, t, {});
-}
-
-/* The giant asleep, facing us, at the far end of the glade (lkp-trap.js,
-   sneaking past it): its great body a mound behind, its long neck curled
-   round and its head resting on the ground in front, between its front
-   feet. light: 'green' - eyes shut, snoring; 'yellow' - stirring, one eye
-   peeking; 'red' - both eyes wide open, looking. (x, y): where its chin
-   rests; s: its size. */
-export function drawGiantAsleep(c, x, y, s, light, t){
-  const M = MOSSY, breathe = 1 + 0.02 * Math.sin(t * 1.6), stir = light === 'yellow' ? Math.sin(t * 28) * s * 0.01 : 0;
-  c.save();
-  c.lineCap = 'round'; c.lineJoin = 'round';
-  /* its shadow */
-  c.fillStyle = 'rgba(10,20,25,.3)'; c.beginPath(); c.ellipse(x, y + s * 0.04, s * 1.5, s * 0.16, 0, 0, Math.PI * 2); c.fill();
-  /* the body: a great mound behind, rising and falling as it breathes */
-  const by = y - s * 0.2, bh = s * 0.75 * breathe;
-  const bg = c.createRadialGradient(x - s * 0.4, by - bh * 0.8, s * 0.1, x, by - bh * 0.3, s * 1.5);
-  bg.addColorStop(0, M.light); bg.addColorStop(0.55, M.skin); bg.addColorStop(1, M.shade);
-  c.fillStyle = M.dark; c.beginPath(); c.ellipse(x, by, s * 1.32, bh * 1.02, 0, Math.PI, 0); c.fill();
-  c.fillStyle = bg; c.beginPath(); c.ellipse(x, by, s * 1.3, bh, 0, Math.PI, 0); c.fill();
-  /* moss and glowing flowers along its back */
-  for (let k = -5; k <= 5; k++){
-    const u = k / 5, mx = x + u * s * 1.05, my = by - bh * Math.sqrt(Math.max(0, 1 - u * u * 0.65)) + s * 0.03, r = s * (0.05 + 0.015 * ((k + 5) % 3));
-    c.fillStyle = M.moss[(k + 5) % 2]; c.beginPath(); c.ellipse(mx, my, r * 1.5, r * 0.75, 0, 0, Math.PI * 2); c.fill();
-    if ((k + 5) % 3 === 0){ glow(c, mx, my - r * 0.3, r * 1.4, M.bulb, 0.45); c.fillStyle = M.bulb; c.beginPath(); c.arc(mx, my - r * 0.3, r * 0.3, 0, Math.PI * 2); c.fill(); }
-  }
-  c.fillStyle = M.spot;
-  for (const [mx, my, mr] of [[-0.8, -0.35, 0.1], [0.75, -0.3, 0.09], [-0.35, -0.6, 0.08], [0.4, -0.65, 0.07]]){ c.beginPath(); c.ellipse(x + mx * s, by + my * s, mr * s, mr * s * 0.65, 0.3, 0, Math.PI * 2); c.fill(); }
-  /* its front feet, either side of its head */
-  for (const d of [-1, 1]){
-    const fx = x + d * s * 0.62, fw = s * 0.2;
-    c.fillStyle = M.shade; c.beginPath(); c.roundRect(fx - fw, y - s * 0.32, fw * 2, s * 0.34, fw * 0.6); c.fill();
-    c.fillStyle = M.nail; for (const k of [-1, 0, 1]){ c.beginPath(); c.ellipse(fx + k * fw * 0.55, y - fw * 0.05, fw * 0.22, fw * 0.14, 0, 0, Math.PI * 2); c.fill(); }
-  }
-  /* the neck, curling down out of the body to its head */
-  const neck = (w, col) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x + s * 0.25, by - bh * 0.5); c.bezierCurveTo(x + s * 0.55, by - bh * 0.1, x + s * 0.3, y - s * 0.1, x + stir, y - s * 0.16); c.stroke(); };
-  neck(s * 0.3, M.dark); neck(s * 0.26, M.shade); neck(s * 0.14, M.skin);
-  /* the head, resting on the ground, facing us */
-  const hx = x + stir, hy = y - s * 0.17, hw = s * 0.36, hh = s * 0.22;
-  c.fillStyle = M.dark; c.beginPath(); c.ellipse(hx, hy, hw * 1.04, hh * 1.06, 0, 0, Math.PI * 2); c.fill();
-  const hg = c.createRadialGradient(hx - hw * 0.3, hy - hh * 0.5, s * 0.02, hx, hy, hw * 1.1);
-  hg.addColorStop(0, M.light); hg.addColorStop(0.6, M.skin); hg.addColorStop(1, M.shade);
-  c.fillStyle = hg; c.beginPath(); c.ellipse(hx, hy, hw, hh, 0, 0, Math.PI * 2); c.fill();
-  /* its sprout */
-  const tip = { x: hx + Math.sin(t * 2) * s * 0.03, y: hy - hh - s * 0.18 };
-  c.strokeStyle = M.moss[1]; c.lineWidth = Math.max(1.5, s * 0.02); c.beginPath(); c.moveTo(hx, hy - hh * 0.9); c.quadraticCurveTo(hx, hy - hh - s * 0.08, tip.x, tip.y); c.stroke();
-  glow(c, tip.x, tip.y, s * 0.1, M.bulb, 0.6 + 0.2 * Math.sin(t * 3)); c.fillStyle = M.bulb; c.beginPath(); c.arc(tip.x, tip.y, s * 0.03, 0, Math.PI * 2); c.fill();
-  /* nostrils, a soft snore puffing out of them while it sleeps */
-  c.fillStyle = M.dark;
-  for (const d of [-1, 1]){ c.beginPath(); c.ellipse(hx + d * hw * 0.22, hy + hh * 0.35, hw * 0.07, hh * 0.08, 0, 0, Math.PI * 2); c.fill(); }
-  if (light === 'green'){
-    const u = (t * 0.45) % 1;
-    c.fillStyle = `rgba(255,255,255,${0.35 * (1 - u)})`; c.beginPath(); c.arc(hx + hw * 0.2, hy + hh * 0.5 + u * s * 0.15, s * (0.03 + u * 0.06), 0, Math.PI * 2); c.fill();
-  }
-  /* its eyes: shut, peeking, or wide open */
-  for (const d of [-1, 1]){
-    const ex = hx + d * hw * 0.5, ey = hy - hh * 0.25, er = hw * 0.24;
-    const open = light === 'red' ? 1 : light === 'yellow' && d > 0 ? (Math.floor(t * 8) % 2 ? 0.45 : 0.15) : 0;
-    if (open <= 0){
-      c.strokeStyle = M.dark; c.lineWidth = Math.max(2, s * 0.025);
-      c.beginPath(); c.arc(ex, ey - er * 0.3, er * 0.8, 0.2 * Math.PI, 0.8 * Math.PI); c.stroke();
-    } else {
-      c.save(); c.translate(ex, ey); c.scale(1, open);
-      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(0, 0, er, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#2b2350'; c.beginPath(); c.arc(0, er * 0.1, er * 0.62, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(-er * 0.25, -er * 0.25, er * 0.22, 0, Math.PI * 2); c.fill();
-      c.restore();
-      c.strokeStyle = M.dark; c.lineWidth = Math.max(2, s * 0.02); c.beginPath(); c.arc(ex, ey, er * 1.05, 1.15 * Math.PI, 1.85 * Math.PI); c.stroke();
-    }
-  }
-  c.restore();
-  /* Z z z, while it sleeps */
-  if (light === 'green'){
-    c.save(); c.fillStyle = '#ffffff'; c.textAlign = 'center';
-    for (let k = 0; k < 3; k++){
-      const u = (t * 0.45 + k / 3) % 1;
-      c.globalAlpha = Math.sin(u * Math.PI) * 0.9;
-      c.font = `700 ${Math.round(s * (0.12 + u * 0.14))}px Fredoka, sans-serif`;
-      c.fillText('z', x + s * (0.55 + u * 0.4), y - s * (0.45 + u * 0.55));
-    }
-    c.restore();
-  }
+  drawZubu(c, p.x, p.y, H * SIZE * p.k, t, {});
 }

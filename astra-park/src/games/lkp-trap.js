@@ -33,7 +33,7 @@ import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { drawCrystal, PAL } from './lkp-art.js';
 import { worldHall, worldSleeper, worldGlade } from './lkp-places.js';
-import { drawGiantAsleep } from './lkp-ride.js';
+import { drawZubuAsleep } from './lkp-zubu.js';
 import { armored } from './lkp-weapons.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
@@ -176,7 +176,7 @@ export class Lights {
     }
     /* The robot, beyond the finish: asleep (or recharging) on green,
        stirring on yellow, looking on red. */
-    if (this.giant) drawGiantAsleep(c, W / 2, H * 0.31, H * 0.2, this.light, this.t);
+    if (this.giant) drawZubuAsleep(c, W, H, this.light, this.t);
     else if (PAL.world) worldSleeper(c, W / 2, H * 0.335, H * 0.17, this.light, g.awake, this.t, lamp);
     else this._robot(c, W / 2, H * 0.22, H * 0.085, lamp, g.awake);
     /* Its gaze, on red: a red wash down the hall. */
