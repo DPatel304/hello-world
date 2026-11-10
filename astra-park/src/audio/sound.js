@@ -68,7 +68,7 @@ function ctx(){
   return AC;
 }
 
-let noiseBuf = null;
+let noiseBuf = null, fireBedNodes = null;
 function noiseBuffer(){
   const c = ctx();
   if (!noiseBuf){
@@ -176,11 +176,42 @@ export const sfx = {
     s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.05);
     s2.connect(lo); lo.connect(lg); lg.connect(master); s2.start(t, 0.3); s2.stop(t + dur + 0.05);
   },
-  /* ...and its crackle: a few sharp little pops, now and then a snap. */
+  /* ...and its crackle: one sharp little click of burning wood - now and
+     then two or three together, now and then a bigger pop. Called often
+     (a dozen or more a second) it's a fire. Muffled (clear 0) the clicks
+     are duller. */
   fireCrackle(k = 1, clear = 0){
-    const n = 2 + Math.floor(Math.random() * 4);
-    for (let j = 0; j < n; j++) hiss({ dur: 0.012 + Math.random() * 0.03, gain: (0.14 + Math.random() * 0.2) * k, hp: 1400 + Math.random() * 2600 * (0.4 + clear), type: 'bandpass', q: 1.4, delay: Math.random() * 0.4 });
-    if (Math.random() < 0.3) hiss({ dur: 0.06, gain: 0.32 * k, hp: 900 + 1200 * clear, type: 'bandpass', q: 0.8, delay: Math.random() * 0.4 });
+    const n = Math.random() < 0.25 ? 2 + Math.floor(Math.random() * 3) : 1;
+    for (let j = 0; j < n; j++) hiss({ dur: 0.003 + Math.random() * 0.01, gain: (0.5 + Math.random() * 0.6) * k, hp: (2200 + Math.random() * 4500) * (0.5 + 0.5 * clear), type: 'bandpass', q: 0.7, delay: j * (0.01 + Math.random() * 0.03) });
+    if (Math.random() < 0.08){ hiss({ dur: 0.03, gain: 0.5 * k, hp: 500 + 700 * clear, type: 'bandpass', q: 0.7 }); blip({ freq: 140, to: 70, dur: 0.05, type: 'sine', gain: 0.18 * k }); }
+  },
+  /* The fire's own low, steady burning under the crackles - flickering a
+     little all the time, never swelling like waves. Call every frame with
+     how loud (k) and how clear; fireOut() to put it out. */
+  fireBed(k = 1, clear = 0){
+    const c = ctx(), t = c.currentTime;
+    if (!fireBedNodes){
+      const s = noise(), lp = c.createBiquadFilter(), g = c.createGain(), s2 = noise(), bp = c.createBiquadFilter(), g2 = c.createGain();
+      s.loop = true; s2.loop = true;
+      lp.type = 'lowpass'; lp.frequency.value = 220; g.gain.value = 0;
+      bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 0.8; g2.gain.value = 0;
+      s.connect(lp); lp.connect(g); g.connect(master); s2.connect(bp); bp.connect(g2); g2.connect(master);
+      s.start(t); s2.start(t, 0.27);
+      fireBedNodes = { s, s2, lp, g, g2, next: 0 };
+    }
+    const f = fireBedNodes;
+    if (t >= f.next){
+      f.next = t + 0.04 + Math.random() * 0.06;
+      f.g.gain.setTargetAtTime(k * 0.12 * (0.7 + 0.5 * Math.random()), t, 0.03);
+      f.g2.gain.setTargetAtTime(k * 0.02 * (0.4 + clear) * (0.5 + Math.random()), t, 0.03);
+      f.lp.frequency.setTargetAtTime(180 + 260 * clear + Math.random() * 60, t, 0.05);
+    }
+  },
+  fireOut(){
+    if (!fireBedNodes) return;
+    const f = fireBedNodes, t = ctx().currentTime; fireBedNodes = null;
+    f.g.gain.setTargetAtTime(0, t, 0.3); f.g2.gain.setTargetAtTime(0, t, 0.3);
+    f.s.stop(t + 1.5); f.s2.stop(t + 1.5);
   },
   /* Voices, far off, over a crackly radio: a few muffled syllables,
      rising and falling like someone talking - no words you could make

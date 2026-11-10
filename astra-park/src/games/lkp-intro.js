@@ -96,8 +96,11 @@ export class Intro {
     this.gloves = Math.max(0, Math.min(1, (this.gloves || 0) + (handsOn ? dt * 1.2 : -dt * 3)));
     /* the heartbeat, while you're coming round */
     if (this.stage === 'dark' || this.stage === 'wake'){
-      this.beatT -= dt;
-      if (this.beatT <= 0){ sfx.heartbeat?.(); this.beatT = 1.15; this.beatAt = this.t; }
+      /* (the fire first; your heartbeat coming in after it) */
+      if (this.t > 1.6){
+        this.beatT -= dt;
+        if (this.beatT <= 0){ sfx.heartbeat?.(1.5); this.beatT = 1.05; this.beatAt = this.t; }
+      }
     }
     this._sounds(dt);
     const b = this.beat;
@@ -203,24 +206,20 @@ export class Intro {
      call comes, and gone once you're up. */
   _sounds(dt){
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
-    if (s === 'rise' || this.done) return;
+    if (s === 'rise' || this.done){ if (!this.fireOut){ this.fireOut = true; sfx.fireOut?.(); } return; }
     const near = s === 'dark' || s === 'wake' ? 1 : 0.5;
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
-    this.roarT = (this.roarT ?? 0) - dt;
-    if (this.roarT <= 0){ this.roarT = 1; sfx.fireRoar?.(near * (0.6 + 0.4 * clear), 1.3, clear); }
-    if (Math.random() < dt * (4 + 4 * clear)) sfx.fireCrackle?.(near * (0.6 + 0.4 * clear), clear);
+    /* the fire: burning steadily, crackling all the time */
+    sfx.fireBed?.(near * (0.7 + 0.3 * clear), clear);
+    if (Math.random() < dt * 16) sfx.fireCrackle?.(near * (0.6 + 0.4 * clear), clear);
     this.talkT = (this.talkT ?? 2.2) - dt;
     if (this.talkT <= 0 && (s === 'dark' || s === 'wake')){ this.talkT = 2.5 + Math.random() * 2.5; sfx.chatter?.(0.5 + 0.5 * clear, clear); }
-    /* breathing inside the helmet: slow and heavy in the dark, quicker as
-       you wake, softer once you're up and listening */
-    this.breathT = (this.breathT ?? 0.8) - dt;
-    if (this.breathT <= 0){ this.breathT = s === 'dark' ? 4 : s === 'wake' ? 3.2 : 4.2; sfx.breath?.(s === 'call' || s === 'answer' ? 0.5 : 1, s === 'wake' ? clear : 0); }
     /* outside, as the eyes open: wind in the trees, birds singing - it's
        lovely out there */
     if (clear > 0.2){
       this.windT = (this.windT ?? 0) - dt;
-      if (this.windT <= 0){ this.windT = 3.5 + Math.random() * 2; sfx.wind?.(clear); }
+      if (this.windT <= 0){ this.windT = 5 + Math.random() * 3; sfx.wind?.(clear * 0.4); }
       if (Math.random() < dt * 0.6 * clear) sfx.bird?.(clear);
     }
     /* and once, far off, something big calling across the hills */
