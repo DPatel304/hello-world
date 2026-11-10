@@ -164,10 +164,12 @@ test('the captain gives each tip once, as it comes', () => {
   const say = inst.captain.say.bind(inst.captain);
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
   for (let k = 0; k < 260 / DT && inst.step_ === 0; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
-  for (const w of ['CRYSTALS!', 'LEAN!', 'MOVE LEFT!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
-  /* crystals first; the squeeze; only after the pond, off the trail, dodging */
+  for (const w of ['CRYSTALS!', 'LEAN!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
+  /* (nothing said about the herd: it just happens) */
+  assert.ok(!said.includes('MOVE LEFT!'));
+  /* crystals first; the herd, then it opens out; only after the pond, off the trail, dodging */
   const at = (w) => said.indexOf(w);
-  assert.ok(at('CRYSTALS!') < at('MOVE LEFT!') && at('MOVE LEFT!') < at('SPREAD OUT!') && at('SPREAD OUT!') < at('LEAN!'), said.join(', '));
+  assert.ok(at('CRYSTALS!') < at('SPREAD OUT!') && at('SPREAD OUT!') < at('LEAN!'), said.join(', '));
   /* And then straight on running: no fighting in level 1. */
   assert.equal(inst.phase, 'corridor');
   assert.ok(!inst.fight);

@@ -4,6 +4,9 @@
      skyJellies  looking up (lkp-game.js _vista): floating sky jellies
                  drifting over on the wind - soft glowing bells, ribbons
                  trailing, pulsing slowly; big ones near, small ones far
+     driftJellies  the same, out in the world: drifting across the land
+                 on their own way, over the path, and off into the haze
+     glimmerback the herd animal: soft, glowing, six-legged, in a mass
      glowfins    looking down into the healing pond: little glowing fish
                  swimming round the crew's boots, in and out of each other
 
@@ -235,4 +238,83 @@ export function jellycrawl(c, x, y, s, t, walk = 1, fly = 0){
   /* a shine on the dome */
   c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.ellipse(x - 40 * u, by - 160 * u, 22 * u, 9 * u, -0.4, 0, TAU); c.fill();
   c.restore();
+}
+
+/* Sky jellies, out in the world (lkp-game.js _vista): a drift of them
+   floating slowly across the land on their own way, diagonally - far off
+   ahead and to the right at first, coming over the path above the crew
+   as they run on towards them, then away on the wind, off to the left
+   and up into the haze. Never stopping. vt: seconds since they were
+   first seen; a: how clear. */
+export const DRIFT = { n: 11, for: 15 };
+export function driftJellies(c, W, H, t, vt, a = 1){
+  const out = [];
+  for (let i = 0; i < DRIFT.n; i++){
+    /* each its own way: nearest at tmin, rmin away; drifting left all the while */
+    const tmin = 5 + 3 * hash(i + 200), rmin = 0.005 + 0.1 * hash(i + 201), q = (1.2 - rmin) / (tmin * tmin);
+    const rel = rmin + q * (vt - tmin) * (vt - tmin);
+    if (rel > 1.3) continue;
+    const lane = 1.6 + 2.4 * hash(i + 202) - (0.42 + 0.12 * hash(i + 203)) * vt + 0.15 * Math.sin(t * 0.4 + i);
+    out.push({ i, rel, lane });
+  }
+  out.sort((x, y) => y.rel - x.rel);
+  for (const { i, rel, lane } of out){
+    const p = P(lane, rel, W, H), high = 0.62 + 0.3 * hash(i + 204) + 0.05 * Math.sin(t * 0.5 + i * 1.3);
+    const haze = Math.max(0, Math.min(1, (1.3 - rel) / 0.5));
+    jelly(c, p.x, p.y - H * high * p.k, H * 0.14 * p.k * (0.75 + 0.5 * hash(i + 205)), t + i * 0.7, COLS[i % COLS.length], a * haze);
+  }
+}
+
+/* A glimmerback: the herd animal of Verdant - nothing like home: a soft
+   rounded body, indigo going teal, glowing spots down it and a ridge of
+   glowing fronds along its back; two long feelers out in front, a light
+   at each tip; six thin legs scuttling. From behind (the way they run,
+   up the path), turning off to the right (side 0..1). deep 0..1: how far
+   into the herd - the deeper, the darker and simpler, so together they
+   run into one mass, only those along its near edge clear. */
+export function glimmerback(c, x, y, s, t, side = 0, deep = 0){
+  const run = t * 14, bob = Math.abs(Math.sin(run)) * s * 0.05, by = y - s * 0.3 - bob;
+  /* (deeper in: softer and paler, into the herd's own haze - one mass) */
+  const body = mixHex('#5b4fc0', '#8d86c8', deep * 0.75), belly = mixHex('#3fd0c4', '#9fb0d8', deep * 0.8), top = mixHex('#a99bff', '#b7b0e0', deep * 0.7);
+  c.save();
+  if (deep < 0.5){ c.fillStyle = 'rgba(20,15,45,.25)'; c.beginPath(); c.ellipse(x, y, s * 0.42, s * 0.08, 0, 0, TAU); c.fill(); }
+  /* little stubby feet, pattering (only the near ones' showing) */
+  if (deep < 0.55){
+    c.fillStyle = mixHex('#3a3088', '#6a62a8', deep);
+    for (let k = 0; k < 6; k++){
+      const d = k < 3 ? -1 : 1, j = k % 3, ph = Math.sin(run + j * 2.1 + (d < 0 ? 0 : Math.PI));
+      c.beginPath(); c.ellipse(x + d * s * (0.1 + 0.1 * j), y - Math.max(0, ph) * s * 0.07 - s * 0.03, s * 0.055, s * 0.04, 0, 0, TAU); c.fill();
+    }
+  }
+  /* the body: a soft round hump, turned a little as it veers off */
+  c.translate(x, by); c.rotate(side * 0.35);
+  const g = c.createRadialGradient(-s * 0.12, -s * 0.2, s * 0.04, 0, 0, s * 0.44);
+  g.addColorStop(0, top); g.addColorStop(0.6, body); g.addColorStop(1, belly);
+  c.fillStyle = g; c.beginPath(); c.ellipse(0, 0, s * 0.38, s * 0.3, 0, 0, TAU); c.fill();
+  if (deep < 0.75){
+    /* a ridge of glowing fronds along its back, swaying */
+    for (let k = 0; k < 4; k++){
+      const fx = (k - 1.5) * s * 0.1, sw = Math.sin(t * 5 + k) * s * 0.03;
+      c.strokeStyle = mixHex('#7ff3ff', '#b8d8f0', deep); c.lineWidth = s * 0.05; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(fx, -s * 0.25); c.quadraticCurveTo(fx + sw, -s * 0.37, fx + sw * 2 - s * 0.02, -s * 0.43); c.stroke();
+    }
+    /* glowing spots */
+    c.fillStyle = `rgba(160,255,235,${0.85 * (1 - deep)})`;
+    for (let k = 0; k < 5; k++) circ0(c, (hash(k + 300) - 0.5) * s * 0.5, (hash(k + 301) - 0.3) * s * 0.32, s * 0.03);
+    /* two feelers, out in front (up the screen: the way it's going), a light on each tip */
+    for (const d of [-1, 1]){
+      const wv = Math.sin(t * 4 + d) * s * 0.05, tx = d * s * 0.2 + wv, ty = -s * 0.62;
+      c.strokeStyle = body; c.lineWidth = s * 0.035;
+      c.beginPath(); c.moveTo(d * s * 0.08, -s * 0.22); c.quadraticCurveTo(d * s * 0.12, -s * 0.45, tx, ty); c.stroke();
+      if (deep < 0.4) glow(c, tx, ty, s * 0.1, '#ffe27a', 0.6 * (1 - deep));
+      c.fillStyle = '#ffe27a'; circ0(c, tx, ty, s * 0.045);
+    }
+  }
+  c.restore();
+}
+const circ0 = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, TAU); c.fill(); };
+function mixHex(a, b, k){
+  k = Math.max(0, Math.min(1, k));
+  const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * k).toString(16).padStart(2, '0')).join('');
 }

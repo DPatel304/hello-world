@@ -21,7 +21,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { skyJellies, glowfins, puffhen, chimeblooms, jellycrawl } from './lkp-critters.js';
+import { glowfins, glimmerback, driftJellies, DRIFT, chimeblooms, jellycrawl } from './lkp-critters.js';
 import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -119,12 +119,14 @@ export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 50;
 export const REST_MIN = 12, VIEW_EASE = 2.5;
 /* The look up at the sky, in the first corridor: how far along (from the
    crew at the start) and how long (seconds). */
-export const VISTA_AT = 5.5, VISTA = 10;
-/* The herd of puffhens (seconds from when it starts): coming up from
+export const VISTA_AT = 5.5, VISTA = DRIFT.for;
+/* (the camera tipping up a little while they're overhead: from, till - seconds in) */
+const UP_FROM = 3.6, UP_TILL = 10.5;
+/* The herd of glimmerbacks (seconds from when it starts): coming up from
    behind and filling the path's right side by full; running alongside
    till off, then zooming away, the camera watching them go till end. How
    many, and how far over everyone's pushed (0..1: the right side theirs). */
-export const HERD = { full: 2.6, off: 9, end: 12.5, n: 22, push: 1 };
+export const HERD = { full: 2.6, off: 9, end: 12.5, n: 125, push: 1 };
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
 const SQUEEZE_AT = 46;
 /* Something big, far off, while they rest - never seen: the woods on
@@ -388,7 +390,7 @@ class LastKnownPosition {
       },
       /* The path squeezing narrow - everyone pushed together into the
          middle - then bursting open wide, crystals all over. */
-      /* (in level 1, a herd of puffhens: the path's right side filling up
+      /* (in level 1, a herd of glimmerbacks: the path's right side filling up
          with them, running past - everyone pushed over to the left - then
          off they zoom, the camera watching them go: _flock) */
       squeeze: (s) => {
@@ -528,7 +530,7 @@ class LastKnownPosition {
     const rp = this.rest && this.rest.phase;
     this.viewDown = ease(this.viewDown, rp === 'heal' && this.rest.t > 2.5, VIEW_EASE);
     this.viewFar = ease(this.viewFar, rp === 'far', 2.2);
-    this.viewUp = ease(this.viewUp, !!this.vista && this.vista.t < VISTA - 1.4, 1.4);
+    this.viewUp = ease(this.viewUp, !!this.vista && this.vista.t > UP_FROM && this.vista.t < UP_TILL, 1.8);
     if (this.vista){ this.vista.t += dt; if (this.vista.t >= VISTA) this.vista = null; }
     this.viewHerd = ease(this.viewHerd, !!this.herd && this.herd.t > HERD.off - 0.3 && this.herd.t < HERD.end - 1.2, 1.3);
     this.t += dt;
@@ -682,7 +684,7 @@ class LastKnownPosition {
       if (th){ th.taken = true; this.herd = { t: 0 }; }
     } else {
       const h = this.herd; h.t += dt;
-      if (h.t < HERD.off && Math.random() < dt * 2.5) sfx.bird?.(0.5);
+      if (h.t < HERD.off && Math.random() < dt * 4) sfx.warble?.(Math.random());
       if (Math.random() < dt * 10 && h.t < HERD.end) sfx.step?.(Math.random() * 3, 0.12);
       if (h.t >= HERD.end) this.herd = null;
     }
@@ -772,7 +774,7 @@ class LastKnownPosition {
     const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
     return HERD.push * e(h.t / HERD.full) * (1 - e((h.t - HERD.off) / 1.4));
   }
-  /* The puffhens, where they are now: each its own spot on the right of
+  /* The glimmerbacks, where they are now: each its own spot on the right of
      the path, sprinting up from behind into it, bobbing along there, then
      away up the path and off to the right. */
   _flock(){
@@ -780,13 +782,15 @@ class LastKnownPosition {
     const hs = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
     const out = [];
     for (let j = 0; j < HERD.n; j++){
-      const lane = 0.22 + 0.95 * hs(j + 1), relT = -0.06 + 0.32 * Math.pow(hs(j + 2), 1.3), delay = 0.1 + (HERD.full - 0.9) * hs(j + 3);
+      const lane = 0.25 + 2.3 * Math.pow(hs(j + 1), 0.85), relT = -0.06 + 0.42 * Math.pow(hs(j + 2), 1.15), delay = 0.1 + (HERD.full - 0.9) * hs(j + 3);
+      /* (how far into the mass: from its near edge - nearest the crew, and nearest us) */
+      const deep = Math.max(0, Math.min(1, ((lane - 0.3) / 1.3 + (relT + 0.06) / 0.3) * 0.75));
       const u = (h.t - delay) / 0.9; if (u <= 0) continue;
       let rel = -0.3 + (relT + 0.3) * (1 - Math.pow(1 - Math.min(1, u), 2)) + 0.015 * Math.sin(h.t * 3 + j), ln = lane, side = 0;
       const go = h.t - HERD.off - hs(j + 4) * 0.6;
       if (go > 0){ rel += go * go * (0.35 + 0.25 * hs(j + 5)); ln += go * (0.9 + 0.7 * hs(j + 6)); side = Math.min(1, go * 2); }
       if (rel > 1.4) continue;
-      out.push({ rel, lane: ln, side, n: j });
+      out.push({ rel, lane: ln, side, n: j, deep });
     }
     return out;
   }
@@ -1259,19 +1263,18 @@ class LastKnownPosition {
          above, the crew still running small below - and panning along
          slowly with the jellies as they drift over) */
       if (up > 0){
-        const s = 1 - 0.3 * up, pan = W * 0.1 * up * Math.min(1, (this.vista ? this.vista.t : VISTA) / VISTA);
+        const vt = this.vista ? this.vista.t : UP_TILL, s = 1 - 0.14 * up, pan = W * 0.05 * up * Math.max(0, Math.min(1, (vt - UP_FROM) / (UP_TILL - UP_FROM)));
         c.translate(W / 2 + pan, H * 0.98); c.scale(s, s); c.translate(-W / 2, -H * 0.98);
-        SKY.above = H * 0.6 * up; SKY.wide = W * 0.5 * up;
+        SKY.above = H * 0.25 * up; SKY.wide = W * 0.2 * up;
       }
       /* (down: their feet brought up the screen, closer - the water round them filling the view) */
       if (dn > 0){ const ay = P(0, RUN, W, H).y, z = 1 + 0.45 * dn, sy = ay + (H * 0.62 - ay) * dn; c.translate(W / 2, sy); c.scale(z, z); c.translate(-W / 2, -ay); }
-      /* herd: the camera swinging over to watch the puffhens zoom away, off the path to the right */
+      /* herd: the camera swinging over to watch the glimmerbacks zoom away, off the path to the right */
       if (hd > 0){ c.translate(-W * 0.26 * hd, -H * 0.04 * hd); c.translate(W * 0.75, H * 0.5); c.scale(1 + 0.18 * hd, 1 + 0.18 * hd); c.translate(-W * 0.75, -H * 0.5); SKY.wide = Math.max(SKY.wide, W * 0.45 * hd); }
       this._drawPlay(c, W, H);
       /* far: the camera away across the valley to the far ridge (a long lens), cross-fading in */
       if (far > 0 && PAL.world){ c.save(); c.globalAlpha = far; worldFarRidge(c, W, H, this.t, Math.max(0, this.farStirU), PAL.world); c.restore(); }
       SKY.above = 0; SKY.wide = 0; SKY.far = null; this.noHud = false; c.restore();
-      if (up > 0) skyJellies(c, W, H, this.t, up, this.vista ? this.vista.t : VISTA);
       this._drawHud(c, W, H);
     }
     else this._drawPlay(c, W, H);
@@ -1346,7 +1349,7 @@ class LastKnownPosition {
     if (this.boss) this.boss.items(items);
     if (this.depot) this.depot.items(items);
     if (this.ride) this.ride.items(items);
-    for (const f of this._flock()) items.push({ kind: 'puffhen', rel: f.rel, lane: f.lane, f });
+    for (const f of this._flock()) items.push({ kind: 'herd1', rel: f.rel, lane: f.lane, f });
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
       const p = P(ic.lane, ic.rel, W, H), h = H * CREW_SIZE * p.k;
@@ -1362,6 +1365,8 @@ class LastKnownPosition {
       this._drawItem(c, it, W, H);
       if (low) c.restore();
     }
+    /* the sky jellies, drifting over on their own way */
+    if (this.vista) driftJellies(c, W, H, this.t, this.vista.t);
     /* on the zip line: each hanging from the cable, or the feet above */
     if (this.zip) this.zip.drawRiders(c, W, H, (i, x, y, h, a) => {
       c.save(); c.translate(x, y); c.rotate(a);
@@ -1449,7 +1454,7 @@ class LastKnownPosition {
       case 'chimes': chimeblooms(c, W, H, it.lane, it.rel, this.t); break;
       case 'patch': worldPatch(c, W, H, it.lane, it.rel, this.t, PAL.world); break;
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
-      case 'puffhen': if (it.rel > -0.12) puffhen(c, p.x, p.y, H * 0.11 * p.k, this.t + it.f.n * 0.37, it.f.side); break;
+      case 'herd1': if (it.rel > -0.12) glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep); break;
     }
   }
 

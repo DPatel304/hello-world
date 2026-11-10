@@ -77,7 +77,7 @@ export const LEVELS = [
       beam: ['Low branch! Duck!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
       roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
-      narrow: ['A herd coming through! Move over to the left!', 'MOVE LEFT!'],
+      /* (no word for the herd, or the sky jellies: they just happen) */
       wide: ['It opens right up! Spread out and grab them all!', 'SPREAD OUT!'],
       ravine: ['A gorge! Everyone, get ready to JUMP!', 'GET READY TO JUMP!'],
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
