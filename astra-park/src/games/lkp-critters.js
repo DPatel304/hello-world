@@ -164,32 +164,32 @@ export function hopshells(c, W, H, lane, rel, t){
   }
 }
 
-/* A natural spring at (lane, rel): a ring of mossy stones round a pool,
-   the water welling up in a little glowing dome, bubbling, droplets
-   spilling, rings spreading, a soft mist over it. */
-export function spring(c, W, H, lane, rel, t){
-  const p = P(lane, rel, W, H), s = H * 0.72 * p.k, x = p.x, y = p.y;
+/* Chimeblooms at (lane, rel): a clump of tall alien flowers, each stem
+   arching over with a glowing bell at its tip, swaying in the breeze -
+   and as they sway they ring, soft notes (lkp-intro.js: sfx.chime), a
+   little shimmer of light off each bell as it rings. */
+export function chimeblooms(c, W, H, lane, rel, t){
+  const p = P(lane, rel, W, H), s = H * 0.9 * p.k, x = p.x, y = p.y;
+  const BELLS = ['#ffd0f0', '#cfe0ff', '#e6d0ff', '#fff0c8', '#c8fff0'];
   c.save();
-  glow(c, x, y - s * 0.05, s * 0.7, '#9ff6ff', 0.35);
-  /* the pool */
-  c.fillStyle = '#3aa9c2'; c.beginPath(); c.ellipse(x, y, s * 0.42, s * 0.12, 0, 0, TAU); c.fill();
-  c.fillStyle = '#7fe3ef'; c.beginPath(); c.ellipse(x, y - s * 0.01, s * 0.34, s * 0.085, 0, 0, TAU); c.fill();
-  /* rings spreading */
-  c.strokeStyle = 'rgba(230,255,255,.6)'; c.lineWidth = Math.max(1, s * 0.008);
-  for (let k = 0; k < 3; k++){ const u = (t * 0.6 + k / 3) % 1; c.globalAlpha = 1 - u; c.beginPath(); c.ellipse(x, y - s * 0.01, s * (0.06 + 0.28 * u), s * (0.015 + 0.07 * u), 0, 0, TAU); c.stroke(); }
-  c.globalAlpha = 1;
-  /* the water welling up */
-  const swell = 1 + 0.12 * Math.sin(t * 5);
-  const g = c.createRadialGradient(x - s * 0.02, y - s * 0.08, s * 0.01, x, y - s * 0.04, s * 0.12);
-  g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(160,240,255,.5)');
-  c.fillStyle = g; c.beginPath(); c.ellipse(x, y - s * 0.03, s * 0.1, s * 0.07 * swell, 0, Math.PI, 0); c.fill();
-  /* droplets, spilling over */
-  c.fillStyle = '#dffcff';
-  for (let k = 0; k < 8; k++){ const u = (t * 0.9 + k / 8) % 1, a = k / 8 * TAU; c.globalAlpha = 1 - u; c.beginPath(); c.arc(x + Math.cos(a) * s * 0.14 * u, y - s * 0.06 - Math.sin(u * Math.PI) * s * 0.1 + Math.sin(a) * s * 0.02, s * 0.012, 0, TAU); c.fill(); }
-  c.globalAlpha = 1;
-  /* the stones round it, mossy */
-  for (let k = 0; k < 11; k++){ const a = k / 11 * TAU, sx = x + Math.cos(a) * s * 0.44, sy = y + Math.sin(a) * s * 0.12; if (Math.sin(a) < -0.3) continue; c.fillStyle = k % 2 ? '#8f8ab8' : '#a9a3cf'; c.beginPath(); c.ellipse(sx, sy, s * 0.07, s * 0.04, 0, 0, TAU); c.fill(); c.fillStyle = '#6fb27a'; c.beginPath(); c.ellipse(sx - s * 0.01, sy - s * 0.025, s * 0.04, s * 0.015, 0, 0, TAU); c.fill(); }
-  /* a soft mist */
-  glow(c, x, y - s * 0.12, s * 0.3, '#ffffff', 0.25 + 0.08 * Math.sin(t * 1.3));
+  /* leaves at the foot */
+  c.fillStyle = '#4f9a7e';
+  for (let k = 0; k < 7; k++){ const a = -Math.PI / 2 + (k - 3) * 0.32; c.beginPath(); c.ellipse(x + Math.cos(a) * s * 0.06, y - s * 0.03, s * 0.025, s * 0.09, a + Math.PI / 2, 0, TAU); c.fill(); }
+  for (let k = 0; k < 7; k++){
+    const off = (k - 3) / 3, h = s * (0.42 + 0.22 * hash(k + 90)), sway = Math.sin(t * (0.9 + 0.2 * hash(k + 91)) + k * 1.3) * s * 0.04;
+    const bx = x + off * s * 0.16 + sway + off * s * 0.08, by = y - h;
+    /* the stem, arching over */
+    c.strokeStyle = '#5fae8c'; c.lineWidth = Math.max(1, s * 0.012); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x + off * s * 0.05, y); c.quadraticCurveTo(x + off * s * 0.12, y - h * 0.7, bx, by); c.stroke();
+    /* the bell, hanging, glowing - brighter as it rings */
+    const ring = Math.max(0, Math.sin(t * 1.7 + k * 2.1)), col = BELLS[k % BELLS.length];
+    glow(c, bx, by + s * 0.04, s * (0.09 + 0.05 * ring), col, 0.35 + 0.35 * ring);
+    c.fillStyle = col;
+    c.beginPath(); c.moveTo(bx - s * 0.035, by + s * 0.005); c.quadraticCurveTo(bx - s * 0.04, by + s * 0.07, bx - s * 0.055, by + s * 0.085);
+    c.lineTo(bx + s * 0.055, by + s * 0.085); c.quadraticCurveTo(bx + s * 0.04, by + s * 0.07, bx + s * 0.035, by + s * 0.005); c.quadraticCurveTo(bx, by - s * 0.02, bx - s * 0.035, by + s * 0.005); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.7)'; c.beginPath(); c.ellipse(bx - s * 0.015, by + s * 0.03, s * 0.008, s * 0.025, 0, 0, TAU); c.fill();
+    /* (ringing: a little shimmer of light falling from it) */
+    if (ring > 0.85){ c.fillStyle = 'rgba(255,255,255,.8)'; for (let j = 0; j < 3; j++){ const u = (t * 2 + j / 3) % 1; c.globalAlpha = 1 - u; c.beginPath(); c.arc(bx + (j - 1) * s * 0.02, by + s * (0.1 + u * 0.12), s * 0.006, 0, TAU); c.fill(); } c.globalAlpha = 1; }
+  }
   c.restore();
 }

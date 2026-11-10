@@ -46,7 +46,7 @@ export const INTRO_BEATS = [
   { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
-  { id: 'look', time: 21, shot: 'through the helmet, clear, still lying there - taking it in: the head lifting; turning left, to hopshells (bunny-turtles) hopping on the meadow, holding; a little right, to a spring bubbling, holding; up to the sky, jellies drifting high up; back down to the ship', blocking: 'nothing asked - the fire fading, wind, birds, the spring burbling' },
+  { id: 'look', time: 21, shot: 'through the helmet, clear, still lying there - taking it in: the head lifting; turning left, to hopshells (bunny-turtles) hopping on the meadow, holding; a little right, to chimeblooms swaying and ringing, holding; up to the sky, jellies drifting high up; back down to the ship', blocking: 'nothing asked - the fire fading, wind, birds, the chimeblooms ringing' },
   { id: 'stand', time: 6, shot: 'through the helmet: getting up - the view righting itself and rising - then turning right, past the ship, to the path running away into the woods', blocking: 'nothing asked - a shuffle of feet' },
   { id: 'pull', time: 4.5, shot: 'still looking down the path, the camera pulls straight back out of your eyes and up over your shoulder - your own astronaut, then the crew, rising into view - into the game\'s own view behind them', blocking: 'the others getting up' },
   { id: 'gather', time: 6, shot: 'the game\'s view, behind them on the path: the crew looking round, a bit lost; a quick dust-off; checking their arms', blocking: 'nothing asked' },
@@ -74,8 +74,8 @@ export const START = 0.5;
    tilted (lying on your side). */
 const POV = { cx: 0.067, cy: 0.44, s: 1.75, tilt: -0.24 };
 /* Where to look, lying there (POV pans: + left): the hopshells off on
-   the meadow to the left; the spring, a little right of the ship. */
-const AT_HOPPERS = 1.02, AT_SPRING = -0.39;
+   the meadow to the left; the chimeblooms, a little right of the ship. */
+const AT_HOPPERS = 1.02, AT_CHIMES = -0.39;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -165,10 +165,10 @@ export class Intro {
     /* (and the fire fading right back as you start to look round, the ship further off) */
     const away = s === 'look' ? Math.min(1, Math.max(0, (this.st - 1.5) / 4)) : s === 'dark' || s === 'wake' ? 0 : 1;
     const near = (1 - 0.65 * calm) * (1 - 0.82 * away);
-    /* the spring burbling: louder the more you're looking its way */
+    /* the chimeblooms ringing, softly, now and then: louder the more you're looking their way */
     if (s === 'look' || s === 'stand'){
-      const f = Math.max(0.15, 1 - Math.abs(this._looking().pan - AT_SPRING) / 0.45);
-      if (Math.random() < dt * 9 * f) sfx.brook?.(f);
+      const f = Math.max(0.12, 1 - Math.abs(this._looking().pan - AT_CHIMES) / 0.45);
+      if (Math.random() < dt * 1.6 * (0.4 + f)) sfx.chime?.(f);
     }
     if (calm > 0 && !this.pad){ this.pad = true; sfx.calmPad?.(); }
     /* (the ringing: just once, faintly, in the dark) */
@@ -259,10 +259,10 @@ export class Intro {
        holding; then up to the sky a while; then back down to the ship */
     if (this.stage === 'look'){
       /* slowly, holding at each: left to the hopshells (2.6-5, holding to
-         8); a little right, to the spring (8-10.5, to 13.5); up to the sky
+         8); a little right, to the chimeblooms (8-10.5, to 13.5); up to the sky
          (13.5-15.5, to 18); back down to the ship (18-20.5) */
       const t = this.st, toS = e((t - 8) / 2.5), up = e((t - 13.5) / 2) * (1 - e((t - 18) / 2.5));
-      const pan = AT_HOPPERS * e((t - 2.6) / 2.4) * (1 - toS) + AT_SPRING * toS * (1 - e((t - 13.5) / 2.2));
+      const pan = AT_HOPPERS * e((t - 2.6) / 2.4) * (1 - toS) + AT_CHIMES * toS * (1 - e((t - 13.5) / 2.2));
       return { pan, rise: e(t / 2.6), up: 0, down: 0, sky: up };
     }
     /* standing up (the view righting itself, rising); then turning right,

@@ -99,7 +99,8 @@ function panorama(W, H, L){
   /* Clouds: clusters of puffs, lit on top, cool beneath. */
   const r = rng(101);
   for (let n = 0; n < 7; n++){
-    const cx = (n + r() * 0.6) / 7 * PW, cy = HY * (0.12 + r() * 0.3), sc = H * (0.0005 + r() * 0.0004);
+    /* (kept clear of the strip's two ends, so none is ever cut across where the copies meet) */
+    const cx = (0.12 + 0.74 * (n + r() * 0.6) / 7) * PW, cy = HY * (0.12 + r() * 0.3), sc = H * (0.0005 + r() * 0.0004);
     const puffs = []; for (let k = 0; k < 9; k++) puffs.push([(r() - 0.5) * 260 * sc, (r() - 0.6) * 60 * sc, (40 + r() * 50) * sc]);
     puffs.sort((a, b) => a[1] - b[1]);
     for (const dx of [0, cx > PW * 0.85 ? -PW : cx < PW * 0.15 ? PW : 0].filter((v, i, a) => a.indexOf(v) === i)){
