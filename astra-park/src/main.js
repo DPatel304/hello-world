@@ -77,7 +77,8 @@ function startRound(){
   /* An endless game has no clock: it runs until it says it's over. */
   roundLeft = game.endless ? Infinity : game.secs;
   played = 0;
-  music.intensity(game.loud ? 0.85 : 0.15);
+  /* (a game that sets its own music level from the start) */
+  music.intensity(inst.mood != null ? inst.mood : game.loud ? 0.85 : 0.15);
   go('play', null);
 }
 

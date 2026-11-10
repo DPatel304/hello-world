@@ -29,6 +29,8 @@ import { Radio, script } from './lkp-captain.js';
 import { commanderFace } from './lkp-cast.js';
 import { figure } from './lkp-guide.js';
 import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
+import { P } from './lkp-art.js';
+import { CREW_SIZE } from './lkp-game.js';
 import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 
 export const INTRO_BEATS = [
@@ -39,7 +41,7 @@ export const INTRO_BEATS = [
   { id: 'look', time: 8, shot: 'through the helmet, clear: a slow look round - the glade, the trees, the ship - the head lifting a little', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, clear', blocking: 'the suit display rings: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re alive, on your feet' },
-  { id: 'rise', time: 4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
+  { id: 'rise', time: 4.5, shot: 'pulling back out through your visor - up and back - to the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, RISE = BEAT.rise.time;
@@ -60,6 +62,11 @@ export const START = 0.5;
 /* Through the helmet: looking at (cx, cy) - screens - s times closer,
    tilted (lying on your side). */
 const POV = { cx: -0.06, cy: 0.5, s: 1.75, tilt: -0.24 };
+/* The wake hint shows once nobody's moved for HINT seconds. */
+const HINT = 4;
+/* Pulling back out of the visor: from, to (seconds into the rise), and
+   how close it starts. */
+const PULL = [0.4, 3.2], ZOOM = 7;
 /* A moment after it's done. */
 const AFTER = 0.5;
 
@@ -174,10 +181,10 @@ export class Intro {
     const s = this.stage;
     if (s === 'crash'){ cockpit(c, W, H, this.st); return; }
     if (s === 'title'){ const lv = this.g.level, n = (this.g.levelNo ?? 0) + 1; titleCard(c, W, H, this.st, `LEVEL ${n}  |  ${(lv && lv.name || '').toUpperCase()}`); return; }
-    if (s === 'rise' && this.st > 0.35) this._outside(c, W, H);
+    if (s === 'rise') this._pullBack(c, W, H);
     else this._helmet(c, W, H);
     this._lids(c, W, H);
-    if (s === 'wake'){ this._sparkles(c, W, H); banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6), this.wiggled); }
+    if (s === 'wake'){ this._sparkles(c, W, H); this._wakeHint(c, W, H); }
     if (s === 'call') this._ringing(c, W, H);
     this.radio.draw(c, W, H);
   }
@@ -336,9 +343,61 @@ export class Intro {
 
   /* Outside, after the blink: the game's own view, the crew getting up
      on the path, by the burning ship. */
+  /* Waking: nothing on screen - unless nobody's moved for a while, when
+     the visor shows, faint and flickering, what it needs. */
+  _wakeHint(c, W, H){
+    const a = Math.min(1, Math.max(0, (this.still || 0) - HINT) / 1.2);
+    if (a <= 0) return;
+    const flick = Math.sin(this.t * 31) > -0.7 ? 1 : 0.35;
+    c.save(); c.globalAlpha = a * flick * (0.8 + 0.2 * Math.sin(this.t * 2));
+    c.font = `600 ${Math.round(H * 0.03)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(127,243,255,.95)'; c.shadowColor = 'rgba(127,243,255,.6)'; c.shadowBlur = H * 0.01;
+    const txt = 'MOVEMENT NEEDED TO WAKE', bars = Math.floor(this.t * 2) % 4;
+    c.fillText(txt + ' ' + '.'.repeat(bars), W / 2, H * 0.86);
+    c.restore();
+  }
+
+  /* Up and out: the camera pulling back out through your own visor - your
+     view still in it, shrinking - up and back to the game's view, the crew
+     getting up by the ship. Where the lead one's helmet is: */
+  _headAt(W, H){
+    const g = this.g, i = g.here[0] ?? 0, p = P(g._home(i), RUN_AT, W, H), h = H * CREW_SIZE * p.k;
+    /* (as lkp-cast.js lays them down: shifted, turned a quarter) */
+    const dn = 1 - easeOut(this.up[i] || 0), th = -Math.PI / 2 * dn, hy = h * 0.8;
+    return { x: p.x + h * 0.42 * dn + hy * Math.sin(th), y: p.y - h * 0.14 * dn - hy * Math.cos(th), h, tilt: th };
+  }
+  _pullBack(c, W, H){
+    const u = Math.max(0, Math.min(1, (this.st - PULL[0]) / (PULL[1] - PULL[0]))), e = u * u * u * (u * (u * 6 - 15) + 10);
+    if (u <= 0){ this._helmet(c, W, H); return; }
+    const head = this._headAt(W, H), Z = 1 + (ZOOM - 1) * (1 - e);
+    const fx = W / 2 + (head.x - W / 2) * e, fy = H / 2 + (head.y - H / 2) * e;
+    c.save(); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    c.translate(fx, fy); c.scale(Z, Z); c.translate(-head.x, -head.y);
+    this._outside(c, W, H);
+    c.restore();
+    /* your view, still there in the visor, shrinking away: the visor
+       first filling the screen, closing in to the helmet's own */
+    const show = 1 - Math.max(0, Math.min(1, (e - 0.1) / 0.45));
+    if (show > 0){
+      const k = Math.min(1, u * 2.2), kk = k * k * (3 - 2 * k);
+      const rx = W * 0.8 + (head.h * 0.2 * Z - W * 0.8) * kk, ry = H * 0.95 + (head.h * 0.16 * Z - H * 0.95) * kk;
+      const buf = bufOf(W, H);
+      if (buf){ const bc = buf.getContext('2d'); bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H); this._helmet(bc, W, H); }
+      c.save(); c.globalAlpha = show;
+      c.translate(fx, fy); c.rotate(head.tilt * kk);
+      c.beginPath(); c.ellipse(0, 0, rx, ry, 0, 0, 6.2832); c.clip();
+      if (buf){ const sc = Math.max(rx * 2 / W, ry * 2 / H); c.rotate(-head.tilt * kk); c.drawImage(buf, -W * sc / 2, -H * sc / 2, W * sc, H * sc); }
+      c.restore();
+      /* the visor's rim, and a gleam on the glass */
+      c.save(); c.globalAlpha = show * kk; c.translate(fx, fy); c.rotate(head.tilt * kk);
+      c.strokeStyle = '#e9eef8'; c.lineWidth = Math.max(3, rx * 0.1); c.beginPath(); c.ellipse(0, 0, rx * 1.06, ry * 1.08, 0, 0, 6.2832); c.stroke();
+      c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = Math.max(2, rx * 0.05); c.beginPath(); c.ellipse(0, 0, rx * 0.8, ry * 0.75, 0, Math.PI * 1.1, Math.PI * 1.4); c.stroke();
+      c.restore();
+    }
+  }
   _outside(c, W, H){
     const g = this.g;
-    g.introCrew = g.here.map(i => ({ i, lane: g._home(i), rel: RUN_AT, down: 1 - easeOut(this.up[i]), noBar: false }));
+    g.introCrew = g.here.map(i => ({ i, lane: g._home(i), rel: RUN_AT, down: 1 - easeOut(this.up[i]), noBar: this.stage === 'rise' && this.st < PULL[1] }));
     g.inIntro = true;
     g._drawPlay(c, W, H);
     g.inIntro = false; g.introCrew = null;
@@ -349,7 +408,7 @@ export class Intro {
 
 const BEGIN = {
   answer(){ this.radio.visible = true; this.radio.say(...script('wakeup', this.g)); },
-  rise(){ sfx.whoosh?.(); }
+  rise(){ sfx.pullBack?.(); }
 };
 /* Each step: true once it's done. */
 const STEP = {
@@ -363,10 +422,12 @@ const STEP = {
       if (moving > STIR){ this.woke[i] = Math.min(WIGGLE, this.woke[i] + dt); if (Math.random() < dt * 4) sfx.step(i, 0.25); }
       else if (this.woke[i] < WIGGLE) this.woke[i] = Math.max(0, this.woke[i] - dt * DROOP);
     }
+    /* nobody moving: how long (for the hint) */
+    this.still = here.some(i => this.stirring && this.stirring[i]) ? 0 : (this.still || 0) + dt;
     /* the eyes open in big blinks - a quarter at a time - each one heard;
        all the way, the suit's display booting up */
     const notch = Math.floor(this.wiggled * 4 + 1e-6);
-    if (notch > (this.notch || 0)){ this.notch = notch; this.blinkAt = this.t; if (notch >= 4) sfx.boot?.(); else sfx.pick(); }
+    if (notch > (this.notch || 0)){ this.notch = notch; this.blinkAt = this.t; if (notch >= 4) sfx.visorOn?.(); }
     if (notch < (this.notch || 0)) this.notch = notch;
     return this._settled(dt, (here.length > 0 && this.wiggled >= 1) || (!here.length && this.st > 3));
   },
@@ -410,7 +471,7 @@ const EYES = {
   call(){ return 1; },
   answer(){ return 1; },
   /* the blink: shut, then open outside */
-  rise(){ return this.st < 0.45 ? 0 : 1; }
+  rise(){ return 1; }
 };
 /* When a beat's waited as long as it will: as if everyone had done it. */
 const FORCE = {

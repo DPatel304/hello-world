@@ -59,9 +59,7 @@ export function titleCard(c, W, H, t, sub){
   c.restore();
 }
 
-/* What you hear: a deep soft swell as the title comes up, a shimmer as
-   the light passes, and a low note fading away. */
+/* What you hear: just a deep soft swell as the title comes up, fading away. */
 export function titleSound(t, dt, state){
   if (!state.swell && t > IN[0]){ state.swell = true; sfx.titleSwell?.(); }
-  if (!state.shine && t > SWEEP[0] + 0.9){ state.shine = true; sfx.titleShimmer?.(); }
 }

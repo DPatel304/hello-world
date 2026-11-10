@@ -694,8 +694,8 @@ class LastKnownPosition {
   /* How big the music is: hushed while sneaking, the corridor's walk,
      fights louder, the boss loudest. (The shell reads it.) */
   get mood(){
-    /* The opening: no beat yet - its own quiet, uneasy mood (below 0). */
-    if (this.scene && this.scene.kind === 'intro') return -1;
+    /* The opening: no music at all - it has its own sound (lkp-intro.js). */
+    if (this.scene && this.scene.kind === 'intro') return -2;
     if (this.scene || this.levelup) return 0.2;
     const seg = this.seg;
     if (this.boss) return this.boss.done ? 0.5 : 1;

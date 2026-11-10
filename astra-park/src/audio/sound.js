@@ -318,10 +318,15 @@ export const sfx = {
       o.start(t); o.stop(t + 7.6);
     }
   },
-  /* ...and a faint shimmer as the light passes through the title. */
-  titleShimmer(k = 1){
-    for (const [f, d] of [[1318.5, 0], [1975.5, 0.12], [2637, 0.26]]) blip({ freq: f, dur: 1.6, type: 'sine', gain: 0.018 * k, delay: d });
+  /* The visor's display switching on: a quick electronic chirp-chirp,
+     thin and technical. */
+  visorOn(k = 1){
+    blip({ freq: 520, to: 1400, dur: 0.12, type: 'square', gain: 0.035 * k });
+    blip({ freq: 1400, dur: 0.05, type: 'square', gain: 0.03 * k, delay: 0.16 });
+    hiss({ dur: 0.08, gain: 0.05 * k, hp: 4000, delay: 0.02 });
   },
+  /* Pulling back out of the helmet: a long soft breath of air. */
+  pullBack(k = 1){ hiss({ dur: 2.4, gain: 0.07 * k, hp: 250, sweep: 900, type: 'bandpass', q: 0.6 }); },
   /* The radio ringing: a quick two-tone trill. */
   trill(){ for (let k = 0; k < 6; k++) blip({ freq: k % 2 ? 1320 : 1760, dur: 0.06, type: 'square', gain: 0.05, delay: k * 0.07 }); },
   /* ---- urgency (Last Known Position) ---- */
@@ -936,9 +941,9 @@ const ownBand = {
     clearInterval(ownTimer); ownTimer = null;
     if (ownGain && AC){ const t = AC.currentTime; ownGain.gain.cancelScheduledValues(t); ownGain.gain.setValueAtTime(ownGain.gain.value, t); ownGain.gain.linearRampToValueAtTime(0, t + 0.6); }
   },
-  /* Below 0: the opening's mood, no beat (action.js). */
+  /* Below 0: the opening's mood, no beat (action.js); -2: silent. */
   intensity(v){
-    ownI = Math.max(-1, Math.min(1, v));
+    ownI = Math.max(-2, Math.min(1, v));
     if (AC && ownGain && ownTimer) ownGain.gain.setTargetAtTime(0.5 * (0.6 + 0.4 * Math.max(0, ownI)), AC.currentTime, 0.8);
   },
   get on(){ return !!ownTimer; }

@@ -109,6 +109,7 @@ export function createAction(ac, dest){
 
   /* Books the sixteenths from step p at time t. */
   function step(p, t, I){
+    if (I < -1.5) return;
     if (I < 0) return mood(p, t);
     const s = p % 16, bar = Math.floor(p / 16) % 8, phrase = Math.floor(p / 128);
     const root = ROOTS[bar], ch = CHORDS[bar];

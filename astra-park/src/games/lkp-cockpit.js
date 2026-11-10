@@ -164,7 +164,7 @@ function helmet(c, W, H, t, d){
 export function cockpitSound(t, dt, state){
   const d = dive(t);
   if (!state.rumble && t > 0.1){ state.rumble = true; sfx.crashRumble?.(); }
-  if (!state.boot && t > 0.6){ state.boot = true; sfx.boot?.(); }
+  if (!state.boot && t > 0.6){ state.boot = true; sfx.visorOn?.(); }
   if (!state.brace && t > BRACE){ state.brace = true; sfx.alert?.(); }
   if (t < FLASH){
     state.klax = (state.klax ?? 0.4) - dt;
