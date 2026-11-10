@@ -1,5 +1,4 @@
-/* Commander Nova on the radio: her portrait (graphic-novel style, with her
-   eyepatch), shown
+/* Commander Nova on the radio: her drawn portrait, shown
    as a far-off video call with a weak signal - the colours split a
    little apart, rows of the picture jumping sideways now and then, grain
    and scan lines, SIGNAL WEAK blinking, one bar of signal.
@@ -7,8 +6,6 @@
    novaFeed(c, x, y, w, h, t, talking): her feed in that box. Returns
    false where there's no canvas to paint her on (node tests), so the
    caller can draw something else. */
-
-import { NOVA_PHOTO } from './lkp-nova-photo.js';
 
 const mk = (w, h) => {
   if (typeof document === 'undefined') return null;
@@ -18,21 +15,20 @@ const mk = (w, h) => {
 function rg(c, x, y, r0, r1, stops){ const g = c.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; }
 function lg(c, x0, y0, x1, y1, stops){ const g = c.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; }
 
-/* Her portrait, 600 x 600, in a graphic-novel style: flat colour, hard
-   shadow down her right side, ink, halftone. Older now: a long face, big
-   almond blue-grey eyes, the lines of a long career round them; silver
-   hair tied back, a last streak of auburn; arched brows, a small nose;
-   an eyepatch over her right eye; armour. (She'll be fighting alongside
-   the crew, later on.) */
-const NOVA_LOOK = { skin: '#d2a488', hair: '#a8a29c', grey: false, streak: '#7a4a2e', style: 'tied', gear: 'armor', gearCol: '#4a5260', face: 'long', brows: 'arched', browCol: '#8a8480', lips: 'thin', iris: '#5a7a8a', eyes: { shape: 'almond', size: 1.2, gap: 45 }, nose: 'tiny', patch: 'right', older: true };
-/* Her portrait: the photo (lkp-nova-photo.js), loaded once; until it's
-   in, nothing (the caller shows something else for that moment). (The
-   drawn portrait, drawNova, is kept for previews and the old look.) */
-let PHOTO = null;
-if (typeof Image !== 'undefined'){ PHOTO = new Image(); PHOTO.src = NOVA_PHOTO; }
+/* Her portrait, 600 x 600, drawn in a graphic-novel style (flat colour,
+   a hard shadow down one side, ink, halftone), after the reference
+   portrait: older, grey hair swept back, green eyes under heavy lids,
+   stern brows and mouth, a long scar from her brow down her cheek, a
+   tactical headset with olive earcups, a camouflage jacket with
+   sergeant's chevrons and a tag on a chain. (She'll be fighting alongside
+   the crew, later on: the same look, drawn.) */
+const NOVA_LOOK = { skin: '#c89478', hair: '#9a968e', style: 'slick', gear: 'camo', gearCol: '#55603a', face: 'square', brows: 'stern', browCol: '#7a7068', lips: 'stern', lipCol: '#8a4a48', iris: '#6a7a3a', eyes: { shape: 'hooded', size: 1.22, gap: 46 }, nose: 'straight', scar: 'long', older: true, cups: true, neck: 14, bg0: '#1a2620', bg1: '#0a100c' };
+/* (drawn a touch wider than it's built) */
 function portrait(){
-  if (!mk(1, 1) || !PHOTO || !PHOTO.complete || !PHOTO.naturalWidth) return undefined;
-  const cv = mk(600, 600); cv.getContext('2d').drawImage(PHOTO, 0, 0, 600, 600); return cv;
+  if (!mk(1, 1)) return null;
+  const P = drawNova(NOVA_LOOK), wide = mk(600, 600), w = wide.getContext('2d');
+  w.translate(300, 0); w.scale(1.1, 1); w.translate(-300, 0); w.drawImage(P, 0, 0);
+  return wide;
 }
 /* Nova, graphic-novel style: flat colour, hard shadows, ink, halftone. */
 const hex = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -52,16 +48,17 @@ function drawNova(o){
   g = c.createRadialGradient(520, 90, 0, 520, 90, 220); g.addColorStop(0, 'rgba(255,120,60,.45)'); g.addColorStop(1, 'rgba(255,120,60,0)'); c.fillStyle = g; c.fillRect(0, 0, 600, 600);
   /* ---- hair behind ---- */
   const HR = o.hair, HRD = mix(HR, '#000000', 0.45), HRL = mix(HR, '#d8c8b8', 0.35);
-  if (o.style === 'braid' || o.style === 'tied' || o.style === 'crop'){
-    shape(c, [[196, 270], [180, 150, 240, 82, 300, 82], [362, 82, 420, 150, 404, 270], [400, 330, 390, 360, 380, 390], [220, 390], [210, 360, 200, 330, 196, 270]]);
+  if (o.style === 'braid' || o.style === 'tied' || o.style === 'crop' || o.style === 'slick'){
+    shape(c, [[196, 270], [176, 140, 238, 66, 300, 66], [364, 66, 426, 140, 404, 270], [400, 330, 390, 360, 380, 390], [220, 390], [210, 360, 200, 330, 196, 270]]);
     c.fillStyle = HRD; c.fill(); ink(c, 4, INK);
   }
   if (o.style === 'braid'){ for (let k = 0; k < 6; k++){ c.beginPath(); c.ellipse(392 + k * 5, 360 + k * 34, 22 - k * 1.5, 19, 0.35, 0, 7); c.fillStyle = k % 2 ? HR : HRD; c.fill(); ink(c, 3, INK); } }
   /* ---- neck ---- */
-  shape(c, [[252, 330], [250, 380, 244, 410, 236, 452], [364, 452], [356, 410, 350, 380, 348, 330]]); c.fillStyle = SK; c.fill();
+  const NK = o.neck || 0;
+  shape(c, [[252 - NK, 330], [250 - NK, 380, 244 - NK, 410, 236 - NK, 452], [364 + NK, 452], [356 + NK, 410, 350 + NK, 380, 348 + NK, 330]]); c.fillStyle = SK; c.fill();
   /* shadow under the jaw, and the right side of the neck */
   shape(c, [[250, 340], [300, 392, 340, 380, 350, 340], [354, 400, 358, 430, 364, 452], [300, 452], [320, 420, 326, 390, 300, 395], [270, 392, 255, 370, 250, 340]]); c.fillStyle = SH; c.fill();
-  c.beginPath(); c.moveTo(252, 330); c.bezierCurveTo(250, 380, 244, 410, 236, 452); ink(c, 4, INK); c.beginPath(); c.moveTo(348, 330); c.bezierCurveTo(356, 410, 358, 430, 364, 452); ink(c, 5, INK);
+  c.beginPath(); c.moveTo(252 - NK, 330); c.bezierCurveTo(250 - NK, 380, 244 - NK, 410, 236 - NK, 452); ink(c, 4, INK); c.beginPath(); c.moveTo(348 + NK, 330); c.bezierCurveTo(356 + NK, 410, 358 + NK, 430, 364 + NK, 452); ink(c, 5, INK);
   c.beginPath(); c.moveTo(276, 400); c.lineTo(290, 440); ink(c, 2, mix(SH, INK, 0.5));
   /* ---- gear ---- */
   gear(c, o, INK);
@@ -102,7 +99,7 @@ function drawNova(o){
   /* the shadow side's outline heavier */
   c.beginPath(); c.moveTo(400 + ch * 0.4, 214); c.bezierCurveTo(402 + ch, 256, 392 + jw, 290, 376 + jw, 318); c.bezierCurveTo(362 + jw, 340 + jw * 0.5, 336 + cw, cy - 10, 318 + cw, cy - 2); ink(c, 5, INK);
   /* ---- brows: heavy, low, straight-ish ---- */
-  const BR = { straight: [0, 0, 1], arched: [-8, 4, 0.85], soft: [-3, 2, 0.7], high: [-6, 3, 0.8] }[o.brows || 'straight'];
+  const BR = { stern: [4, -2, 1.1], straight: [0, 0, 1], arched: [-8, 4, 0.85], soft: [-3, 2, 0.7], high: [-6, 3, 0.8] }[o.brows || 'straight'];
   for (const s of [-1, 1]){
     const a = BR[0], t = BR[2];
     shape(c, [[300 + s * 16, 214], [300 + s * 30, 204 + a * 0.5, 300 + s * 50, 196 + a, 300 + s * 72, 206 + BR[1]], [300 + s * 70, 206 + BR[1] + 5 * t], [300 + s * 50, 196 + a + 8 * t, 300 + s * 30, 206 + a * 0.5 + 6 * t, 300 + s * 18, 214 + 7 * t]]); c.fillStyle = o.browCol || mix(HR, INK, 0.3); c.fill(); ink(c, 1.2, INK);
@@ -141,7 +138,7 @@ function drawNova(o){
   c.beginPath(); c.moveTo(300 - 18 * nw, ny); c.quadraticCurveTo(300 - 22 * nw, ny + 6, 300 - 14 * nw, ny + 8); c.moveTo(300 + 18 * nw, ny); c.quadraticCurveTo(300 + 24 * nw, ny + 6, 300 + 16 * nw, ny + 9); ink(c, 2.4, INK);
   c.beginPath(); c.moveTo(300 - 8 * nw, ny + 9); c.quadraticCurveTo(300, ny + 12, 300 + 8 * nw, ny + 9); ink(c, 1.8, INK);
   /* ---- mouth: set, a slight half-smirk ---- */
-  const M = { neutral: [1, 1, 1, 0], full: [1, 1.6, 1.5, 0], thin: [1, 0.6, 0.6, 0], wide: [1.2, 1, 1, 0], smile: [1.05, 1, 1.1, 1] }[o.lips || 'neutral'];
+  const M = { neutral: [1, 1, 1, 0], full: [1, 1.6, 1.5, 0], thin: [1, 0.6, 0.6, 0], wide: [1.2, 1, 1, 0], smile: [1.05, 1, 1.1, 1], stern: [1.05, 0.8, 1.1, -0.9] }[o.lips || 'neutral'];
   const mw = 30 * M[0], ut = 5 * M[1], lt = 10 * M[2], up = M[3] * 4, my = 333;
   shape(c, [[300 - mw, my], [300 - mw * 0.5, my - ut, 300 - 4, my - ut * 0.9, 300, my - ut * 0.5], [300 + 4, my - ut * 0.9, 300 + mw * 0.5, my - ut, 300 + mw, my], [300, my + 2, 300 - mw, my]]); c.fillStyle = mix(SK, o.lipCol || '#8a3a3a', 0.45); c.fill();
   shape(c, [[300 - mw * 0.85, my + 1], [300 - mw * 0.4, my + lt * 1.2, 300 + mw * 0.4, my + lt * 1.2, 300 + mw * 0.85, my + 1], [300, my + 3, 300 - mw * 0.85, my + 1]]); c.fillStyle = mix(SK, o.lipCol || '#a04a44', 0.32); c.fill();
@@ -151,6 +148,7 @@ function drawNova(o){
   const scar = (pts, w = 3.5) => { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) c.lineTo(p[0], p[1]); c.strokeStyle = mix(SK, '#f4dcd0', 0.55); c.lineWidth = w + 2; c.lineCap = 'round'; c.stroke(); c.strokeStyle = mix(SH, '#7a3a3a', 0.4); c.lineWidth = 1.2; c.stroke(); };
   if (o.scar === 'brow') scar([[330, 186], [338, 214]]), scar([[340, 240], [348, 266]]);
   if (o.scar === 'cheek') scar([[238, 262], [266, 298]]);
+  if (o.scar === 'long'){ scar([[236, 186], [244, 206], [250, 218]], 4); scar([[226, 262], [236, 290], [252, 316], [270, 340]], 3.5); c.strokeStyle = mix(SK, '#8a3a3a', 0.4); c.lineWidth = 1.5; c.beginPath(); c.moveTo(372, 300); c.lineTo(384, 296); c.stroke(); }
   if (o.scar === 'lip') scar([[312, 318], [316, 344]], 3);
   /* ---- older: forehead lines, crow's feet, smile lines, softer jaw ---- */
   if (o.older){
@@ -187,6 +185,24 @@ function drawNova(o){
     c.beginPath(); c.ellipse(ex - w * 0.3, ey - h * 0.45, w * 0.35, h * 0.14, -0.3, 0, 7); c.fillStyle = 'rgba(255,255,255,.18)'; c.fill();
   }
   /* ---- headset ---- */
+  if (o.cups){
+    /* a tactical headset: a band over the top, big olive earcups both sides, the mic on her left */
+    c.beginPath(); c.arc(300, 214, 134, Math.PI * 1.08, Math.PI * 1.92); c.strokeStyle = INK; c.lineWidth = 14; c.stroke(); c.strokeStyle = '#2a2c2a'; c.lineWidth = 9; c.stroke();
+    for (const s of [-1, 1]){
+      c.beginPath(); c.moveTo(300 + s * 116, 150); c.lineTo(300 + s * 116, 208); ink(c, 6, '#9a9a9a');
+      const cx = 300 + s * 116, cy = 262;
+      /* the padded cushion against her head, then the olive shell */
+      c.beginPath(); c.ellipse(cx - s * 10, cy, 30, 58, 0, 0, 7); c.fillStyle = '#1a1c1a'; c.fill(); ink(c, 3.5, INK);
+      c.beginPath(); c.ellipse(cx + s * 6, cy, 34, 56, 0, 0, 7); c.fillStyle = s > 0 ? '#3a4228' : '#5a6440'; c.fill(); ink(c, 4, INK);
+      c.beginPath(); c.ellipse(cx + s * 2, cy - 18, 16, 22, 0, Math.PI * 1.1, Math.PI * 1.7); ink(c, 2.5, s > 0 ? '#4a5434' : '#7a8456');
+      c.beginPath(); c.arc(cx + s * 10, cy + 30, 10, 0, 7); c.fillStyle = '#1e201c'; c.fill(); ink(c, 2.5, INK);
+      c.beginPath(); c.roundRect(cx - 8 + s * 6, cy - 30, 16, 24, 4); c.fillStyle = '#2a2c28'; c.fill(); ink(c, 2, INK);
+    }
+    c.beginPath(); c.moveTo(428, 292); c.bezierCurveTo(414, 334, 372, 354, 334, 356); c.strokeStyle = INK; c.lineWidth = 10; c.stroke(); c.strokeStyle = '#2e302c'; c.lineWidth = 6; c.stroke();
+    c.beginPath(); c.ellipse(322, 358, 22, 15, 0, 0, 7); c.fillStyle = '#141414'; c.fill(); ink(c, 2.5, INK);
+    c.beginPath(); c.moveTo(430, 300); c.quadraticCurveTo(440, 420, 460, 600); ink(c, 3, '#1a1a1a');
+    return cv;
+  }
   c.beginPath(); c.arc(300, 214, 112, Math.PI * 1.08, Math.PI * 1.92); c.strokeStyle = INK; c.lineWidth = 14; c.stroke(); c.strokeStyle = '#4a4e58'; c.lineWidth = 9; c.stroke();
   c.beginPath(); c.roundRect(176, 216, 32, 66, 9); c.fillStyle = '#3a3e48'; c.fill(); ink(c, 3.5, INK); c.fillStyle = '#ff8a2a'; c.fillRect(184, 230, 16, 5);
   c.beginPath(); c.moveTo(194, 278); c.bezierCurveTo(206, 330, 236, 340, 262, 336); c.strokeStyle = INK; c.lineWidth = 9; c.stroke(); c.strokeStyle = '#4a4e58'; c.lineWidth = 5; c.stroke();
@@ -202,6 +218,24 @@ function gear(c, o, INK){
   shape(c, [[20, 600], [40, 500, 120, 456, 236, 440], [364, 440], [480, 456, 560, 500, 580, 600]]); c.fillStyle = G; c.fill(); ink(c, 4, INK);
   /* shadow side of the body */
   shape(c, [[330, 440], [364, 440], [480, 456, 560, 500, 580, 600], [380, 600], [400, 520, 370, 470, 330, 440]]); c.fillStyle = GD; c.fill();
+  if (o.gear === 'camo'){
+    /* camo blotches over the jacket */
+    c.save(); shape(c, [[20, 600], [40, 500, 120, 456, 236, 440], [364, 440], [480, 456, 560, 500, 580, 600]]); c.clip();
+    const blots = [['#6a7448', 0.7], ['#3e4628', 0.6], ['#8a8a5a', 0.45]];
+    for (let k = 0; k < 26; k++){ const [col, a] = blots[k % 3]; c.fillStyle = col; c.globalAlpha = a; c.beginPath(); c.ellipse(40 + (k * 97) % 540, 450 + (k * 53) % 150, 30 + (k % 4) * 10, 14 + (k % 3) * 6, (k % 5) * 0.6, 0, 7); c.fill(); }
+    c.globalAlpha = 1;
+    shape(c, [[330, 440], [364, 440], [480, 456, 560, 500, 580, 600], [380, 600], [400, 520, 370, 470, 330, 440]]); c.fillStyle = 'rgba(20,24,10,.45)'; c.fill();
+    c.restore();
+    /* the collar, open, folded down both sides */
+    for (const s of [-1, 1]){ shape(c, [[300 + s * 52, 412], [300 + s * 118, 436], [300 + s * 98, 486], [300 + s * 18, 472]]); c.fillStyle = s > 0 ? '#3e4628' : '#5a6440'; c.fill(); ink(c, 3.5, INK); }
+    shape(c, [[262, 440], [300, 482], [338, 440], [330, 470, 300, 500, 270, 470]]); c.fillStyle = '#4a5232'; c.fill(); ink(c, 2.5, INK);
+    /* chevrons on the chest */
+    for (let k = 0; k < 3; k++){ c.beginPath(); c.moveTo(178, 520 + k * 12); c.lineTo(204, 536 + k * 12); c.lineTo(230, 520 + k * 12); c.strokeStyle = INK; c.lineWidth = 8; c.stroke(); c.strokeStyle = '#c8b888'; c.lineWidth = 5; c.stroke(); }
+    /* a tag on its chain */
+    c.beginPath(); c.moveTo(324, 456); c.quadraticCurveTo(340, 520, 352, 560); c.strokeStyle = '#9a9a9a'; c.lineWidth = 2; c.setLineDash([3, 2]); c.stroke(); c.setLineDash([]);
+    c.beginPath(); c.roundRect(340, 556, 26, 38, 4); c.fillStyle = '#b8b8b0'; c.fill(); ink(c, 2.5, INK);
+    return;
+  }
   if (o.gear === 'armor'){
     for (const s of [-1, 1]){
       shape(c, [[300 + s * 90, 452], [300 + s * 170, 430, 300 + s * 250, 470, 300 + s * 262, 540], [300 + s * 200, 540, 300 + s * 140, 520, 300 + s * 96, 500]]); c.fillStyle = s > 0 ? GD : G; c.fill(); ink(c, 4, INK);
@@ -232,6 +266,22 @@ function hairFront(c, o, HR, HRD, HRL, INK){
     c.fillStyle = HRL; c.globalAlpha = 0.35; for (let k = 0; k < 40; k++){ c.fillRect(220 + (k * 37) % 160, 112 + (k * 13) % 28, 2, 2); } c.globalAlpha = 1;
     return;
   }
+  if (st === 'slick'){
+    /* swept straight back from the forehead, a wave at the temple, loose strands */
+    const top = () => shape(c, [[202, 220], [180, 110, 244, 56, 304, 56], [368, 56, 424, 110, 400, 220], [392, 168, 364, 132, 334, 128], [308, 122, 284, 122, 260, 132], [232, 146, 212, 176, 202, 220]]);
+    top(); c.fillStyle = HR; c.fill();
+    c.save(); top(); c.clip();
+    shape(c, [[334, 128], [364, 132, 392, 168, 400, 220], [420, 140, 380, 80, 330, 76]]); c.fillStyle = HRD; c.fill();
+    /* combed lines, swept back over the head */
+    for (let k = 0; k < 16; k++){ const x = 214 + k * 12; c.beginPath(); c.moveTo(x, 140 - Math.abs(k - 7.5) * 1.5); c.bezierCurveTo(x + (k - 7.5) * 1.5, 110, x + (k - 7.5) * 3, 90, x + (k - 7.5) * 5, 66); ink(c, k % 2 ? 2.4 : 1.4, k % 3 ? HRL : mix(HR, '#000', 0.25)); }
+    c.restore();
+    top(); ink(c, 4, INK);
+    /* the wave over her left temple */
+    shape(c, [[212, 196], [210, 160, 228, 136, 252, 128], [236, 150, 226, 172, 228, 206]]); c.fillStyle = HRL; c.fill(); ink(c, 2.5, INK);
+    /* loose strands by the ears */
+    for (const [x, y, d] of [[208, 230, -1], [392, 232, 1]]){ c.beginPath(); c.moveTo(x, y); c.bezierCurveTo(x + d * 8, y + 30, x - d * 4, y + 60, x + d * 6, y + 92); ink(c, 1.8, HRL); }
+    return;
+  }
   if (st === 'undercut'){
     /* shaved side (left), the rest swept over to the right */
     shape(c, [[202, 230], [198, 170, 220, 130, 252, 116], [258, 170], [240, 200, 212, 220, 202, 230]]); c.fillStyle = mix(HRD, '#888', 0.25); c.globalAlpha = 0.85; c.fill(); c.globalAlpha = 1; ink(c, 2.5, INK);
@@ -246,13 +296,12 @@ function hairFront(c, o, HR, HRD, HRL, INK){
     if (st === 'crop'){ shape(c, [[256, 146], [246, 176, 250, 196, 240, 214], [258, 186, 266, 164, 270, 148]]); c.fillStyle = HR; c.fill(); ink(c, 2, INK); }
     if (st === 'tied'){ c.beginPath(); c.ellipse(300, 96, 30, 16, 0, 0, 7); c.fillStyle = HRD; c.fill(); ink(c, 3, INK); }
   }
-  if (o.streak){ c.beginPath(); c.moveTo(250, 112); c.bezierCurveTo(232, 140, 214, 176, 206, 220); c.strokeStyle = INK; c.lineWidth = 10; c.stroke(); c.strokeStyle = o.streak; c.lineWidth = 6; c.stroke(); }
   if (o.grey){ c.beginPath(); c.moveTo(320, 98); c.bezierCurveTo(350, 108, 380, 140, 394, 200); c.strokeStyle = INK; c.lineWidth = 11; c.stroke(); c.strokeStyle = '#d8d8d8'; c.lineWidth = 7; c.stroke(); }
 }
 
 /* Painted once, kept. */
 let PORTRAIT;
-const art = () => (PORTRAIT === undefined || PORTRAIT === null ? (PORTRAIT = portrait()) : PORTRAIT);
+const art = () => (PORTRAIT === undefined ? (PORTRAIT = portrait()) : PORTRAIT);
 /* (the portrait itself, for previews) */
 export const novaPortrait = art;
 
@@ -263,11 +312,11 @@ const FEEDS = new Map();
 function feedFor(w, h){
   const key = `${w}x${h}`;
   if (FEEDS.has(key)) return FEEDS.get(key);
-  const P = art(); if (!P) return null;   /* (not cached: it may just be loading) */
-  const s = Math.max(w / 600, h / 600) * 1.05, ox = (w - 600 * s) / 2, oy = (h - 600 * s) / 2 - h * 0.12;
+  const P = art(); if (!P){ FEEDS.set(key, null); return null; }
+  const s = Math.max(w / 600, h / 600) * 1.02, ox = (w - 600 * s) / 2, oy = (h - 600 * s) / 2 + h * 0.03;
   const base = mk(w, h), bc = base.getContext('2d');
   /* (brightened a little: the split and the grain darken it) */
-  try { bc.filter = 'brightness(1.12) contrast(1.05)'; } catch (e){}
+  try { bc.filter = 'brightness(1.25) contrast(1.05)'; } catch (e){}
   bc.drawImage(P, ox, oy, 600 * s, 600 * s); bc.filter = 'none';
   const chans = ['#ff0000', '#00ff00', '#0000ff'].map(col => { const cv = mk(w, h), cc = cv.getContext('2d'); cc.drawImage(base, 0, 0); cc.globalCompositeOperation = 'multiply'; cc.fillStyle = col; cc.fillRect(0, 0, w, h); return cv; });
   const grain = [0, 1, 2, 3].map(() => { const cv = mk(w, h), gc = cv.getContext('2d'), d = gc.createImageData(w, h), p = d.data; for (let i = 0; i < p.length; i += 4){ const n = Math.random() * 255; p[i] = p[i + 1] = p[i + 2] = n; p[i + 3] = 34; } gc.putImageData(d, 0, 0); return cv; });
