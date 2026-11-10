@@ -336,7 +336,7 @@ function mixHex(a, b, k){
    edge at lane edge (and dx, lanes, the whole lot's offset - coming in,
    or scattering, when each streams off at its own speed); from depth
    near to far. a: how much there. Drawn far rows first. */
-export function herdMass(c, W, H, t, edge, dx, a = 1, scatter = 0){
+export function herdMass(c, W, H, t, edge, dx, a = 1, scatter = 0, avoid = null){
   if (a <= 0.01) return;
   c.save(); c.globalAlpha = a;
   for (let r = 18; r >= 0; r--){
@@ -345,6 +345,8 @@ export function herdMass(c, W, H, t, edge, dx, a = 1, scatter = 0){
       const id = r * 53 + n, rel = -0.04 + r * 0.036 + (hash(id + 9) - 0.5) * 0.03;
       const lane0 = edge + n * 0.11 + (hash(id) - 0.5) * 0.12 + (r % 2) * 0.055;
       const lane = lane0 + dx * (1 + scatter * (0.6 * hash(id + 7) - 0.2));
+      /* (keeping out of the trumbler's way) */
+      if (avoid && ((lane - avoid.lane) / 1.5) ** 2 + ((rel - avoid.rel - 0.04) / 0.16) ** 2 < 1) continue;
       const p = P(lane, rel, W, H);
       if (p.x < -60 || p.x > W + 80) continue;
       const s = H * 0.11 * p.k * (0.95 + 0.55 * hash(id + 1)), bob = Math.abs(Math.sin(t * 14 + id)) * s * 0.05;
@@ -503,5 +505,45 @@ export function trumblerBack(c, x, y, s, t, call = 0, run = 1, haze = 0, L = nul
     c.strokeStyle = `rgba(255,240,220,${Math.max(0, 0.75 - r * 0.45)})`; c.lineWidth = 9 * u;
     c.beginPath(); c.ellipse(0, -360 * u, r * 360 * u, r * 160 * u, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
   }
+  c.restore();
+}
+
+/* The trumbler, as it belongs here: a vast slow grazer, its back a mossy
+   hill grown over with grass and little flowers, the world's own slate
+   blue under it; stubby pillar legs; up front, low, two long feelers like
+   the herd's own, a soft light at each tip. From behind, going the way it
+   faces (turn: leaning, -1..1), walking slowly (step: its stride's phase).
+   World-drawn: flat tones, lit on top, the sun's rim, hazing with distance. */
+export function trumbler2(c, x, y, s, t, step, haze, L, turn = 0){
+  const u = s / 300, sway = Math.sin(step) * 0.03, bob = Math.abs(Math.sin(step)) * 6 * u;
+  const H_ = (a) => mixHex(a, L.haze, haze), dark = H_('#4f5f86'), body = H_('#6d84b6'), lit = H_('#a7bfe2'), moss = H_('#5a9a6a'), mossL = H_('#7fbf7a');
+  c.save();
+  c.fillStyle = 'rgba(20,15,45,.32)'; c.beginPath(); c.ellipse(x, y, 190 * u, 32 * u, 0, 0, TAU); c.fill();
+  c.translate(x, y - bob); c.rotate(turn * 0.08 + sway);
+  /* legs, slow: far pair small and dark, near pair big, lifting in turn */
+  for (const [lx, w, h, far, k] of [[-80, 40, 60, 1, 0], [80, 40, 60, 1, 1], [-115, 62, 90, 0, 1], [115, 62, 90, 0, 0]]){
+    const lift = Math.max(0, Math.sin(step + k * Math.PI)) * 14 * u;
+    c.fillStyle = far ? H_('#3d4a6c') : dark;
+    c.beginPath(); c.roundRect((lx - w / 2) * u, -(far ? 100 : 92) * u - lift, w * u, h * u, 18 * u); c.fill();
+  }
+  /* the feelers, up ahead of it, beyond its back: long, drooping, lights at their tips */
+  for (const d of [-1, 1]){
+    const tx = d * (90 + 10 * Math.sin(t * 0.8 + d)) * u, ty = -330 * u;
+    c.strokeStyle = dark; c.lineWidth = 12 * u; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(d * 30 * u, -250 * u); c.quadraticCurveTo(d * 60 * u, -340 * u, tx, ty); c.stroke();
+    c.fillStyle = H_('#fff1c4'); circ0(c, tx, ty, 11 * u);
+  }
+  /* its back: a great soft hill - shaded under, lit on top, the low sun's rim */
+  c.fillStyle = dark; c.beginPath(); c.ellipse(0, -170 * u, 200 * u, 125 * u, 0, 0, TAU); c.fill();
+  c.fillStyle = body; c.beginPath(); c.ellipse(-12 * u, -190 * u, 182 * u, 100 * u, 0, Math.PI * 0.95, Math.PI * 2.05); c.fill();
+  /* moss and grass over the top of it, little flowers in it */
+  c.fillStyle = moss; c.beginPath(); c.ellipse(-8 * u, -250 * u, 150 * u, 48 * u, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = mossL; c.beginPath(); c.ellipse(-30 * u, -262 * u, 105 * u, 30 * u, 0, Math.PI, TAU); c.fill();
+  c.strokeStyle = mossL; c.lineWidth = 4 * u;
+  for (let k = 0; k < 14; k++){ const gx = (-130 + k * 20) * u, gy = (-252 - Math.sin(k / 13 * Math.PI) * 44) * u; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx + Math.sin(t * 1.5 + k) * 4 * u, gy - 16 * u); c.stroke(); }
+  for (let k = 0; k < 6; k++){ c.fillStyle = H_(L.flowers[k % L.flowers.length]); circ0(c, (-100 + k * 40) * u, (-262 - Math.sin((k + 0.5) / 6 * Math.PI) * 36) * u, 6 * u); }
+  c.strokeStyle = rgbaHex(L.rim, 0.55 * (1 - haze)); c.lineWidth = 6 * u; c.beginPath(); c.ellipse(0, -170 * u, 200 * u, 125 * u, 0, Math.PI * 1.02, Math.PI * 1.4); c.stroke();
+  /* a tuft of a tail */
+  c.fillStyle = moss; circ0(c, Math.sin(t * 2) * 6 * u, -70 * u, 18 * u);
   c.restore();
 }

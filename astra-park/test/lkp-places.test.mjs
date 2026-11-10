@@ -40,21 +40,20 @@ test('a herd of glimmerbacks takes the right of the path - everyone pushed over 
   for (let k = 0; k < 30; k++) inst.step(DT, W, H);
   const normal = spread();
   const nar = inst.things.find(t => t.kind === 'narrow');
+  const wide = inst.things.find(t => t.kind === 'wide');
   while (inst.z + RUN < nar.d + 0.5) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);
   assert.ok(inst.herd && inst._flock().length > 10, 'the herd, alongside');
   assert.ok(inst._flock().every(f => f.lane > -0.3), 'all on the right');
   assert.ok(inst.here.every(i => inst.crew[i].x < -0.15), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
   assert.ok(spread() < normal * 0.6, 'pushed together');
-  /* the trumbler calls - and they scatter, off to the right */
-  /* a trumbler charging up from behind, calling - and they scatter */
+  /* a trumbler walking in from the bottom right - and they make way, off to the right */
   while (inst.herd && !inst.trumblerAt()) inst.step(DT, W, H);
   assert.ok(inst.trumblerAt() && inst.trumblerAt().rel < 0.2, 'charging in from behind');
   while (inst.herd && !inst.herd.called) inst.step(DT, W, H);
   assert.ok(inst.trumpT != null, 'its call');
-  while (inst.herd) inst.step(DT, W, H);
+  for (let k = 0; k < 8 / DT && inst.herdPush > 0; k++) inst.step(DT, W, H);
   assert.equal(inst.herdPush, 0, 'the path theirs again');
-  const wide = inst.things.find(t => t.kind === 'wide');
   while (inst.z + RUN < wide.d + 0.6) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);
   assert.ok(spread() > normal * 1.4, 'spread out');

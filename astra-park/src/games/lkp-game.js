@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { farStir, SIGHT, worldFarWoods, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { farStir, SIGHT, FAR_STEP, worldFarWoods, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
@@ -22,7 +22,7 @@ import { Scout } from './lkp-scout.js';
 import { Intro, START } from './lkp-intro.js';
 import { drawZubuFar } from './lkp-zubu.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, trumblerBack, chimeblooms, jellycrawl } from './lkp-critters.js';
+import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, trumbler2, chimeblooms, jellycrawl } from './lkp-critters.js';
 import { worldLake, worldLakeSurface, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch, splash } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -105,6 +105,8 @@ export const SCORE = { kill: 10, boss: 500 };
 export const AFTER = { fight: 3.5, trap: 3, treasure: 2.5, roll: 0.5 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
+/* Whether a spot (lane, rel) is where the trumbler is - the herd keeps out of its way. */
+const nearTrumbler = (tb, lane, rel) => !!tb && ((lane - tb.lane) / 1.5) ** 2 + ((rel - tb.rel - 0.04) / 0.16) ** 2 < 1;
 /* A line from the level's script, for the captain: [who, text, words] -> (text, words). */
 const line = (l) => [l[1], l[2] || ''];
 /* A rolling boulder: how wide (lanes, either side of its middle), and how
@@ -139,10 +141,12 @@ export const JELLIES = { n: 9, drift: 0.05 };
    The trumbler charges in from behind (from the bottom of the screen)
    CHARGE seconds before it calls, right behind the herd, and chases
    them off to the right. */
-export const HERD = { mass: 6, full: 1.8, call: 15.5, scatter: 1.6, end: 18, edge: -0.15, push: 1 };
+export const HERD = { mass: 6, full: 1.8, call: 14, scatter: 3.2, end: 28, edge: -0.15, push: 1 };
 /* The first few, each its own: when it turns up, and where it trots along (lane, depth). */
 export const SCOUTS = [[0, 1.05, 0.04], [2, 1.35, 0.01], [2.3, 0.95, 0.12], [4, 1.2, 0.15], [4.2, 1.6, 0.06], [4.5, 1.0, -0.015]];
-export const CHARGE = 2.6;
+export const CHARGE = 1.2;
+/* (the trumbler's slow walk in: how long from the bottom right to where the herd was) */
+const TRUMBLE_IN = 6;
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
 const SQUEEZE_AT = 46;
 /* Something big, far off, while they rest - never seen: the woods on
@@ -155,7 +159,7 @@ export const ZUBU_FAR = [2.5, 9], STEP_EVERY = 1.3;
    then the camera swinging out (FAR_EASE seconds) all the way to the far
    woods where the trees are coming down, holding there at least
    FAR_HOLD seconds; then back. */
-export const RUMBLE = 7, FAR_HOLD = 6, FAR_EASE = 4.5, STOMPS = [0.5, 3.4, 5.4];
+export const RUMBLE = 7, FAR_HOLD = 8, FAR_EASE = 6, STOMPS = [0.5, 3.4, 5.4];
 /* (where it's happening, far off at the land's edge on the left - just in
    view, tiny - and how close the camera goes in on it) */
 export const FAR_AT = [0.17, 0.392], FAR_ZOOM = 4.2;
@@ -739,8 +743,15 @@ class LastKnownPosition {
       if (h.t >= HERD.mass && h.t < HERD.call && Math.random() < dt * 5) sfx.warble?.(Math.random());
       if (h.t >= HERD.mass && Math.random() < dt * (h.t > HERD.call ? 22 : 12) && h.t < HERD.call + HERD.scatter) sfx.step?.(Math.random() * 3, 0.12);
       /* the trumbler's call - and they're off */
-      if (!h.called && h.t >= HERD.call){ h.called = true; this.trumpT = this.t; sfx.trumpet?.(); sfx.boom?.(); this.shake = Math.max(this.shake || 0, 0.35); }
+      if (!h.called && h.t >= HERD.call){ h.called = true; this.trumpT = this.t; sfx.trumpet?.(); this.shake = Math.max(this.shake || 0, 0.2); }
+      /* (its slow, heavy tread as it comes in) */
+      const tb = this.trumblerAt(); if (tb){ h.treadT = (h.treadT ?? 0) - dt; if (h.treadT <= 0){ h.treadT = Math.PI / 1.6; sfx.thud?.(0.5); } }
       if (h.called && h.t >= HERD.call + 0.3 && h.t < HERD.call + 1.2 && Math.random() < dt * 14) sfx.warble?.(Math.random());
+      /* (no crystals out on the herd's side while it's there: over on the crew's) */
+      if (h.t < HERD.call + HERD.scatter) for (const th of this.things){
+        if (th.kind !== 'crystal' || th.got || th.shifted || th.d - this.z > 1.4 || th.lane <= HERD.edge - 0.25) continue;
+        th.shifted = true; th.lane = -0.5 - 0.4 * Math.abs(Math.sin(th.d * 91.7));
+      }
       if (h.t >= HERD.end) this.herd = null;
     }
     /* (the road's narrows and ravines, once they're behind) */
@@ -838,7 +849,7 @@ class LastKnownPosition {
       }
     } else {
       r.stepT = (r.stepT ?? 0) - dt;
-      if (r.stepT <= 0){ r.stepT = STEP_EVERY; sfx.farStep?.(0.8); this.quake = 0.6; }
+      if (r.stepT <= 0){ r.stepT = FAR_STEP; sfx.farStep?.(0.9); sfx.boom?.(); this.quake = 0.7; }
     }
     if (r.phase === 'rumble'){
       if (r.rt >= RUMBLE){ r.phase = 'far'; r.ft = 0; }
@@ -898,14 +909,15 @@ class LastKnownPosition {
      (lane, rel), or null. */
   trumblerAt(){
     const h = this.herd; if (!h) return null;
-    const u = (h.t - (HERD.call - CHARGE)) / CHARGE; if (u <= 0) return null;
-    /* up from below, charging on a curve in at the herd; reaching it, it
-       calls; then on, slowing, wandering away up into the distance */
-    const a = Math.min(1, u), b = Math.max(0, u - 1), ea = 1 - (1 - a) * (1 - a);
-    const rel = -0.42 + 0.62 * ea + 0.5 * (1 - Math.exp(-b * 0.9)), lane = 0.35 + 0.75 * a * a + 1.1 * (1 - Math.exp(-b * 0.7));
+    const T = h.t - (HERD.call - CHARGE); if (T <= 0) return null;
+    /* slowly up from the bottom right, into where the herd was - they
+       making way ahead of it - then on, slowly, away up the field */
+    const a = Math.min(1, T / TRUMBLE_IN), b = Math.max(0, T - TRUMBLE_IN), ea = 1 - (1 - a) * (1 - a);
+    const rel = -0.2 + 0.48 * ea + 0.06 * b, lane = 2.8 - 1.0 * ea + 0.05 * b;
     if (rel > 1.1) return null;
-    return { rel, lane, turn: a < 1 ? 0.8 * a : 0.4 * Math.exp(-b), run: a < 1 ? 1 : Math.max(0.25, Math.exp(-b * 0.8)) };
+    return { rel, lane, turn: -0.6 * (1 - a), step: T * 1.6 };
   }
+
 
   /* The herd's mass, now: how far it's shifted (dx lanes: coming in from
      the right, or streaming off right), how much it's scattered (0..1),
@@ -926,6 +938,8 @@ class LastKnownPosition {
     const T = r.phase === 'rumble' ? r.rt : RUMBLE + (r.ft || 0) + (r.bt || 0);
     return Math.min(1.1, T / (RUMBLE + FAR_EASE + FAR_HOLD + 2));
   }
+  /* (seconds since it started, for the far woods' slow steps) */
+  get farWoodsT(){ const r = this.rest; if (!r || r.phase === 'heal') return 0; return r.phase === 'rumble' ? r.rt : RUMBLE + (r.ft || 0) + (r.bt || 0); }
   get farStirU(){ const r = this.rest; return r && r.phase === 'far' ? Math.max(0, Math.min(1.1, (r.ft - FAR_EASE + 0.5) / 7)) : -1; }
   /* How high off the ground a crystal floats (px at depth scale k): low,
      or high for a hop. */
@@ -1468,7 +1482,7 @@ class LastKnownPosition {
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
     /* far off at the land's edge, while the stomping goes on: Zubu, in the woods */
-    if (PAL.world && this.farWoodsU >= 0) worldFarWoods(c, W, H, FAR_AT[0] * W, FAR_AT[1] * H, this.t, this.farWoodsU, PAL.world, (cx, x, y, sz, t) => drawZubuFar(cx, x, y, sz * 1.5, t, 0.35));
+    if (PAL.world && this.farWoodsU >= 0) worldFarWoods(c, W, H, FAR_AT[0] * W, FAR_AT[1] * H, this.t, this.farWoodsT, PAL.world);
     /* (where they turn off the main path: the main path carrying on, straight ahead) */
     if (seg.corner && seg.corner.straightOn && PAL.world && seg.corner.at == null) worldStraightOn(c, W, H, PAL.world);
     /* Springs are part of the floor: under everything, there all the way
@@ -1599,10 +1613,10 @@ class LastKnownPosition {
       case 'chimes': chimeblooms(c, W, H, it.lane, it.rel, this.t); break;
       case 'patch': worldPatch(c, W, H, it.lane, it.rel, this.t, PAL.world); break;
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
-      case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter); break; }
+      case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter, this.trumblerAt()); break; }
       case 'skyjelly': skyJelly(c, W, H, it, this.t, PAL.world); break;
-      case 'trumbler': { const call = this.trumpT != null ? (this.t - this.trumpT) / 1.6 : 0; trumblerBack(c, p.x, p.y, H * 0.62 * p.k, this.t, call > 0 && call < 1.6 ? call : 0, it.tb.run, Math.min(0.7, Math.max(0, it.rel) * 0.85), PAL.world, it.tb.turn); break; }
-      case 'herd1': if (it.rel > -0.12 && (it.f.a ?? 1) > 0.01){
+      case 'trumbler': trumbler2(c, p.x, p.y, H * 0.5 * p.k, this.t, it.tb.step, Math.min(0.7, Math.max(0, it.rel) * 0.85), PAL.world, it.tb.turn); break;
+      case 'herd1': if (it.rel > -0.12 && (it.f.a ?? 1) > 0.01 && !nearTrumbler(this.trumblerAt(), it.lane, it.rel)){
         c.save(); c.globalAlpha = it.f.a ?? 1;
         glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep, it.f.hop || 0);
         c.restore();
