@@ -395,6 +395,8 @@ export const sfx = {
   /* A fish nibbling: a tiny tug on the line. */
   nibble(){ blip({ freq: 880, to: 700, dur: 0.06, type: 'sine', gain: 0.08 }); },
   /* A splash: a fish on, or out of the water. */
+  /* A spring bubbling up: a soft, high little burble - k how near. */
+  brook(k = 1){ const f = 700 + Math.random() * 900; blip({ freq: f, to: f * (1.3 + Math.random() * 0.4), dur: 0.05 + Math.random() * 0.06, type: 'sine', gain: 0.018 * k }); if (Math.random() < 0.25) hiss({ dur: 0.12, gain: 0.012 * k, hp: 2500, type: 'bandpass', q: 1.2 }); },
   splash(){ hiss({ dur: 0.35, gain: 0.12, hp: 900, sweep: -500, type: 'bandpass', q: 0.8 }); blip({ freq: 300, to: 140, dur: 0.18, type: 'sine', gain: 0.12 }); },
   /* The reel turning: one soft click. */
   reel(){ blip({ freq: 2200, dur: 0.018, type: 'square', gain: 0.025 }); },

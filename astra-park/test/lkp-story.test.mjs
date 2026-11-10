@@ -121,7 +121,7 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   const walk = inst.level.lines.walk.map(l => l[1]);
   assert.ok(walk.every(l => said.includes(l)), 'the whole story told on the way');
   assert.ok(!inst.captain.stay, 'her window stayed up for the story, and went once it was told');
-  assert.equal(inst.mood, -1, 'cozy music');
+  assert.equal(inst.mood, -2, 'no music for now, the calm start');
   for (let k = 0; k < 15; k++) inst.step(DT, W, H);
   const z = inst.z;
   for (let k = 0; k < 30; k++) inst.step(DT, W, H);
@@ -132,7 +132,7 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   assert.equal(inst.rest, null);
   assert.equal(inst.crew[0].hp, inst.crew[0].max, 'full');
   assert.ok(said.includes(inst.level.lines.offTrail[0][1]), 'off the trail');
-  assert.ok(!inst.captain.stay && inst.mood !== -1, 'and the calm start over');
+  assert.ok(!inst.captain.stay && inst.mood > -1, 'and the calm start over');
   run(inst, 1);
   assert.ok(inst.z > z + 0.1, 'and on they go');
   story.on = false;

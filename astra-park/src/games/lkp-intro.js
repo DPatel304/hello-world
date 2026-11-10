@@ -46,7 +46,7 @@ export const INTRO_BEATS = [
   { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
-  { id: 'look', time: 13, shot: 'through the helmet, clear, still lying there: the head lifting, turning a little to the left and holding; up to the sky - lavender, alien, small jellies drifting over; back down to the ship', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
+  { id: 'look', time: 21, shot: 'through the helmet, clear, still lying there - taking it in: the head lifting; turning left, to hopshells (bunny-turtles) hopping on the meadow, holding; a little right, to a spring bubbling, holding; up to the sky, jellies drifting high up; back down to the ship', blocking: 'nothing asked - the fire fading, wind, birds, the spring burbling' },
   { id: 'stand', time: 6, shot: 'through the helmet: getting up - the view righting itself and rising - then turning right, past the ship, to the path running away into the woods', blocking: 'nothing asked - a shuffle of feet' },
   { id: 'pull', time: 4.5, shot: 'still looking down the path, the camera pulls straight back out of your eyes and up over your shoulder - your own astronaut, then the crew, rising into view - into the game\'s own view behind them', blocking: 'the others getting up' },
   { id: 'gather', time: 6, shot: 'the game\'s view, behind them on the path: the crew looking round, a bit lost; a quick dust-off; checking their arms', blocking: 'nothing asked' },
@@ -72,7 +72,10 @@ export const HOLD = 0.4;
 export const START = 0.5;
 /* Through the helmet: looking at (cx, cy) - screens - s times closer,
    tilted (lying on your side). */
-const POV = { cx: -0.06, cy: 0.5, s: 1.75, tilt: -0.24 };
+const POV = { cx: 0.067, cy: 0.44, s: 1.75, tilt: -0.24 };
+/* Where to look, lying there (POV pans: + left): the hopshells off on
+   the meadow to the left; the spring, a little right of the ship. */
+const AT_HOPPERS = 1.02, AT_SPRING = -0.39;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -159,7 +162,14 @@ export class Intro {
     /* once the eyes are open it settles: the fire further off, quieter;
        wind and birds; a soft calm hum coming in */
     const calm = s === 'dark' || s === 'wake' ? 0 : s === 'look' ? Math.min(1, this.st / 3) : 1;
-    const near = 1 - 0.65 * calm;
+    /* (and the fire fading right back as you start to look round, the ship further off) */
+    const away = s === 'look' ? Math.min(1, Math.max(0, (this.st - 1.5) / 4)) : s === 'dark' || s === 'wake' ? 0 : 1;
+    const near = (1 - 0.65 * calm) * (1 - 0.82 * away);
+    /* the spring burbling: louder the more you're looking its way */
+    if (s === 'look' || s === 'stand'){
+      const f = Math.max(0.15, 1 - Math.abs(this._looking().pan - AT_SPRING) / 0.45);
+      if (Math.random() < dt * 9 * f) sfx.brook?.(f);
+    }
     if (calm > 0 && !this.pad){ this.pad = true; sfx.calmPad?.(); }
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
@@ -218,9 +228,9 @@ export class Intro {
       g.inIntro = true; g.introCrew = []; SKY.above = H * (1 + (look.sky || 0)); SKY.wide = W * 1.3;
       g._drawPlay(cx, W, H);
       g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
+      /* up there, high above the ship: little sky jellies, drifting - out in the sky, where they are, whichever way you look */
+      if (look.sky > 0.01){ cx.save(); cx.translate(-W * 0.42, -H * 0.32); skyJellies(cx, W, H, this.t, 1, 12 + this.st * 0.3, 0.55); cx.restore(); }
       cx.restore();
-      /* up there: little sky jellies, drifting over */
-      if (look.sky > 0.02) skyJellies(cx, W, H, this.t, look.sky, this.st - 4.8, 0.5);
     };
     /* blurred: drawn small, stretched back up - the smaller, the blurrier */
     const r = clear > 0.97 ? 1 : [0.08, 0.12, 0.18, 0.28, 0.45, 0.7][Math.min(5, Math.floor(clear * 6))];
@@ -248,8 +258,12 @@ export class Intro {
     /* lying there: the head lifting and turning a little to the left,
        holding; then up to the sky a while; then back down to the ship */
     if (this.stage === 'look'){
-      const t = this.st, back = e((t - 10.4) / 2.2);
-      return { pan: 0.1 * e(t / 2.6) * (1 - back), rise: e(t / 2.6), up: 0, down: 0, sky: e((t - 4.8) / 2.2) * (1 - back) };
+      /* slowly, holding at each: left to the hopshells (2.6-5, holding to
+         8); a little right, to the spring (8-10.5, to 13.5); up to the sky
+         (13.5-15.5, to 18); back down to the ship (18-20.5) */
+      const t = this.st, toS = e((t - 8) / 2.5), up = e((t - 13.5) / 2) * (1 - e((t - 18) / 2.5));
+      const pan = AT_HOPPERS * e((t - 2.6) / 2.4) * (1 - toS) + AT_SPRING * toS * (1 - e((t - 13.5) / 2.2));
+      return { pan, rise: e(t / 2.6), up: 0, down: 0, sky: up };
     }
     /* standing up (the view righting itself, rising); then turning right,
        past the ship, to look down the path */

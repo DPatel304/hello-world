@@ -27,7 +27,11 @@ const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6
    order: the first of them nearest). pond: their places in the water
    are spread round its middle, `spread` lanes apart. */
 export const SITE = {
-  ship: [-5.0, 0.45, 1.3],
+  ship: [-5.0, 0.65, 1.3],
+  /* a natural spring, a little right of the ship; a few hopshells out on
+     the meadow, off to the left (lkp-critters.js) */
+  spring: [-2.0, 0.5],
+  hoppers: [-10, 0.55],
   wreck: [-6.7, 0.38, 1],
   /* the woods round the site, [lane, rel] */
   trees: [[-8.2, 0.75], [-6.9, 0.9], [-5.4, 0.95], [-3.6, 0.92], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.9, 0.62], [-2.6, 0.98], [-11.5, 0.6], [-12, 0.42]]

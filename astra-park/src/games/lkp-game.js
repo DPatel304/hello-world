@@ -21,7 +21,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { skyJellies, glowfins, puffhen } from './lkp-critters.js';
+import { skyJellies, glowfins, puffhen, spring, hopshells } from './lkp-critters.js';
 import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -436,6 +436,7 @@ class LastKnownPosition {
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
       this.things.push({ d: this.z, kind: 'meadow', len: 0.7 });
+      this.things.push({ d: this.z + CRASH.spring[1], kind: 'spring', lane: CRASH.spring[0] }, { d: this.z + CRASH.hoppers[1], kind: 'hoppers', lane: CRASH.hoppers[0] });
       CRASH.trees.forEach(([lane, rel], n) => this.things.push({ d: this.z + rel, kind: 'tree', lane, n: n + 70 }));
       CLEARINGS.length = 0;
       /* (the meadow round the ship kept clear of the path's trees: it came
@@ -858,8 +859,8 @@ class LastKnownPosition {
     /* The opening: no music at all - it has its own sound (lkp-intro.js). */
     if (this.scene && this.scene.kind === 'intro') return -2;
     if (this.scene || this.levelup) return 0.2;
-    /* the calm start of level 1, exploring: cozy (-1) */
-    if (this.cozy) return -1;
+    /* the calm start of level 1, exploring: no music for now (-2; the cozy music, -1, is kept for later) */
+    if (this.cozy) return -2;
     const seg = this.seg;
     if (this.boss) return this.boss.done ? 0.5 : 1;
     if (this.fight) return this.fight.done ? 0.4 : 0.8;
@@ -1445,6 +1446,8 @@ class LastKnownPosition {
       case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
       case 'trail': worldTrail(c, W, H, it.lane, it.rel, PAL.world); break;
+      case 'spring': spring(c, W, H, it.lane, it.rel, this.t); break;
+      case 'hoppers': hopshells(c, W, H, it.lane, it.rel, this.t); break;
       case 'puffhen': if (it.rel > -0.12) puffhen(c, p.x, p.y, H * 0.11 * p.k, this.t + it.f.n * 0.37, it.f.side); break;
     }
   }

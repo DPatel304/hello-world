@@ -127,3 +127,69 @@ export function puffhen(c, x, y, s, t, side = 0){
   }
   c.restore();
 }
+
+/* A hopshell: half bunny, half turtle - a domed green shell on its back,
+   long soft ears, a bobtail, hopping about in the grass. Feet at (x, y),
+   s tall, hop 0..1 (how high in its hop), dir which way it's facing. */
+function hopshell(c, x, y, s, hop, dir, t){
+  const up = Math.sin(Math.min(1, Math.max(0, hop)) * Math.PI) * s * 0.45, by = y - s * 0.32 - up;
+  c.save();
+  c.fillStyle = 'rgba(20,15,45,.25)'; c.beginPath(); c.ellipse(x, y, s * 0.42 * (1 - up / s * 0.6), s * 0.07, 0, 0, TAU); c.fill();
+  c.translate(x, by); c.scale(dir, 1);
+  /* feet, tucked in mid-hop */
+  c.fillStyle = '#e9dccb'; for (const d of [-0.18, 0.16]){ c.beginPath(); c.ellipse(d * s, s * 0.26 - up * 0.2, s * 0.1, s * 0.05, 0, 0, TAU); c.fill(); }
+  /* the bobtail */
+  c.fillStyle = '#ffffff'; c.beginPath(); c.arc(-s * 0.34, s * 0.02, s * 0.08, 0, TAU); c.fill();
+  /* its shell: a dome, plates on it, a rim */
+  c.fillStyle = '#4f9a6e'; c.beginPath(); c.ellipse(0, 0, s * 0.33, s * 0.26, 0, Math.PI, 0); c.lineTo(s * 0.33, s * 0.08); c.quadraticCurveTo(0, s * 0.14, -s * 0.33, s * 0.08); c.fill();
+  c.fillStyle = '#7cc58f'; for (const [px, py] of [[-0.14, -0.1], [0.06, -0.14], [0.2, -0.04], [-0.02, -0.02]]){ c.beginPath(); c.ellipse(px * s, py * s, s * 0.07, s * 0.05, 0, 0, TAU); c.fill(); }
+  c.strokeStyle = '#d9c79a'; c.lineWidth = Math.max(1, s * 0.035); c.beginPath(); c.moveTo(-s * 0.34, s * 0.07); c.quadraticCurveTo(0, s * 0.15, s * 0.34, s * 0.07); c.stroke();
+  /* its head, a bunny's: round, two long ears */
+  const hx = s * 0.36, hy = -s * 0.04;
+  c.fillStyle = '#f2e6d6';
+  for (const [ex, a] of [[-0.02, -0.25], [0.06, 0.05]]){ c.save(); c.translate(hx + ex * s, hy - s * 0.1); c.rotate(a + Math.sin(t * 3) * 0.06); c.beginPath(); c.ellipse(0, -s * 0.16, s * 0.05, s * 0.17, 0, 0, TAU); c.fill(); c.fillStyle = '#ffb3c6'; c.beginPath(); c.ellipse(0, -s * 0.16, s * 0.022, s * 0.12, 0, 0, TAU); c.fill(); c.fillStyle = '#f2e6d6'; c.restore(); }
+  c.beginPath(); c.arc(hx, hy, s * 0.13, 0, TAU); c.fill();
+  c.fillStyle = '#2b2440'; c.beginPath(); c.arc(hx + s * 0.05, hy - s * 0.02, s * 0.025, 0, TAU); c.fill();
+  c.fillStyle = '#ff9fb4'; c.beginPath(); c.arc(hx + s * 0.12, hy + s * 0.02, s * 0.02, 0, TAU); c.fill();
+  c.restore();
+}
+/* A few hopshells out on the meadow (round lane, rel): hopping about,
+   each its own little way, drifting back and forth. */
+export function hopshells(c, W, H, lane, rel, t){
+  for (let i = 0; i < 6; i++){
+    const ph = t * (0.9 + 0.25 * hash(i + 80)) + hash(i + 81) * 5, n = Math.floor(ph), f = ph - n;
+    const wander = Math.sin(t * 0.12 + i * 2) * 0.6, dir = Math.cos(t * 0.12 + i * 2) > 0 ? 1 : -1;
+    const p = P(lane + (hash(i + 82) - 0.5) * 3 + wander, rel + (hash(i + 83) - 0.5) * 0.08, W, H);
+    hopshell(c, p.x, p.y, H * 0.2 * p.k, f < 0.45 ? f / 0.45 : 0, dir, t + i);
+  }
+}
+
+/* A natural spring at (lane, rel): a ring of mossy stones round a pool,
+   the water welling up in a little glowing dome, bubbling, droplets
+   spilling, rings spreading, a soft mist over it. */
+export function spring(c, W, H, lane, rel, t){
+  const p = P(lane, rel, W, H), s = H * 0.72 * p.k, x = p.x, y = p.y;
+  c.save();
+  glow(c, x, y - s * 0.05, s * 0.7, '#9ff6ff', 0.35);
+  /* the pool */
+  c.fillStyle = '#3aa9c2'; c.beginPath(); c.ellipse(x, y, s * 0.42, s * 0.12, 0, 0, TAU); c.fill();
+  c.fillStyle = '#7fe3ef'; c.beginPath(); c.ellipse(x, y - s * 0.01, s * 0.34, s * 0.085, 0, 0, TAU); c.fill();
+  /* rings spreading */
+  c.strokeStyle = 'rgba(230,255,255,.6)'; c.lineWidth = Math.max(1, s * 0.008);
+  for (let k = 0; k < 3; k++){ const u = (t * 0.6 + k / 3) % 1; c.globalAlpha = 1 - u; c.beginPath(); c.ellipse(x, y - s * 0.01, s * (0.06 + 0.28 * u), s * (0.015 + 0.07 * u), 0, 0, TAU); c.stroke(); }
+  c.globalAlpha = 1;
+  /* the water welling up */
+  const swell = 1 + 0.12 * Math.sin(t * 5);
+  const g = c.createRadialGradient(x - s * 0.02, y - s * 0.08, s * 0.01, x, y - s * 0.04, s * 0.12);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(160,240,255,.5)');
+  c.fillStyle = g; c.beginPath(); c.ellipse(x, y - s * 0.03, s * 0.1, s * 0.07 * swell, 0, Math.PI, 0); c.fill();
+  /* droplets, spilling over */
+  c.fillStyle = '#dffcff';
+  for (let k = 0; k < 8; k++){ const u = (t * 0.9 + k / 8) % 1, a = k / 8 * TAU; c.globalAlpha = 1 - u; c.beginPath(); c.arc(x + Math.cos(a) * s * 0.14 * u, y - s * 0.06 - Math.sin(u * Math.PI) * s * 0.1 + Math.sin(a) * s * 0.02, s * 0.012, 0, TAU); c.fill(); }
+  c.globalAlpha = 1;
+  /* the stones round it, mossy */
+  for (let k = 0; k < 11; k++){ const a = k / 11 * TAU, sx = x + Math.cos(a) * s * 0.44, sy = y + Math.sin(a) * s * 0.12; if (Math.sin(a) < -0.3) continue; c.fillStyle = k % 2 ? '#8f8ab8' : '#a9a3cf'; c.beginPath(); c.ellipse(sx, sy, s * 0.07, s * 0.04, 0, 0, TAU); c.fill(); c.fillStyle = '#6fb27a'; c.beginPath(); c.ellipse(sx - s * 0.01, sy - s * 0.025, s * 0.04, s * 0.015, 0, 0, TAU); c.fill(); }
+  /* a soft mist */
+  glow(c, x, y - s * 0.12, s * 0.3, '#ffffff', 0.25 + 0.08 * Math.sin(t * 1.3));
+  c.restore();
+}
