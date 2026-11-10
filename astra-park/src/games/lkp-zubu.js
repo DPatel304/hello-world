@@ -169,6 +169,38 @@ export function zubuSnore(c, H, light, t, x0, y0, S){
   }
 }
 
+/* ---------- far off, in the sky ---------- */
+
+/* Zubu, far away, gliding across the sky above the mountains, side on,
+   hazy with distance: wide wing-fins slowly beating, the long tail
+   trailing, her garden a smudge of green on her head. (x, y): her
+   middle; s: her size; facing right; haze 0..1. */
+export function drawZubuFar(c, x, y, s, t, haze = 0.55){
+  const col = (a, b = 0) => mixHaze(a, haze + b), L = ZUBU, flap = Math.sin(t * 0.9);
+  c.save(); c.lineJoin = 'round'; c.lineCap = 'round';
+  /* the tail, a long ribbon behind */
+  c.strokeStyle = col(L.deep); c.lineWidth = s * 0.05;
+  c.beginPath(); c.moveTo(x - s * 0.5, y + s * 0.02); c.bezierCurveTo(x - s * 0.9, y + s * 0.1 + Math.sin(t * 1.3) * s * 0.06, x - s * 1.2, y - s * 0.05, x - s * 1.55, y + s * 0.05 + Math.sin(t * 1.3 + 1) * s * 0.08); c.stroke();
+  /* the far wing */
+  c.fillStyle = col(L.fin, 0.08); path(c, [[x - s * 0.1, y - s * 0.08], [x + s * 0.05, y - s * (0.45 + 0.25 * flap)], [x + s * 0.28, y - s * (0.42 + 0.22 * flap)], [x + s * 0.25, y - s * 0.1]]); c.fill();
+  /* the body: a long, rounded whale-ray */
+  c.fillStyle = col(L.body); path(c, [[x + s * 0.62, y], [x + s * 0.45, y - s * 0.16], [x, y - s * 0.2], [x - s * 0.42, y - s * 0.1], [x - s * 0.58, y + s * 0.02], [x - s * 0.3, y + s * 0.12], [x + s * 0.2, y + s * 0.14], [x + s * 0.55, y + s * 0.08]]); c.fill();
+  c.fillStyle = col(L.belly, 0.05); path(c, [[x + s * 0.6, y + s * 0.03], [x + s * 0.2, y + s * 0.13], [x - s * 0.3, y + s * 0.11], [x - s * 0.1, y + s * 0.06], [x + s * 0.3, y + s * 0.05]]); c.fill();
+  /* her garden, on her head */
+  c.fillStyle = col('#7ec06e'); c.beginPath(); c.ellipse(x + s * 0.32, y - s * 0.17, s * 0.14, s * 0.045, -0.15, 0, TAU); c.fill();
+  c.fillStyle = col('#f2a6bf'); c.beginPath(); c.arc(x + s * 0.3, y - s * 0.24, s * 0.04, 0, TAU); c.fill();
+  /* the near wing, beating */
+  c.fillStyle = col(L.fin); path(c, [[x - s * 0.15, y + s * 0.02], [x - s * 0.05, y + s * (0.15 - 0.55 * flap)], [x + s * 0.22, y + s * (0.12 - 0.5 * flap)], [x + s * 0.25, y + s * 0.03]]); c.fill();
+  /* a little eye */
+  c.fillStyle = col('#3a1a20', -0.2); c.beginPath(); c.arc(x + s * 0.5, y - s * 0.04, s * 0.015, 0, TAU); c.fill();
+  c.restore();
+}
+/* (a colour, faded toward the sky's haze by k) */
+function mixHaze(col, k){
+  const h = (x) => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), a = h(col), b = [214, 230, 242], kk = Math.max(0, Math.min(1, k));
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * kk)).join(',')})`;
+}
+
 /* ---------- flying, for the ride ---------- */
 
 /* From behind: its wings out wide, rowing slowly; its great round back;

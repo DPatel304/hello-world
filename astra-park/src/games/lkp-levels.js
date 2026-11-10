@@ -97,6 +97,7 @@ export const LEVELS = [
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
       pondView: [['nova', 'Take a moment, crew. Look around you... Nobody\'s ever stood here before. It\'s beautiful.', 'LOOK AROUND']],
+      pondZubu: [['nova', 'Wait... is that a whale? Flying?! This planet keeps surprising me.', '']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
       pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
       /* Mossy, the gentle giant, after the boss (lkp-ride.js). */

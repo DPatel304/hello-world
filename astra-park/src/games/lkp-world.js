@@ -175,7 +175,9 @@ function panorama(W, H, L){
 /* How far above the screen's top the sky goes on - for a camera looking
    up (the opening) - and up there into space; and how far the world goes
    on past the screen's left edge (the opening's crash site, over there). */
-export const SKY = { above: 0, wide: 0 };
+export const SKY = { above: 0, wide: 0, far: null };
+/* (SKY.far: something to draw far off in the sky, behind the land - a
+   function (c, W, H, horizonY), or null) */
 /* Places along the way kept clear of the trees by the path: { lane, d
    (how far along), r, and depth (along the way) if not round } - the
    crash site, the healing pond. */
@@ -209,6 +211,8 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
       c.fillStyle = sg; c.fillRect(-SKY.wide, -top, W + SKY.wide, top + H * 0.06);
     }
   } else { c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, HY); }
+  /* Anything far off in the sky, behind the land. */
+  if (SKY.far) SKY.far(c, W, H, HY);
   /* The ground. */
   const gg = c.createLinearGradient(0, HY, 0, H);
   gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
