@@ -149,6 +149,85 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   c.restore();
 }
 
+/* A crew member seen from the front, running towards us (the sleepy
+   roll, lkp-roll.js): the same suit - the chest plate with its glowing
+   badge, the belt, the trim at the joints - arms pumping, knees coming
+   up at us, and the helmet's big visor with their face in it (face(x, y,
+   r): their photo or their kid, as from behind). Same st as worldCrew. */
+export function worldCrewFront(c, x, base, h, t, col, st, face){
+  const u = h / 330, run = st.run || 0, ph = st.runPh || 0;
+  const lite = mix(col, '#ffffff', 0.28), dark = mix(col, '#0a0f2a', 0.38), deep = mix(col, '#05081a', 0.55), line = mix(col, '#05081a', 0.62);
+  const gl = hexMix(col, '#ffffff', 0.62);
+  if (!st.flying){ c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, base, 70 * u, 15 * u, 0, 0, 6.2832); c.fill(); }
+  const bounce = run * Math.abs(Math.sin(ph)) * 10 * u;
+  c.save();
+  c.translate(x, base - (st.air || 0) - bounce); c.rotate((st.lean || 0) * 0.2 + run * Math.sin(ph) * 0.03);
+  if (st.lost) c.globalAlpha = 0.35;
+  else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const limb = (pts, w, side = -1) => {
+    for (const [lw, sc] of [[w + 6 * u, line], [w, col]]){ c.strokeStyle = sc; c.lineWidth = lw; c.beginPath(); pts.forEach(([a, b], k) => (k ? c.lineTo(a, b) : c.moveTo(a, b))); c.stroke(); }
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = w * 0.35;
+    c.beginPath(); pts.forEach(([a, b], k) => (k ? c.lineTo(a + side * w * 0.22, b) : c.moveTo(a + side * w * 0.22, b))); c.stroke();
+  };
+  const trim = (x0, y0, w) => { glow(c, x0, y0, w * 1.4, gl, 0.5); c.strokeStyle = gl; c.lineWidth = 4 * u; c.beginPath(); c.ellipse(x0, y0, w * 0.55, w * 0.18, 0, 0, Math.PI); c.stroke(); };
+  /* legs: the knee coming up at us, the boot under it, its toe towards us
+     (the lifted one bigger: nearer) */
+  for (const d of [-1, 1]){
+    const lift = run * Math.max(0, Math.sin(ph + (d < 0 ? 0 : Math.PI)));
+    const hip = [d * 22 * u, -128 * u], knee = [d * (26 + 4 * lift) * u, (-72 - 48 * lift) * u], foot = [d * (25 + 2 * lift) * u, (-14 - 58 * lift) * u];
+    limb([hip, knee], (31 + 4 * lift) * u, d); limb([knee, foot], (25 + 3 * lift) * u, d);
+    trim(knee[0], knee[1] + 4 * u, (30 + 4 * lift) * u);
+    c.fillStyle = dark; c.beginPath(); c.ellipse(foot[0], foot[1] + 2 * u, (20 + 5 * lift) * u, (13 + 5 * lift) * u, 0, 0, 6.2832); c.fill();
+    c.fillStyle = deep; c.beginPath(); c.ellipse(foot[0], foot[1] + 8 * u, (18 + 5 * lift) * u, (6 + 3 * lift) * u, 0, 0, Math.PI); c.fill();
+    c.strokeStyle = gl; c.lineWidth = 3 * u; c.beginPath(); c.arc(foot[0], foot[1], (12 + 3 * lift) * u, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+  }
+  /* the body, and on it the chest plate, the badge, the belt */
+  const tg = c.createLinearGradient(-52 * u, 0, 52 * u, 0); tg.addColorStop(0, lite); tg.addColorStop(0.45, col); tg.addColorStop(1, dark);
+  c.fillStyle = tg;
+  c.beginPath(); c.moveTo(-50 * u, -232 * u); c.quadraticCurveTo(0, -244 * u, 50 * u, -232 * u); c.lineTo(36 * u, -170 * u); c.lineTo(32 * u, -122 * u); c.quadraticCurveTo(0, -112 * u, -32 * u, -122 * u); c.lineTo(-36 * u, -170 * u); c.closePath(); c.fill();
+  c.strokeStyle = line; c.lineWidth = 3 * u; c.stroke();
+  c.fillStyle = lite; c.beginPath(); c.moveTo(-30 * u, -224 * u); c.quadraticCurveTo(0, -232 * u, 30 * u, -224 * u); c.lineTo(24 * u, -176 * u); c.quadraticCurveTo(0, -168 * u, -24 * u, -176 * u); c.closePath(); c.fill();
+  c.strokeStyle = line; c.lineWidth = 2.5 * u; c.stroke();
+  glow(c, 0, -200 * u, 26 * u, gl, 0.6);
+  c.fillStyle = gl; c.beginPath(); c.arc(0, -200 * u, 9 * u, 0, 6.2832); c.fill();
+  c.fillStyle = '#ffffff'; c.beginPath(); c.arc(-2.5 * u, -203 * u, 3 * u, 0, 6.2832); c.fill();
+  c.fillStyle = deep; c.fillRect(-33 * u, -138 * u, 66 * u, 12 * u);
+  c.fillStyle = gl; c.fillRect(-7 * u, -136 * u, 14 * u, 8 * u);
+  /* arms, pumping: the fist coming forward gets bigger */
+  for (const d of [-1, 1]){
+    const sh = [d * 46 * u, -222 * u];
+    const p = run * Math.sin(ph + (d < 0 ? Math.PI : 0));
+    const elbow = run > 0.2 ? [d * (68 - 4 * p) * u, (-176 + 14 * p) * u] : [d * 60 * u, -172 * u];
+    const fist = run > 0.2 ? [d * (52 - 18 * Math.max(0, p)) * u, (-150 - 26 * p) * u] : [d * 62 * u, -128 * u];
+    limb([sh, elbow], 22 * u, d); limb([elbow, fist], (19 + 4 * Math.max(0, p)) * u, d);
+    trim(elbow[0], elbow[1], 22 * u);
+    c.fillStyle = dark; circ(c, fist[0], fist[1], (13 + 5 * Math.max(0, p)) * u);
+    c.fillStyle = col; circ(c, fist[0] - d * 2.5 * u, fist[1] - 2.5 * u, (7 + 3 * Math.max(0, p)) * u);
+  }
+  /* the helmet: the visor with their face in it */
+  const turn = (st.look || 0) * 0.2;
+  c.translate((st.look || 0) * 6 * u, 0);
+  const hy = -238 * u - 40 * u, r = 44 * u;
+  c.fillStyle = deep; c.beginPath(); c.ellipse(0, -238 * u, 26 * u, 10 * u, 0, 0, 6.2832); c.fill();
+  const hg = c.createRadialGradient(-16 * u, hy - 18 * u, 4 * u, 0, hy, r); hg.addColorStop(0, lite); hg.addColorStop(0.6, col); hg.addColorStop(1, dark);
+  c.fillStyle = hg; circ(c, 0, hy, r);
+  c.strokeStyle = line; c.lineWidth = 3 * u; c.beginPath(); c.arc(0, hy, r, 0, 6.2832); c.stroke();
+  const vx = turn * r * 0.4, vw = r * 0.74, vh = r * 0.62;
+  c.fillStyle = '#121a33'; c.beginPath(); c.ellipse(vx, hy + 4 * u, vw, vh, 0, 0, 6.2832); c.fill();
+  c.save(); c.beginPath(); c.ellipse(vx, hy + 4 * u, vw * 0.94, vh * 0.92, 0, 0, 6.2832); c.clip();
+  if (face) face(vx, hy + 6 * u, vh * 0.95);
+  const sg = c.createLinearGradient(vx - vw, hy - vh, vx + vw, hy + vh); sg.addColorStop(0, 'rgba(190,240,255,.35)'); sg.addColorStop(0.4, 'rgba(190,240,255,.05)'); sg.addColorStop(1, 'rgba(60,90,160,.25)');
+  c.fillStyle = sg; c.fillRect(vx - vw, hy - vh, vw * 2, vh * 2 + 8 * u);
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(vx - vw * 0.5, hy - vh * 0.45, vw * 0.22, vh * 0.12, -0.5, 0, 6.2832); c.fill();
+  c.restore();
+  c.strokeStyle = gl; c.lineWidth = 4 * u; c.beginPath(); c.ellipse(vx, hy + 4 * u, vw, vh, 0, 0, 6.2832); c.stroke();
+  c.strokeStyle = dark; c.lineWidth = 4 * u; c.beginPath(); c.moveTo(r * 0.72, hy - r * 0.5); c.lineTo(r * 0.82, hy - r * 1.45); c.stroke();
+  glow(c, r * 0.82, hy - r * 1.48, 14 * u, gl, 0.9); c.fillStyle = gl; circ(c, r * 0.82, hy - r * 1.48, 3.5 * u);
+  if (st.heal > 0) glow(c, 0, -170 * u, 160 * u, '#8ff0ff', 0.35 * st.heal);
+  c.restore();
+}
+
 const circ0 = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); };
 
 /* ---------- the beasts ---------- */

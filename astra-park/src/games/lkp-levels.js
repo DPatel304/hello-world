@@ -53,7 +53,7 @@ export const LEVELS = [
        the robots wake, and a friendly giant carries the crew away. After
        its 'end', the rest - the tutorial fight, a fork, a room, the big
        gorge and the Sweeper - kept for level 2: not played yet.) */
-    plan: ['corridor', 'corridor', 'sneak', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
+    plan: ['corridor', 'corridor', 'sneak', 'roll', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     /* What happens in each corridor (lkp-game.js _layout): one event
        apiece - the path squeezing narrow then opening wide, a big jump
        over a ravine, a zip line - and the run of obstacles round it,
@@ -101,6 +101,9 @@ export const LEVELS = [
       /* the trail through the woods, before the glade */
       trail: [['nova', 'Look at those trees \u2014 snapped like twigs. Something huge came through here... Stay close, crew.', '']],
       pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
+      /* Zubu rolling down the hill after them, in her sleep (lkp-roll.js). */
+      rollStart: [['nova', 'Uh-oh... Zubu rolled over in her sleep \u2014 and she\'s rolling down the hill! Run, crew! Run on the spot! Lean out of the way of anything rolling!', 'RUN!']],
+      rollEnd: [['nova', 'She stopped... and she\'s still snoring! She slept through the whole thing. Ha! Okay crew, tiptoe on.', '']],
       /* Mossy, the gentle giant, after the boss (lkp-ride.js). */
       rideMeet: [['nova', 'Look who it is! The giant from the glade. The robots woke it up too. Run, crew, catch up!', 'CATCH UP!']],
       rideOn: [['nova', 'Everyone on? Sit down and rest, crew. You\'ve earned it.', 'SIT AND RELAX']],

@@ -215,7 +215,7 @@ test('level 1 runs as its plan says - the teaching run, the team jump, sneaking 
     if (inst.phase === 'corridor') inst.seg.t = inst.seg.len;
     run(inst, 0.5);
   }
-  assert.deepEqual(seen, ['corridor', 'sneak', 'corridor', 'depot', 'ride'], 'no fights');
+  assert.deepEqual(seen, ['corridor', 'sneak', 'roll', 'corridor', 'depot', 'ride'], 'no fights');
   assert.equal(inst.step_, 1 + inst.level.plan.indexOf('ride'), 'through both runs');
   assert.ok(inst.over);
 });

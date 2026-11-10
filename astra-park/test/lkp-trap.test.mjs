@@ -197,5 +197,5 @@ test('level 1\'s sneak: past the friendly giant asleep in a glade - caught movin
   /* over the line: on to the next run */
   rn.along = 1; tr.light = 'green';
   for (let k = 0; k < (AFTER.trap + 1) / DT && inst.phase === 'sneak'; k++){ body(0, inst.t, 'march'); inst.step(DT, W, H); }
-  assert.equal(inst.phase, 'corridor');
+  assert.equal(inst.phase, 'roll', 'and then she rolls down the hill after them');
 });
