@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { farStir, worldTrail, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
@@ -19,7 +19,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { worldLake, worldLakeAhead, wading, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
+import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -114,9 +114,11 @@ export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 25;
    pause to look round - the camera tilting up to the sky and the land,
    VIEW_EASE seconds to get there and back. */
 export const REST_MIN = 9, VIEW_EASE = 2.5;
-/* Something big, far off, while they rest: her call, ZUBU_FAR[0] + 3
-   seconds in. (She's not seen yet - kept a mystery.) */
-export const ZUBU_FAR = [2, 16];
+/* Something big, far off, while they rest - never seen: the woods on
+   the far ridge stirring as it pushes through them, from ZUBU_FAR[0]
+   seconds in, for ZUBU_FAR[1]; a deep footfall every STEP_EVERY seconds,
+   rippling the water; then its call. */
+export const ZUBU_FAR = [2.5, 9], STEP_EVERY = 1.3;
 /* The team jump: how deep the gorge (depths; a wider one before the
    boss). (The jump itself: lkp-leap.js.) */
 export const RAVINE = 0.42, RAVINE_BIG = 0.56;
@@ -442,6 +444,15 @@ class LastKnownPosition {
       const len = FULL[n] || 45;
       ROAD.surfaces.push({ d0: at(len * 0.12), d1: at(len * 0.3), kind: n % 2 ? 'moss' : 'flag' }, { d0: at(len * 0.62), d1: at(len * 0.8), kind: n % 2 ? 'flag' : 'moss' });
       crystalLine(3, 0, 5); blocker(6);
+      /* the corridor before the glade: near its end, beside the path, a
+         swathe of woods flattened - trees snapped - something huge came
+         through here (a sign of the giant, unseen) */
+      if (n === 1 && this.level.plan[this.step_ + 1] === 'sneak'){
+        const tl = side() * 1.75, td = at(len - 12);
+        this.things.push({ d: td, kind: 'trail', lane: tl });
+        CLEARINGS.push({ lane: tl + Math.sign(tl) * 1.2, d: td + 0.05, r: 1.8 });
+        if (story.on) this.things.push({ d: td - 0.25, kind: 'say', key: 'trail' });
+      }
       let s = 9;
       const end = (FULL[n] || 45) - 3;
       /* The event: a little before halfway. */
@@ -470,6 +481,7 @@ class LastKnownPosition {
 
   step(dt, W, H){
     /* the pond's view: the camera easing up while they rest, back after */
+    this.quake = Math.max(0, (this.quake || 0) - dt * 1.6);
     this.restCam = Math.max(0, Math.min(1, (this.restCam || 0) + (this.rest && this.rest.t > 0.8 ? 1 : -1) * dt / VIEW_EASE));
     this.t += dt;
     stepGuide(this, dt);
@@ -643,15 +655,18 @@ class LastKnownPosition {
       const rn = this.crew[i], hug = this.hugWatch[i].step(pose.players[i], dt);
       rn.pose = hug ? 'hug' : null; rn.heal = 0.6;
       /* looking round, taking it in - each at their own pace */
-      rn.look = hug ? 0 : Math.sin(r.t * (0.5 + 0.12 * i) + i * 1.7) * Math.min(1, r.t / 2);
+      const stir = (r.t - ZUBU_FAR[0]) / ZUBU_FAR[1];
+      rn.look = hug ? 0 : stir > 0.05 && stir < 1.15 ? 0.85 + 0.1 * Math.sin(r.t * 2 + i) : Math.sin(r.t * (0.5 + 0.12 * i) + i * 1.7) * Math.min(1, r.t / 2);
       if (rn.hp >= rn.max) continue;
       const was = rn.hp;
       rn.hp = Math.min(rn.max, rn.hp + rn.max * REST_FILL * (hug ? 2 : 1) * dt);
       if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)){ const p = P(rn.x, RUN, W, H); this.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.25) / H, vy: -0.06, age: 0, life: 0.8, text: '+5', col: '#7ff3ff' }); }
       if (rn.hp >= rn.max) sfx.twinkle();
     }
-    /* her call, echoing across the land, as she glides over */
-    if (!r.called && r.t > ZUBU_FAR[0] + 3){ r.called = true; sfx.giantCall?.(0.6); }
+    /* something huge, far off: its footfalls, felt - the water rippling, the view trembling - and its call */
+    const u = (r.t - ZUBU_FAR[0]) / ZUBU_FAR[1];
+    if (u > 0 && u < 1){ r.stepT = (r.stepT ?? 0) - dt; if (r.stepT <= 0){ r.stepT = STEP_EVERY; sfx.farStep?.(0.9); this.quake = 1; } }
+    if (!r.called && u > 0.55){ r.called = true; sfx.giantCall?.(0.55); }
     if (story.on && !r.viewed && r.t > 3.5 && !this.captain.busy && this.level.lines.pondView){ r.viewed = true; this.captain.say(...line(this.level.lines.pondView[0]), { polite: true }); }
     if (story.on && !r.waited && r.t > 14 && !this.captain.busy){ r.waited = true; this.captain.say(...line(this.level.lines.pondWait[0])); }
     const full = this.here.every(i => this.crew[i].hp >= this.crew[i].max);
@@ -760,7 +775,7 @@ class LastKnownPosition {
     const cap = this.captain, seg = this.seg, f = this.fight, bs = this.boss, up = this.here.filter(i => !this.crew[i].down);
     if (seg.kind === 'corridor'){
       /* her story, as the run reaches each piece of it - never over a tip */
-      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; cap.say(...line(this.level.lines.walk[th.line]), { polite: true, story: true }); }
+      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; const l = th.key ? this.level.lines[th.key] && this.level.lines[th.key][0] : this.level.lines.walk[th.line]; if (l) cap.say(...line(l), { polite: true, story: true }); }
       for (const th of this.things){
         const ahead = th.d - this.z - RUN;
         if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
@@ -1115,6 +1130,11 @@ class LastKnownPosition {
       /* (pulling back round their feet: they stay put, small, the sky opens above) */
       c.save(); c.translate(W / 2, H * 0.97); c.scale(s, s); c.translate(-W / 2, -H * 0.97);
       SKY.above = H * 0.5 * k; SKY.wide = W * 0.3 * k; this.noHud = true;
+      /* far off: the woods on the ridge stirring - something huge, unseen */
+      const zt = this.rest ? this.rest.t : null, zu = zt == null ? -1 : (zt - ZUBU_FAR[0]) / ZUBU_FAR[1];
+      if (zu > -0.05) SKY.far = (cc, w, h, hy) => farStir(cc, w, h, hy, this.t, Math.max(0, Math.min(1.1, zu)), PAL.world);
+      /* each footfall: a little tremble */
+      if (this.quake > 0) c.translate(Math.sin(this.t * 60) * H * 0.003 * this.quake, Math.cos(this.t * 47) * H * 0.003 * this.quake);
       this._drawPlay(c, W, H);
       SKY.above = 0; SKY.wide = 0; SKY.far = null; this.noHud = false; c.restore();
       this._drawHud(c, W, H);
@@ -1208,7 +1228,7 @@ class LastKnownPosition {
       const th = this.rest.th, k = Math.min(1, this.rest.t / 1.5);
       pondBeauty(c, W, H, th.lane, th.d - this.z, this.t, PAL.world, th.r * 0.6, k);
       /* each of them wading: rings round their feet, motes rising off them */
-      for (const i of this.here){ const p = P(this.crew[i].x, RUN, W, H); wading(c, p.x, p.y, H * CREW_SIZE, this.t + i * 0.4, k); }
+      for (const i of this.here){ const p = P(this.crew[i].x, RUN, W, H); wading(c, p.x, p.y, H * CREW_SIZE, this.t + i * 0.4, k); if (this.quake > 0.05) healRipple(c, p.x, p.y, H * CREW_SIZE * 1.6, 1 - this.quake, '#e0faff'); }
     }
     /* At the fork, still choosing: over each one's head an arrow, in their
        colour, pointing the way they're going. */
@@ -1277,6 +1297,7 @@ class LastKnownPosition {
       case 'wreck': worldWreck(c, W, H, it.rel, it.lane, this.t, it.s, it.n); break;
       case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
+      case 'trail': worldTrail(c, W, H, it.lane, it.rel, PAL.world); break;
     }
   }
 

@@ -98,6 +98,8 @@ export const LEVELS = [
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
       pondView: [['nova', 'Take a moment, crew. Look around you... Nobody\'s ever stood here before. It\'s beautiful.', 'LOOK AROUND']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
+      /* the trail through the woods, before the glade */
+      trail: [['nova', 'Look at those trees \u2014 snapped like twigs. Something huge came through here... Stay close, crew.', '']],
       pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
       /* Mossy, the gentle giant, after the boss (lkp-ride.js). */
       rideMeet: [['nova', 'Look who it is! The giant from the glade. The robots woke it up too. Run, crew, catch up!', 'CATCH UP!']],

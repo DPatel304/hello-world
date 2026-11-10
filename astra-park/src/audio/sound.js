@@ -538,6 +538,8 @@ export const sfx = {
     bell(ch[0] + 24, t + 0.08, 0.08, 0.4, master);
   },
   slice(){ hiss({ dur: 0.2, gain: 0.3, hp: 700, sweep: 5200 }); },
+  /* Something huge, far off, taking a step: felt more than heard. */
+  farStep(k = 1){ blip({ freq: 64, to: 30, dur: 0.6, type: 'sine', gain: 0.4 * k }); hiss({ dur: 0.35, gain: 0.07 * k, hp: 160, type: 'lowpass', q: 0.5 }); },
   thud(){ blip({ freq: 180, to: 60, dur: 0.22, type: 'sine', gain: 0.42 });
           hiss({ dur: 0.1, gain: 0.18, hp: 220 }); },
   buzz(){ blip({ freq: 160, to: 90, dur: 0.3, type: 'sawtooth', gain: 0.26 }); },

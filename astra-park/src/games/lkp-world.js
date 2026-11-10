@@ -211,14 +211,14 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
       c.fillStyle = sg; c.fillRect(-SKY.wide, -top, W + SKY.wide, top + H * 0.06);
     }
   } else { c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, HY); }
-  /* Anything far off in the sky, behind the land. */
-  if (SKY.far) SKY.far(c, W, H, HY);
   /* The ground. */
   const gg = c.createLinearGradient(0, HY, 0, H);
   gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
   c.fillStyle = gg; c.fillRect(-SKY.wide, HY + H * 0.005, W + SKY.wide * 2, H - HY + H * 0.1);
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
+  /* Anything far off, on the land's far edge. */
+  if (SKY.far) SKY.far(c, W, H, HY);
   /* The path. */
   if (!bare){ path(c, W, H, z, L); hedges(c, W, H, z, L); for (const g of ROAD.gaps) ravine(c, W, H, g.d - z, g.len, L, t); }
   /* Trees and glowing plants along both sides. */
@@ -518,6 +518,76 @@ function pathBits(c, W, H, z, L){
       const r = H * 0.005 * k + 1;
       glow(c, q.x, q.y - r, r * 4, L.glow, 0.5 * (1 - haze)); c.fillStyle = mix(L.glow, '#ffffff', 0.4); c.beginPath(); c.ellipse(q.x, q.y - r, r * 1.2, r, 0, 0, 6.2832); c.fill();
     }
+  }
+}
+
+/* Far off, on the ridge across the land: a long line of woods, and
+   something huge pushing through it, unseen - the treetops near it
+   shaking, some leaning and falling as it passes, birds bursting up, a
+   haze of dust. u: how far along it's got (0..1, left to right); t: time.
+   (Drawn behind the land: the trees' feet in the ground's edge.) */
+export function farStir(c, W, H, hy, t, u, L){
+  const px = W * (0.42 + 0.62 * u), y0 = hy + H * 0.03;
+  c.save();
+  /* dust, rising off where it's been */
+  for (let k = 0; k < 7; k++){ const a = (t * 0.25 + k / 7) % 1, x = px - W * (0.01 + a * 0.06) + Math.sin(k * 3) * W * 0.01; glow(c, x, y0 - H * (0.02 + a * 0.06), H * (0.04 + a * 0.05), '#d4ccb8', 0.45 * (1 - a)); }
+  for (let i = 0; i < 46; i++){
+    const tx = W * (0.28 + i * 0.019 + (hash(i + 7700) - 0.5) * 0.01), h = H * (0.06 + hash(i + 7701) * 0.04), d = (tx - px) / W;
+    /* near it: shaking; passed it: some leaning over, fallen */
+    let rot = 0;
+    if (Math.abs(d) < 0.05) rot = Math.sin(t * 15 + i) * 0.28 * (1 - Math.abs(d) / 0.05);
+    if (d < -0.01 && hash(i + 7702) < 0.35) rot = Math.min(1.35, (-d - 0.01) * 40) * (hash(i + 7703) < 0.5 ? 1 : -1);
+    c.save(); c.translate(tx, y0); c.rotate(rot);
+    c.fillStyle = mix(L.tree[0], L.haze, 0.4); c.beginPath(); c.moveTo(0, -h); c.lineTo(-h * 0.28, 0); c.lineTo(h * 0.28, 0); c.closePath(); c.fill();
+    c.fillStyle = mix(L.tree[1], L.haze, 0.45); c.beginPath(); c.moveTo(0, -h); c.lineTo(h * 0.28, 0); c.lineTo(0, 0); c.closePath(); c.fill();
+    c.restore();
+  }
+  /* birds, bursting up out of the trees ahead of it, and flapping away */
+  c.strokeStyle = mix('#3a3450', L.haze, 0.3); c.lineWidth = Math.max(1.5, H * 0.003); c.lineCap = 'round';
+  for (let k = 0; k < 9; k++){
+    const a = (t * 0.35 + k / 9) % 1, bx = px + W * (0.01 + (hash(k + 7710) - 0.3) * 0.05) + a * W * (0.03 + hash(k + 7711) * 0.04), by = y0 - H * (0.07 + a * 0.16 * (0.6 + hash(k + 7712))), w = H * 0.011 * (1 - a * 0.3), f = Math.sin(t * 12 + k) * 0.6;
+    c.globalAlpha = Math.min(1, (1 - a) * 2); c.beginPath(); c.moveTo(bx - w, by - w * f); c.quadraticCurveTo(bx - w * 0.4, by - w * 0.2, bx, by); c.quadraticCurveTo(bx + w * 0.4, by - w * 0.2, bx + w, by - w * f); c.stroke();
+  }
+  c.restore();
+}
+
+/* Signs of something huge having come through the woods, beside the path
+   (lane, rel): the ground flattened in a broad swathe, trees snapped -
+   stumps with splintered tops, trunks lying where they fell. */
+export function worldTrail(c, W, H, lane, rel, L){
+  const p = P(lane, rel, W, H); if (p.x < -W * 0.6 || p.x > W * 1.6) return;
+  const haze = Math.min(0.6, Math.max(0, rel) * 0.8);
+  /* the flattened swathe, running away from the path */
+  const q0 = P(lane - Math.sign(lane) * 0.4, rel - 0.06, W, H), q1 = P(lane + Math.sign(lane) * 2.4, rel + 0.12, W, H);
+  c.save();
+  c.fillStyle = mix(mix(L.ground[2], '#6a7a48', 0.35), L.haze, haze); c.globalAlpha = 0.7;
+  c.beginPath(); c.moveTo(q0.x, q0.y + H * 0.02 * q0.k); c.quadraticCurveTo((q0.x + q1.x) / 2, (q0.y + q1.y) / 2 + H * 0.03 * p.k, q1.x, q1.y); c.lineTo(q1.x, q1.y - H * 0.01 * q1.k); c.quadraticCurveTo((q0.x + q1.x) / 2, (q0.y + q1.y) / 2 - H * 0.02 * p.k, q0.x, q0.y - H * 0.02 * q0.k); c.closePath(); c.fill();
+  /* flattened grass, all lying the same way */
+  c.globalAlpha = 0.6; c.strokeStyle = mix(L.grass[0], L.haze, haze); c.lineWidth = Math.max(1, H * 0.002 * p.k);
+  for (let k = 0; k < 18; k++){ const u = k / 17, x = q0.x + (q1.x - q0.x) * u + Math.sin(k * 7) * W * 0.01 * p.k, y = q0.y + (q1.y - q0.y) * u + Math.cos(k * 5) * H * 0.008 * p.k; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.sign(lane) * W * 0.02 * p.k, y - H * 0.003 * p.k); c.stroke(); }
+  c.restore();
+  /* stumps, splintered */
+  for (const [dl, dr] of [[0.5, 0.0], [1.6, 0.06], [-0.2, 0.08]]){
+    const q = P(lane + Math.sign(lane) * dl, rel + dr, W, H), w = H * 0.03 * q.k + 1, h = H * 0.06 * q.k;
+    c.fillStyle = mix(L.trunk[0], L.haze, haze); c.beginPath(); c.moveTo(q.x - w, q.y); c.lineTo(q.x - w, q.y - h * 0.7); c.lineTo(q.x - w * 0.5, q.y - h); c.lineTo(q.x - w * 0.1, q.y - h * 0.65); c.lineTo(q.x + w * 0.3, q.y - h * 1.1); c.lineTo(q.x + w, q.y - h * 0.6); c.lineTo(q.x + w, q.y); c.closePath(); c.fill();
+    c.fillStyle = mix('#e8d0a8', L.haze, haze); c.beginPath(); c.moveTo(q.x - w * 0.5, q.y - h); c.lineTo(q.x - w * 0.1, q.y - h * 0.65); c.lineTo(q.x + w * 0.3, q.y - h * 1.1); c.lineTo(q.x + w * 0.2, q.y - h * 0.75); c.closePath(); c.fill();
+  }
+  /* trunks, lying where they fell - pushed over, away from the path */
+  for (const [dl, dr, len, a] of [[0.9, 0.02, 0.9, 0.15], [1.9, 0.09, 1.1, -0.1], [0.2, 0.1, 0.8, 0.3]]){
+    const qa = P(lane + Math.sign(lane) * dl, rel + dr, W, H), qb = P(lane + Math.sign(lane) * (dl + len), rel + dr + a * 0.1, W, H), r = H * 0.02 * qa.k + 1;
+    const bark = mix(mix(L.wood || '#c9a77a', '#5a3a2a', 0.45), L.haze, haze), barkD = mix('#4a3020', L.haze, haze);
+    /* its crown, crushed, leaves scattered, at the far end */
+    const dir = Math.sign(qb.x - qa.x) || 1;
+    for (const [dx, dy, rr, col] of [[0.5, -1.4, 2.4, L.tree[1]], [2.2, -0.8, 2.6, L.tree[1]], [1.2, -2.2, 2.2, L.tree[0]], [3.4, -1.6, 2, L.tree[0]], [1.8, -0.4, 1.8, L.grass[0]]]){
+      c.fillStyle = mix(col, L.haze, haze); c.beginPath(); c.ellipse(qb.x + dir * dx * r, qb.y + dy * r, rr * r, rr * r * 0.7, 0, 0, 6.2832); c.fill();
+    }
+    /* the trunk, a few snapped branches */
+    c.strokeStyle = barkD; c.lineWidth = r * 2.2; c.lineCap = 'round'; c.beginPath(); c.moveTo(qa.x, qa.y - r); c.lineTo(qb.x, qb.y - r * 0.7); c.stroke();
+    c.strokeStyle = bark; c.lineWidth = r * 1.6; c.stroke();
+    c.strokeStyle = barkD; c.lineWidth = Math.max(1, r * 0.5);
+    for (const f of [0.35, 0.6, 0.8]){ const bx = qa.x + (qb.x - qa.x) * f, by = qa.y + (qb.y - qa.y) * f - r; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx + dir * r * 0.8, by - r * 1.8); c.stroke(); }
+    /* the splintered end, pale */
+    c.fillStyle = mix('#e8d0a8', L.haze, haze); c.beginPath(); c.ellipse(qa.x, qa.y - r, r * 0.55, r * 0.85, 0, 0, 6.2832); c.fill();
   }
 }
 
