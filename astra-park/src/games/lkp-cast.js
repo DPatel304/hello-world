@@ -99,6 +99,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
     if (pose === 'dust'){ const k = Math.sin(t * 8 + (d < 0 ? 0 : Math.PI)); const elbow = [d * 66 * u, -172 * u], fist = [d * (34 - 6 * k) * u, (-112 + 16 * k) * u]; limb([sh, elbow], 22 * u, d); limb([elbow, fist], 19 * u, d); trim(elbow[0], elbow[1], 22 * u); c.fillStyle = dark; circ(c, fist[0], fist[1], 12 * u); continue; }
     /* checking themselves over: one arm held up in front, turned this way and that */
     if (pose === 'check' && d < 0){ const k = Math.sin(t * 2.2); limb([sh, [-70 * u, -196 * u], [(-34 + 6 * k) * u, -222 * u]], 22 * u, d); trim(-70 * u, -196 * u, 22 * u); c.fillStyle = dark; circ(c, (-34 + 6 * k) * u, -226 * u, 12 * u); continue; }
+    /* a hand up at the side of the helmet: on the radio, listening */
+    if (pose === 'ear' && d > 0){ limb([sh, [76 * u, -214 * u], [44 * u, -262 * u]], 22 * u, d); trim(76 * u, -214 * u, 22 * u); c.fillStyle = dark; circ(c, 44 * u, -266 * u, 13 * u); continue; }
     if (pose === 'reach' && d < 0){ limb([sh, [-62 * u, -270 * u], [-56 * u, -322 * u]], 26 * u); c.fillStyle = dark; circ(c, -56 * u, -326 * u, 15 * u); continue; }
     const p = run * Math.sin(ph + (d < 0 ? Math.PI : 0));
     const elbow = run > 0.2 ? [d * (66 + 8 * p) * u, (-176 + 12 * p) * u] : [d * 60 * u, -172 * u];

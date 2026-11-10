@@ -38,6 +38,7 @@ import { commanderFace } from './lkp-cast.js';
 import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { P } from './lkp-art.js';
 import { CREW_SIZE } from './lkp-game.js';
+import { skyJellies } from './lkp-critters.js';
 import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 
 export const INTRO_BEATS = [
@@ -45,13 +46,13 @@ export const INTRO_BEATS = [
   { id: 'title', time: CARD, shot: 'black; the title fading in, a streak of light through it; the level underneath; fade to black', blocking: 'nothing asked - the film starting' },
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
-  { id: 'look', time: 6, shot: 'through the helmet, clear: a slow look round - the glade, the trees, the ship - the head lifting a little', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
-  { id: 'stand', time: 5.5, shot: 'through the helmet: getting up - the view righting itself and rising; a look round, standing', blocking: 'nothing asked - a shuffle of feet' },
-  { id: 'pull', time: 4.5, shot: 'a soft dissolve from your view to the establishing shot: the camera out in front, facing the crew, the burning ship behind them', blocking: 'the others getting up' },
-  { id: 'gather', time: 6, shot: 'the establishing shot, the camera drifting: the crew looking round, a bit lost; a quick dust-off; checking their arms', blocking: 'nothing asked' },
+  { id: 'look', time: 13, shot: 'through the helmet, clear, still lying there: the head lifting, turning a little to the left and holding; up to the sky - lavender, alien, small jellies drifting over; back down to the ship', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
+  { id: 'stand', time: 6, shot: 'through the helmet: getting up - the view righting itself and rising - then turning right, past the ship, to the path running away into the woods', blocking: 'nothing asked - a shuffle of feet' },
+  { id: 'pull', time: 4.5, shot: 'still looking down the path, the camera pulls straight back out of your eyes and up over your shoulder - your own astronaut, then the crew, rising into view - into the game\'s own view behind them', blocking: 'the others getting up' },
+  { id: 'gather', time: 6, shot: 'the game\'s view, behind them on the path: the crew looking round, a bit lost; a quick dust-off; checking their arms', blocking: 'nothing asked' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'close on the crew', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'close on the crew; her window top left', blocking: 'Nova: you\'re okay' },
-  { id: 'go', time: 5, shot: 'they walk over from the grass onto the path, the camera easing back and up into the game\'s own view behind them', blocking: 'Nova: follow the path' }
+  { id: 'go', time: 1.2, shot: 'behind them on the path, ready to set off', blocking: 'Nova: follow the path' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, STAND = BEAT.stand.time, PULL_TIME = BEAT.pull.time, GATHER = BEAT.gather.time, GO = BEAT.go.time;
@@ -74,16 +75,15 @@ export const START = 0.5;
 const POV = { cx: -0.06, cy: 0.5, s: 1.75, tilt: -0.24 };
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
-const GRASS = 2.4;
+const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
 /* The wake hint shows once nobody's moved for HINT seconds. */
 const HINT = 4;
 /* Pulling back out of the visor: from, to (seconds into the pull), and
    how close it starts. */
-/* The dissolve from your view to the establishing shot (seconds into
-   the pull), and from it to the game's view (into the go). */
-const DISSOLVE = [0.9, 2.5], INTO_PLAY = 1.6;
-/* The establishing shot: the crash site behind them, this close. */
-const FRONT = { s: 1.3, y: 0.56 };
+/* Out of your eyes and back over your shoulder: how long (seconds into
+   the pull), and how far round your head turns to look down the path
+   (POV pan: the path's middle, from looking at the ship). */
+const OUT = 3.4, TO_PATH = -(0.5 - POV.cx) * POV.s * 0.82;
 /* A moment after it's done. */
 const AFTER = 0.5;
 
@@ -213,11 +213,14 @@ export class Intro {
     const g = this.g, clear = this._clear(), sway = Math.sin(this.t * 0.6) * 0.02 * (1 - clear * 0.6), look = this._looking();
     const view = (cx) => {
       cx.save();
-      cx.translate(W / 2 + look.pan * W, H / 2 + look.rise * H * 0.06 + look.up * H * 0.14 - look.down * H * 0.42); cx.rotate(POV.tilt * (1 - look.rise * 0.45) * (1 - look.up) + sway * (1 - look.up * 0.6)); cx.scale(POV.s * (1 - 0.18 * look.up), POV.s * (1 - 0.18 * look.up)); cx.translate(-POV.cx * W, -POV.cy * H);
-      g.inIntro = true; g.introCrew = []; SKY.above = H; SKY.wide = W * 1.3;
+      /* (sky: tipped right back, the sky filling the view) */
+      cx.translate(W / 2 + look.pan * W, H / 2 + look.rise * H * 0.06 + look.up * H * 0.14 - look.down * H * 0.42 + (look.sky || 0) * H * 0.75); cx.rotate((POV.tilt * (1 - look.rise * 0.45) * (1 - look.up) + sway * (1 - look.up * 0.6)) * (1 - 0.6 * (look.sky || 0))); cx.scale(POV.s * (1 - 0.18 * look.up), POV.s * (1 - 0.18 * look.up)); cx.translate(-POV.cx * W, -POV.cy * H);
+      g.inIntro = true; g.introCrew = []; SKY.above = H * (1 + (look.sky || 0)); SKY.wide = W * 1.3;
       g._drawPlay(cx, W, H);
       g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
       cx.restore();
+      /* up there: little sky jellies, drifting over */
+      if (look.sky > 0.02) skyJellies(cx, W, H, this.t, look.sky, this.st - 4.8, 0.5);
     };
     /* blurred: drawn small, stretched back up - the smaller, the blurrier */
     const r = clear > 0.97 ? 1 : [0.08, 0.12, 0.18, 0.28, 0.45, 0.7][Math.min(5, Math.floor(clear * 6))];
@@ -242,14 +245,19 @@ export class Intro {
      the ground, and staying up. */
   _looking(){
     const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
-    if (this.stage === 'look'){ const u = Math.min(1, this.st / LOOK); return { pan: 0.11 * Math.sin(e(u) * Math.PI * 2), rise: e(u * 1.6), up: 0, down: 0 }; }
-    /* standing: up off the ground (the view righting itself, rising); a
-       look round, standing; then down at your boots */
+    /* lying there: the head lifting and turning a little to the left,
+       holding; then up to the sky a while; then back down to the ship */
+    if (this.stage === 'look'){
+      const t = this.st, back = e((t - 10.4) / 2.2);
+      return { pan: 0.1 * e(t / 2.6) * (1 - back), rise: e(t / 2.6), up: 0, down: 0, sky: e((t - 4.8) / 2.2) * (1 - back) };
+    }
+    /* standing up (the view righting itself, rising); then turning right,
+       past the ship, to look down the path */
     if (this.stage === 'stand' || this.stage === 'pull'){
       const t = this.stage === 'pull' ? STAND : this.st;
-      return { pan: 0.09 * Math.sin(e((t - 2.2) / 2.8) * Math.PI * 2), rise: 1, up: e(t / 2), down: 0 };
+      return { pan: TO_PATH * e((t - 2.2) / 2.8), rise: 1, up: e(t / 2), down: 0, sky: 0 };
     }
-    return { pan: 0, rise: ['dark', 'wake'].includes(this.stage) ? 0 : 1, up: 0, down: 0 };
+    return { pan: 0, rise: ['dark', 'wake'].includes(this.stage) ? 0 : 1, up: 0, down: 0, sky: 0 };
   }
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
   _clear(){
@@ -385,28 +393,6 @@ export class Intro {
     const u = Math.min(1, this.st / (GO * 0.85)), e = u * u * (3 - 2 * u);
     return home - GRASS * (1 - e);
   }
-  /* The establishing shot, the camera out in front of them turned round to
-     face the crew, the crash site behind them: the same scene you saw
-     through your visor, level now - and the crew standing in front of it,
-     facing us (lkp-cast.js worldCrewFront), each doing their own thing. */
-  _front(c, W, H){
-    const g = this.g, T = this.cineT || 0, drift = Math.sin(T * 0.25), push = 1 + Math.min(1, T / 20) * 0.05;
-    c.save();
-    c.fillStyle = '#6fae86'; c.fillRect(0, 0, W, H);
-    c.translate(W / 2 + drift * W * 0.01, H * FRONT.y); c.scale(FRONT.s * push, FRONT.s * push); c.translate(-POV.cx * W, -POV.cy * H);
-    g.inIntro = true; g.introCrew = []; SKY.above = H; SKY.wide = W * 1.3;
-    g._drawPlay(c, W, H);
-    g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
-    c.restore();
-    /* (the backdrop a touch hazier than them: depth) */
-    c.fillStyle = 'rgba(225,238,246,.14)'; c.fillRect(0, 0, W, H);
-    const here = g.here, n = here.length, gap = Math.min(0.22, 0.7 / Math.max(1, n));
-    here.forEach((i, k) => {
-      const a = this._act(i, k), rise = easeOut(this.up[i]), h = H * 0.6 * push;
-      const x = W * (0.5 + (k - (n - 1) / 2) * gap + drift * 0.004), y = H * 1.04 + (1 - rise) * h * 0.55;
-      g._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, noBar: true, noFace: true, pose: a.pose, look: a.look });
-    });
-  }
   /* One picture over another, fading (a: how much of the top one). */
   _over(c, W, H, a, draw){
     if (a <= 0) return;
@@ -415,24 +401,36 @@ export class Intro {
     const bc = buf.getContext('2d'); bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, W, H); draw(bc);
     c.save(); c.globalAlpha = Math.min(1, a); c.drawImage(buf, 0, 0, W, H); c.restore();
   }
-  /* Out of your view: holding it a moment, then a soft dissolve - a breath
-     of light - into the establishing shot. */
+  /* Out of your eyes: you're looking down the path - the way the game
+     looks - so the camera just pulls straight back and up over your
+     shoulder, one move, from your view (zoomed in, as through the visor)
+     to the game's own view behind the crew: your astronaut, then the
+     others, rising into the bottom of the picture as it goes; the
+     helmet's dark edges and display fading away. */
   _pullBack(c, W, H){
-    const u = Math.max(0, Math.min(1, (this.st - DISSOLVE[0]) / (DISSOLVE[1] - DISSOLVE[0]))), e = u * u * (3 - 2 * u);
-    if (u <= 0){ this._helmet(c, W, H); return; }
-    this._front(c, W, H);
-    this._over(c, W, H, 1 - e, (cx) => this._helmet(cx, W, H));
-    const bloom = Math.sin(e * Math.PI) * 0.22;
-    if (bloom > 0){ c.fillStyle = `rgba(255,250,240,${bloom})`; c.fillRect(0, 0, W, H); }
-  }
-  /* The establishing shot, held; and at the end, a dissolve into the
-     game's own view behind them, walking over to the path. */
-  _cine(c, W, H){
-    if (this.stage !== 'go'){ this._front(c, W, H); return; }
-    const u = Math.min(1, this.st / INTO_PLAY), e = u * u * (3 - 2 * u);
+    const u0 = Math.max(0, Math.min(1, this.st / OUT)), u = u0 * u0 * (3 - 2 * u0);
+    const look = this._looking(), s0 = POV.s * (1 - 0.18 * look.up);
+    const A = [W / 2 + look.pan * W, H / 2 + look.rise * H * 0.06 + look.up * H * 0.14], C = [POV.cx * W, POV.cy * H];
+    const lerp = (a, b) => a + (b - a) * u, s = Math.exp(lerp(Math.log(s0), 0));
+    c.save();
+    c.translate(lerp(A[0], W / 2), lerp(A[1], H / 2)); c.scale(s, s); c.translate(-lerp(C[0], W / 2), -lerp(C[1], H / 2));
+    SKY.above = H * (1 - u); SKY.wide = W * 1.3 * (1 - u);
     this._outside(c, W, H);
-    this._over(c, W, H, 1 - e, (cx) => this._front(cx, W, H));
+    SKY.above = 0; SKY.wide = 0;
+    c.restore();
+    /* the helmet round you, going */
+    const a = Math.pow(1 - u, 1.5);
+    if (a > 0.01){
+      c.save(); c.globalAlpha = a;
+      const vg = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.62);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
+      c.fillStyle = vg; c.fillRect(0, 0, W, H);
+      this._visor(c, W, H);
+      c.restore();
+    }
   }
+  /* Behind them, in the game's own view. */
+  _cine(c, W, H){ this._outside(c, W, H); }
   /* What each of them is doing in the close shot: looking round, dusting
      themselves off, checking an arm - each on their own time. */
   _act(i, k){
@@ -510,12 +508,7 @@ const STEP = {
   /* the others getting up as the camera pulls back */
   pull(dt){ this._getUp(dt, 2.2); return false; },
   gather(dt){ this._getUp(dt, 0); return false; },
-  go(dt){
-    /* walking over to the path: a gentle walk, legs going */
-    const walking = this.st < GO * 0.85;
-    for (const i of this.g.here){ const rn = this.g.crew[i]; rn.run = walking ? 0.35 : Math.max(0, (rn.run || 0) - dt * 2); if (walking) rn.runPh = (rn.runPh || 0) + dt * 7; }
-    return false;
-  }
+  go(){ return false; }
 };
 /* How open the eyes want to be, in each beat. */
 const EYES = {

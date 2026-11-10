@@ -34,9 +34,10 @@ export const LEVELS = [
       wall: '#22402a', hall: '#14261b', hallFloor: '#2d4b2b', hallRed: '#45282a',
       /* The real look (lkp-world.js): a fresh morning on an alien planet. */
       world: {
-        key: 'verdant-morning',
-        sky: ['#4f9be0', '#8cc4ec', '#cfe6f5', '#ffe6c8'], sun: '#fff1d6', haze: '#d6e6f2',
-        cloud: '#ffffff', cloudShade: '#b4c6e2', planet: ['#c9b6d9', '#8fa2c9'], planetAlpha: 0.6, smoke: '#6e6e82', ship: '#3a3f66',
+        /* (an alien morning: lavender in the sky and the air) */
+        key: 'verdant-morning-2',
+        sky: ['#5a74d6', '#9a8ce6', '#dcc4f2', '#ffd4e2'], sun: '#fff0dc', haze: '#ddd0f0',
+        cloud: '#fbf2ff', cloudShade: '#bcaee0', planet: ['#c9b6d9', '#8fa2c9'], planetAlpha: 0.6, smoke: '#6e6e82', ship: '#3a3f66',
         hillLit: '#a7bfe2', hillDark: '#6d84b6', rim: '#fff0d7',
         ground: ['#5aa391', '#3f8f78', '#2f7c66'], grass: ['#78c8a0', '#328c73'], path: ['#857a98', '#6c6083'],
         rock: ['#a9a3cf', '#6d6894'], crystal: ['#c7b6ef', '#8f7cc4', '#5d4e8f'], trunk: ['#3f2f55', '#8a6aa0'], wood: '#c9a77a',

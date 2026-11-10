@@ -51,12 +51,12 @@ function jelly(c, x, y, s, t, col, a = 1){
    slow, bobbing - the camera following them, so they stay up in the sky
    above the crew as they go. k: how far the view's tilted up (0..1, they
    fade in with it); t: the time; u: seconds since the look began. */
-export function skyJellies(c, W, H, t, k, u = 0){
+export function skyJellies(c, W, H, t, k, u = 0, size = 1){
   if (k <= 0.02) return;
   /* the drift's middle, coming in from the right and slowing, the camera keeping up */
   const cx = W * (0.62 - 0.012 * u) + W * 0.35 * Math.pow(1 - Math.min(1, u / 3), 2), cy = H * 0.2;
   for (let i = 0; i < 12; i++){
-    const far = hash(i + 40), s = H * (0.03 + 0.07 * (1 - far));
+    const far = hash(i + 40), s = H * (0.03 + 0.07 * (1 - far)) * size;
     const x = cx + (hash(i + 41) - 0.5) * W * 0.62 + Math.sin(t * 0.3 + i) * W * 0.01 - u * W * 0.004 * (1 - far);
     const y = cy + (hash(i + 42) - 0.5) * H * 0.24 + 0.02 * H * Math.sin(t * 0.5 + i * 1.3);
     jelly(c, x, y, s, t + i * 0.7, COLS[i % COLS.length], k * (0.55 + 0.45 * (1 - far)));
