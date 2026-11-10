@@ -33,6 +33,9 @@ export const SITE = {
      away (lkp-critters.js; the opening walks it: lkp-intro.js) */
   chimes: [-1.4, 0.45],
   crawler: [-4.6, 0.1],
+  /* the patch of ground you're looking down at as you wake - the
+     jellycrawl's feet wander into the top left of it (lkp-intro.js) */
+  patch: [-2.52, 0.07],
   wreck: [-7.0, 0.75, 1],
   /* the woods round the site, [lane, rel] */
   trees: [[-8.2, 0.75], [-6.9, 0.9], [-5.4, 0.95], [-3.6, 0.92], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.9, 0.62], [-2.6, 0.98], [-11.5, 0.6], [-12, 0.42]]
@@ -299,5 +302,80 @@ export function healRipple(c, x, y, size, age, col = '#9ff6ff'){
 export function healNumber(c, x, y, size, age, text){
   c.save(); c.globalAlpha = Math.max(0, 1 - age); c.font = `700 ${Math.round(size)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.lineWidth = size * 0.18; c.strokeStyle = '#05303a'; c.strokeText(text, x, y - age * size * 2); c.fillStyle = '#7dffb0'; c.fillText(text, x, y - age * size * 2);
+  c.restore();
+}
+
+/* The ground you wake up looking at, round lane, rel: pebbles, moss and
+   clover, a fiddlehead uncurling, tiny glowing mushrooms, star-flowers, a
+   scrap of the ship's panelling (its yellow stripe), and a little dotbug
+   ambling about. */
+export function worldPatch(c, W, H, lane, rel, t, L){
+  const p = P(lane, rel, W, H), k = p.k, sx = W / 1920 * k / 0.6, sy = H / 1080 * k / 0.6;
+  const at = (dx, dy) => [p.x + dx * sx, p.y + dy * sy];
+  c.save();
+  /* moss: little lumpy cushions, a few bobbles each, lit on top */
+  for (let n = 0; n < 8; n++){
+    const [x, y] = at((hash(n + 40) - 0.5) * 560, (hash(n + 41) - 0.5) * 280), r = (5 + hash(n + 42) * 5) * sx;
+    for (let j = 0; j < 6; j++){
+      const bx = x + (hash(n * 9 + j) - 0.5) * r * 4, by = y + (hash(n * 9 + j + 3) - 0.5) * r * 1.6;
+      c.fillStyle = mix(L.grass[0], '#0c2a22', 0.25); circ(c, bx, by, r);
+      c.fillStyle = mix(L.grass[1], '#e8ffd8', 0.25); circ(c, bx - r * 0.25, by - r * 0.3, r * 0.45);
+    }
+  }
+  /* grass tufts, a few blades each */
+  for (let n = 0; n < 16; n++){
+    const [x, y] = at((hash(n + 140) - 0.5) * 620, (hash(n + 141) - 0.5) * 300), h = (14 + hash(n + 142) * 14) * sy;
+    c.strokeStyle = L.grass[n % 2]; c.lineWidth = 2.5 * sx; c.lineCap = 'round';
+    c.beginPath();
+    for (const d of [-1, -0.3, 0.4, 1]){ c.moveTo(x + d * 3 * sx, y); c.quadraticCurveTo(x + d * 4 * sx, y - h * 0.6, x + d * 9 * sx + Math.sin(t * 1.3 + n) * 2 * sx, y - h); }
+    c.stroke();
+  }
+  /* pebbles, smooth and lavender-grey, lit from above */
+  for (let n = 0; n < 7; n++){
+    const [x, y] = at((hash(n + 60) - 0.5) * 600, (hash(n + 61) - 0.5) * 300), r = (7 + hash(n + 62) * 12) * sx;
+    c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(x + r * 0.2, y + r * 0.45, r * 1.2, r * 0.45, 0, 0, 6.2832); c.fill();
+    c.fillStyle = '#8f88a8'; c.beginPath(); c.ellipse(x, y, r * 1.15, r * 0.72, hash(n) - 0.5, 0, 6.2832); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.25, r * 0.4, r * 0.2, -0.3, 0, 6.2832); c.fill();
+  }
+  /* clover: three round leaves */
+  for (let n = 0; n < 6; n++){
+    const [x, y] = at((hash(n + 80) - 0.5) * 520, (hash(n + 81) - 0.5) * 260), r = (6 + hash(n + 82) * 4) * sx;
+    c.fillStyle = mix(L.grass[1], '#2a6a4a', 0.3);
+    for (let j = 0; j < 3; j++){ const a = j * 2.094 + n; circ(c, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.6, r); }
+  }
+  /* a fiddlehead, uncurling */
+  { const [x, y] = at(150, 40), r = 14 * sx;
+    c.strokeStyle = '#4fa36e'; c.lineWidth = 4 * sx; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x - r * 0.4, y - r * 2.5, x + r * 0.6, y - r * 3.2); c.stroke();
+    c.beginPath(); c.arc(x + r * 0.6 - r * 0.5, y - r * 3.2, r * 0.5, 0, Math.PI * 1.6); c.stroke(); }
+  /* star-flowers */
+  for (let n = 0; n < 6; n++){
+    const [x, y] = at((hash(n + 100) - 0.5) * 580, (hash(n + 101) - 0.5) * 290), r = (5 + hash(n + 102) * 3) * sx;
+    c.fillStyle = L.flowers[n % L.flowers.length];
+    for (let j = 0; j < 5; j++){ const a = j * 1.2566 + t * 0.2; circ(c, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7, r * 0.6); }
+    c.fillStyle = '#fff3a8'; circ(c, x, y, r * 0.45);
+  }
+  /* a scrap of the ship: a bent bit of white panelling, its stripe */
+  { const [x, y] = at(-60, 70), w = 46 * sx, h = 20 * sy;
+    c.save(); c.translate(x, y); c.rotate(-0.25);
+    c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(4 * sx, h * 0.7, w * 0.6, h * 0.4, 0, 0, 6.2832); c.fill();
+    c.fillStyle = '#e8eaf2'; c.beginPath(); c.moveTo(-w / 2, -h / 2); c.lineTo(w / 2, -h * 0.7); c.lineTo(w * 0.45, h / 2); c.lineTo(-w * 0.55, h * 0.4); c.closePath(); c.fill();
+    c.fillStyle = '#f3c23a'; c.fillRect(-w * 0.52, -h * 0.05, w, h * 0.22);
+    c.fillStyle = '#4aa8f0'; c.fillRect(-w * 0.52, h * 0.17, w, h * 0.1);
+    c.restore(); }
+  /* glowing mushrooms, tiny */
+  for (let n = 0; n < 5; n++){
+    const [x, y] = at((hash(n + 120) - 0.5) * 480, (hash(n + 121) - 0.5) * 240), r = (6 + hash(n + 122) * 4) * sx;
+    glow(c, x, y - r, r * 4, '#7ff3ff', 0.25 + 0.1 * Math.sin(t * 2 + n));
+    c.fillStyle = '#d8fbff'; c.fillRect(x - r * 0.18, y - r, r * 0.36, r);
+    c.fillStyle = '#7ff3ff'; c.beginPath(); c.arc(x, y - r, r, Math.PI, 0); c.fill();
+  }
+  /* a dotbug: a little round red beetle, ambling in a lazy loop */
+  { const a = t * 0.35, [x, y] = at(40 + Math.cos(a) * 90, -10 + Math.sin(a) * 40), r = 8 * sx, dir = a + Math.PI / 2;
+    c.save(); c.translate(x, y); c.rotate(dir);
+    c.fillStyle = '#2a1a2a'; circ(c, r * 0.95, 0, r * 0.45);
+    c.fillStyle = '#ff5a5a'; c.beginPath(); c.ellipse(0, 0, r, r * 0.8, 0, 0, 6.2832); c.fill();
+    c.fillStyle = '#2a1a2a'; circ(c, -r * 0.3, -r * 0.35, r * 0.18); circ(c, -r * 0.3, r * 0.35, r * 0.18); circ(c, r * 0.3, 0, r * 0.16);
+    c.restore(); }
   c.restore();
 }

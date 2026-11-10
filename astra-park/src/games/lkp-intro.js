@@ -42,6 +42,7 @@ import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { P } from './lkp-art.js';
 import { CREW_SIZE } from './lkp-game.js';
 import { skyJellies } from './lkp-critters.js';
+import { SITE } from './lkp-crashsite.js';
 import { titleCard, titleSound, loadTitleFonts, CARD } from './lkp-title.js';
 
 export const INTRO_BEATS = [
@@ -89,11 +90,13 @@ const AT_CHIMES = -0.33;
    from where it starts, just in front of you); when it lifts off and is
    gone (seconds of its walk); and the camera: how close it starts, on it,
    zooming slowly out as it goes. */
-const CRAWL = { lane: -4.6, rel: 0.1, dl: 0.2, dr: 0.02, fly: 16.6, flyFor: 1.4 };
+const CRAWL = { lane: -4.6, rel: 0.1, dl: 0.2, dr: 0.02, fly: 15.6, flyFor: 1.4 };
 const ZOOM_IN = 1.76;
-/* (waking, it's off to the left of the view - SPOT across - till it
-   catches your eye and you look round at it, GLANCE seconds into watching) */
-const SPOT = 0.2, GLANCE = 0.9;
+/* Waking, you're looking down at the ground in front of you (SITE.patch);
+   SEE seconds after your eyes are open, the jellycrawl's feet wander into
+   the top left of it - and STARTLE seconds in, you jump, and look straight
+   at it (SNAP seconds, the head jerking round), then follow it. */
+const SEE = 2, STARTLE = 2.6, SNAP = 0.35;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -292,12 +295,21 @@ export class Intro {
     const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
     const s = this.stage, t = this.st, W = 1920, H = 1080;
     /* (close in on it at first, looking down at the grass; zooming slowly out as it walks away) */
-    const zoom = s === 'dark' || s === 'wake' ? ZOOM_IN : s === 'watch' ? ZOOM_IN + (1 - ZOOM_IN) * e(t / WATCH) : 1;
+    /* (close in, looking down at the grass; once you've seen it, zooming slowly out as it walks away) */
+    const zoom = s === 'dark' || s === 'wake' ? ZOOM_IN : s === 'watch' ? ZOOM_IN + (1 - ZOOM_IN) * e((t - STARTLE) / (WATCH - STARTLE)) : 1;
     const cr = this._crawl(), q = P(cr.lane, cr.rel, W, H), sc = POV.s * zoom, fy = q.y - H * 0.32 * q.k * 0.45;
     const on = { pan: -sc * (q.x - POV.cx * W) / W, down: sc * (fy - POV.cy * H) / (H * 0.42) };
     const at = { rise: 1, up: 0, sky: 0, zoom: 1 };
-    const side = s === 'watch' ? SPOT * (1 - e(t / GLANCE)) : SPOT;
-    if (s === 'dark' || s === 'wake' || s === 'watch') return { ...at, ...on, pan: on.pan - side, zoom, rise: s === 'dark' ? 0 : s === 'wake' ? e(t / WAKE) : 1 };
+    /* the ground in front of you, where you're looking as you wake */
+    const gp = P(SITE.patch[0], SITE.patch[1], W, H), g0 = POV.s * ZOOM_IN;
+    const ground = { pan: -g0 * (gp.x - POV.cx * W) / W, down: g0 * (gp.y - POV.cy * H) / (H * 0.42) };
+    if (s === 'dark' || s === 'wake') return { ...at, ...ground, zoom, rise: s === 'dark' ? 0 : e(t / WAKE) };
+    if (s === 'watch'){
+      if (t < STARTLE) return { ...at, ...ground, zoom };
+      /* startled: the head jerking round to it - a little overshoot - and a jolt */
+      const k = backOut((t - STARTLE) / SNAP), jolt = t - STARTLE < 0.5 ? Math.sin((t - STARTLE) / 0.5 * Math.PI) * 0.12 : 0;
+      return { ...at, zoom, pan: ground.pan + (on.pan - ground.pan) * k, down: ground.down + (on.down - ground.down) * k, rise: 1 - jolt };
+    }
     /* the ship, glimpsed beyond it: the view settling there, and staying */
     if (s === 'notice'){ const u = e((t - 0.4) / 3); return { ...at, pan: on.pan * (1 - u), down: on.down * (1 - u) }; }
     if (s === 'out'){ const u = e(t / TURN); return { ...at, pan: TO_PATH * u, down: 0 }; }
@@ -551,7 +563,7 @@ const STEP = {
   dark(){ return false; },
   /* the eyes opening by themselves; the suit's display coming on */
   wake(){ if (!this.booted && this.st > WAKE * 0.8){ this.booted = true; sfx.visorOn?.(); } return false; },
-  watch(){ return false; },
+  watch(){ if (!this.jumped && this.st >= STARTLE){ this.jumped = true; sfx.startle?.(); } return false; },
   notice(){ return false; },
   out(){ if (!this.pulled && this.st >= TURN){ this.pulled = true; sfx.pullBack?.(); } return false; },
   /* on your feet: up they get, one after another */
