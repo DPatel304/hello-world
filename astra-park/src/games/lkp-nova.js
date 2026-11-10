@@ -8,6 +8,8 @@
    false where there's no canvas to paint her on (node tests), so the
    caller can draw something else. */
 
+import { NOVA_PHOTO } from './lkp-nova-photo.js';
+
 const mk = (w, h) => {
   if (typeof document === 'undefined') return null;
   const cv = document.createElement('canvas'); if (!cv.getContext) return null;
@@ -23,10 +25,15 @@ function lg(c, x0, y0, x1, y1, stops){ const g = c.createLinearGradient(x0, y0, 
    an eyepatch over her right eye; armour. (She'll be fighting alongside
    the crew, later on.) */
 const NOVA_LOOK = { skin: '#d2a488', hair: '#a8a29c', grey: false, streak: '#7a4a2e', style: 'tied', gear: 'armor', gearCol: '#4a5260', face: 'long', brows: 'arched', browCol: '#8a8480', lips: 'thin', iris: '#5a7a8a', eyes: { shape: 'almond', size: 1.2, gap: 45 }, nose: 'tiny', patch: 'right', older: true };
-/* Where her open eye and her mouth are, in the portrait (for blinking and
-   talking). */
-const EYE = [255, 230], MOUTH = [300, 334];
-function portrait(){ if (!mk(1, 1)) return null; return drawNova(NOVA_LOOK); }
+/* Her portrait: the photo (lkp-nova-photo.js), loaded once; until it's
+   in, nothing (the caller shows something else for that moment). (The
+   drawn portrait, drawNova, is kept for previews and the old look.) */
+let PHOTO = null;
+if (typeof Image !== 'undefined'){ PHOTO = new Image(); PHOTO.src = NOVA_PHOTO; }
+function portrait(){
+  if (!mk(1, 1) || !PHOTO || !PHOTO.complete || !PHOTO.naturalWidth) return undefined;
+  const cv = mk(600, 600); cv.getContext('2d').drawImage(PHOTO, 0, 0, 600, 600); return cv;
+}
 /* Nova, graphic-novel style: flat colour, hard shadows, ink, halftone. */
 const hex = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => { const A = hex(a), B = hex(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
@@ -245,7 +252,7 @@ function hairFront(c, o, HR, HRD, HRL, INK){
 
 /* Painted once, kept. */
 let PORTRAIT;
-const art = () => (PORTRAIT === undefined ? (PORTRAIT = portrait()) : PORTRAIT);
+const art = () => (PORTRAIT === undefined || PORTRAIT === null ? (PORTRAIT = portrait()) : PORTRAIT);
 /* (the portrait itself, for previews) */
 export const novaPortrait = art;
 
@@ -256,11 +263,11 @@ const FEEDS = new Map();
 function feedFor(w, h){
   const key = `${w}x${h}`;
   if (FEEDS.has(key)) return FEEDS.get(key);
-  const P = art(); if (!P){ FEEDS.set(key, null); return null; }
+  const P = art(); if (!P) return null;   /* (not cached: it may just be loading) */
   const s = Math.max(w / 600, h / 600) * 1.05, ox = (w - 600 * s) / 2, oy = (h - 600 * s) / 2 - h * 0.12;
   const base = mk(w, h), bc = base.getContext('2d');
   /* (brightened a little: the split and the grain darken it) */
-  try { bc.filter = 'brightness(1.35) contrast(1.05)'; } catch (e){}
+  try { bc.filter = 'brightness(1.12) contrast(1.05)'; } catch (e){}
   bc.drawImage(P, ox, oy, 600 * s, 600 * s); bc.filter = 'none';
   const chans = ['#ff0000', '#00ff00', '#0000ff'].map(col => { const cv = mk(w, h), cc = cv.getContext('2d'); cc.drawImage(base, 0, 0); cc.globalCompositeOperation = 'multiply'; cc.fillStyle = col; cc.fillRect(0, 0, w, h); return cv; });
   const grain = [0, 1, 2, 3].map(() => { const cv = mk(w, h), gc = cv.getContext('2d'), d = gc.createImageData(w, h), p = d.data; for (let i = 0; i < p.length; i += 4){ const n = Math.random() * 255; p[i] = p[i + 1] = p[i + 2] = n; p[i + 3] = 34; } gc.putImageData(d, 0, 0); return cv; });
@@ -285,10 +292,6 @@ export function novaFeed(c, x, y, w, h, t, talking){
   m.globalCompositeOperation = 'lighter';
   m.drawImage(f.chans[0], -dx, 0); m.drawImage(f.chans[1], 0, 0); m.drawImage(f.chans[2], dx, 0);
   m.globalCompositeOperation = 'source-over';
-  /* talking: her mouth moving; and she blinks now and then */
-  const [mx, my] = f.at(MOUTH[0], MOUTH[1]), sc = f.s;
-  if (talking){ const o = Math.abs(Math.sin(t * 13)) * 0.7 + Math.abs(Math.sin(t * 7.3)) * 0.3; m.fillStyle = '#3a1618'; m.beginPath(); m.ellipse(mx, my + 3 * sc, 20 * sc, 1.5 * sc + o * 8 * sc, 0, 0, 6.2832); m.fill(); }
-  if ((t % 4.1) < 0.13){ const [ex, ey] = f.at(EYE[0], EYE[1]); m.fillStyle = '#e4b694'; m.beginPath(); m.ellipse(ex, ey, 30 * sc, 13 * sc, 0, 0, 6.2832); m.fill(); m.strokeStyle = '#1c100e'; m.lineWidth = Math.max(1, 2.5 * sc); m.beginPath(); m.moveTo(ex - 26 * sc, ey + 2 * sc); m.quadraticCurveTo(ex, ey + 8 * sc, ex + 26 * sc, ey); m.stroke(); }
   /* rows of the picture jumping sideways, in bursts */
   if (burst) for (let k = 0; k < 5; k++){ const r = hash(tick * 7 + k), yy = r * h, hh = 3 + hash(tick * 3 + k) * h * 0.06, sx = (hash(tick * 11 + k) - 0.5) * w * 0.15; m.drawImage(f.mix, 0, yy, w, hh, sx, yy, w, hh); }
   /* grain, scan lines, a faint bright line rolling down */
@@ -296,6 +299,8 @@ export function novaFeed(c, x, y, w, h, t, talking){
   m.fillStyle = 'rgba(0,0,0,.22)'; for (let k = 0; k < h; k += 3) m.fillRect(0, k, w, 1);
   m.fillStyle = 'rgba(255,255,255,.12)'; m.fillRect(0, ((t * 0.25) % 1) * h, w, Math.max(2, h * 0.012));
   c.drawImage(f.mix, x, y);
+  /* talking: a little voice meter, bottom right, jumping with her words */
+  if (talking){ c.save(); for (let k = 0; k < 7; k++){ const v = 0.25 + 0.75 * Math.abs(Math.sin(t * (9 + k * 1.7) + k)); c.fillStyle = 'rgba(127,243,255,.9)'; const bw = w * 0.012, bh = h * 0.1 * v; c.fillRect(x + w * 0.62 + k * bw * 1.8, y + h * 0.93 - bh, bw, bh); } c.restore(); }
   /* SIGNAL WEAK, blinking; one bar of four */
   const fs = Math.round(h * 0.085);
   c.save(); c.textBaseline = 'middle';
