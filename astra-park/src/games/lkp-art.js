@@ -31,12 +31,12 @@ const S = (z) => 1 / (1 + 6 * Math.max(-0.1, z));
    change): `curve` bends it gently left (-) or right (+) into the
    distance; a sharp turn, `corner` deep, swings it hard `dir` beyond.
    Set each frame by the game (setBend). */
-export const BEND = { curve: 0, corner: null, dir: 1 };
-export function setBend(curve = 0, corner = null, dir = 1){ BEND.curve = curve; BEND.corner = corner; BEND.dir = dir; }
+export const BEND = { curve: 0, corner: null, dir: 1, sharp: 1 };
+export function setBend(curve = 0, corner = null, dir = 1, sharp = 1){ BEND.curve = curve; BEND.corner = corner; BEND.dir = dir; BEND.sharp = sharp; }
 const bendAt = (rel) => {
   const r = Math.max(0, rel - RUN);
   let b = BEND.curve * r * r * 4;
-  if (BEND.corner != null && rel > BEND.corner){ const d = rel - BEND.corner; b += BEND.dir * d * d * 70; }
+  if (BEND.corner != null && rel > BEND.corner){ const d = rel - BEND.corner; b += BEND.dir * d * d * 70 * BEND.sharp; }
   return b;
 };
 

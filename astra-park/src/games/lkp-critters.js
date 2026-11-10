@@ -223,15 +223,17 @@ export function jellycrawl(c, x, y, s, t, walk = 1, fly = 0){
     c.quadraticCurveTo(x + ox + Math.sin(t * 3 + k) * 14 * u, by - 30 * u + fly * 20 * u, fx - fly * ox * 0.6, fy + (fly > 0 ? 30 * u * fly : 0));
     c.stroke();
   }
-  /* the dome, see-through, glowing */
-  glow(c, x, by - 110 * u, 110 * u, '#ff9ad2', 0.4);
-  c.fillStyle = 'rgba(255,190,225,.72)';
+  /* the dome: as the world's drawn - shaded under, lit on top, the low sun's rim on its left */
+  c.fillStyle = 'rgba(206,140,190,.85)';
   c.beginPath(); c.moveTo(x - 90 * u, by - 70 * u); c.bezierCurveTo(x - 100 * u, by - 190 * u, x + 100 * u, by - 190 * u, x + 90 * u, by - 70 * u); c.quadraticCurveTo(x, by - 50 * u, x - 90 * u, by - 70 * u); c.fill();
-  c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = Math.max(1, 3 * u); c.stroke();
-  /* its core, glowing, pulsing */
+  c.fillStyle = 'rgba(240,190,222,.85)';
+  c.beginPath(); c.moveTo(x - 82 * u, by - 88 * u); c.bezierCurveTo(x - 92 * u, by - 182 * u, x + 40 * u, by - 192 * u, x + 50 * u, by - 140 * u); c.quadraticCurveTo(x - 10 * u, by - 110 * u, x - 82 * u, by - 88 * u); c.fill();
+  c.strokeStyle = 'rgba(255,240,215,.6)'; c.lineWidth = Math.max(1, 4 * u);
+  c.beginPath(); c.ellipse(x, by - 115 * u, 92 * u, 70 * u, 0, Math.PI * 0.95, Math.PI * 1.45); c.stroke();
+  /* its core: a soft warm light inside, pulsing */
   const pulse = 1 + 0.15 * Math.sin(t * 3);
-  glow(c, x, by - 110 * u, 42 * u * pulse, '#fff6b8', 1);
-  c.fillStyle = '#fff6c0'; c.beginPath(); c.arc(x, by - 110 * u, 14 * u * pulse, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,236,190,.55)'; c.beginPath(); c.arc(x, by - 110 * u, 24 * u * pulse, 0, TAU); c.fill();
+  c.fillStyle = '#fff1c8'; c.beginPath(); c.arc(x, by - 110 * u, 12 * u * pulse, 0, TAU); c.fill();
   /* eyes, big, looking where it's going (right) */
   for (const d of [-1, 1]){
     const ex = x + d * 30 * u + 6 * u, ey = by - 140 * u, r = 12 * u;
@@ -293,9 +295,11 @@ export function glimmerback(c, x, y, s, t, side = 0, deep = 0, hop = 0){
   }
   /* the body: a soft round hump, turned a little as it veers off */
   c.translate(x, by); c.rotate(side * 0.35);
-  const g = c.createRadialGradient(-s * 0.12, -s * 0.2, s * 0.04, 0, 0, s * 0.44);
-  g.addColorStop(0, top); g.addColorStop(0.6, body); g.addColorStop(1, belly);
-  c.fillStyle = g; c.beginPath(); c.ellipse(0, 0, s * 0.38, s * 0.3, 0, 0, TAU); c.fill();
+  /* (as the world's drawn: two flat tones - shaded under, lit on top - and the sun's rim on its left) */
+  c.fillStyle = body; c.beginPath(); c.ellipse(0, 0, s * 0.38, s * 0.3, 0, 0, TAU); c.fill();
+  c.fillStyle = top; c.beginPath(); c.ellipse(-s * 0.06, -s * 0.07, s * 0.3, s * 0.2, -0.2, 0, TAU); c.fill();
+  c.fillStyle = belly; c.beginPath(); c.ellipse(0, s * 0.2, s * 0.26, s * 0.08, 0, 0, TAU); c.fill();
+  if (deep < 0.5){ c.strokeStyle = `rgba(255,240,215,${0.55 * (1 - deep * 2)})`; c.lineWidth = s * 0.03; c.beginPath(); c.ellipse(0, 0, s * 0.38, s * 0.3, 0, Math.PI * 0.95, Math.PI * 1.5); c.stroke(); }
   if (deep < 0.75){
     /* a ridge of glowing fronds along its back, swaying */
     for (let k = 0; k < 4; k++){
@@ -311,7 +315,6 @@ export function glimmerback(c, x, y, s, t, side = 0, deep = 0, hop = 0){
       const wv = Math.sin(t * 4 + d) * s * 0.05, tx = d * s * 0.2 + wv, ty = -s * 0.62;
       c.strokeStyle = body; c.lineWidth = s * 0.035;
       c.beginPath(); c.moveTo(d * s * 0.08, -s * 0.22); c.quadraticCurveTo(d * s * 0.12, -s * 0.45, tx, ty); c.stroke();
-      if (deep < 0.4) glow(c, tx, ty, s * 0.1, '#ffe27a', 0.6 * (1 - deep));
       c.fillStyle = '#ffe27a'; circ0(c, tx, ty, s * 0.045);
     }
   }

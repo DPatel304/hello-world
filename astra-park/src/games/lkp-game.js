@@ -503,8 +503,10 @@ class LastKnownPosition {
          woods something huge left (seen from the pond: _rest) - fallen
          trees across it to dodge, and a log rolling down */
       /* (off to the left - towards the stomping - the main path going on straight) */
-      this.seg.corner = { d: at(s + 0.6), dir: -1, at: null, straightOn: true };
-      ROAD.surfaces.push({ d0: at(s + 1.2), d1: at(s + 30), kind: 'trampled' });
+      this.seg.corner = { d: at(s + 0.6), dir: -1, at: null, straightOn: true, sharp: 0.35 };
+      ROAD.surfaces.push({ d0: at(s + 0.7), d1: at(s + 30), kind: 'trampled' });
+      /* (the way it's flattened: wider than the path) */
+      ROAD.spans.push({ d0: at(s + 0.7), d1: at(s + 9), half: 1.6 });
       for (const [t, sd] of [[2.5, -1], [5, 1], [8, -1], [12.5, 1], [15.5, -1]]) this.things.push({ d: at(s + t), kind: 'trail', lane: sd * 1.9 });
       const fallen = (t, sd, w = 0.85) => { const a = sd < 0 ? -1.05 : 1.05 - w; add(t, { kind: 'blocker', a, b: a + w, seed: Math.floor(Math.random() * 100), fallen: true }); crystalLine(t - 0.6, sd < 0 ? 0.6 : -0.6, 4); };
       const f0 = side();
@@ -1502,7 +1504,7 @@ class LastKnownPosition {
      sharp turn swinging round once in a while; straight for the rooms. */
   _bend(){
     const seg = this.seg;
-    let curve = 0, corner = null, dir = 1;
+    let curve = 0, corner = null, dir = 1, sharp = 1;
     if (!this.boss){
       const want = seg.kind === 'corridor' || seg.kind === 'ride' ? 0.6 * Math.sin(this.z * 0.35) + 0.35 * Math.sin(this.z * 0.9 + 1) : 0;
       this.curveNow = (this.curveNow || 0) + (want - (this.curveNow || 0)) * 0.05;
@@ -1510,6 +1512,7 @@ class LastKnownPosition {
       const cn = seg.corner;
       if (cn){
         const rel = cn.d - this.z;
+        sharp = cn.sharp || 1;
         if (rel > RUN){ corner = rel; dir = cn.dir; }
         else {
           if (cn.at == null){ cn.at = this.t; turn(cn.dir); }
@@ -1518,7 +1521,7 @@ class LastKnownPosition {
         }
       }
     }
-    setBend(curve, corner, dir);
+    setBend(curve, corner, dir, sharp);
   }
 
   _drawItem(c, it, W, H){
