@@ -30,15 +30,23 @@ import { commanderFace } from './lkp-cast.js';
 import { figure } from './lkp-guide.js';
 
 export const INTRO_BEATS = [
-  { id: 'dark', time: 3, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
+  { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
+  { id: 'look', time: 2.8, shot: 'through the helmet, clear: the ship burning', blocking: 'nothing asked - a moment to take it in' },
+  { id: 'hands', until: 'fingers wiggled', max: 10, shot: 'the suit\'s gloves rising slowly into view', blocking: 'LOOK AT YOUR HANDS - wiggle your fingers' },
+  { id: 'drone', time: 6, shot: 'a little helper drone drifting in close, peering, shining its light; then aside', blocking: 'its chirp; then the call starts ringing' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, clear', blocking: 'the suit display rings: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re alive, on your feet' },
-  { id: 'rise', time: 2.4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
+  { id: 'rise', time: 4, shot: 'a blink: the game\'s own view, behind the crew', blocking: 'they get up on the path, by the burning ship' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, RISE = BEAT.rise.time;
 export const WAKE_MAX = BEAT.wake.max, RING_MAX = BEAT.call.max;
+export const LOOK = BEAT.look.time, HANDS_MAX = BEAT.hands.max, DRONE = BEAT.drone.time;
+/* Your hands: this long (seconds) of them moving each and you've seen
+   them; and the call rings at least RING_FIRST before an answer counts.
+   After she's spoken, a pause of SAID before you're up. */
+export const FINGERS = 1, RING_FIRST = 2, SAID = 1.4;
 /* Waking: moving (body sizes a second) more than STIR counts; WIGGLE
    seconds of it each and your share of the eyes is open - it slips back
    DROOP a second when you stop. */
@@ -92,8 +100,8 @@ export class Intro {
     this.radio.step(dt);
     this._stepDrone(dt);
     /* the gloves: in view once the eyes are opening, until they get up */
-    const handsOn = (this.stage === 'wake' && (this.notch || 0) >= 1) || this.stage === 'call' || this.stage === 'answer';
-    this.gloves = Math.max(0, Math.min(1, (this.gloves || 0) + (handsOn ? dt * 1.2 : -dt * 3)));
+    const handsOn = ['hands', 'drone', 'call', 'answer'].includes(this.stage);
+    this.gloves = Math.max(0, Math.min(1, (this.gloves || 0) + (handsOn ? dt * 0.45 : -dt * 2)));
     /* the heartbeat, while you're coming round */
     if (this.stage === 'dark' || this.stage === 'wake'){
       /* (the fire first; your heartbeat coming in after it) */
@@ -111,6 +119,9 @@ export class Intro {
     if (over || (b.time && this.st >= b.time) || (b.max && this.st >= b.max && (FORCE[b.id] ? (FORCE[b.id].call(this), true) : true))) this._next();
   }
 
+  /* How far the team's shown their hands, 0..1. */
+  _fingers(){ const here = this.g.here, w = this.waggle || []; return here.length ? here.reduce((a, i) => a + Math.min(1, (w[i] || 0) / FINGERS), 0) / here.length : 0; }
+
   /* The helper drone - a little round robot from the ship, a friendly
      screen for a face. Once your eyes are mostly open it floats in close,
      peering at you, shines its little light in your eyes and chirps; then
@@ -119,19 +130,21 @@ export class Intro {
   _stepDrone(dt){
     const s = this.stage, d = this.drone || (this.drone = { x: 1.25, y: 0.3, on: false, t: 0, light: 0 });
     d.t += dt;
-    const want = s === 'wake' && (this.notch || 0) >= 3 ? [0.66, 0.42] : s === 'call' ? [0.2, 0.36] : s === 'answer' ? [1.3, -0.2] : null;
+    const want = s === 'drone' ? (this.st < 4.4 ? [0.62, 0.42] : [0.2, 0.36]) : s === 'call' ? [0.2, 0.36] : s === 'answer' ? [1.3, -0.2] : null;
     if (want){
-      if (!d.on && s === 'wake'){ d.on = true; d.arrive = d.t; }
-      d.x += (want[0] - d.x) * Math.min(1, dt * 1.6); d.y += (want[1] - d.y) * Math.min(1, dt * 1.6);
+      if (!d.on && s === 'drone'){ d.on = true; d.arrive = d.t; }
+      const k = Math.min(1, dt * (s === 'answer' ? 0.8 : 0.9));
+      d.x += (want[0] - d.x) * k; d.y += (want[1] - d.y) * k;
     }
     /* arriving: a peer, a flash of its light, a chirp */
-    if (d.on && !d.chirped && d.t - d.arrive > 1.1){ d.chirped = true; d.light = 1; sfx.chirp?.(); }
+    if (d.on && !d.chirped && d.t - d.arrive > 3){ d.chirped = true; d.light = 1; sfx.chirp?.(); }
     if (s === 'call' && !d.patched){ d.patched = true; sfx.chirp?.(); }
     d.light = Math.max(0, d.light - dt * 0.9);
   }
   _drone(c, W, H, clear){
     const d = this.drone; if (!d || !d.on || d.x > 1.25) return;
-    const x = d.x * W, y = d.y * H + Math.sin(this.t * 2.2) * H * 0.012, r = H * (this.stage === 'wake' ? 0.11 : 0.07);
+    const near = this.stage === 'drone' && this.st < 4.4 ? Math.min(1, this.st / 2.5) : 0;
+    const x = d.x * W, y = d.y * H + Math.sin(this.t * 2.2) * H * 0.012, r = H * (0.07 + 0.05 * near);
     c.save();
     if (clear < 0.95){ try { c.filter = `blur(${Math.round((1 - clear) * 10)}px)`; } catch (e){} }
     /* its hover glow underneath */
@@ -207,7 +220,7 @@ export class Intro {
   _sounds(dt){
     const s = this.stage, clear = s === 'dark' ? 0 : s === 'wake' ? (this.notch || 0) / 4 : 1;
     if (s === 'rise' || this.done){ if (!this.fireOut){ this.fireOut = true; sfx.fireOut?.(); } return; }
-    const near = s === 'dark' || s === 'wake' ? 1 : 0.5;
+    const near = ['dark', 'wake', 'look', 'hands', 'drone'].includes(s) ? 1 : 0.5;
     /* (the ringing: just once, faintly, in the dark) */
     if (s === 'dark' && this.ringT == null){ this.ringT = this.t; sfx.earRing?.(1); }
     /* the fire: burning steadily, crackling all the time */
@@ -223,7 +236,7 @@ export class Intro {
       if (Math.random() < dt * 0.6 * clear) sfx.bird?.(clear);
     }
     /* and once, far off, something big calling across the hills */
-    if (!this.called && s === 'wake' && (this.notch || 0) >= 2){ this.called = true; sfx.giantCall?.(0.8); }
+    if (!this.called && s === 'look' && this.st > 0.8){ this.called = true; sfx.giantCall?.(0.8); }
   }
 
   /* Hand to the ear: a wrist up beside the head, near where the ear is.
@@ -248,6 +261,7 @@ export class Intro {
     else this._helmet(c, W, H);
     this._lids(c, W, H);
     if (s === 'wake'){ this._sparkles(c, W, H); banner(c, W, H, 'WIGGLE TO WAKE UP!', '#ffd24a', 1 + 0.03 * Math.sin(this.t * 6), this.wiggled); }
+    if (s === 'hands' && this.st > 1.2) banner(c, W, H, this.st < 3.2 ? 'LOOK AT YOUR HANDS!' : 'WIGGLE YOUR FINGERS!', '#ffd24a', 1 + 0.02 * Math.sin(this.t * 5), this.st < 3.2 ? 0 : this._fingers());
     if (s === 'call') this._ringing(c, W, H);
     this.radio.draw(c, W, H);
   }
@@ -436,29 +450,38 @@ const STEP = {
     if (notch < (this.notch || 0)) this.notch = notch;
     return this._settled(dt, (here.length > 0 && this.wiggled >= 1) || (!here.length && this.st > 3));
   },
+  look(){ return false; },
+  hands(dt){
+    /* their hands moving - waving, wiggling - each FINGERS seconds' worth */
+    const here = this.g.here; this.waggle = this.waggle || pose.players.map(() => 0);
+    for (const i of here){ const p = pose.players[i], sp = Math.max(p.hands.left.speed || 0, p.hands.right.speed || 0); if (sp > 0.5 && this.st > 1.2) this.waggle[i] = Math.min(FINGERS, this.waggle[i] + dt); }
+    return this._settled(dt, this.st > 2.5 && (here.length ? here.every(i => this.waggle[i] >= FINGERS) : this.st > 4));
+  },
+  drone(){ return false; },
   call(dt){
     const here = this.g.here;
     if (Math.random() < dt * 1.5) sfx.trill?.();
     for (const i of here){
-      if (this.answered[i]) continue;
+      if (this.answered[i] || this.st < RING_FIRST) continue;
       this.ear[i] = this._atEar(i) ? this.ear[i] + dt : Math.max(0, this.ear[i] - dt * 2);
       if (this.ear[i] >= HOLD){ this.answered[i] = true; sfx.pick(); }
     }
     return this._settled(dt, here.every(i => this.answered[i]));
   },
-  answer(){ return !this.radio.busy; },
+  /* her words; then a quiet moment */
+  answer(dt){ this.quiet = this.radio.busy ? 0 : (this.quiet || 0) + dt; return this.quiet >= SAID; },
   rise(dt){
     /* up off the ground, one after another - and, as they get up, the
        rest of what she has to say */
-    this.g.here.forEach((i, k) => { if (this.st > 0.6 + k * 0.15) this.up[i] = Math.min(1, this.up[i] + dt / 0.8); });
-    if (!this.toldRise && this.st > 0.7){ this.toldRise = true; const l = this.g.level.lines.rise; if (l) this.g.captain.say(l[0][1], l[0][2] || ''); }
+    this.g.here.forEach((i, k) => { if (this.st > 0.9 + k * 0.3) this.up[i] = Math.min(1, this.up[i] + dt / 1.6); });
+    if (!this.toldRise && this.st > 1.2){ this.toldRise = true; const l = this.g.level.lines.rise; if (l) this.g.captain.say(l[0][1], l[0][2] || ''); }
     return false;
   }
 };
 /* How open the eyes want to be, in each beat. */
 const EYES = {
   /* closed - a flutter open - closed again */
-  dark(){ const u = (this.st - 1.1) / 1.3; return u > 0 && u < 1 ? 0.35 * Math.sin(u * Math.PI) * (0.8 + 0.2 * Math.sin(this.t * 20)) : 0; },
+  dark(){ const u = (this.st - 2.6) / 1.4; return u > 0 && u < 1 ? 0.35 * Math.sin(u * Math.PI) * (0.8 + 0.2 * Math.sin(this.t * 20)) : 0; },
   /* opening as they wiggle, a little heavy flicker while they're still low */
   wake(){
     /* a notch at a time, with a quick flutter as each one opens */
@@ -466,6 +489,9 @@ const EYES = {
     const flutter = since < 0.35 ? 0.25 * Math.sin(since / 0.35 * Math.PI) : 0;
     return Math.min(1, 0.1 + n / 4 * 0.9 - flutter + (n < 2 ? 0.03 * Math.sin(this.t * 3) : 0));
   },
+  look(){ return 1; },
+  hands(){ return 1; },
+  drone(){ return 1; },
   call(){ return 1; },
   answer(){ return 1; },
   /* the blink: shut, then open outside */
@@ -473,6 +499,7 @@ const EYES = {
 };
 /* When a beat's waited as long as it will: as if everyone had done it. */
 const FORCE = {
+  hands(){ this.waggle = pose.players.map(() => FINGERS); },
   wake(){ for (const i of this.g.here) this.woke[i] = WIGGLE; },
   call(){ for (const i of this.g.here) this.answered[i] = true; }
 };

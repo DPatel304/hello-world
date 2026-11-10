@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, DARK, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, DARK, LOOK, HANDS_MAX, DRONE, RING_FIRST, SAID, WIGGLE, RISE, WAKE_MAX, RING_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
@@ -23,11 +23,11 @@ const fake = () => new Proxy({}, { get: (_, k) => k === 'createLinearGradient' |
 const say = (inst, kind) => script(kind, inst).reduce((s, [who, text]) => s + lineTime(text.replace(/^k+s+h+\s*[-\u2014]\s*/i, ''), who) + 0.5, 0);
 const hands = (i, x, y, speed = 0) => { pose.players[i].hands.right = { x, y, vx: 0, vy: 0, speed }; };
 
-test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, a blink, and off', () => {
+test('the opening: waking up in the helmet - wiggle the eyes open, a look round, your hands, the drone, answer Nova, a blink, and off - each step given time', () => {
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['dark', 'wake', 'call', 'answer', 'rise']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['dark', 'wake', 'look', 'hands', 'drone', 'call', 'answer', 'rise']);
   const z = inst.z;
   run(inst, DARK + 0.1);
   assert.equal(intro.stage, 'wake');
@@ -42,10 +42,29 @@ test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, 
   assert.ok(intro.wiggled <= was);
   for (let k = 0; k < (WIGGLE + 1.5) / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
   hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
+  /* a moment just to look */
+  assert.equal(intro.stage, 'look');
+  run(inst, LOOK - intro.st - 0.3);
+  assert.equal(intro.stage, 'look', 'nothing hurried');
+  run(inst, 0.5);
+  assert.equal(intro.stage, 'hands');
+  inst.draw(fake(), W, H);
+  /* your hands: waiting till they're moved */
+  run(inst, 3);
+  assert.equal(intro.stage, 'hands', 'waits for your hands');
+  for (let k = 0; k < 2.5 / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
+  hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
+  run(inst, 0.6);
+  assert.equal(intro.stage, 'drone');
+  inst.draw(fake(), W, H);
+  run(inst, DRONE + 0.1);
   assert.equal(intro.stage, 'call');
   inst.draw(fake(), W, H);
+  /* it rings a while before an answer counts */
+  hands(0, 0.5, 0.1); run(inst, RING_FIRST - intro.st - 0.4);
+  assert.ok(!intro.answered[0], 'a moment to hear it ring');
+  run(inst, 1); hands(0, 0.5, 0.5);
   /* everyone answers - one isn't enough */
-  hands(0, 0.5, 0.1); run(inst, 0.6); hands(0, 0.5, 0.5);
   assert.ok(intro.answered[0] && !intro.answered[1]);
   run(inst, 1.5);
   assert.equal(intro.stage, 'call');
@@ -54,7 +73,7 @@ test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, 
   assert.equal(intro.stage, 'answer');
   assert.ok(intro.radio.busy && intro.radio.visible);
   inst.draw(fake(), W, H);
-  run(inst, say(inst, 'wakeup') + 0.3);
+  run(inst, say(inst, 'wakeup') + SAID + 0.3);
   assert.equal(intro.stage, 'rise');
   for (let k = 0; k < 40 && inst.scene; k++){ inst.step(DT, W, H); assert.equal(inst.z, z, 'nothing moves till it\'s done'); if (k % 10 === 0) inst.draw(fake(), W, H); }
   run(inst, RISE);
@@ -68,7 +87,7 @@ test('the opening: waking up in the helmet - wiggle the eyes open, answer Nova, 
 test('nobody waking or answering never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = DARK + WAKE_MAX + 1 + RING_MAX + 1 + say(inst, 'wakeup') + 1 + RISE + 1;
+  const most = DARK + WAKE_MAX + 1 + LOOK + HANDS_MAX + 1 + DRONE + RING_MAX + 1 + say(inst, 'wakeup') + SAID + 1 + RISE + 1;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   story.on = false;

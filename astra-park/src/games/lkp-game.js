@@ -69,6 +69,8 @@ const FULL = [86, 50, 36, 52, 40];                      /* seconds of each corri
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
+/* Up from the crash, they set off walking, up to a run over WALK_IN seconds. */
+export const WALK_IN = 4;
 /* The crash site at the start of the first corridor [lane, depth, size]. */
 /* (the crash site's layout: lkp-crashsite.js SITE) */
 export const CRASH = SITE;
@@ -454,7 +456,7 @@ class LastKnownPosition {
     /* A scene: nothing else moves till it's done. */
     if (this.scene){
       this.scene.step(dt);
-      if (this.scene.done) this.scene = null;
+      if (this.scene.done){ if (this.scene.kind === 'intro') this.walkIn = 0; this.scene = null; }
       this._stepBits(dt);
       return;
     }
@@ -512,6 +514,8 @@ class LastKnownPosition {
        for it.) */
     if (seg.kind === 'corridor'){
       this._events(dt, W, H);
+      /* off from the crash site: walking at first, building up to a run */
+      if (this.walkIn != null && this.walkIn < WALK_IN){ this.walkIn += dt; const u = Math.min(1, this.walkIn / WALK_IN); want *= 0.3 + 0.7 * u * u * (3 - 2 * u); }
       this._bubbles(dt, W, H);
       if (this.zip) want = this.zip.speed(SPEED);
       else if (this.leap) want = this.leap.speed(SPEED);
