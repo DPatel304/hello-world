@@ -10,7 +10,7 @@ import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
 import { TeamJump } from './lkp-leap.js';
 import { Ride } from './lkp-ride.js';
-import { Roll } from './lkp-roll.js';
+import { Roll, SNAP_AT, HOLD as SNAP_HOLD, FLY as SNAP_FLY } from './lkp-roll.js';
 import { worldCrewFront } from './lkp-cast.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
@@ -1168,7 +1168,7 @@ class LastKnownPosition {
     /* The sleepy roll: its own view, looking back up the hill at them. */
     if (this.roll){
       c.save();
-      this.roll.draw(c, W, H, (i, x, y, h) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true }));
+      this.roll.draw(c, W, H, (i, x, y, h) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, shout: this.roll.shout, moment: this.roll.snapped && !(this.roll.phase === 'in' && this.roll.pt < SNAP_AT + SNAP_HOLD + SNAP_FLY) }));
       this._drawBits(c, W, H);
       c.restore();
       this.roll.marks(c, W, H);
@@ -1365,8 +1365,9 @@ class LastKnownPosition {
     (at && at.front ? worldCrewFront : drawCrew)(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
       { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
-        if (here && this.faces.has(i)) this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]);
-        else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
+        /* (the sleepy roll: the picture of them screaming, once it's taken) */
+        if (here && this.faces.has(i)) (at && at.moment ? this.faces.drawMoment(c, i, x, y, r, PLAYER_COLORS[i]) : this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]));
+        else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i], !!(at && at.shout));
       });
     /* The rescue bubble round them, and how many claps it's had. */
     if (bub){

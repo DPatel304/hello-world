@@ -14,6 +14,11 @@
    down past the crew too, and crystals shaken out of her garden.
 
      in     a moment to see it: she tips off the top and starts rolling
+            - "3, 2, 1... SCREAM!": everyone screams, and the camera snaps
+            each of them mid-scream (a flash); the pictures pop up big,
+            then fly into their visors - their screaming faces, running
+            from her all the way down (lkp-ui faces.js photo: memory only,
+            like every picture)
      run    RUN! Running on the spot - the team's average - keeps ahead of
             her; stand still and she gains. If she catches up: a big soft
             BOING, she bounces off them and back up the hill a way. Lean
@@ -25,7 +30,7 @@
 
    Distances are up the hill from the crew (R): 0 is where they run, more
    is further up, a little less than 0 is right by the camera. */
-import { pose } from '../tracking/pose.js';
+import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MarchWatch } from '../tracking/gestures.js';
 import { drawCrystal, PAL } from './lkp-art.js';
@@ -34,7 +39,11 @@ import { ZUBU, snoreWord, SNORE, drawZubuBall } from './lkp-zubu.js';
 import { banner, smooth } from './lkp-zip.js';
 
 /* Seconds: the moment to see her start; the run; rolling to a stop. */
-export const IN = 3, ROLL = 30, STOP = 6;
+export const IN = 5.6, ROLL = 30, STOP = 6;
+/* In the moment before: "3, 2, 1" from COUNT (a number a beat, BEAT
+   seconds), SCREAM! at SCREAM, the snap a moment after (mouths open), the
+   pictures held up big for a moment, then into the visors. */
+export const COUNT = 1.4, BEAT = 0.7, SCREAM = COUNT + 3 * BEAT, SNAP_AT = SCREAM + 0.3, HOLD = 0.9, FLY = 0.6;
 /* How far up the hill she is to start with (distances), as close as she
    gets before the BOING, and where that bounces her back to; how far she
    can drop behind. */
@@ -71,8 +80,10 @@ export class Roll {
     this.march = pose.players.map(() => 0);
     this.rolling = [];
     this.next = 1.2; this.bonks = 0; this.count = 0; this.petals = [];
-    this.fade = 0;
+    this.fade = 0; this.snapped = false; this.counted = 0;
   }
+  /* Screaming, from the SCREAM! on (the cartoon kids too, with no camera). */
+  get shout(){ return this.phase !== 'in' || this.pt >= SCREAM; }
   _say(key){ const l = this.g.level.lines[key]; if (l && this.talk) this.g.captain.say(l[0][1], l[0][2] || ''); }
 
   /* How fast they're running (the game's speed): on the spot, and to a
@@ -116,6 +127,15 @@ export class Roll {
     }
 
     if (this.phase === 'in'){
+      /* 3, 2, 1 ... SCREAM! - and the snap */
+      const n = Math.floor((this.pt - COUNT) / BEAT);
+      if (this.pt >= COUNT && n >= this.counted && n < 3){ this.counted = n + 1; sfx.tick(); }
+      if (this.pt >= SCREAM && this.counted < 4){ this.counted = 4; sfx.beep(true); }
+      if (this.pt >= SNAP_AT && !this.snapped){
+        this.snapped = true;
+        for (const i of here) g.faces && g.faces.photo && g.faces.photo(i);
+        sfx.pop(0.7);
+      }
       if (this.pt >= IN){ this.phase = 'run'; this.pt = 0; this._say('rollStart'); }
     } else if (this.phase === 'run'){
       /* she gains, they pull away */
@@ -219,6 +239,9 @@ export class Roll {
       c.translate(p.x * W, p.y * H); c.rotate(p.spin + p.age * 3); c.beginPath(); c.ellipse(0, 0, p.r * H, p.r * H * 0.5, 0, 0, 6.2832); c.fill(); c.restore();
     }
     c.restore();
+    /* the camera's flash */
+    const fl = this.phase === 'in' ? 1 - (this.pt - SNAP_AT) / 0.35 : 0;
+    if (fl > 0 && fl <= 1){ c.fillStyle = `rgba(255,255,255,${0.85 * fl})`; c.fillRect(0, 0, W, H); }
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }
   }
 
@@ -276,6 +299,7 @@ export class Roll {
     c.fillStyle = 'rgba(20,40,30,.3)'; c.beginPath(); c.ellipse(zb.x, g.y, zb.r * (0.9 - Math.min(0.4, this.hop * 0.2)), zb.r * 0.16, 0, 0, 6.2832); c.fill();
     drawZubuBall(c, zb.x, zb.y, zb.r, this.spin, this.t, Math.max(0, 0.07 - this.hop * 0.5));
     /* the snore, floating up off her */
+    if (this.phase === 'in' && this.pt > COUNT - 0.3) return;   /* (quiet for the countdown) */
     const ph = (this.t % (SNORE / 2)) / (SNORE / 2), word = snoreWord(this.t);
     c.save(); c.globalAlpha = Math.sin(Math.min(1, ph * 1.15) * Math.PI);
     const fs = Math.round(H * (0.045 + 0.02 * ph));
@@ -322,9 +346,37 @@ export class Roll {
     c.restore();
   }
 
+  /* Their screaming faces, just snapped: held up big over each of them,
+     then flying into their visors. */
+  _pictures(c, W, H){
+    const g = this.g, f = g.faces;
+    if (!this.snapped || !f || !f.drawMoment) return;
+    const u = smooth((this.pt - SNAP_AT - HOLD) / FLY), pop = smooth((this.pt - SNAP_AT) / 0.25);
+    if (u >= 1) return;
+    const h = H * CREW_H;
+    for (const i of g.here){
+      if (!f.has(i)) continue;
+      const rn = g.crew[i], p = R(rn.x, 0, W, H);
+      const x = p.x, y = H * 0.4 + (p.y - h * 0.83 - H * 0.4) * u, r = (H * 0.11 * (0.6 + 0.4 * pop)) * (1 - u) + h * 0.075 * u;
+      c.save(); c.globalAlpha = pop;
+      c.fillStyle = '#ffffff'; c.beginPath(); c.arc(x, y, r * 1.12, 0, 6.2832); c.fill();
+      f.drawMoment(c, i, x, y, r, PLAYER_COLORS[i]);
+      c.restore();
+    }
+  }
+
   /* The words. */
   marks(c, W, H){
-    if (this.phase === 'in' && this.pt > 1) banner(c, W, H, 'UH-OH...', '#ffe39a', 1 + 0.03 * Math.sin(this.t * 5));
+    if (this.phase === 'in'){
+      const pt = this.pt;
+      if (pt > 0.6 && pt < COUNT) banner(c, W, H, 'UH-OH...', '#ffe39a', 1 + 0.03 * Math.sin(this.t * 5));
+      else if (pt >= COUNT && pt < SCREAM){
+        const n = Math.floor((pt - COUNT) / BEAT), f = (pt - COUNT) / BEAT - n;
+        banner(c, W, H, 'GET READY TO SCREAM!', '#ffffff', 0.7, H * 0.2);
+        banner(c, W, H, String(3 - n), '#ffe39a', 1.6 - f * 0.4, H * 0.36);
+      } else if (pt >= SCREAM && pt < SNAP_AT + HOLD) banner(c, W, H, 'AAAAAH!', '#ffd24a', 1.2 + 0.08 * Math.sin(this.t * 30));
+      this._pictures(c, W, H);
+    }
     if (this.phase === 'run' && this.pt < 5) banner(c, W, H, 'RUN!', '#ffd24a', 1.1 + 0.05 * Math.sin(this.t * 8));
     if (this.phase === 'run' && this.gap < NEAR + 0.5 && this.pt >= 5) banner(c, W, H, 'FASTER!', '#ffd24a', 1 + 0.05 * Math.sin(this.t * 10));
   }

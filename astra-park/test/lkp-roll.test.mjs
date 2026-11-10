@@ -49,3 +49,19 @@ test('the sleepy roll never hurts: caught up, or bumped by what rolls down, it\'
   go(inst, ROLL + STOP + AFTER.roll + 2, 0.5);
   assert.equal(inst.phase, 'corridor');
 });
+
+test('before the roll: 3, 2, 1... SCREAM! - and everyone\'s snapped mid-scream, for their visors', async () => {
+  const { SCREAM, SNAP_AT } = await import('../src/games/lkp-roll.js');
+  const inst = atRoll(2);
+  const took = [];
+  inst.faces.photo = (i) => { took.push(i); return true; };
+  go(inst, SCREAM - 0.1, 1);
+  assert.equal(inst.roll.shout, false);
+  assert.equal(took.length, 0, 'not yet');
+  go(inst, SNAP_AT - SCREAM + 0.2, 1);
+  assert.ok(inst.roll.shout, 'screaming');
+  assert.deepEqual(took.sort(), [0, 1], 'one picture each, once');
+  go(inst, 3, 1);
+  assert.deepEqual(took.sort(), [0, 1]);
+  inst.draw(canvas(), W, H);
+});
