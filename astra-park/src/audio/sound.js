@@ -579,6 +579,12 @@ export const sfx = {
   hmm(){ blip({ freq: 440, to: 520, dur: 0.11, type: 'triangle', gain: 0.13 }); blip({ freq: 560, to: 760, dur: 0.15, type: 'triangle', gain: 0.13, delay: 0.13 }); },
   /* Startled: a quick little "eep!" up, and the suit rustling as you jump. */
   startle(){ blip({ freq: 520, to: 1250, dur: 0.12, type: 'triangle', gain: 0.18 }); blip({ freq: 260, to: 620, dur: 0.1, type: 'sine', gain: 0.14 }); hiss({ dur: 0.22, gain: 0.06, hp: 1500 }); },
+  /* "Hey!" - a bright little hello, up. */
+  hey(){ blip({ freq: 600, to: 700, dur: 0.09, type: 'triangle', gain: 0.13 }); blip({ freq: 820, to: 1000, dur: 0.16, type: 'triangle', gain: 0.13, delay: 0.1 }); },
+  /* A shrug: "dunno" - down, then up. */
+  dunno(){ blip({ freq: 560, to: 430, dur: 0.14, type: 'triangle', gain: 0.12 }); blip({ freq: 430, to: 600, dur: 0.18, type: 'triangle', gain: 0.12, delay: 0.17 }); },
+  /* The visor's display coming away: a soft electronic swish, down. */
+  hudOff(){ blip({ freq: 1400, to: 300, dur: 0.45, type: 'sine', gain: 0.08 }); hiss({ dur: 0.4, gain: 0.04, hp: 3000, sweep: -2400 }); },
   /* A pat on the suit: a soft, padded thump. */
   pat(){ blip({ freq: 210, to: 130, dur: 0.07, type: 'sine', gain: 0.22 }); hiss({ dur: 0.04, gain: 0.04, hp: 1200 }); },
   /* Springing up: a rising boing. */

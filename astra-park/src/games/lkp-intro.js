@@ -37,7 +37,7 @@ import { MoveWatch } from '../tracking/gestures.js';
 import { SKY, mix } from './lkp-world.js';
 import { Radio, script, novaBox } from './lkp-captain.js';
 import { novaFeed } from './lkp-nova.js';
-import { commanderFace, mirrorBody } from './lkp-cast.js';
+import { commanderFace, mirrorBody, worldCrewFront } from './lkp-cast.js';
 import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { P } from './lkp-art.js';
 import { CREW_SIZE } from './lkp-game.js';
@@ -56,7 +56,7 @@ export const INTRO_BEATS = [
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, looking at the ship', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her lines said', lines: 'wakeup, vitals', shot: 'through the helmet; her window top left', blocking: 'Nova: do you read me? how are your vitals?' },
   { id: 'vitals', until: 'her line said', lines: 'hurt', max: 16, shot: 'through the helmet: each one\'s health bar popping up on the visor, filling - and stopping three-quarters of the way', blocking: 'Nova: you took some damage - can you stand?' },
-  { id: 'out', time: 6, shot: 'the head turning to the path; the camera pulling straight back out over your shoulder into the game\'s view - the crew sat in the grass', blocking: 'nothing asked' },
+  { id: 'out', time: 6.8, shot: 'the head turning: your crew, sat right beside you - one waves, one shrugs; then the camera rising up and back out over your shoulder into the game\'s view, the helmet\'s display coming away with it - your health bar flying down onto your own astronaut', blocking: 'nothing asked' },
   { id: 'rise', until: 'everyone up', max: 12, shot: 'the game\'s view: each astronaut, one after another, looking themselves over - an arm, a pat of the legs - then springing up onto their feet, ta-da', blocking: 'no words: they answer her by doing it' },
   { id: 'move', until: 'everyone wiggled, and a while to play', max: 30, shot: 'the game\'s view: each astronaut bouncing as their player wiggles', blocking: 'Nova: can you move? - everyone wiggling' },
   { id: 'go', time: 1, shot: 'behind them on the path, setting off', blocking: 'Nova: follow that path' }
@@ -97,6 +97,9 @@ const ZOOM_IN = 1.76;
    the top left of it - and STARTLE seconds in, you jump, and look straight
    at it (SNAP seconds, the head jerking round), then follow it. */
 const SEE = 2, STARTLE = 2.6, SNAP = 0.35;
+/* Turning to your crew, sat right beside you: the head coming round over
+   LOOK seconds; one of them waving at WAVE, another shrugging at SHRUG. */
+const LOOK = 1.3, WAVE = 1.4, SHRUG = 1.9;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -105,7 +108,7 @@ const GRASS = 0;   /* (on the path itself: the camera comes out over their shoul
 /* Out of your eyes and back over your shoulder: how long (seconds into
    the pull), and how far round your head turns to look down the path
    (POV pan: the path's middle, from looking at the ship). */
-const TURN = 2.2, OUT = 3.4, TO_PATH = -(0.5 - POV.cx) * POV.s * 0.82;
+const TURN = 2.9, OUT = 3.4, TO_PATH = -(0.5 - POV.cx) * POV.s * 0.82;
 /* A moment after it's done. */
 const AFTER = 0.5;
 /* The health bar: popping up, then filling to START
@@ -274,6 +277,7 @@ export class Intro {
       c.globalAlpha = 0.45 * (1 - clear); c.drawImage(buf, W * 0.035 * (1 - clear), H * 0.01 * (1 - clear), W, H);
       c.restore();
     } else view(c);
+    if (this.stage === 'out') this._beside(c, W, H, 1);
     /* the edges: dark, pulsing red with the heartbeat */
     const beat = Math.exp(-(this.t - (this.beatAt ?? -9)) * 4) * (1 - clear * 0.7);
     const vg = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.62);
@@ -312,7 +316,7 @@ export class Intro {
     }
     /* the ship, glimpsed beyond it: the view settling there, and staying */
     if (s === 'notice'){ const u = e((t - 0.4) / 3); return { ...at, pan: on.pan * (1 - u), down: on.down * (1 - u) }; }
-    if (s === 'out'){ const u = e(t / TURN); return { ...at, pan: TO_PATH * u, down: 0 }; }
+    if (s === 'out'){ const u = e(t / LOOK); return { ...at, pan: TO_PATH * u, down: 0 }; }
     return { ...at, pan: 0, down: 0 };
   }
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
@@ -339,16 +343,19 @@ export class Intro {
     /* a gleam across the glass */
     c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = H * 0.05; c.lineCap = 'round';
     c.beginPath(); c.ellipse(W / 2, H * 0.55, W * 0.46, H * 0.52, 0, Math.PI * 1.12, Math.PI * 1.36); c.stroke();
-    if (hud > 0){
-      c.globalAlpha = hud * (0.75 + 0.05 * Math.sin(this.t * 3));
+    /* (coming away, as the camera pulls out: the brackets sliding off to the corners, the strip up off the top) */
+    const away = this.detach || 0;
+    if (hud > 0 && away < 1){
+      c.globalAlpha = hud * (0.75 + 0.05 * Math.sin(this.t * 3)) * (1 - away);
       c.strokeStyle = '#7ff3ff'; c.lineWidth = Math.max(2, H * 0.003); c.lineCap = 'square';
       /* corner brackets */
       const m = H * 0.09, L = H * 0.05;
-      for (const [x, y, dx, dy] of [[W * 0.12, m, 1, 1], [W * 0.88, m, -1, 1], [W * 0.12, H - m, 1, -1], [W * 0.88, H - m, -1, -1]]){
+      for (const [x0, y0, dx, dy] of [[W * 0.12, m, 1, 1], [W * 0.88, m, -1, 1], [W * 0.12, H - m, 1, -1], [W * 0.88, H - m, -1, -1]]){
+        const x = x0 - dx * away * W * 0.16, y = y0 - dy * away * H * 0.2;
         c.beginPath(); c.moveTo(x, y + dy * L); c.lineTo(x, y); c.lineTo(x + dx * L, y); c.stroke();
       }
       /* a heading strip at the top, ticks sliding as you look round */
-      const look = this._looking(), y0 = H * 0.075, off = (look.pan || 0) * W * 0.25;
+      const look = this._looking(), y0 = H * (0.075 - 0.15 * away), off = (look.pan || 0) * W * 0.25;
       c.lineWidth = Math.max(1.5, H * 0.002);
       c.beginPath(); c.moveTo(W * 0.4, y0); c.lineTo(W * 0.6, y0); c.stroke();
       for (let k = -12; k <= 12; k++){ const x = W / 2 + k * W * 0.015 + (off % (W * 0.015)); if (x < W * 0.4 || x > W * 0.6) continue; c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y0 - H * (k % 4 === 0 ? 0.014 : 0.007)); c.stroke(); }
@@ -357,7 +364,7 @@ export class Intro {
     }
     /* your health bar, bottom left, once she asks: popping up, filling -
        and stopping short, three-quarters full */
-    if (this.vitT != null) this._vitals(c, W, H, this.vitT);
+    if (this.vitT != null && !this.detach) this._vitals(c, W, H, this.vitT);
     c.restore();
   }
 
@@ -497,6 +504,9 @@ export class Intro {
     this._outside(c, W, H);
     SKY.above = 0; SKY.wide = 0;
     c.restore();
+    /* your crew beside you, gone as you come out of your eyes */
+    this._beside(c, W, H, Math.max(0, 1 - u0 * 8));
+    this.detach = Math.min(1, u0 * 2.2);
     /* the helmet round you, going */
     const a = Math.pow(1 - u, 1.5);
     if (a > 0.01){
@@ -507,6 +517,47 @@ export class Intro {
       this._visor(c, W, H);
       c.restore();
     }
+    this.detach = 0;
+    /* ...and your health bar coming with you: off the visor, flying down
+       onto your own astronaut - landing where it sits over their head */
+    this._barFlies(c, W, H, u0, (x, y) => {
+      const rot = POV.tilt * (1 - look.rise * 0.45) * (1 - look.up) * (1 - u);
+      const px = (x - lerp(C[0], W / 2)) * s + lerp(A[0], W / 2) - W / 2, py = (y - lerp(C[1], H / 2)) * s + lerp(A[1], H / 2) - H / 2;
+      return [W / 2 + px * Math.cos(rot) - py * Math.sin(rot), H / 2 + px * Math.sin(rot) + py * Math.cos(rot), s];
+    });
+  }
+  /* Your health bar, flying from the visor's corner to over your own
+     astronaut's head (world: where a point in the game's view is on the
+     screen right now, and the scale). */
+  _barFlies(c, W, H, p, world){
+    const i = this.g.here[0]; if (i == null || this.vitT == null) return;
+    const q = P(this._lane(i), RUN_AT, W, H), h = H * CREW_SIZE * q.k, top = q.y - h + h * 0.34;
+    const bw = h * 0.53, [tx, ty, sc] = world(q.x, top - H * 0.03);
+    const to = { x: tx - bw * sc / 2, y: ty, w: bw * sc, h: bw * 0.16 * sc };
+    const from = { x: W * 0.05, y: H * 0.84, w: H * 0.34, h: H * 0.04 };
+    const k0 = Math.max(0, Math.min(1, (p - 0.1) / 0.75)), k = k0 * k0 * (3 - 2 * k0), arc = Math.sin(k * Math.PI) * H * 0.12;
+    const L = (a, b) => a + (b - a) * k, r = { x: L(from.x, to.x), y: L(from.y, to.y) - arc, w: L(from.w, to.w), h: L(from.h, to.h) };
+    c.save();
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6);
+    c.fillStyle = '#3fd07a'; c.fillRect(r.x, r.y, r.w * START, r.h);
+    if (k < 1){ c.globalAlpha = 1 - k; c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(r.x, r.y, r.w * START, r.h * 0.35); }
+    c.restore();
+  }
+  /* Your crew, sat right beside you on the grass - close, from the waist
+     up - coming into view as your head turns their way (a, how much). One
+     waves at you, one shrugs, one looks themselves over. */
+  _beside(c, W, H, a){
+    const g = this.g, them = g.here.slice(1);
+    if (!them.length || a <= 0.01) return;
+    const t = this.st, k0 = Math.max(0, Math.min(1, t / LOOK)), slide = (1 - k0 * k0 * (3 - 2 * k0)) * W * 0.75;
+    c.save(); c.globalAlpha = a;
+    for (let j = them.length - 1; j >= 0; j--){
+      const i = them[j], h = H * (0.95 - 0.12 * j), x = W * (0.5 + 0.24 * j) + slide, base = H + h * 0.3;
+      const pose = j === 0 ? (t >= WAVE ? 'wave' : null) : j === 1 ? (t >= SHRUG ? 'shrug' : null) : 'check';
+      const face = g.faces && g.faces.has(i) ? (fx, fy, r) => g.faces.draw(c, i, fx, fy, r, PLAYER_COLORS[i]) : null;
+      worldCrewFront(c, x, base, h, this.t + i, PLAYER_COLORS[i], { pose, look: -0.6 + 0.1 * j, air: j === 1 && t >= SHRUG && t < SHRUG + 0.4 ? Math.sin((t - SHRUG) / 0.4 * Math.PI) * h * 0.02 : 0 }, face);
+    }
+    c.restore();
   }
   /* Behind them, in the game's own view. */
   _cine(c, W, H){ this._outside(c, W, H); }
@@ -543,7 +594,7 @@ export class Intro {
   }
   _outside(c, W, H){
     const g = this.g;
-    g.introCrew = g.here.map((i, k) => { const a = this._act(i, k); return { i, lane: this._lane(i), rel: RUN_AT, down: 0, ground: a.ground != null ? a.ground : 1 - easeOut(this.up[i]), noBar: this.stage === 'out' && this.st < TURN, pose: a.pose, look: a.look, bob: a.bob || 0, body: a.body || null, sq: a.sq || 1, nod: a.nod || 0 }; });
+    g.introCrew = g.here.map((i, k) => { const a = this._act(i, k); return { i, lane: this._lane(i), rel: RUN_AT, down: 0, ground: a.ground != null ? a.ground : 1 - easeOut(this.up[i]), noBar: this.stage === 'out' && (this.st < TURN || i === g.here[0]), pose: a.pose, look: a.look, bob: a.bob || 0, body: a.body || null, sq: a.sq || 1, nod: a.nod || 0 }; });
     g.inIntro = true;
     g._drawPlay(c, W, H);
     g.inIntro = false; g.introCrew = null;
@@ -565,7 +616,14 @@ const STEP = {
   wake(){ if (!this.booted && this.st > WAKE * 0.8){ this.booted = true; sfx.visorOn?.(); } return false; },
   watch(){ if (!this.jumped && this.st >= STARTLE){ this.jumped = true; sfx.startle?.(); } return false; },
   notice(){ return false; },
-  out(){ if (!this.pulled && this.st >= TURN){ this.pulled = true; sfx.pullBack?.(); } return false; },
+  out(){
+    const two = this.g.here.length > 1, three = this.g.here.length > 2;
+    if (two && !this.waved && this.st >= WAVE){ this.waved = true; sfx.hey?.(); }
+    if (three && !this.shrugged && this.st >= SHRUG){ this.shrugged = true; sfx.dunno?.(); }
+    if (!this.pulled && this.st >= TURN){ this.pulled = true; sfx.pullBack?.(); sfx.hudOff?.(); }
+    if (!this.landed && this.st >= TURN + OUT * 0.85){ this.landed = true; sfx.pop?.(0.3); }
+    return false;
+  },
   /* on your feet: up they get, one after another */
   /* on their feet - no words: each one looks themselves over, then springs up */
   rise(){
