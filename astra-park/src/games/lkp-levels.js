@@ -94,9 +94,25 @@ export const LEVELS = [
         ['nova', 'My scans show a signal up ahead. I think it\'s the engine piece! Find it, and we can get you home.', 'FIND THE ENGINE PIECE'],
         ['nova', 'Your suits took a knock in the crash. Keep an eye out for somewhere to heal up.', '']
       ],
+      /* More of her story, as they walk: where they are. */
+      lore: [
+        ['nova', 'And crew \u2014 you\'re the first explorers ever to set foot on this planet. We call it Verdant. Nobody has ever seen any of this before.', ''],
+        ['nova', 'I\'m up here on the Meridian, orbiting high above you. Get that engine piece back in your ship, and you can fly up and meet me.', '']
+      ],
+      /* Looking up (lkp-game.js _vista): what lives in the sky. */
+      skyLook: [['nova', 'Crew, look up! Up in the sky! Floating jellies... they\'re drifting on the wind. Beautiful!', 'LOOK UP!']],
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
-      pondView: [['nova', 'Take a moment, crew. Look around you... Nobody\'s ever stood here before. It\'s beautiful.', 'LOOK AROUND']],
+      pondView: [['nova', 'Now look down, into the water. See them, swimming round your boots? Little glowing fish! I think they\'re what makes this water heal.', 'LOOK DOWN']],
+      /* and while they heal, a little more (lkp-game.js _rest) */
+      pondStory: [
+        ['nova', 'Here\'s something strange. Just before you crashed, my scanners picked up something in these woods. Something big. Really big.', ''],
+        ['nova', 'Its readings are slow... and calm. Almost like it\'s sleeping. Let\'s hope it stays that way.', '']
+      ],
+      /* then the ground shakes, and far off, the trees come down */
+      rumble: [['nova', 'Whoa! Did you feel that?', '']],
+      farView: [['nova', 'Look, way over there! The trees are falling... something huge is pushing right through them.', '']],
+      offTrail: [['nova', 'And the engine signal? It\'s coming from that way too. We\'re leaving the trail, crew. Follow that path \u2014 and watch out for fallen trees!', 'FOLLOW THE PATH']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
       /* the trail through the woods, before the glade */
       trail: [['nova', 'Look at those trees \u2014 snapped like twigs. Something huge came through here... Stay close, crew.', '']],

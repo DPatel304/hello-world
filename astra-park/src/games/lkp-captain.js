@@ -31,7 +31,9 @@ const HOLD = 0.5;
 /* ---------- in play: the radio window ---------- */
 
 export class Captain {
-  constructor(){ this.line = null; this.queue = []; this.said = new Set(); this.show = 0; this.t = 0; }
+  /* stay: kept up in her window between lines too (the calm start of a
+     level, when she's a lot to tell) - not sliding in and out each time. */
+  constructor(){ this.line = null; this.queue = []; this.said = new Set(); this.show = 0; this.t = 0; this.stay = false; }
 
   /* Say text (words: the few words under her window). once: a tip given
      only once a run. Lines cut in, unless polite, when they wait their
@@ -56,7 +58,7 @@ export class Captain {
       this.line.t += dt;
       if (this.line.t >= this.line.len){ this.line = null; if (this.queue.length) this._start(this.queue.shift()); }
     }
-    this.show += ((this.line ? 1 : 0) - this.show) * Math.min(1, dt * 6);
+    this.show += ((this.line || this.stay ? 1 : 0) - this.show) * Math.min(1, dt * 6);
   }
 
   /* The window, top left: her face and, under it, her few words. */

@@ -220,13 +220,17 @@ test('level 1 runs as its plan says - the teaching run, the team jump, sneaking 
   assert.ok(inst.over);
 });
 
-test('the first corridor starts gently: walking, then crystals as they pick up speed; the path squeezing; only after the pond, something to duck, then to dodge', () => {
+test('the first corridor starts gently: Nova\'s story, a look up at the sky, then crystals; the squeeze; the pond; then off the trail - fallen trees to dodge, and a rolling log', () => {
   crew(1);
   const inst = game.create(1);
   const first = (k) => inst.things.filter(th => th.kind === k).reduce((a, th) => Math.min(a, th.d), Infinity);
   const pond = first('pond');
-  /* nothing to dodge before the pond: crystals, the squeeze, and the pond */
-  assert.ok(first('narrow') < pond && pond < first('beam') && first('beam') < first('blocker'));
+  /* nothing to dodge before the pond: the sky, crystals, the squeeze, and the pond */
+  assert.ok(first('vista') < first('crystal'), 'the sky before the crystals');
+  assert.ok(first('narrow') < pond && pond < first('blocker') && first('blocker') < first('roller'));
+  assert.ok(inst.things.filter(th => th.kind === 'blocker').every(th => th.fallen), 'fallen trees');
+  assert.equal(inst.things.filter(th => th.kind === 'roller').length, 1, 'one rolling log');
+  assert.equal(first('beam'), Infinity, 'nothing to duck');
   const early = inst.things.filter(th => ['blocker', 'beam', 'roller', 'gap'].includes(th.kind) && th.d < pond);
   assert.equal(early.length, 0);
   assert.ok(inst.things.some(th => th.kind === 'crystal' && th.d < first('narrow')), 'crystals to catch first');

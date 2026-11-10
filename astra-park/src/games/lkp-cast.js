@@ -128,7 +128,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   if (pose === 'sit') c.translate(0, 120 * u);
   /* the head turning: looking round (st.look, -1..1), or down at an arm, or at their legs */
-  const turn = (st.look || 0) * 0.3 + (pose === 'check' ? -0.28 : 0), nod = pose === 'dust' ? 10 * u : pose === 'check' ? 4 * u : 0;
+  /* (st.nod: looking down at their feet, 0..1) */
+  const turn = (st.look || 0) * 0.3 + (pose === 'check' ? -0.28 : 0), nod = (pose === 'dust' ? 10 * u : pose === 'check' ? 4 * u : 0) + (st.nod || 0) * 12 * u;
   if (turn || nod){ c.translate((st.look || 0) * 8 * u, nod); c.translate(0, -238 * u * f); c.rotate(turn); c.translate(0, 238 * u * f); }
   const hy = -238 * u * f - 40 * u, r = 44 * u;
   c.fillStyle = deep; c.beginPath(); c.ellipse(0, -238 * u * f, 26 * u, 10 * u, 0, 0, 6.2832); c.fill();

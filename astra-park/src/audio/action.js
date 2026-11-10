@@ -13,6 +13,8 @@
      0.7+   brass stabs on each bar
      0.85+  snare rolls into each phrase, the clock in sixteenths
      0.95+  the boss theme over the top
+   At -1: cozy, for exploring - no beat, a soft warm pad in D major, a
+   gentle plucked melody wandering over it, now and then a chime.
    And below 0, before any of that: the opening's mood (the crash, waking
    up) - no beat at all, just a low drone, wind, slow dark chords, the
    wreck creaking and now and then a far-off bell. */
@@ -107,9 +109,30 @@ export function createAction(ac, dest){
     if (s === 4 && (bar === 2 || bar === 6)) note(bar === 2 ? 81 : 84, t, 2.4, { type: 'sine', gain: 0.025, cut: 6000, attack: 0.005, rel: 2.2, wetK: 0.8 });
   }
 
+  /* Cozy, exploring: Dmaj7 - Bm7 - Gmaj7 - A, two bars each; a warm pad,
+     soft plucks rising and falling over it (on the eighths, gently), a
+     chime now and then. Nothing urgent at all. */
+  const COZY = [[50, 62, 66, 69, 73], [47, 62, 66, 69, 71], [43, 59, 62, 66, 71], [45, 61, 64, 69, 73]];
+  const PLUCK = [0, 2, 3, 4, 3, 2, 1, 2];
+  function cozy(p, t){
+    const s = p % 16, bar = Math.floor(p / 16) % 8, ch = COZY[bar >> 1];
+    if (s === 0 && bar % 2 === 0){
+      note(ch[0] - 12, t, BAR * 2.05, { type: 'sine', gain: 0.05, cut: 300, attack: 0.6, rel: 0.8 });
+      for (const m of ch.slice(1)) note(m - 12, t, BAR * 2.05, { type: 'triangle', gain: 0.012, cut: 900, attack: 0.9, rel: 0.9, detune: (m % 3 - 1) * 6 });
+    }
+    /* the plucks: every other eighth, a little melody through the chord */
+    if (s % 4 === 0 && !(bar % 4 === 3 && s >= 8)){
+      const k = (bar * 4 + s / 4) % 8, m = ch[1 + PLUCK[k] % 4] + (PLUCK[k] >= 4 ? 12 : 0);
+      note(m, t, 0.5, { type: 'triangle', gain: 0.03, cut: 2600, attack: 0.004, rel: 0.45, wetK: 0.5 });
+      note(m + 12, t, 0.25, { type: 'sine', gain: 0.01, cut: 6000, attack: 0.002, rel: 0.22 });
+    }
+    if (s === 8 && bar % 4 === 1) note(ch[4] + 12, t, 2.2, { type: 'sine', gain: 0.02, cut: 7000, attack: 0.003, rel: 2.1, wetK: 0.9 });
+  }
+
   /* Books the sixteenths from step p at time t. */
   function step(p, t, I){
     if (I < -1.5) return;
+    if (I < -0.5) return cozy(p, t);
     if (I < 0) return mood(p, t);
     const s = p % 16, bar = Math.floor(p / 16) % 8, phrase = Math.floor(p / 128);
     const root = ROOTS[bar], ch = CHORDS[bar];

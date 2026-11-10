@@ -451,6 +451,24 @@ function surface(c, W, H, z, L, sf){
   const quad = (a0, a1, b0, b1, col) => { const p = [P(a0, b0, W, H), P(a1, b0, W, H), P(a1, b1, W, H), P(a0, b1, W, H)]; c.fillStyle = col; c.beginPath(); p.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.closePath(); c.fill(); };
   const fade = (rel) => surfaceAt(z + rel).k * (1 - Math.min(0.7, Math.max(0, rel) * 0.8));
   const HW = 1.6;
+  if (sf.kind === 'trampled'){
+    /* off the trail, where something huge came through: the ground
+       flattened bare, pressed-down grass in patches, twigs and leaves
+       scattered, and now and then a great round dent in the earth */
+    const R = 0.05, first = Math.floor((z + r0 - sf.d0) / R);
+    for (let k = first; ; k++){
+      const d = sf.d0 + k * R, rel = d - z; if (rel > r1) break; if (rel + R < r0) continue;
+      const a = fade(rel + R / 2); if (a <= 0.02) continue;
+      quad(-HW, HW, rel, rel + R, rgba(mix('#7d6448', L.path[1], 0.15 + 0.2 * hash(k + 5300)), 0.95 * a));
+      for (let j = 0; j < 4; j++){
+        const h = hash(k * 7 + j + 5310), lane = (h * 2 - 1) * HW * 0.9, q = P(lane, rel + R * hash(k + j + 5320), W, H);
+        if (h < 0.3){ c.fillStyle = rgba(mix(L.grass[1], '#6a7a50', 0.4), 0.7 * a); c.beginPath(); c.ellipse(q.x, q.y, H * 0.05 * q.k, H * 0.012 * q.k, 0, 0, 6.2832); c.fill(); }
+        else if (h < 0.7){ c.strokeStyle = rgba('#5a4430', 0.8 * a); c.lineWidth = Math.max(1, H * 0.004 * q.k); c.beginPath(); c.moveTo(q.x - H * 0.02 * q.k, q.y); c.lineTo(q.x + H * 0.02 * q.k, q.y - H * 0.004 * q.k); c.stroke(); }
+        else if (h > 0.96){ c.fillStyle = rgba('#5e4a38', 0.45 * a); c.beginPath(); c.ellipse(q.x, q.y, H * 0.11 * q.k, H * 0.025 * q.k, 0, 0, 6.2832); c.fill(); }
+      }
+    }
+    return;
+  }
   if (sf.kind === 'flag'){
     /* rows of old stones, the joints between offset row to row, moss in some */
     const R = 0.055, first = Math.floor((z + r0 - sf.d0) / R);
@@ -526,9 +544,17 @@ function pathBits(c, W, H, z, L){
    shaking, some leaning and falling as it passes, birds bursting up, a
    haze of dust. u: how far along it's got (0..1, left to right); t: time.
    (Drawn behind the land: the trees' feet in the ground's edge.) */
-export function farStir(c, W, H, hy, t, u, L){
+export function farStir(c, W, H, hy, t, u, L, path = false){
   const px = W * (0.42 + 0.62 * u), y0 = hy + H * 0.03;
   c.save();
+  /* (path: the swathe it's cut behind it, a strip of bare earth through
+     the trees, fallen trunks along it - the way it's gone) */
+  if (path && px > W * 0.3){
+    c.fillStyle = mix('#a8906c', L.haze, 0.35);
+    c.beginPath(); c.moveTo(W * 0.28, y0 + H * 0.002);
+    for (let x = W * 0.28; x <= px; x += W * 0.01) c.lineTo(x, y0 - H * (0.004 + 0.002 * Math.sin(x * 0.05)));
+    c.lineTo(px, y0 + H * 0.004); c.lineTo(W * 0.28, y0 + H * 0.005); c.closePath(); c.fill();
+  }
   /* dust, rising off where it's been */
   for (let k = 0; k < 7; k++){ const a = (t * 0.25 + k / 7) % 1, x = px - W * (0.01 + a * 0.06) + Math.sin(k * 3) * W * 0.01; glow(c, x, y0 - H * (0.02 + a * 0.06), H * (0.04 + a * 0.05), '#d4ccb8', 0.45 * (1 - a)); }
   for (let i = 0; i < 46; i++){
@@ -548,6 +574,38 @@ export function farStir(c, W, H, hy, t, u, L){
     const a = (t * 0.35 + k / 9) % 1, bx = px + W * (0.01 + (hash(k + 7710) - 0.3) * 0.05) + a * W * (0.03 + hash(k + 7711) * 0.04), by = y0 - H * (0.07 + a * 0.16 * (0.6 + hash(k + 7712))), w = H * 0.011 * (1 - a * 0.3), f = Math.sin(t * 12 + k) * 0.6;
     c.globalAlpha = Math.min(1, (1 - a) * 2); c.beginPath(); c.moveTo(bx - w, by - w * f); c.quadraticCurveTo(bx - w * 0.4, by - w * 0.2, bx, by); c.quadraticCurveTo(bx + w * 0.4, by - w * 0.2, bx + w, by - w * f); c.stroke();
   }
+  c.restore();
+}
+
+/* The far ridge, close up - the camera at the pond, looking away off
+   across the valley, as through a long lens: the sky, the mountains
+   behind, the forest along the ridge, and something huge pushing through
+   it, unseen - trees shaking, falling one after another, birds bursting
+   up, dust, the bare path it's cutting through the woods (farStir, big).
+   u: how far along it's got (0..1). */
+export function worldFarRidge(c, W, H, t, u, L){
+  c.save();
+  const sky = c.createLinearGradient(0, 0, 0, H * 0.7);
+  sky.addColorStop(0, L.sky[1]); sky.addColorStop(0.7, L.sky[2]); sky.addColorStop(1, L.sky[3]);
+  c.fillStyle = sky; c.fillRect(0, 0, W, H);
+  /* the mountains behind, two ranges, hazy */
+  for (const [y, col, n] of [[0.36, mix(L.hillDark, L.haze, 0.55), 5], [0.46, mix(L.hillLit, L.haze, 0.35), 7]]){
+    c.fillStyle = col; c.beginPath(); c.moveTo(0, H);
+    for (let k = 0; k <= n; k++) c.lineTo(W * k / n, H * (y - 0.06 * hash(k * 3 + n + 8800)) + (k % 2 ? H * 0.04 : 0));
+    c.lineTo(W, H); c.closePath(); c.fill();
+  }
+  /* the ridge's slope, the forest on it (and what's going on in it) */
+  const S = 2.1, ox = W * 0.688, oy = H * 0.241, hy = H * 0.38;
+  c.fillStyle = mix(L.ground[0], L.haze, 0.35); c.fillRect(0, H * 0.615, W, H);
+  c.fillStyle = mix(L.ground[1], L.haze, 0.25); c.fillRect(0, H * 0.75, W, H);
+  c.save(); c.translate(-ox, -oy); c.scale(S, S);
+  farStir(c, W, H, hy, t, Math.min(0.6, u * 0.6), L, true);
+  c.restore();
+  /* nearer, lower down: a softer row of treetops, out of focus */
+  for (let k = 0; k < 16; k++){ const x = W * (k / 15) + (hash(k + 8900) - 0.5) * W * 0.04, r = H * (0.07 + 0.04 * hash(k + 8901)); c.fillStyle = mix(L.tree[k % 2], L.haze, 0.2); c.beginPath(); c.arc(x, H * 0.98, r, 0, 6.2832); c.fill(); }
+  /* the edges darkened a little: a lens */
+  const v = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, W * 0.65); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,20,30,.35)');
+  c.fillStyle = v; c.fillRect(0, 0, W, H);
   c.restore();
 }
 
@@ -803,6 +861,30 @@ export function worldBlocker(c, W, H, rel, a, b, L, seed = 0){
   c.fillStyle = L.crystal[0]; c.beginPath(); c.moveTo(l.x, l.y); c.lineTo(l.x + (r.x - l.x) * 0.12, l.y - h * 0.7); c.lineTo(peak, l.y - h); c.lineTo(mid - (r.x - l.x) * 0.05, l.y); c.closePath(); c.fill();
   c.fillStyle = L.crystal[2]; c.beginPath(); c.moveTo(peak, l.y - h); c.lineTo(r.x - (r.x - l.x) * 0.1, l.y - h * 0.6); c.lineTo(mid + (r.x - l.x) * 0.15, l.y - h * 0.35); c.closePath(); c.fill();
   c.strokeStyle = rgba(L.rim, 0.75); c.lineWidth = Math.max(1, 3 * l.k); c.beginPath(); c.moveTo(l.x, l.y); c.lineTo(l.x + (r.x - l.x) * 0.12, l.y - h * 0.7); c.lineTo(peak, l.y - h); c.stroke();
+}
+
+/* A tree fallen across part of the path, a to b (lanes): its trunk lying
+   along the ground, roots torn up at one end, its leafy crown sprawled at
+   the other, a few broken branches sticking up. Lean round it. */
+export function worldFallen(c, W, H, rel, a, b, L, seed = 0){
+  const l = P(a, rel, W, H), r = P(b, rel, W, H), k = l.k, th = H * 0.13 * k, flip = hash(seed + 900) < 0.5;
+  const [rx, cx] = flip ? [l.x, r.x] : [r.x, l.x];   /* roots, crown */
+  const y = l.y;
+  c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse((l.x + r.x) / 2, y, Math.abs(r.x - l.x) * 0.6, th * 0.3, 0, 0, 6.2832); c.fill();
+  /* the crown: a sprawl of leaves where the top came down */
+  for (let j = 0; j < 6; j++){ const ox = (cx - rx) * (0.05 + j * 0.03) * (j % 2 ? 1 : 0.6), oy = -th * (0.4 + (j % 3) * 0.35); c.fillStyle = mix(L.tree[j % 2], '#2a4a40', 0.2); c.beginPath(); c.arc(cx - ox * 0.3 + Math.sin(j * 2.1) * th * 0.6, y + oy, th * (0.9 + 0.2 * (j % 3)), 0, 6.2832); c.fill(); }
+  /* the trunk */
+  c.strokeStyle = L.trunk[0]; c.lineCap = 'round'; c.lineWidth = th * 0.9;
+  c.beginPath(); c.moveTo(rx, y - th * 0.5); c.lineTo(cx, y - th * 0.55); c.stroke();
+  c.strokeStyle = L.trunk[1]; c.lineWidth = th * 0.25; c.beginPath(); c.moveTo(rx, y - th * 0.75); c.lineTo(cx, y - th * 0.78); c.stroke();
+  /* broken branches, sticking up */
+  c.strokeStyle = L.trunk[0]; c.lineWidth = th * 0.22;
+  for (let j = 1; j <= 3; j++){ const x = rx + (cx - rx) * (0.2 + j * 0.18); c.beginPath(); c.moveTo(x, y - th * 0.8); c.lineTo(x + (cx - rx) * 0.05, y - th * (1.6 + 0.3 * (j % 2))); c.stroke(); }
+  /* the root plate, torn up: a disc of earth and roots, on end */
+  c.fillStyle = '#6b5440'; c.beginPath(); c.ellipse(rx, y - th * 0.7, th * 0.35, th * 1.05, 0, 0, 6.2832); c.fill();
+  c.strokeStyle = '#4a3a2c'; c.lineWidth = Math.max(1, th * 0.08);
+  for (let j = 0; j < 6; j++){ const a2 = j / 6 * 6.2832; c.beginPath(); c.moveTo(rx, y - th * 0.7); c.lineTo(rx + Math.cos(a2) * th * 0.55, y - th * 0.7 + Math.sin(a2) * th * 1.3); c.stroke(); }
+  c.strokeStyle = rgba(L.rim, 0.5); c.lineWidth = Math.max(1, th * 0.08); c.beginPath(); c.moveTo(rx, y - th * 0.95); c.lineTo(cx, y - th * 1.0); c.stroke();
 }
 
 /* A fallen trunk across the whole path at head height, propped on two

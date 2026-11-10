@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { farStir, worldTrail, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { farStir, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
@@ -13,7 +13,7 @@ import { Ride } from './lkp-ride.js';
 import { Roll } from './lkp-roll.js';
 import { worldCrewFront } from './lkp-cast.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL } from './lkp-art.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
 import { arms, armored, take, KNIFE } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
@@ -21,6 +21,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
+import { skyJellies, glowfins } from './lkp-critters.js';
 import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -67,7 +68,7 @@ export const PICKING = { levelUp: false, weapon: false };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [86, 50, 36, 52, 40];                      /* seconds of each corridor, in full */
+const FULL = [108, 50, 36, 52, 40];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -111,16 +112,24 @@ export const NARROW = 0.55, WIDE = 2.1;
 export const BUBBLE_CLAPS = 4, BUBBLE_R = 0.6, BUBBLE_HP = 0.5;
 /* The healing pond stop: its size (lanes), how much health a second it
    heals (twice that hugging), and the longest it waits. */
-export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 25;
+export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 50;
 /* At the pond they stay at least REST_MIN seconds, healed or not: a
    pause to look round - the camera tilting up to the sky and the land,
    VIEW_EASE seconds to get there and back. */
 export const REST_MIN = 9, VIEW_EASE = 2.5;
+/* The look up at the sky, in the first corridor: how far along (from the
+   crew at the start) and how long (seconds). */
+export const VISTA_AT = 13.7, VISTA = 9;
+/* (and when the first corridor's squeeze comes, seconds in: after all that) */
+const SQUEEZE_AT = 64;
 /* Something big, far off, while they rest - never seen: the woods on
    the far ridge stirring as it pushes through them, from ZUBU_FAR[0]
    seconds in, for ZUBU_FAR[1]; a deep footfall every STEP_EVERY seconds,
    rippling the water; then its call. */
 export const ZUBU_FAR = [2.5, 9], STEP_EVERY = 1.3;
+/* The pond's end: RUMBLE seconds of the ground shaking, then the camera
+   off on the far ridge at least FAR_HOLD seconds. */
+export const RUMBLE = 2.6, FAR_HOLD = 8;
 /* The team jump: how deep the gorge (depths; a wider one before the
    boss). (The jump itself: lkp-leap.js.) */
 export const RAVINE = 0.42, RAVINE_BIG = 0.56;
@@ -258,6 +267,8 @@ class LastKnownPosition {
     /* (any rescue bubbles still up pop at the fork) */
     if (kind !== 'corridor') for (const i of this.here) if (this.crew[i].bubble) this._pop(i);
     this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null; this.ride = null; this.roll = null;
+    /* (the calm start's only the first corridor's: set again there) */
+    this.cozy = false; this.captain.stay = false; this.vista = null;
     if (kind === 'corridor'){
       const n = plan.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -412,6 +423,8 @@ class LastKnownPosition {
          healing pond by the path. They slide by as the crew set off.
          (CRASH; lkp-intro.js walks them from the pond onto the path.) */
       ROAD.spans.length = 0; ROAD.gaps.length = 0; ROAD.surfaces.length = 0;
+      /* the calm start, exploring: cozy music, Nova's window staying up (till the pond's rumble: _rest) */
+      this.cozy = true; this.captain.stay = story.on;
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
       this.things.push({ d: this.z, kind: 'meadow', len: 0.7 });
@@ -428,22 +441,36 @@ class LastKnownPosition {
       /* (walking at first - WALK_IN - so these are placed by distance:
          at a walk they come slowly, as she talks; then faster and faster) */
       const atD = (dist) => this.z + RUN + dist;
-      if (story.on) [0.05, 0.55, 1.05, 3.4].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', line: k }));
-      /* nothing to dodge yet: just picking up speed, and crystals to catch */
+      /* her story first - where they are, what's wrong, what to do - with
+         nothing on the path at all (each waits for the one before) */
+      if (story.on) [0.05, 0.3, 0.6, 0.9].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', line: k }));
+      if (story.on) [1.3, 1.7].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', key: 'lore', n: k }));
+      /* then: look up! - the sky, and what lives up there (_vista) */
+      this.things.push({ d: atD(VISTA_AT), kind: 'vista' });
+      /* and only then, crystals to catch, picking up speed */
       const lineD = (dist, lane, k = 5) => { for (let i = 0; i < k; i++) this.things.push({ d: atD(dist + i * 0.09), kind: 'crystal', lane }); };
       const arcD = (dist, dir) => { for (let k = 0; k < 7; k++) this.things.push({ d: atD(dist + k * 0.1), kind: 'crystal', lane: dir * Math.sin(k / 6 * Math.PI) * 0.7 }); };
-      lineD(1.5, 0, 5); lineD(2.2, -0.5, 5); lineD(2.9, 0.5, 5); arcD(3.7, 1);
-      for (let k = 0; k < 9; k++){ const d = 4.7 + k * 1.15; if (k % 3 === 2) arcD(d, k % 2 ? -1 : 1); else lineD(d, [0, -0.5, 0.5, 0.3, -0.3][k % 5], 6); }
+      const c0 = VISTA_AT + 2.8;
+      lineD(c0, 0, 5); lineD(c0 + 0.8, -0.5, 5); lineD(c0 + 1.6, 0.5, 5); arcD(c0 + 2.4, 1);
+      for (let k = 0; k < 3; k++){ const d = c0 + 3.4 + k * 1.15; if (k % 3 === 2) arcD(d, k % 2 ? -1 : 1); else lineD(d, [0, -0.5, 0.5, 0.3, -0.3][k % 5], 6); }
       /* the path's own stretches (lkp-world.js ROAD.surfaces): old
          flagstones - a ruin's - through the squeeze; a boardwalk over the
          marshy ground into the pond; a mossy track out of it */
-      ROAD.surfaces.push({ d0: at(37), d1: at(52), kind: 'flag' });
-      let s = 41 + EVENTS[plan.event || 'squeeze'](41);
+      ROAD.surfaces.push({ d0: at(SQUEEZE_AT - 4), d1: at(SQUEEZE_AT + 11), kind: 'flag' });
+      let s = SQUEEZE_AT + EVENTS[plan.event || 'squeeze'](SQUEEZE_AT);
       ROAD.surfaces.push({ d0: Math.max(at(53.5), at(s + 1) - LAKE / 2 - 0.6), d1: at(s + 1) - LAKE / 2 + 0.02, kind: 'boards' });
       /* the healing pond: a stop, to heal up after the crash */
       s += EVENTS.rest(s + 1) + 1;
-      ROAD.surfaces.push({ d0: at(s - 0.5), d1: at(s + 9), kind: 'moss' });
-      beam(s + 1); blocker(s + 4.5, side(), 0.8); crystalLine(s + 6.5, 0, 5);
+      /* out of it: off the trail - turning onto the swathe of trampled
+         woods something huge left (seen from the pond: _rest) - fallen
+         trees across it to dodge, and a log rolling down */
+      this.seg.corner = { d: at(s + 0.6), dir: side(), at: null };
+      ROAD.surfaces.push({ d0: at(s + 1.2), d1: at(s + 30), kind: 'trampled' });
+      for (const [t, sd] of [[2.5, -1], [5, 1], [8, -1], [12.5, 1], [15.5, -1]]) this.things.push({ d: at(s + t), kind: 'trail', lane: sd * 1.9 });
+      const fallen = (t, sd, w = 0.85) => { const a = sd < 0 ? -1.05 : 1.05 - w; add(t, { kind: 'blocker', a, b: a + w, seed: Math.floor(Math.random() * 100), fallen: true }); crystalLine(t - 0.6, sd < 0 ? 0.6 : -0.6, 4); };
+      const f0 = side();
+      fallen(s + 4, f0); fallen(s + 7.5, -f0); fallen(s + 11, f0, 0.75);
+      roller(s + 14.5);
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
       /* a stretch of mossy track, and one of old flagstones, along the way */
@@ -488,7 +515,14 @@ class LastKnownPosition {
   step(dt, W, H){
     /* the pond's view: the camera easing up while they rest, back after */
     this.quake = Math.max(0, (this.quake || 0) - dt * 1.6);
-    this.restCam = Math.max(0, Math.min(1, (this.restCam || 0) + (this.rest && this.rest.t > 0.8 ? 1 : -1) * dt / VIEW_EASE));
+    /* the camera's moves: looking down into the pond, away to the far
+       ridge, up at the sky - each easing in and out */
+    const ease = (v, on, secs) => Math.max(0, Math.min(1, (v || 0) + (on ? 1 : -1) * dt / secs));
+    const rp = this.rest && this.rest.phase;
+    this.viewDown = ease(this.viewDown, rp === 'heal' && this.rest.t > 2.5, VIEW_EASE);
+    this.viewFar = ease(this.viewFar, rp === 'far', 2.2);
+    this.viewUp = ease(this.viewUp, !!this.vista && this.vista.t < VISTA - 1.4, 1.4);
+    if (this.vista){ this.vista.t += dt; if (this.vista.t >= VISTA) this.vista = null; }
     this.t += dt;
     stepGuide(this, dt);
     this.faces.step(dt);
@@ -496,7 +530,9 @@ class LastKnownPosition {
     /* A scene: nothing else moves till it's done. */
     if (this.scene){
       this.scene.step(dt);
-      if (this.scene.done){ if (this.scene.kind === 'intro') this.walkIn = 0; this.scene = null; }
+      /* (from the opening's radio straight into her window, already up - and
+         staying up, and the music cozy, while she tells them where they are) */
+      if (this.scene.done){ if (this.scene.kind === 'intro'){ this.walkIn = 0; this.captain.show = 1; } this.scene = null; }
       this._stepBits(dt);
       return;
     }
@@ -626,6 +662,11 @@ class LastKnownPosition {
       const th = this.things.find(t => t.kind === 'pond' && t.rest && !t.taken && t.d - this.z - RUN <= this.speed * 0.15);
       if (th){ th.taken = true; this.rest = { th, t: 0, ok: 0, waited: false }; if (story.on) this.captain.say(...line(this.level.lines.pondIn[0])); sfx.splash?.(); }
     } else this._rest(dt, W, H);
+    /* Looking up: the sky, and what's floating in it. */
+    if (!this.vista){
+      const th = this.things.find(t => t.kind === 'vista' && !t.taken && t.d - this.z - RUN <= 0);
+      if (th){ th.taken = true; this.vista = { t: 0 }; if (story.on && this.level.lines.skyLook) this.captain.say(...line(this.level.lines.skyLook[0]), { polite: true, story: true }); }
+    }
     /* (the road's narrows and ravines, once they're behind) */
     ROAD.spans = ROAD.spans.filter(sp => sp.d1 > this.z - 0.3);
     ROAD.gaps = ROAD.gaps.filter(g => g.d + g.len > this.z - 0.3);
@@ -654,37 +695,65 @@ class LastKnownPosition {
     const p = P(rn.x, RUN, W, H); this._sparkle(p.x / W, (p.y - H * 0.25) / H, 16, 190);
     sfx.pop(1.4); sfx.twinkle();
   }
-  /* In the healing pond: everyone heals - hugging, twice as fast - till
-     they're all full (or it's waited long enough), then on they go. */
+  /* In the healing pond: everyone heals - hugging, twice as fast - and
+     it's a pause, cozy, a moment to take it in:
+       heal     standing in the water, healing; the camera dipping towards
+                it, the crew looking down at the little glowing fish
+                swimming round their boots, while Nova tells them more
+       rumble   once everyone's full and she's said it all: the ground
+                shaking, deep far-off thuds
+       far      the camera away off to the far ridge: the trees there
+                coming down, one after another, along a fresh-cut path -
+                something huge pushing through, never seen - and Nova:
+                the engine signal's that way too; off the trail they go */
   _rest(dt, W, H){
-    const r = this.rest;
-    r.t += dt;
+    const r = this.rest, cap = this.captain, L = this.level.lines, talk = story.on;
+    r.t += dt; r.phase = r.phase || 'heal';
     for (const i of this.here){
       const rn = this.crew[i], hug = this.hugWatch[i].step(pose.players[i], dt);
       rn.pose = hug ? 'hug' : null; rn.heal = 0.6;
-      /* looking round, taking it in - each at their own pace */
-      const stir = (r.t - ZUBU_FAR[0]) / ZUBU_FAR[1];
-      rn.look = hug ? 0 : stir > 0.05 && stir < 1.15 ? 0.85 + 0.1 * Math.sin(r.t * 2 + i) : Math.sin(r.t * (0.5 + 0.12 * i) + i * 1.7) * Math.min(1, r.t / 2);
+      /* looking down at the fish; then up, and off to the far ridge */
+      rn.nod = r.phase === 'heal' ? this.viewDown || 0 : 0;
+      rn.look = r.phase === 'heal' ? Math.sin(r.t * (0.4 + 0.1 * i) + i * 1.7) * 0.35 : 0.85 + 0.1 * Math.sin(r.t * 2 + i);
       if (rn.hp >= rn.max) continue;
       const was = rn.hp;
       rn.hp = Math.min(rn.max, rn.hp + rn.max * REST_FILL * (hug ? 2 : 1) * dt);
       if (Math.floor(rn.hp / 5) !== Math.floor(was / 5)){ const p = P(rn.x, RUN, W, H); this.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.25) / H, vy: -0.06, age: 0, life: 0.8, text: '+5', col: '#7ff3ff' }); }
       if (rn.hp >= rn.max) sfx.twinkle();
     }
-    /* something huge, far off: its footfalls, felt - the water rippling, the view trembling - and its call */
-    const u = (r.t - ZUBU_FAR[0]) / ZUBU_FAR[1];
-    if (u > 0 && u < 1){ r.stepT = (r.stepT ?? 0) - dt; if (r.stepT <= 0){ r.stepT = STEP_EVERY; sfx.farStep?.(0.9); this.quake = 1; } }
-    if (!r.called && u > 0.55){ r.called = true; sfx.giantCall?.(0.55); }
-    if (story.on && !r.viewed && r.t > 3.5 && !this.captain.busy && this.level.lines.pondView){ r.viewed = true; this.captain.say(...line(this.level.lines.pondView[0]), { polite: true }); }
-    if (story.on && !r.waited && r.t > 14 && !this.captain.busy){ r.waited = true; this.captain.say(...line(this.level.lines.pondWait[0])); }
     const full = this.here.every(i => this.crew[i].hp >= this.crew[i].max);
     r.ok = full ? r.ok + dt : 0;
-    if ((r.ok > 0.8 && r.t >= REST_MIN) || r.t >= REST_MAX){
-      for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; }
-      if (story.on) this.captain.say(...line(this.level.lines.pondDone[0]), { polite: true });
-      this.rest = null;
+    if (r.phase === 'heal'){
+      /* the fish; then her story, a piece at a time */
+      if (talk && !r.viewed && r.t > 3.5 && !cap.busy){ r.viewed = true; cap.say(...line(L.pondView[0]), { polite: true, story: true }); }
+      if (talk && r.viewed && !r.told && !cap.busy && L.pondStory){ r.told = true; for (const l of L.pondStory) cap.say(...line(l), { polite: true, story: true }); }
+      if (talk && !r.waited && !full && r.t > 18 && !cap.busy){ r.waited = true; cap.say(...line(L.pondWait[0]), { polite: true }); }
+      if (talk && full && r.told && !r.green && !cap.busy){ r.green = true; cap.say(...line(L.pondDone[0]), { polite: true }); }
+      const said = !talk || (r.green && !cap.busy);
+      if ((r.ok > 0.8 && r.t >= REST_MIN && said) || r.t >= REST_MAX){ r.phase = 'rumble'; r.rt = 0; for (const i of this.here) this.crew[i].hp = this.crew[i].max; }
+      return;
+    }
+    r.rt += dt;
+    /* the ground shaking: deep thuds, far off, the water trembling */
+    r.stepT = (r.stepT ?? 0) - dt;
+    if (r.stepT <= 0){ r.stepT = r.phase === 'rumble' ? 0.75 : STEP_EVERY; sfx.farStep?.(r.phase === 'rumble' ? 1.1 : 0.8); this.quake = 1; }
+    if (r.phase === 'rumble'){
+      if (talk && !r.rumbled){ r.rumbled = true; cap.say(...line(L.rumble[0])); }
+      if (r.rt >= RUMBLE){ r.phase = 'far'; r.ft = 0; }
+      return;
+    }
+    r.ft += dt;
+    if (talk && !r.pointed && r.ft > 1.6){ r.pointed = true; cap.say(...line(L.farView[0]), { polite: true, story: true }); cap.say(...line(L.offTrail[0]), { polite: true, story: true }); }
+    /* she's said it: off they go - the story's start over, the music
+       back to the run's own */
+    if ((r.ft > FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_HOLD + 14){
+      for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; rn.nod = 0; }
+      this.rest = null; cap.stay = false; this.cozy = false;
     }
   }
+  /* How far along the far ridge whatever it is has got (0..1), as the
+     camera watches from the pond; or -1. */
+  get farStirU(){ const r = this.rest; return r && r.phase === 'far' ? Math.max(0, Math.min(1.1, (r.ft - 0.5) / 7)) : -1; }
   /* How high off the ground a crystal floats (px at depth scale k): low,
      or high for a hop. */
   _crystalUp(th, H, k){
@@ -748,6 +817,8 @@ class LastKnownPosition {
     /* The opening: no music at all - it has its own sound (lkp-intro.js). */
     if (this.scene && this.scene.kind === 'intro') return -2;
     if (this.scene || this.levelup) return 0.2;
+    /* the calm start of level 1, exploring: cozy (-1) */
+    if (this.cozy) return -1;
     const seg = this.seg;
     if (this.boss) return this.boss.done ? 0.5 : 1;
     if (this.fight) return this.fight.done ? 0.4 : 0.8;
@@ -784,7 +855,7 @@ class LastKnownPosition {
     const cap = this.captain, seg = this.seg, f = this.fight, bs = this.boss, up = this.here.filter(i => !this.crew[i].down);
     if (seg.kind === 'corridor'){
       /* her story, as the run reaches each piece of it - never over a tip */
-      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; const l = th.key ? this.level.lines[th.key] && this.level.lines[th.key][0] : this.level.lines.walk[th.line]; if (l) cap.say(...line(l), { polite: true, story: true }); }
+      for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; const l = th.key ? this.level.lines[th.key] && this.level.lines[th.key][th.n || 0] : this.level.lines.walk[th.line]; if (l) cap.say(...line(l), { polite: true, story: true }); }
       for (const th of this.things){
         const ahead = th.d - this.z - RUN;
         if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
@@ -1132,20 +1203,22 @@ class LastKnownPosition {
     }
     /* the team jump's hero shot, from in front, in place of the run */
     if (this.leap && this.leap.phase === 'hero') this.leap.view(c, W, H, PAL.world);
-    else if ((this.restCam || 0) > 0.001){
-      /* at the pond: the camera tilting up and easing back - more sky,
-         the land laid out, the crew small in it (the HUD stays put) */
-      const k = this.restCam * this.restCam * (3 - 2 * this.restCam), s = 1 - 0.3 * k;
-      /* (pulling back round their feet: they stay put, small, the sky opens above) */
-      c.save(); c.translate(W / 2, H * 0.97); c.scale(s, s); c.translate(-W / 2, -H * 0.97);
-      SKY.above = H * 0.5 * k; SKY.wide = W * 0.3 * k; this.noHud = true;
-      /* far off: the woods on the ridge stirring - something huge, unseen */
-      const zt = this.rest ? this.rest.t : null, zu = zt == null ? -1 : (zt - ZUBU_FAR[0]) / ZUBU_FAR[1];
-      if (zu > -0.05) SKY.far = (cc, w, h, hy) => farStir(cc, w, h, hy, this.t, Math.max(0, Math.min(1.1, zu)), PAL.world);
-      /* each footfall: a little tremble */
-      if (this.quake > 0) c.translate(Math.sin(this.t * 60) * H * 0.003 * this.quake, Math.cos(this.t * 47) * H * 0.003 * this.quake);
+    else if ((this.viewDown || 0) + (this.viewFar || 0) + (this.viewUp || 0) > 0.001){
+      /* the camera's own moves (the HUD stays put, out of them):
+           up    tilting up at the sky, the floating jellies drifting over
+           down  dipping towards the pond's water round their boots
+           far   away off to the far ridge, the trees coming down there */
+      const sm = (k) => k * k * (3 - 2 * k), up = sm(this.viewUp || 0), dn = sm(this.viewDown || 0), far = sm(this.viewFar || 0);
+      c.save(); this.noHud = true;
+      if (this.quake > 0) c.translate(Math.sin(this.t * 60) * H * 0.004 * this.quake, Math.cos(this.t * 47) * H * 0.004 * this.quake);
+      if (up > 0){ c.translate(0, H * 0.62 * up); SKY.above = H * 0.7 * up; }
+      /* (down: their feet brought up the screen, closer - the water round them filling the view) */
+      if (dn > 0){ const ay = P(0, RUN, W, H).y, z = 1 + 0.45 * dn, sy = ay + (H * 0.62 - ay) * dn; c.translate(W / 2, sy); c.scale(z, z); c.translate(-W / 2, -ay); }
       this._drawPlay(c, W, H);
+      /* far: the camera away across the valley to the far ridge (a long lens), cross-fading in */
+      if (far > 0 && PAL.world){ c.save(); c.globalAlpha = far; worldFarRidge(c, W, H, this.t, Math.max(0, this.farStirU), PAL.world); c.restore(); }
       SKY.above = 0; SKY.wide = 0; SKY.far = null; this.noHud = false; c.restore();
+      if (up > 0) skyJellies(c, W, H, this.t, up, this.vista ? this.vista.t : VISTA);
       this._drawHud(c, W, H);
     }
     else this._drawPlay(c, W, H);
@@ -1209,6 +1282,8 @@ class LastKnownPosition {
     /* the crash site's pond: part of the floor too */
     for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
     for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel - LAKE / 2 < 1 && rel + LAKE / 2 > -0.15) worldLake(c, W, H, rel, this.t, PAL.world); else if (rel - LAKE / 2 >= 1) worldLakeAhead(c, W, H, rel - LAKE / 2, this.t); }
+    /* stood in it: the little glowing fish swimming round their boots */
+    if (this.rest) glowfins(c, W, H, this.t, Math.min(1, this.rest.t / 2));
     if (dropY){ c.restore(); SKY.above = 0; }
     if (this.zip) this.zip.drawCable(c, W, H);
     const items = [];
@@ -1294,7 +1369,7 @@ class LastKnownPosition {
   _drawItem(c, it, W, H){
     const p = P(it.lane || 0, it.rel, W, H);
     switch (it.kind){
-      case 'blocker': drawBlocker(c, W, H, it.rel, it.a, it.b, this.t, it.seed); break;
+      case 'blocker': if (it.fallen && PAL.world) worldFallen(c, W, H, it.rel, it.a, it.b, PAL.world, it.seed); else drawBlocker(c, W, H, it.rel, it.a, it.b, this.t, it.seed); break;
       case 'beam': if (it.rel > RUN) drawBeam(c, W, H, it.rel, this.t); break;
       case 'gap': case 'ledge': drawGap(c, W, H, it.rel, it.a, it.b, this.t); break;
       case 'crystal': {
@@ -1363,7 +1438,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     (at && at.front ? worldCrewFront : drawCrew)(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: rn.nod || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       (x, y, r) => {
         /* (the sleepy roll: the face they pulled sneaking past her, frozen on red) */
         if (here && this.faces.has(i)) (at && at.moment ? this.faces.drawMoment(c, i, x, y, r, PLAYER_COLORS[i]) : this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]));
