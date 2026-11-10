@@ -105,7 +105,7 @@ const GRASS = 0;   /* (on the path itself: the camera comes out over their shoul
 const TURN = 2.2, OUT = 3.4, TO_PATH = -(0.5 - POV.cx) * POV.s * 0.82;
 /* A moment after it's done. */
 const AFTER = 0.5;
-/* The vitals: each bar popping up (STAGGER apart), then filling to START
+/* The health bar: popping up, then filling to START
    over FILL seconds; her line once they've stopped. */
 const POP = 0.35, STAGGER = 0.22, FILL_AT = 0.7, FILL = 1.4, HURT_AT = 2.9;
 /* Getting up, cartoon style: each one GAP after the one before - looking
@@ -343,41 +343,27 @@ export class Intro {
       c.fillStyle = '#7ff3ff'; c.beginPath(); c.moveTo(W / 2, y0 + H * 0.006); c.lineTo(W / 2 - H * 0.008, y0 + H * 0.018); c.lineTo(W / 2 + H * 0.008, y0 + H * 0.018); c.fill();
       c.globalAlpha = 1;
     }
-    /* the suit's vitals, bottom centre, once she asks: each one's bar
-       popping up, then filling - and stopping short, three-quarters full */
+    /* your health bar, bottom left, once she asks: popping up, filling -
+       and stopping short, three-quarters full */
     if (this.vitT != null) this._vitals(c, W, H, this.vitT);
     c.restore();
   }
 
-  /* The vitals panel: a bar each, in their colour, popping up one after
-     another and filling to START. */
+  /* The health bar, bottom left: the first player's - yours - popping up
+     and filling to START, then a shudder as it stops short. */
   _vitals(c, W, H, vt){
-    const here = this.g.here; if (!here.length) return;
-    const n = here.length, bw = H * 0.34, bh = H * 0.034, gap = H * 0.022;
-    const ph = H * 0.05 + n * (bh + gap), pw = bw + H * 0.12, x0 = W / 2 - pw / 2, y0 = H * 0.9 - ph;
-    const panel = backOut(vt / POP);
-    if (panel <= 0.01) return;
-    c.save();
-    c.translate(W / 2, y0 + ph); c.scale(panel, panel); c.translate(-W / 2, -(y0 + ph));
-    c.globalAlpha = 0.92;
-    c.fillStyle = 'rgba(5,6,15,.62)'; c.beginPath(); c.roundRect(x0, y0, pw, ph, H * 0.014); c.fill();
-    c.strokeStyle = '#7ff3ff'; c.lineWidth = Math.max(1.5, H * 0.0025); c.stroke();
-    c.fillStyle = '#7ff3ff'; c.font = `700 ${Math.round(H * 0.022)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('VITALS', W / 2, y0 + H * 0.026);
-    here.forEach((i, k) => {
-      const t = vt - k * STAGGER, pop = backOut(t / POP);
-      if (pop <= 0.01) return;
-      const fill = START * (1 - Math.pow(1 - Math.max(0, Math.min(1, (t - FILL_AT) / FILL)), 3));
-      /* (a little shudder as it stops short) */
-      const stopT = t - FILL_AT - FILL, shake = stopT > 0 && stopT < 0.4 ? Math.sin(stopT * 60) * (0.4 - stopT) * H * 0.012 : 0;
-      const y = y0 + H * 0.05 + k * (bh + gap), x = x0 + H * 0.07 + shake;
-      c.save(); c.translate(x + bw / 2, y + bh / 2); c.scale(pop, pop); c.translate(-(x + bw / 2), -(y + bh / 2));
-      c.fillStyle = PLAYER_COLORS[i]; c.beginPath(); c.arc(x - H * 0.03, y + bh / 2, bh * 0.45, 0, 6.2832); c.fill();
-      c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - 3, y - 3, bw + 6, bh + 6);
-      c.fillStyle = '#3fd07a'; c.fillRect(x, y, bw * fill, bh);
-      c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(x, y, bw * fill, bh * 0.35);
-      c.restore();
-    });
+    if (!this.g.here.length) return;
+    const pop = backOut(vt / POP);
+    if (pop <= 0.01) return;
+    const w = H * 0.34, h = H * 0.04, stopT = vt - FILL_AT - FILL;
+    const shake = stopT > 0 && stopT < 0.4 ? Math.sin(stopT * 60) * (0.4 - stopT) * H * 0.012 : 0;
+    const x = W * 0.05 + shake, y = H * 0.84;
+    const fill = START * (1 - Math.pow(1 - Math.max(0, Math.min(1, (vt - FILL_AT) / FILL)), 3));
+    c.save(); c.globalAlpha = 0.95;
+    c.translate(x, y + h / 2); c.scale(pop, pop); c.translate(-x, -(y + h / 2));
+    c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - 4, y - 4, w + 8, h + 8);
+    c.fillStyle = '#3fd07a'; c.fillRect(x, y, w * fill, h);
+    c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(x, y, w * fill, h * 0.35);
     c.restore();
   }
 
@@ -620,9 +606,9 @@ const STEP = {
   answer(){ return !this.radio.busy; },
   /* the bars popping up and filling, ticking - stopping short, uh-oh; then her line, and a quiet moment */
   vitals(dt){
-    const vt = this.vitT, n = this.g.here.length;
+    const vt = this.vitT, n = Math.min(1, this.g.here.length);
     this.cued = this.cued || {};
-    this.g.here.forEach((i, k) => {
+    this.g.here.slice(0, 1).forEach((i, k) => {
       const t = vt - k * STAGGER;
       if (t >= 0 && !this.cued['pop' + i]){ this.cued['pop' + i] = true; sfx.pop?.(0.4, k); }
       if (t > FILL_AT && t < FILL_AT + FILL){ this.tickT = (this.tickT || 0) - dt; if (this.tickT <= 0){ this.tickT = 0.07; sfx.tick?.(); } }
