@@ -70,7 +70,9 @@ export function lineTime(text, who = 'nova'){
   const clips = RECORDED.on ? clipsFor(text) : null;
   if (clips) return clips.reduce((n, c) => n + c.secs, 0) + GAP * (clips.length - 1) + 0.2;
   const words = text.trim().split(/\s+/).length;
-  return 0.4 + words / (2.6 * SPEAKERS[who].rate);
+  /* (and the pauses the voice takes: at a dash or a trailing-off, and between sentences) */
+  const pauses = (text.match(/\u2014|\.\.\.|\u2026/g) || []).length * 0.35 + (text.trim().split(/(?<=[.!?])\s+/).length - 1) * 0.2;
+  return 0.4 + words / (2.6 * SPEAKERS[who].rate) + pauses;
 }
 
 /* ---------- the recordings ---------- */
@@ -164,6 +166,11 @@ export const voice = {
     if (!waitTimer) waitTimer = setTimeout(settle, WAIT * 1000);
   },
   hush(){ stopClips(); waiting = []; const s = synth(); if (s) s.cancel(); },
+  /* Whether anything's being said, or about to be: a recording, a line
+     waiting for its voice, or the computer still speaking - so a radio
+     can let her finish before her next line, however long the computer's
+     voice takes over it. */
+  get speaking(){ const sy = synth(); return !!now || waiting.length > 0 || !!(sy && (sy.speaking || sy.pending)); },
   /* Whether a recording's playing. */
   get playing(){ return !!now; }
 };

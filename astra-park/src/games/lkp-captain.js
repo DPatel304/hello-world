@@ -28,6 +28,12 @@ export const NAMES = ['Blue', 'Orange', 'Green', 'Purple'];
 /* After a line's said, it stays up this long. */
 const HOLD = 0.5;
 
+/* A line's over once its time's up and she's finished saying it - the
+   computer's voice can run longer than the time it was given - though
+   never more than OVERRUN seconds over. */
+const OVERRUN = 6;
+const over = (l) => l.t >= l.len && (!voice.speaking || l.t >= l.len + OVERRUN);
+
 /* ---------- in play: the radio window ---------- */
 
 export class Captain {
@@ -56,7 +62,7 @@ export class Captain {
     this.t += dt;
     if (this.line){
       this.line.t += dt;
-      if (this.line.t >= this.line.len){ this.line = null; if (this.queue.length) this._start(this.queue.shift()); }
+      if (over(this.line)){ this.line = null; if (this.queue.length) this._start(this.queue.shift()); }
     }
     this.show += ((this.line || this.stay ? 1 : 0) - this.show) * Math.min(1, dt * 6);
   }
@@ -104,7 +110,7 @@ export class Radio {
   step(dt){
     this.t += dt;
     this.show += ((this.visible ? 1 : 0) - this.show) * Math.min(1, dt * 5);
-    if (this.line){ this.line.t += dt; if (this.line.t >= this.line.len) this._next(); }
+    if (this.line){ this.line.t += dt; if (over(this.line)) this._next(); }
   }
   draw(c, W, H){
     if (this.show > 0.02){
@@ -254,7 +260,7 @@ export class Scene {
     this.waves.step(dt, handsFrom(pose, this.n));
     if (this.waves.done){ this.done = true; voice.hush(); return; }
     this.line.t += dt;
-    if (this.line.t >= this.line.len) this._next();
+    if (over(this.line)) this._next();
   }
 
   /* The scene, behind - drawn by the caller - then the level's name, her
