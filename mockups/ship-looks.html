@@ -1,0 +1,126 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Ship Looks</title>
+<style>html,body{margin:0;background:#1a1830}canvas{display:block}</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+/* Six looks for the crew's ship, each crashed in the meadow - smoking,
+   not burning: it'll fly again. A mockup (Last Known Position). */
+const c = document.getElementById('c').getContext('2d'), W = 1920, H = 1080, CW = 640, CH = 540;
+const TAU = Math.PI * 2;
+const circ = (x, y, r) => { c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); };
+const ell = (x, y, rx, ry, a = 0) => { c.beginPath(); c.ellipse(x, y, rx, ry, a, 0, TAU); c.fill(); };
+const lin = (x0, y0, x1, y1, stops) => { const g = c.createLinearGradient(x0, y0, x1, y1); stops.forEach(([k, col]) => g.addColorStop(k, col)); return g; };
+function smoke(x, y, s, n = 9, seed = 0){
+  for (let k = n - 1; k >= 0; k--){ const a = k / n; const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    const px = x + a * 90 * s + Math.sin(a * 5 + seed) * 18 * s, py = y - a * 300 * s, r = (16 + a * 70) * s;
+    const rg = c.createRadialGradient(px, py, 0, px, py, r); rg.addColorStop(0, `rgba(${a < 0.5 ? '28,28,36' : '70,70,84'},${0.85 * (1 - a * 0.8)})`); rg.addColorStop(1, 'rgba(60,60,70,0)');
+    c.fillStyle = rg; circ(px, py, r); }
+}
+function scene(x, y){
+  c.save(); c.beginPath(); c.rect(x, y, CW, CH); c.clip();
+  c.fillStyle = lin(0, y, 0, y + CH * 0.6, [[0, '#5a74d6'], [0.55, '#9a8ce6'], [1, '#dcc4f2']]); c.fillRect(x, y, CW, CH);
+  c.fillStyle = '#b9add8'; c.beginPath(); c.moveTo(x, y + CH * 0.6); for (let k = 0; k <= 8; k++) c.lineTo(x + CW * k / 8, y + CH * (0.47 + 0.05 * Math.sin(k * 1.9))); c.lineTo(x + CW, y + CH * 0.6); c.fill();
+  c.fillStyle = lin(0, y + CH * 0.56, 0, y + CH, [[0, '#7fb8a4'], [1, '#2f7c66']]); c.fillRect(x, y + CH * 0.56, CW, CH * 0.44);
+  for (let k = 0; k < 40; k++){ const gx = x + (k * 97) % CW, gy = y + CH * (0.62 + ((k * 37) % 30) / 80); c.strokeStyle = 'rgba(160,230,190,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - 3, gy - 9); c.moveTo(gx, gy); c.lineTo(gx + 3, gy - 8); c.stroke(); }
+  c.restore();
+}
+function label(x, y, n, name, line){
+  c.fillStyle = 'rgba(10,10,25,.65)'; c.beginPath(); c.roundRect(x + 16, y + CH - 92, CW - 32, 76, 14); c.fill();
+  c.fillStyle = '#ffd24a'; c.font = '700 30px Fredoka, Arial Rounded MT Bold, sans-serif'; c.fillText(`${n}. ${name}`, x + 34, y + CH - 56);
+  c.fillStyle = '#e8e4ff'; c.font = '400 20px sans-serif'; c.fillText(line, x + 34, y + CH - 28);
+}
+const shadow = (x, y, rx) => { c.fillStyle = 'rgba(20,15,45,.35)'; ell(x, y, rx, rx * 0.1); };
+
+/* 1. The shuttle (today's): long white hull, the yellow and blue stripe, a fin. */
+function shuttle(x, y){
+  shadow(x, y + 30, 230);
+  c.save(); c.translate(x, y - 20); c.rotate(-0.12);
+  c.fillStyle = '#5c6378'; c.beginPath(); c.moveTo(120, -30); c.lineTo(170, -110); c.lineTo(200, -100); c.lineTo(185, -25); c.fill();
+  c.fillStyle = lin(0, -55, 0, 55, [[0, '#eef0f6'], [0.5, '#aab0c2'], [1, '#4a5068']]);
+  c.beginPath(); c.moveTo(-190, -50); c.lineTo(170, -55); c.quadraticCurveTo(215, -50, 218, 0); c.quadraticCurveTo(215, 50, 170, 55); c.lineTo(-190, 50); c.quadraticCurveTo(-280, 40, -295, 0); c.quadraticCurveTo(-280, -40, -190, -50); c.fill();
+  c.fillStyle = '#e8b830'; c.fillRect(-190, 12, 360, 9); c.fillStyle = '#3fa6ff'; c.fillRect(-190, 23, 360, 4);
+  c.fillStyle = '#1b2440'; ell(-235, -12, 40, 23, -0.15); c.fillStyle = 'rgba(140,220,255,.35)'; ell(-246, -20, 20, 7, -0.3);
+  c.strokeStyle = '#2c3042'; c.lineWidth = 3; c.beginPath(); c.roundRect(-125, -36, 50, 66, 10); c.stroke();
+  c.fillStyle = 'rgba(30,25,40,.4)'; ell(40, -18, 30, 16, 0.3); ell(-30, 30, 20, 11);
+  c.fillStyle = '#2c3042'; ell(218, -22, 13, 18); ell(218, 22, 13, 18);
+  c.restore(); smoke(x + 215, y - 60, 1); smoke(x + 40, y - 80, 0.8, 8, 2);
+}
+/* 2. The saucer: a round domed flying saucer, nose-down in the turf, its ring of lights mostly out. */
+function saucer(x, y){
+  shadow(x, y + 30, 200);
+  c.save(); c.translate(x, y - 30); c.rotate(0.22);
+  c.fillStyle = 'rgba(170,230,255,.55)'; ell(0, -40, 80, 62); c.fillStyle = 'rgba(255,255,255,.5)'; ell(-26, -66, 20, 12, -0.5);
+  c.fillStyle = lin(0, -40, 0, 50, [[0, '#f2f3f8'], [0.6, '#a6adc3'], [1, '#535a73']]); ell(0, 0, 210, 48);
+  c.fillStyle = '#5c6378'; ell(0, 22, 140, 22);
+  const on = [0, 3]; for (let k = 0; k < 8; k++){ const a = Math.PI + k / 7 * Math.PI; c.fillStyle = on.includes(k) ? '#ffe39a' : '#3a3f55'; circ(Math.cos(a) * 180, 6 + Math.sin(a) * -10 + 8, 8); }
+  c.fillStyle = '#e8b830'; c.fillRect(-200, -4, 400, 6);
+  c.fillStyle = 'rgba(30,25,40,.4)'; ell(70, -8, 34, 12, 0.2);
+  c.restore(); smoke(x + 60, y - 80, 1, 9, 1);
+}
+/* 3. The bubble pod: a round egg of a ship, one huge round window, three landing legs (one buckled). */
+function pod(x, y){
+  shadow(x, y + 34, 170);
+  c.strokeStyle = '#5c6378'; c.lineWidth = 12; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(x - 90, y - 30); c.lineTo(x - 130, y + 30); c.moveTo(x + 90, y - 30); c.lineTo(x + 70, y + 10); c.lineTo(x + 140, y + 26); c.moveTo(x, y - 10); c.lineTo(x + 5, y + 34); c.stroke();
+  c.save(); c.translate(x, y - 110); c.rotate(0.15);
+  c.fillStyle = lin(-130, 0, 130, 0, [[0, '#f4f5fa'], [0.6, '#b8bed0'], [1, '#5a6078']]); ell(0, 0, 130, 115);
+  c.fillStyle = '#ff8a5c'; c.beginPath(); c.ellipse(0, 0, 130, 115, 0, 0.15 * Math.PI, 0.85 * Math.PI); c.lineTo(-110, 60); c.fill();
+  c.fillStyle = '#1b2440'; ell(-6, -18, 66, 58); c.fillStyle = 'rgba(140,220,255,.35)'; ell(-26, -42, 30, 14, -0.4);
+  c.strokeStyle = '#e9eef8'; c.lineWidth = 7; c.beginPath(); c.ellipse(-6, -18, 70, 62, 0, 0, TAU); c.stroke();
+  c.fillStyle = '#2c3042'; ell(120, 30, 16, 24, 0.3);
+  c.fillStyle = 'rgba(30,25,40,.35)'; ell(70, -70, 22, 12, 0.4);
+  c.restore(); smoke(x + 130, y - 90, 0.9, 9, 3);
+}
+/* 4. The rocket: a classic tall rocket, red nose and fins, round portholes - tipped over on its side. */
+function rocket(x, y){
+  shadow(x, y + 26, 240);
+  c.save(); c.translate(x, y - 30); c.rotate(-0.07);
+  c.fillStyle = '#e04a4a'; c.beginPath(); c.moveTo(170, -50); c.lineTo(250, -120); c.lineTo(270, -40); c.fill(); c.beginPath(); c.moveTo(170, 50); c.lineTo(250, 110); c.lineTo(270, 40); c.fill();
+  c.fillStyle = lin(0, -60, 0, 60, [[0, '#f4f5fa'], [0.55, '#b5bbcc'], [1, '#575d75']]);
+  c.beginPath(); c.moveTo(-150, -60); c.lineTo(230, -60); c.lineTo(230, 60); c.lineTo(-150, 60); c.quadraticCurveTo(-270, 50, -300, 0); c.quadraticCurveTo(-270, -50, -150, -60); c.fill();
+  c.fillStyle = '#e04a4a'; c.beginPath(); c.moveTo(-150, -60); c.quadraticCurveTo(-270, -50, -300, 0); c.quadraticCurveTo(-270, 50, -150, 60); c.lineTo(-170, 0); c.fill();
+  for (const px of [-90, 0, 90]){ c.fillStyle = '#e9eef8'; circ(px, -8, 25); c.fillStyle = '#1b2440'; circ(px, -8, 19); c.fillStyle = 'rgba(140,220,255,.4)'; circ(px - 6, -14, 7); }
+  c.fillStyle = '#3fa6ff'; c.fillRect(-150, 34, 380, 8);
+  c.fillStyle = '#2c3042'; c.fillRect(230, -40, 30, 80);
+  c.restore(); smoke(x + 250, y - 60, 1, 9, 4);
+}
+/* 5. The space tug: a chunky boxy hauler, orange and white, four big round thrusters - built tough. */
+function tug(x, y){
+  shadow(x, y + 30, 230);
+  c.save(); c.translate(x, y - 50); c.rotate(-0.1);
+  c.fillStyle = lin(0, -70, 0, 70, [[0, '#ffffff'], [0.6, '#c2c7d4'], [1, '#5d6378']]); c.beginPath(); c.roundRect(-180, -70, 330, 140, 24); c.fill();
+  c.fillStyle = '#ff8a3a'; c.beginPath(); c.roundRect(-180, 20, 330, 50, [0, 0, 24, 24]); c.fill();
+  c.fillStyle = '#ff8a3a'; c.beginPath(); c.roundRect(-250, -50, 90, 100, 22); c.fill();
+  c.fillStyle = '#1b2440'; c.beginPath(); c.roundRect(-240, -36, 60, 44, 12); c.fill(); c.fillStyle = 'rgba(140,220,255,.4)'; c.fillRect(-232, -30, 22, 10);
+  c.strokeStyle = '#2c3042'; c.lineWidth = 3; for (const px of [-100, -20, 60]){ c.beginPath(); c.moveTo(px, -66); c.lineTo(px, 66); c.stroke(); }
+  for (const [ty, r] of [[-45, 30], [45, 30]]) for (const tx of [160, 205]){ c.fillStyle = '#4a5068'; circ(tx, ty, r); c.fillStyle = '#20232f'; circ(tx + 4, ty, r * 0.6); }
+  c.fillStyle = '#ffd24a'; c.fillRect(-170, -60, 30, 8); c.fillRect(-130, -60, 30, 8);
+  c.restore(); smoke(x + 210, y - 100, 1, 9, 5); smoke(x - 20, y - 110, 0.7, 7, 6);
+}
+/* 6. The manta glider: sleek and wide, swept wings like a ray, teal and white, a bubble canopy. */
+function manta(x, y){
+  shadow(x, y + 28, 260);
+  c.save(); c.translate(x, y - 30); c.rotate(0.08);
+  c.fillStyle = lin(0, -40, 0, 70, [[0, '#d8fbf6'], [0.6, '#5fbfb2'], [1, '#2a6a70']]);
+  c.beginPath(); c.moveTo(-230, 10); c.quadraticCurveTo(-40, -70, 150, -40); c.lineTo(280, -10); c.quadraticCurveTo(200, 30, 150, 40); c.quadraticCurveTo(-40, 70, -230, 10); c.fill();
+  c.fillStyle = '#f4f6fb'; c.beginPath(); c.moveTo(-260, 6); c.quadraticCurveTo(-120, -40, 140, -10); c.quadraticCurveTo(-100, 40, -260, 6); c.fill();
+  c.fillStyle = 'rgba(170,230,255,.6)'; ell(-90, -24, 60, 24, -0.1); c.fillStyle = 'rgba(255,255,255,.6)'; ell(-110, -34, 22, 7, -0.2);
+  c.fillStyle = '#3a8f88'; c.beginPath(); c.moveTo(150, -40); c.lineTo(210, -100); c.lineTo(230, -90); c.lineTo(200, -25); c.fill();
+  c.fillStyle = '#ffd24a'; c.fillRect(-180, 14, 280, 6);
+  c.fillStyle = 'rgba(30,25,40,.35)'; ell(60, 0, 30, 10, 0.2);
+  c.restore(); smoke(x + 260, y - 50, 1, 9, 7);
+}
+
+const looks = [
+  [shuttle, 'The Shuttle', 'Today\'s: long and white, the yellow stripe.'],
+  [saucer, 'The Saucer', 'A domed flying saucer - nose-down in the turf.'],
+  [pod, 'The Bubble Pod', 'Round and friendly: one big window, three legs.'],
+  [rocket, 'The Rocket', 'A classic: red nose, fins, round portholes.'],
+  [tug, 'The Space Tug', 'Chunky and tough: four big thrusters.'],
+  [manta, 'The Manta Glider', 'Sleek wings like a ray - a bubble canopy.']
+];
+document.fonts && document.fonts.ready;
+looks.forEach(([draw, name, line], k) => { const x = (k % 3) * CW, y = Math.floor(k / 3) * CH; scene(x, y); draw(x + CW / 2, y + CH * 0.72); label(x, y, k + 1, name, line); });
+c.strokeStyle = '#1a1830'; c.lineWidth = 6; for (const x of [CW, CW * 2]){ c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); } c.beginPath(); c.moveTo(0, CH); c.lineTo(W, CH); c.stroke();
+window.READY = true;
+</script></body></html>
