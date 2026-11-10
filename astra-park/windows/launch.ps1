@@ -149,7 +149,21 @@ $page = ([System.Uri]$game).AbsoluteUri
 # Full screen for playing; a window, while the game's being worked on and
 # tried out (set $Windowed = $false for full screen again).
 $Windowed = $true
-$screenMode = if ($Windowed) { '--window-size=1280,760 --window-position=60,40' } else { '--start-fullscreen' }
+# The window: about 80% of the screen's free area (inside the taskbar), the
+# game's own 16:9, in the middle - so it fits a small laptop screen as well
+# as a big one. (Measured in the same scaled units the browser uses; if the
+# screen can't be measured, a modest 1024 x 576.)
+$winW = 1024; $winH = 576; $winX = 40; $winY = 30
+try {
+    Add-Type -AssemblyName System.Windows.Forms
+    $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $winW = [int]($area.Width * 0.8)
+    $winH = [int]($winW * 9 / 16)
+    if ($winH -gt $area.Height * 0.85) { $winH = [int]($area.Height * 0.85); $winW = [int]($winH * 16 / 9) }
+    $winX = $area.X + [int](($area.Width - $winW) / 2)
+    $winY = $area.Y + [int](($area.Height - $winH) / 2)
+} catch { }
+$screenMode = if ($Windowed) { "--window-size=$winW,$winH --window-position=$winX,$winY" } else { '--start-fullscreen' }
 $arguments = @(
     "--user-data-dir=`"$(Join-Path $here 'browser-profile')`"",
     "--app=`"$page`"",
