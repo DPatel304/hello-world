@@ -1,0 +1,133 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Creature Looks</title>
+<style>html,body{margin:0;background:#1a1830}canvas{display:block}</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+/* Eight ideas for the first creature you see in Last Known Position -
+   each on the meadow, to see how it stands out. A mockup. */
+const c = document.getElementById('c').getContext('2d'), W = 1920, H = 1080, CW = 480, CH = 540, TAU = Math.PI * 2;
+const circ = (x, y, r) => { c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); };
+const ell = (x, y, rx, ry, a = 0) => { c.beginPath(); c.ellipse(x, y, rx, ry, a, 0, TAU); c.fill(); };
+const rad = (x, y, r, a, b) => { const g = c.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.05, x, y, r); g.addColorStop(0, a); g.addColorStop(1, b); return g; };
+const glow = (x, y, r, col, a) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col.replace(')', `,${a})`).replace('rgb', 'rgba')); g.addColorStop(1, col.replace(')', ',0)').replace('rgb', 'rgba')); c.fillStyle = g; circ(x, y, r); };
+const eye = (x, y, r, look = 0.2) => { c.fillStyle = '#fff'; circ(x, y, r); c.fillStyle = '#231a30'; circ(x + r * look, y + r * 0.1, r * 0.62); c.fillStyle = '#fff'; circ(x + r * look - r * 0.25, y - r * 0.2, r * 0.22); };
+const shadow = (x, y, rx) => { c.fillStyle = 'rgba(20,15,45,.3)'; ell(x, y, rx, rx * 0.18); };
+function meadow(x, y){
+  c.save(); c.beginPath(); c.rect(x, y, CW, CH); c.clip();
+  let g = c.createLinearGradient(0, y, 0, y + CH * 0.5); g.addColorStop(0, '#7a74d8'); g.addColorStop(1, '#dcc4f2'); c.fillStyle = g; c.fillRect(x, y, CW, CH);
+  c.fillStyle = '#b9add8'; c.beginPath(); c.moveTo(x, y + CH * 0.5); for (let k = 0; k <= 6; k++) c.lineTo(x + CW * k / 6, y + CH * (0.38 + 0.05 * Math.sin(k * 2.3 + x))); c.lineTo(x + CW, y + CH * 0.5); c.fill();
+  g = c.createLinearGradient(0, y + CH * 0.45, 0, y + CH); g.addColorStop(0, '#7fb8a4'); g.addColorStop(1, '#2f7c66'); c.fillStyle = g; c.fillRect(x, y + CH * 0.45, CW, CH * 0.55);
+  for (let k = 0; k < 34; k++){ const gx = x + (k * 89) % CW, gy = y + CH * (0.5 + ((k * 31) % 40) / 90); c.strokeStyle = 'rgba(160,230,190,.55)'; c.lineWidth = 2; c.beginPath(); c.moveTo(gx, gy); c.lineTo(gx - 3, gy - 10); c.moveTo(gx, gy); c.lineTo(gx + 3, gy - 9); c.stroke(); }
+  c.restore();
+}
+function label(x, y, n, name, line){
+  c.fillStyle = 'rgba(10,10,25,.7)'; c.beginPath(); c.roundRect(x + 14, y + CH - 96, CW - 28, 82, 14); c.fill();
+  c.fillStyle = '#ffd24a'; c.font = '700 28px Fredoka, Arial Rounded MT Bold, sans-serif'; c.fillText(`${n}. ${name}`, x + 30, y + CH - 60);
+  c.fillStyle = '#e8e4ff'; c.font = '400 18px sans-serif'; c.fillText(line, x + 30, y + CH - 32);
+}
+
+/* 1. Glowpuff: a round, bright orange fluffball on tiny legs, glowing spots, two antenna lights. */
+function glowpuff(x, y){
+  shadow(x, y, 70);
+  c.strokeStyle = '#d4682a'; c.lineWidth = 6; c.lineCap = 'round'; for (const d of [-1, 1]){ c.beginPath(); c.moveTo(x + d * 22, y - 30); c.lineTo(x + d * 26, y); c.stroke(); }
+  for (let k = 0; k < 16; k++){ const a = k / 16 * TAU; c.fillStyle = k % 2 ? '#ff9a3c' : '#ffb35c'; circ(x + Math.cos(a) * 58, y - 90 + Math.sin(a) * 52, 26); }
+  c.fillStyle = rad(x, y - 90, 66, '#ffd08a', '#ff7a2a'); circ(x, y - 90, 62);
+  for (const [dx, dy, r] of [[-30, -60, 8], [28, -120, 6], [36, -70, 7], [-12, -130, 5]]){ glow(x + dx, y + dy, r * 3, 'rgb(255,255,180)', 0.8); c.fillStyle = '#fffbd0'; circ(x + dx, y + dy, r); }
+  c.strokeStyle = '#d4682a'; c.lineWidth = 4; for (const d of [-1, 1]){ c.beginPath(); c.moveTo(x + d * 18, y - 145); c.quadraticCurveTo(x + d * 30, y - 185, x + d * 44, y - 196); c.stroke(); glow(x + d * 46, y - 198, 24, 'rgb(120,255,240)', 0.9); c.fillStyle = '#c8fff6'; circ(x + d * 46, y - 198, 8); }
+  eye(x - 20, y - 100, 14); eye(x + 20, y - 100, 14);
+  c.fillStyle = '#7a2a1a'; c.beginPath(); c.arc(x, y - 78, 8, 0.1 * Math.PI, 0.9 * Math.PI); c.fill();
+}
+/* 2. Stiltwing: a fluffy yellow-and-magenta striped ball of a bird on long, long legs - walking gracefully. */
+function stiltwing(x, y){
+  shadow(x, y, 60);
+  c.strokeStyle = '#3a2a50'; c.lineWidth = 6; c.lineCap = 'round'; c.beginPath(); c.moveTo(x - 10, y - 150); c.lineTo(x - 30, y - 70); c.lineTo(x - 20, y); c.moveTo(x + 10, y - 150); c.lineTo(x + 30, y - 60); c.lineTo(x + 45, y - 10); c.stroke();
+  c.fillStyle = rad(x, y - 200, 70, '#fff3a0', '#ffc531'); ell(x, y - 200, 70, 58);
+  c.save(); c.beginPath(); c.ellipse(x, y - 200, 70, 58, 0, 0, TAU); c.clip(); c.fillStyle = '#ff4fa0'; for (const k of [-1, 0, 1]) c.fillRect(x + k * 40 - 8, y - 260, 16, 120); c.restore();
+  c.fillStyle = '#ff4fa0'; c.beginPath(); c.moveTo(x - 70, y - 210); c.lineTo(x - 110, y - 240); c.lineTo(x - 100, y - 200); c.fill();
+  c.fillStyle = '#fff3a0'; circ(x + 64, y - 250, 30);
+  c.fillStyle = '#ff7a2a'; c.beginPath(); c.moveTo(x + 90, y - 254); c.lineTo(x + 128, y - 246); c.lineTo(x + 90, y - 240); c.fill();
+  eye(x + 70, y - 258, 10, 0.4);
+  c.fillStyle = '#ff4fa0'; for (const k of [0, 1, 2]){ ell(x + 50 + k * 12, y - 282 - k * 4, 5, 12, -0.4 + k * 0.3); }
+}
+/* 3. Bubblesnail: a bright pink snail carrying a glass bubble of a shell, swirling with tiny glowing stars inside. */
+function bubblesnail(x, y){
+  shadow(x, y, 110);
+  c.fillStyle = rad(x, y - 25, 90, '#ffb0d8', '#e0458f'); c.beginPath(); c.moveTo(x - 110, y); c.quadraticCurveTo(x - 60, y - 40, x + 60, y - 30); c.quadraticCurveTo(x + 110, y - 40, x + 110, y - 80); c.quadraticCurveTo(x + 130, y - 20, x + 90, y); c.closePath(); c.fill();
+  c.strokeStyle = '#e0458f'; c.lineWidth = 6; c.lineCap = 'round'; for (const d of [0, 1]){ c.beginPath(); c.moveTo(x + 100 + d * 10, y - 78); c.lineTo(x + 95 + d * 30, y - 130); c.stroke(); eye(x + 95 + d * 30, y - 136, 11, 0.3); }
+  glow(x - 20, y - 110, 120, 'rgb(150,220,255)', 0.35);
+  c.fillStyle = 'rgba(170,230,255,.45)'; circ(x - 20, y - 110, 82);
+  for (let k = 0; k < 14; k++){ const a = k * 2.4, r = 20 + (k * 11) % 50; c.fillStyle = ['#fff6b0', '#ffd0f0', '#b0f6ff'][k % 3]; circ(x - 20 + Math.cos(a) * r, y - 110 + Math.sin(a) * r * 0.8, 4 + (k % 3)); }
+  c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 4; c.beginPath(); c.arc(x - 20, y - 110, 82, 0, TAU); c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 8; c.beginPath(); c.arc(x - 20, y - 110, 62, Math.PI * 1.1, Math.PI * 1.45); c.stroke();
+}
+/* 4. Lantern hopper: a coral frog-like hopper with a glowing lantern bulb dangling over its head. */
+function lantern(x, y){
+  shadow(x, y, 80);
+  c.fillStyle = '#e8644a'; for (const d of [-1, 1]){ ell(x + d * 60, y - 14, 40, 18, d * 0.2); }
+  c.fillStyle = rad(x, y - 70, 80, '#ffb08a', '#ee5a3a'); ell(x, y - 70, 78, 62);
+  c.fillStyle = '#ffd8c0'; ell(x, y - 44, 50, 28);
+  eye(x - 34, y - 118, 22, 0.1); eye(x + 34, y - 118, 22, -0.1);
+  c.strokeStyle = '#a03a2a'; c.lineWidth = 4; c.beginPath(); c.arc(x, y - 72, 22, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+  c.strokeStyle = '#a03a2a'; c.lineWidth = 5; c.beginPath(); c.moveTo(x, y - 128); c.quadraticCurveTo(x + 10, y - 200, x + 60, y - 190); c.stroke();
+  glow(x + 62, y - 178, 60, 'rgb(130,255,230)', 0.85); c.fillStyle = '#d8fff6'; circ(x + 62, y - 178, 16);
+}
+/* 5. Prism beetle: a little beetle whose shell is faceted crystal, throwing rainbows. */
+function prism(x, y){
+  shadow(x, y, 90);
+  c.strokeStyle = '#2a2440'; c.lineWidth = 5; c.lineCap = 'round'; for (const d of [-1, 1]) for (const k of [-30, 0, 30]){ c.beginPath(); c.moveTo(x + k, y - 30); c.lineTo(x + k + d * 30, y - 6); c.lineTo(x + k + d * 34, y + 4); c.stroke(); }
+  const facets = [['#ff6fae', -80, -40, -20, -110, 10, -40], ['#ffd24a', -20, -110, 50, -100, 10, -40], ['#6fe3ff', 50, -100, 80, -40, 10, -40], ['#9a7bff', -80, -40, 10, -40, -10, -16], ['#7ff09a', 10, -40, 80, -40, 30, -16]];
+  for (const [col, ...p] of facets){ c.fillStyle = col; c.beginPath(); c.moveTo(x + p[0], y + p[1]); c.lineTo(x + p[2], y + p[3]); c.lineTo(x + p[4], y + p[5]); c.fill(); }
+  c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 3; c.beginPath(); c.moveTo(x - 80, y - 40); c.lineTo(x - 20, y - 110); c.lineTo(x + 50, y - 100); c.lineTo(x + 80, y - 40); c.stroke();
+  c.fillStyle = '#2a2440'; ell(x + 92, y - 34, 26, 20); eye(x + 100, y - 40, 9, 0.4);
+  c.globalAlpha = 0.5; for (const [col, a] of [['#ff6fae', -0.3], ['#ffd24a', -0.1], ['#6fe3ff', 0.1]]){ c.strokeStyle = col; c.lineWidth = 6; c.beginPath(); c.moveTo(x, y - 100); c.lineTo(x - 200 * Math.sin(a + 0.6), y - 200); c.stroke(); } c.globalAlpha = 1;
+}
+/* 6. Coilfox: a fluffy coral fox-thing that bounces along on its spring-coiled tail. */
+function coilfox(x, y){
+  shadow(x, y, 60);
+  c.strokeStyle = '#ffb35c'; c.lineWidth = 10; c.lineCap = 'round'; c.beginPath(); for (let k = 0; k <= 60; k++){ const u = k / 60, px = x - 10 + Math.sin(u * TAU * 4) * 22, py = y - u * 90; k ? c.lineTo(px, py) : c.moveTo(px, py); } c.stroke();
+  c.fillStyle = rad(x, y - 150, 70, '#ffc2b0', '#ff6b6b'); ell(x, y - 150, 62, 56);
+  c.fillStyle = '#fff0e6'; ell(x + 10, y - 128, 34, 24);
+  c.fillStyle = '#ff6b6b'; for (const d of [-1, 1]){ c.beginPath(); c.moveTo(x + d * 30, y - 190); c.lineTo(x + d * 52, y - 250); c.lineTo(x + d * 8, y - 200); c.fill(); }
+  c.fillStyle = '#ffd0d8'; for (const d of [-1, 1]){ c.beginPath(); c.moveTo(x + d * 32, y - 198); c.lineTo(x + d * 46, y - 236); c.lineTo(x + d * 16, y - 204); c.fill(); }
+  eye(x - 20, y - 160, 13); eye(x + 24, y - 160, 13);
+  c.fillStyle = '#7a2a3a'; circ(x + 4, y - 138, 7);
+  c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 3; for (const k of [0, 1, 2]){ c.beginPath(); c.arc(x - 10, y + 6, 20 + k * 12, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); }
+}
+/* 7. Blinkmoth: a big-eyed moth that walks instead of flies, its patterned wings fanning open and shut. */
+function blinkmoth(x, y){
+  shadow(x, y, 100);
+  for (const d of [-1, 1]){
+    c.fillStyle = rad(x + d * 70, y - 110, 90, '#d8b0ff', '#7a4fe0'); c.beginPath(); c.moveTo(x, y - 90); c.quadraticCurveTo(x + d * 150, y - 210, x + d * 130, y - 70); c.quadraticCurveTo(x + d * 70, y - 30, x, y - 70); c.fill();
+    c.fillStyle = '#ffd24a'; circ(x + d * 90, y - 120, 22); c.fillStyle = '#2a1a40'; circ(x + d * 90, y - 120, 11); c.fillStyle = '#fff'; circ(x + d * 86, y - 124, 4);
+  }
+  c.fillStyle = '#5a3aa0'; ell(x, y - 70, 22, 50);
+  c.strokeStyle = '#2a1a40'; c.lineWidth = 4; c.lineCap = 'round'; for (const d of [-1, 1]) for (const k of [-20, 0, 20]){ c.beginPath(); c.moveTo(x + d * 10, y - 40 + k * 0.6); c.lineTo(x + d * 30, y + 2); c.stroke(); }
+  c.fillStyle = '#f4ecff'; circ(x, y - 130, 26); eye(x - 10, y - 134, 9, 0); eye(x + 10, y - 134, 9, 0);
+  c.strokeStyle = '#5a3aa0'; c.lineWidth = 4; for (const d of [-1, 1]){ c.beginPath(); c.moveTo(x + d * 8, y - 154); c.quadraticCurveTo(x + d * 30, y - 200, x + d * 48, y - 190); c.stroke(); c.fillStyle = '#ffd24a'; circ(x + d * 50, y - 190, 6); }
+}
+/* 8. Jellycrawl: a see-through dome on wobbly tentacle legs, a glowing core inside - a jelly that walks. */
+function jellycrawl(x, y){
+  shadow(x, y, 80);
+  c.strokeStyle = 'rgba(255,140,200,.9)'; c.lineWidth = 7; c.lineCap = 'round';
+  for (let k = 0; k < 6; k++){ const ox = (k / 5 - 0.5) * 120; c.beginPath(); c.moveTo(x + ox * 0.7, y - 80); c.quadraticCurveTo(x + ox + Math.sin(k) * 20, y - 40, x + ox * 1.1, y); c.stroke(); }
+  glow(x, y - 120, 110, 'rgb(255,150,210)', 0.4);
+  c.fillStyle = 'rgba(255,190,225,.7)'; c.beginPath(); c.moveTo(x - 90, y - 80); c.bezierCurveTo(x - 100, y - 200, x + 100, y - 200, x + 90, y - 80); c.quadraticCurveTo(x, y - 60, x - 90, y - 80); c.fill();
+  glow(x, y - 120, 40, 'rgb(255,255,190)', 1); c.fillStyle = '#fff6c0'; circ(x, y - 120, 14);
+  eye(x - 30, y - 150, 12, 0.1); eye(x + 30, y - 150, 12, -0.1);
+  c.fillStyle = 'rgba(255,255,255,.6)'; ell(x - 40, y - 170, 22, 9, -0.4);
+}
+
+const looks = [
+  [glowpuff, 'Glowpuff', 'Bright orange fluffball, glowing spots.'],
+  [stiltwing, 'Stiltwing', 'Striped fluff-bird on long, long legs.'],
+  [bubblesnail, 'Bubblesnail', 'A pink snail with a glass shell of stars.'],
+  [lantern, 'Lantern Hopper', 'A coral hopper with a glowing lantern.'],
+  [prism, 'Prism Beetle', 'A crystal shell, throwing rainbows.'],
+  [coilfox, 'Coilfox', 'Bounces along on its spring-coiled tail.'],
+  [blinkmoth, 'Blinkmoth', 'Big eyes on its wings - and it walks.'],
+  [jellycrawl, 'Jellycrawl', 'A see-through jelly on wobbly legs.']
+];
+looks.forEach(([draw, name, line], k) => { const x = (k % 4) * CW, y = Math.floor(k / 4) * CH; meadow(x, y); draw(x + CW / 2, y + CH * 0.74); label(x, y, k + 1, name, line); });
+c.strokeStyle = '#1a1830'; c.lineWidth = 6; for (const x of [CW, CW * 2, CW * 3]){ c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); } c.beginPath(); c.moveTo(0, CH); c.lineTo(W, CH); c.stroke();
+window.READY = true;
+</script></body></html>
