@@ -69,8 +69,10 @@ const FULL = [86, 50, 36, 52, 40];                      /* seconds of each corri
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
-/* Up from the crash, they set off walking, up to a run over WALK_IN seconds. */
-export const WALK_IN = 4;
+/* Up from the crash, they set off walking - WALK_HOLD seconds of an easy
+   walk (WALK_PACE of full speed), while Nova talks them through it - then
+   picking up speed, to a run by WALK_IN seconds. */
+export const WALK_IN = 24, WALK_HOLD = 12, WALK_PACE = 0.32;
 /* The crash site at the start of the first corridor [lane, depth, size]. */
 /* (the crash site's layout: lkp-crashsite.js SITE) */
 export const CRASH = SITE;
@@ -408,13 +410,15 @@ class LastKnownPosition {
       /* Each a good while after the tip before it, so she's never
          talking over herself - her story in the quiet between the
          lessons, each lesson in a quiet of its own. */
-      if (story.on) [-3, 12, 26].forEach((secs, k) => add(secs, { kind: 'say', line: k }));
-      /* crystals the moment they're off, to run into */
-      crystalLine(-6.5, 0, 6);
-      crystalLine(6, 0, 6); crystalLine(9, -0.5, 5);
-      blocker(22, 1, 0.8);
-      crystalLine(25, 0.4, 5);
-      beam(35); crystalLine(36, 0, 4);
+      /* (walking at first - WALK_IN - so these are placed by distance:
+         at a walk they come slowly, as she talks; then faster and faster) */
+      const atD = (dist) => this.z + RUN + dist;
+      if (story.on) [0.05, 0.55, 1.05, 3.4].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', line: k }));
+      /* nothing to dodge yet: just picking up speed, and crystals to catch */
+      const lineD = (dist, lane, k = 5) => { for (let i = 0; i < k; i++) this.things.push({ d: atD(dist + i * 0.09), kind: 'crystal', lane }); };
+      const arcD = (dist, dir) => { for (let k = 0; k < 7; k++) this.things.push({ d: atD(dist + k * 0.1), kind: 'crystal', lane: dir * Math.sin(k / 6 * Math.PI) * 0.7 }); };
+      lineD(1.5, 0, 5); lineD(2.2, -0.5, 5); lineD(2.9, 0.5, 5); arcD(3.7, 1);
+      for (let k = 0; k < 9; k++){ const d = 4.7 + k * 1.15; if (k % 3 === 2) arcD(d, k % 2 ? -1 : 1); else lineD(d, [0, -0.5, 0.5, 0.3, -0.3][k % 5], 6); }
       let s = 41 + EVENTS[plan.event || 'squeeze'](41);
       /* the healing pond: a stop, to heal up after the crash */
       s += EVENTS.rest(s + 1) + 1;
@@ -515,12 +519,13 @@ class LastKnownPosition {
     if (seg.kind === 'corridor'){
       this._events(dt, W, H);
       /* off from the crash site: walking at first, building up to a run */
-      if (this.walkIn != null && this.walkIn < WALK_IN){ this.walkIn += dt; const u = Math.min(1, this.walkIn / WALK_IN); want *= 0.3 + 0.7 * u * u * (3 - 2 * u); }
+      if (this.walkIn != null && this.walkIn < WALK_IN){ this.walkIn += dt; const u = Math.max(0, Math.min(1, (this.walkIn - WALK_HOLD) / (WALK_IN - WALK_HOLD))); want *= WALK_PACE + (1 - WALK_PACE) * u * u * (3 - 2 * u); }
       this._bubbles(dt, W, H);
       if (this.zip) want = this.zip.speed(SPEED);
       else if (this.leap) want = this.leap.speed(SPEED);
       else if (this.rest) want = 0;
-      if (this.zip || this.leap || this.rest) seg.len += dt * (1 - this.speed / SPEED);
+      /* (the corridor waits for slow going: the walk at the start, too) */
+      if (this.zip || this.leap || this.rest || (this.walkIn != null && this.walkIn < WALK_IN)) seg.len += dt * (1 - this.speed / SPEED);
     }
     if (seg.kind === 'boss') want = 0;
     if (seg.kind === 'ride') want = this.ride ? this.ride.speed(SPEED) : SPEED;

@@ -154,7 +154,9 @@ test('the captain gives each tip once, as it comes', () => {
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
   for (let k = 0; k < 140 / DT && inst.step_ === 0; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   for (const w of ['CRYSTALS!', 'LEAN!', 'DUCK!', 'SQUEEZE IN!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
-  assert.ok(said.indexOf('LEAN!') < said.indexOf('DUCK!') && said.indexOf('DUCK!') < said.indexOf('SQUEEZE IN!') && said.indexOf('SQUEEZE IN!') < said.indexOf('SPREAD OUT!'));
+  /* crystals first; the squeeze; only after the pond, ducking, then dodging */
+  const at = (w) => said.indexOf(w);
+  assert.ok(at('CRYSTALS!') < at('SQUEEZE IN!') && at('SQUEEZE IN!') < at('SPREAD OUT!') && at('SPREAD OUT!') < at('DUCK!') && at('DUCK!') < at('LEAN!'), said.join(', '));
   /* And then straight on running: no fighting in level 1. */
   assert.equal(inst.phase, 'corridor');
   assert.ok(!inst.fight);

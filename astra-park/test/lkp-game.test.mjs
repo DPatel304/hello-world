@@ -220,15 +220,16 @@ test('level 1 runs as its plan says - the teaching run, the team jump, sneaking 
   assert.ok(inst.over);
 });
 
-test('the first corridor teaches one thing at a time: debris, then a low branch, then the path squeezing', () => {
+test('the first corridor starts gently: walking, then crystals as they pick up speed; the path squeezing; only after the pond, something to duck, then to dodge', () => {
   crew(1);
   const inst = game.create(1);
-  const firsts = ['blocker', 'beam', 'narrow'].map(k => inst.things.find(th => th.kind === k).d);
-  assert.ok(firsts[0] < firsts[1] && firsts[1] < firsts[2]);
-  /* Nothing to dodge in the first few seconds (fewer, squeezed into a
-     playtest's shorter corridor). */
-  const early = inst.things.filter(th => !['crystal', 'ship', 'wreck', 'pond', 'meadow', 'tree'].includes(th.kind) && th.d < inst.z + RUN + SPEED * 6 * CORRIDOR[0] / 50 + 0.9);
+  const first = (k) => inst.things.filter(th => th.kind === k).reduce((a, th) => Math.min(a, th.d), Infinity);
+  const pond = first('pond');
+  /* nothing to dodge before the pond: crystals, the squeeze, and the pond */
+  assert.ok(first('narrow') < pond && pond < first('beam') && first('beam') < first('blocker'));
+  const early = inst.things.filter(th => ['blocker', 'beam', 'roller', 'gap'].includes(th.kind) && th.d < pond);
   assert.equal(early.length, 0);
+  assert.ok(inst.things.some(th => th.kind === 'crystal' && th.d < first('narrow')), 'crystals to catch first');
 });
 
 test('someone who drops out of view holds their place till they are back', () => {

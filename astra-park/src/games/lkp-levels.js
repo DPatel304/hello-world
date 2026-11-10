@@ -89,9 +89,10 @@ export const LEVELS = [
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */
       walk: [
-        ['nova', 'This is Commander Nova, on the Meridian. The ship went down in the storm. You\'re on a planet we know nothing about.', ''],
-        ['nova', 'Your suits took a beating in the crash. Hang in there \u2014 we\'ll find you somewhere to heal.', ''],
-        ['nova', 'My scans show a signal up ahead. Maybe the engine piece we lost. That\'s where you\'re headed.', '']
+        ['nova', 'This is Commander Nova, up on the Meridian. Your ship came down hard in the storm \u2014 but you\'re all okay. That\'s what matters.', ''],
+        ['nova', 'Here\'s the trouble: the crash knocked a piece clean out of your engine. Without it, that ship can\'t fly.', ''],
+        ['nova', 'My scans show a signal up ahead. I think it\'s the engine piece! Find it, and we can get you home.', 'FIND THE ENGINE PIECE'],
+        ['nova', 'Your suits took a knock in the crash. Keep an eye out for somewhere to heal up.', '']
       ],
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
