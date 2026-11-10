@@ -351,81 +351,97 @@ export function herdMass(c, W, H, t, edge, dx, a = 1, scatter = 0){
   c.restore();
 }
 
-/* A trumbler: a great slow alien beast, elephant-ish - four pillar legs,
-   a huge domed back grown over with moss and little glowing crystals,
-   fan-like ear-fins that glow, a long ringed trunk ending in a flower of
-   a bell. Standing, at (x, y), s tall, facing right; breathing, its trunk
-   swaying. call 0..1: trumpeting - the trunk up, the bell open, the fins
-   flared, rings of sound going out. */
-export function trumbler(c, x, y, s, t, call = 0){
-  const u = s / 300, br = Math.sin(t * 1.1) * 3 * u, cl = Math.sin(Math.min(1, call) * Math.PI);
-  const skin = '#5f7fa8', dark = '#3b5378', lite = '#9bb6d8';
+/* A trumbler: a great alien beast, nothing like an elephant - a huge
+   domed shell of big plates, teal-green, on six thick legs, and up front
+   a broad warm-coloured head with a great fan of a crest and two curling
+   horns. Drawn as the world is: flat tones, lit on top, a rim of sun on
+   the left, its shadow under it. At (x, y) its feet, s tall, facing right
+   (and up the screen, charging away: turn 0..1). run: galloping, 0..1.
+   call 0..1: bellowing - the crest flared and glowing, the mouth open,
+   rings of sound. haze: how far into the haze. */
+export function trumbler(c, x, y, s, t, call = 0, run = 1, haze = 0, L = null){
+  const u = s / 300, ph = t * 9, bob = Math.abs(Math.sin(ph)) * 10 * u * run, cl = Math.sin(Math.min(1, call) * Math.PI);
+  const H_ = (a) => L ? mixHex(a, L.haze, haze) : a;
+  const shellD = H_('#2f6b62'), shellL = H_('#4f9a7e'), plate = H_('#79c49a'), skin = H_('#d9734a'), skinL = H_('#f0a060'), dark = H_('#7a3a2a'), crest = H_('#ffb04a');
   c.save();
-  c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(x, y, 160 * u, 26 * u, 0, 0, TAU); c.fill();
-  c.translate(x, y);
-  /* legs: thick pillars, glowing toe pads */
-  for (const [lx, near] of [[-95, 0], [55, 0], [-70, 1], [80, 1]]){
-    c.fillStyle = near ? skin : dark; c.beginPath(); c.roundRect((lx - 22) * u, -120 * u, 44 * u, 120 * u, 16 * u); c.fill();
-    c.fillStyle = '#9ff0e0'; for (const k of [-12, 0, 12]) circ0(c, (lx + k) * u, -6 * u, 5 * u);
+  c.fillStyle = 'rgba(20,15,45,.35)'; c.beginPath(); c.ellipse(x - 20 * u, y, 190 * u, 30 * u, 0, 0, TAU); c.fill();
+  c.translate(x, y - bob);
+  /* six legs, galloping: far ones darker */
+  for (const [lx, far, k] of [[-120, 1, 0], [-20, 1, 2], [80, 1, 4], [-100, 0, 1], [0, 0, 3], [100, 0, 5]]){
+    const sw = Math.sin(ph + k * 1.05) * run, lift = Math.max(0, sw) * 26 * u;
+    c.fillStyle = far ? dark : skin;
+    c.beginPath(); c.roundRect((lx - 20 + sw * 16) * u, (-120) * u, 40 * u, (120 - lift / u) * u, 14 * u); c.fill();
+    c.fillStyle = far ? H_('#4a2418') : dark; c.beginPath(); c.ellipse((lx + sw * 16) * u, -lift - 4 * u, 24 * u, 10 * u, 0, 0, TAU); c.fill();
   }
-  /* the body: a great dome, breathing */
-  const g = c.createRadialGradient(-30 * u, -230 * u, 10 * u, 0, -170 * u, 170 * u);
-  g.addColorStop(0, lite); g.addColorStop(0.6, skin); g.addColorStop(1, dark);
-  c.fillStyle = g; c.beginPath(); c.ellipse(-10 * u, (-170 - br) * u * 1, 150 * u, (95 + br * 0.3) * u, 0, 0, TAU); c.fill();
-  /* moss along the top, little crystals growing out of it */
-  c.fillStyle = '#5fae7a';
-  for (let k = 0; k < 9; k++) circ0(c, (-120 + k * 28) * u, (-245 - br + Math.abs(k - 4) * 6) * u, 18 * u);
-  for (let k = 0; k < 4; k++){
-    const cx = (-80 + k * 45) * u, cy = (-265 - br + Math.abs(k - 1.5) * 8) * u;
-    glow(c, cx, cy - 10 * u, 22 * u, '#a8f4ff', 0.4 + 0.15 * Math.sin(t * 2 + k));
-    c.fillStyle = '#c8f8ff'; c.beginPath(); c.moveTo(cx - 6 * u, cy); c.lineTo(cx, cy - 26 * u); c.lineTo(cx + 6 * u, cy); c.closePath(); c.fill();
+  /* the shell: a great dome, dark under, lit on top, big plates over it */
+  c.fillStyle = shellD; c.beginPath(); c.ellipse(-10 * u, -190 * u, 175 * u, 110 * u, 0, 0, TAU); c.fill();
+  c.fillStyle = shellL; c.beginPath(); c.ellipse(-25 * u, -215 * u, 150 * u, 82 * u, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = plate;
+  for (const [px, py, r] of [[-110, -230, 34], [-50, -270, 38], [20, -262, 36], [80, -225, 30], [-75, -185, 30], [0, -205, 32], [-140, -180, 24]]){
+    c.beginPath(); for (let k = 0; k < 6; k++){ const a = k / 6 * TAU + 0.5; c.lineTo((px + Math.cos(a) * r) * u, (py + Math.sin(a) * r * 0.7) * u); } c.closePath(); c.fill();
   }
-  /* a little tail */
-  c.strokeStyle = dark; c.lineWidth = 8 * u; c.lineCap = 'round';
-  c.beginPath(); c.moveTo(-155 * u, -170 * u); c.quadraticCurveTo(-180 * u, -140 * u + Math.sin(t * 2) * 8 * u, -172 * u, -110 * u); c.stroke();
-  /* the head, at the front */
-  const hx = 120 * u, hy = (-190 - br) * u;
-  /* ear-fins: fans, glowing at their ribs - flared when it calls */
-  c.save(); c.translate(hx - 20 * u, hy - 10 * u); c.rotate(-0.3 - 0.6 * cl + Math.sin(t * 0.9) * 0.05);
-  c.fillStyle = `rgba(150,210,255,${0.55 + 0.3 * cl})`;
-  c.beginPath(); c.moveTo(0, 0); for (let k = 0; k <= 6; k++){ const a = -Math.PI * 0.95 + k * 0.32; c.lineTo(Math.cos(a) * 90 * u, Math.sin(a) * 90 * u); } c.closePath(); c.fill();
-  c.strokeStyle = `rgba(220,250,255,${0.6 + 0.4 * cl})`; c.lineWidth = 3 * u;
-  for (let k = 0; k <= 6; k++){ const a = -Math.PI * 0.95 + k * 0.32; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a) * 88 * u, Math.sin(a) * 88 * u); c.stroke(); }
+  if (L){ c.strokeStyle = rgbaHex(L.rim, 0.6 * (1 - haze)); c.lineWidth = 5 * u; c.beginPath(); c.ellipse(-10 * u, -190 * u, 175 * u, 110 * u, 0, Math.PI * 1.02, Math.PI * 1.5); c.stroke(); }
+  /* the head, up front: broad, warm, lowered as it charges */
+  const hx = 175 * u, hy = -150 * u;
+  /* the crest: a great fan behind the head - flaring and glowing as it bellows */
+  c.save(); c.translate(hx - 30 * u, hy - 30 * u); c.rotate(-0.5 - 0.35 * cl);
+  if (cl > 0.05) glow(c, 0, -40 * u, 150 * u, '#ffd27a', 0.5 * cl);
+  for (let k = 0; k < 7; k++){
+    const a = -Math.PI * 0.85 + k * 0.28, r = (95 + 25 * cl) * u;
+    c.fillStyle = k % 2 ? crest : H_('#ff8a3a');
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a - 0.13) * r, Math.sin(a - 0.13) * r); c.lineTo(Math.cos(a + 0.13) * r, Math.sin(a + 0.13) * r); c.closePath(); c.fill();
+  }
   c.restore();
-  const hg = c.createRadialGradient(hx - 10 * u, hy - 20 * u, 5 * u, hx, hy, 70 * u); hg.addColorStop(0, lite); hg.addColorStop(1, skin);
-  c.fillStyle = hg; circ0(c, hx, hy, 62 * u);
-  /* its eye, sleepy-kind; shut tight when it calls */
-  c.fillStyle = '#1a2240';
-  if (cl > 0.3){ c.strokeStyle = '#1a2240'; c.lineWidth = 4 * u; c.beginPath(); c.arc(hx + 22 * u, hy - 12 * u, 9 * u, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); }
-  else { circ0(c, hx + 22 * u, hy - 12 * u, 8 * u); c.fillStyle = '#ffffff'; circ0(c, hx + 19 * u, hy - 15 * u, 3 * u); }
-  /* the trunk: ringed, swaying down - or flung up, calling */
-  const pts = [];
-  for (let k = 0; k <= 10; k++){
-    const v = k / 10, sway = Math.sin(t * 1.3 + v * 2) * 10 * u * (1 - cl);
-    const down = [hx + 45 * u + v * 40 * u + sway, hy + 20 * u + v * 150 * u - v * v * 40 * u];
-    const up = [hx + 50 * u + v * 70 * u, hy - v * 170 * u + v * v * 30 * u];
-    pts.push([down[0] + (up[0] - down[0]) * cl, down[1] + (up[1] - down[1]) * cl]);
-  }
-  for (let k = 0; k < pts.length - 1; k++){
-    const w = (30 - k * 1.8) * u;
-    c.strokeStyle = k % 2 ? skin : mixHex('#5f7fa8', '#3b5378', 0.4); c.lineWidth = w;
-    c.beginPath(); c.moveTo(pts[k][0], pts[k][1]); c.lineTo(pts[k + 1][0], pts[k + 1][1]); c.stroke();
-  }
-  /* its bell: a flower of a tip, petals open wide when it calls */
-  const [bx, by] = pts[10], open = 0.35 + 0.65 * cl;
-  for (let k = 0; k < 5; k++){
-    const a = -Math.PI / 2 + (k - 2) * 0.55 * open + (cl > 0 ? 0 : Math.PI);
-    c.fillStyle = k % 2 ? '#ff9fd0' : '#ffc6e8';
-    c.beginPath(); c.ellipse(bx + Math.cos(a) * 14 * u, by + Math.sin(a) * 14 * u, 16 * u, 8 * u, a, 0, TAU); c.fill();
-  }
-  c.fillStyle = '#fff1c4'; circ0(c, bx, by, 8 * u);
-  /* rings of sound, going out from it */
-  if (call > 0 && call < 1.6){
-    for (let k = 0; k < 4; k++){
-      const r = (call * 1.2 - k * 0.18); if (r <= 0) continue;
-      c.strokeStyle = `rgba(255,240,250,${Math.max(0, 0.7 - r * 0.45)})`; c.lineWidth = 6 * u;
-      c.beginPath(); c.arc(bx, by, r * 260 * u, -1.2, 1.2); c.stroke();
-    }
+  c.fillStyle = skin; c.beginPath(); c.ellipse(hx, hy, 72 * u, 58 * u, 0.2, 0, TAU); c.fill();
+  c.fillStyle = skinL; c.beginPath(); c.ellipse(hx - 12 * u, hy - 18 * u, 50 * u, 32 * u, 0.2, 0, TAU); c.fill();
+  /* two horns, curling forward */
+  c.strokeStyle = H_('#fff1d6'); c.lineWidth = 14 * u; c.lineCap = 'round';
+  for (const d of [-1, 1]){ c.beginPath(); c.moveTo(hx + 20 * u, hy - 30 * u + d * 8 * u); c.quadraticCurveTo(hx + 80 * u, hy - 60 * u + d * 12 * u, hx + 95 * u, hy - 20 * u + d * 10 * u); c.stroke(); }
+  /* the mouth: a line - wide open when it bellows */
+  c.fillStyle = H_('#5a2418');
+  c.beginPath(); c.ellipse(hx + 48 * u, hy + 22 * u, 22 * u, (4 + 18 * cl) * u, 0.15, 0, TAU); c.fill();
+  /* its eye: small and fierce-ish - kind, really */
+  c.fillStyle = '#1a1020'; circ0(c, hx + 22 * u, hy - 8 * u, 7 * u); c.fillStyle = '#ffffff'; circ0(c, hx + 20 * u, hy - 10 * u, 2.5 * u);
+  /* rings of sound */
+  if (call > 0 && call < 1.6) for (let k = 0; k < 4; k++){
+    const r = call * 1.3 - k * 0.2; if (r <= 0) continue;
+    c.strokeStyle = `rgba(255,240,220,${Math.max(0, 0.75 - r * 0.45)})`; c.lineWidth = 8 * u;
+    c.beginPath(); c.arc(hx + 70 * u, hy + 20 * u, r * 320 * u, -1.1, 1.1); c.stroke();
   }
   c.restore();
 }
+
+/* A sky jelly out in the world (lkp-game.js: a thing, kind 'skyjelly',
+   drifting its own way): drawn the way the world is - flat colours, dark
+   under and lit on top, a rim of the low sun on its left, see-through,
+   fading into the haze with distance like the trees. th: lane, rel, alt
+   (how high: of the screen, at its depth), size, n. L: the palette. */
+export function skyJelly(c, W, H, th, t, L){
+  if (!L || th.rel > 1.2) return;
+  const p = P(th.lane, th.rel, W, H), s = H * 0.1 * p.k * (th.size || 1);
+  const haze = Math.min(0.75, Math.max(0, th.rel) * 0.85), a = Math.max(0, Math.min(1, (1.2 - th.rel) / 0.35));
+  if (a <= 0.01) return;
+  const bob = Math.sin(t * 0.5 + th.n * 1.7) * s * 0.12, x = p.x, y = p.y - H * th.alt * p.k + bob;
+  const base = ['#d7a6d8', '#a9c4e8', '#c4b4ea'][th.n % 3], col = (k, m = 0) => mixHex(mixHex(base, k > 0 ? '#ffffff' : '#3a3466', Math.abs(k)), L.haze, Math.min(1, haze + m));
+  const pulse = Math.sin(t * 1.1 + th.n), w = s * (1 + 0.05 * pulse), h = s * (0.6 - 0.04 * pulse);
+  c.save(); c.globalAlpha = a * 0.85;
+  /* ribbons: thin, trailing, swaying slowly */
+  c.lineCap = 'round';
+  for (let k = 0; k < 4; k++){
+    const ox = (k / 3 - 0.5) * w * 0.7, len = s * (1.0 + 0.35 * (k % 2));
+    c.strokeStyle = col(-0.15, 0.1); c.lineWidth = Math.max(1, s * 0.045);
+    c.beginPath(); c.moveTo(x + ox, y + h * 0.1);
+    for (let j = 1; j <= 6; j++){ const v = j / 6; c.lineTo(x + ox + Math.sin(t * 1.2 + k + v * 3) * s * 0.08 * v, y + h * 0.1 + v * len); }
+    c.stroke();
+  }
+  /* the bell: shaded underneath, lit on top - two flat tones */
+  c.fillStyle = col(-0.25);
+  c.beginPath(); c.moveTo(x - w * 0.5, y + h * 0.12); c.bezierCurveTo(x - w * 0.55, y - h * 1.1, x + w * 0.55, y - h * 1.1, x + w * 0.5, y + h * 0.12); c.quadraticCurveTo(x, y + h * 0.32, x - w * 0.5, y + h * 0.12); c.fill();
+  c.fillStyle = col(0.18);
+  c.beginPath(); c.moveTo(x - w * 0.46, y - h * 0.05); c.bezierCurveTo(x - w * 0.5, y - h * 1.05, x + w * 0.25, y - h * 1.08, x + w * 0.3, y - h * 0.55); c.quadraticCurveTo(x - w * 0.1, y - h * 0.3, x - w * 0.46, y - h * 0.05); c.fill();
+  /* the sun's rim, on its left */
+  c.strokeStyle = rgbaHex(L.rim, 0.55 * (1 - haze)); c.lineWidth = Math.max(1, s * 0.03);
+  c.beginPath(); c.ellipse(x, y - h * 0.35, w * 0.5, h * 0.78, 0, Math.PI * 0.95, Math.PI * 1.45); c.stroke();
+  c.restore();
+}
+const rgbaHex = (h, a) => `rgba(${[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',')},${a})`;

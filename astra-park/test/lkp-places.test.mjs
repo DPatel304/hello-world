@@ -47,7 +47,9 @@ test('a herd of glimmerbacks takes the right of the path - everyone pushed over 
   assert.ok(inst.here.every(i => inst.crew[i].x < -0.15), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
   assert.ok(spread() < normal * 0.6, 'pushed together');
   /* the trumbler calls - and they scatter, off to the right */
-  assert.ok(inst.things.some(t => t.kind === 'trumbler'), 'a trumbler, off on the left');
+  /* a trumbler charging up from behind, calling - and they scatter */
+  while (inst.herd && !inst.trumblerAt()) inst.step(DT, W, H);
+  assert.ok(inst.trumblerAt() && inst.trumblerAt().rel < 0.2, 'charging in from behind');
   while (inst.herd && !inst.herd.called) inst.step(DT, W, H);
   assert.ok(inst.trumpT != null, 'its call');
   while (inst.herd) inst.step(DT, W, H);

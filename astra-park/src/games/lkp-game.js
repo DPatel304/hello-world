@@ -21,7 +21,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro, START } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { glowfins, glimmerback, driftJellies, DRIFT, herdMass, trumbler, chimeblooms, jellycrawl } from './lkp-critters.js';
+import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, trumbler, chimeblooms, jellycrawl } from './lkp-critters.js';
 import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -125,8 +125,8 @@ export const REST_MIN = 12, VIEW_EASE = 2.5;
 /* The look up at the sky, in the first corridor: how far along (from the
    crew at the start) and how long (seconds). */
 export const VISTA_AT = 5.5, VISTA = DRIFT.for;
-/* (the camera tipping up a little while they're overhead: from, till - seconds in) */
-const UP_FROM = 3.6, UP_TILL = 10.5;
+/* The sky jellies: how many, and their drift (lanes a second, to the right). */
+export const JELLIES = { n: 9, drift: 0.05 };
 /* The herd of glimmerbacks (seconds from when it starts): first just one,
    trotting up alongside the crew, chirping; two more at SCOUTS[1], three
    more after that - and then at mass the rest of them, sweeping in
@@ -135,11 +135,13 @@ const UP_FROM = 3.6, UP_TILL = 10.5;
    when a trumbler, stood off on the left, trumpets - and they scatter,
    off to the right and gone by end. edge: the herd's left edge (lanes);
    push: how far over everyone's pushed (0..1). The trumbler stands at
-   TRUMBLER (lane), seen depth `at` away when it calls. */
+   The trumbler charges in from behind (from the bottom of the screen)
+   CHARGE seconds before it calls, right behind the herd, and chases
+   them off to the right. */
 export const HERD = { mass: 6, full: 1.8, call: 10.8, scatter: 1.6, end: 13, edge: -0.15, push: 1 };
 /* The first few, each its own: when it turns up, and where it trots along (lane, depth). */
 export const SCOUTS = [[0, 1.05, 0.04], [2, 1.35, 0.01], [2.3, 0.95, 0.12], [4, 1.2, 0.15], [4.2, 1.6, 0.06], [4.5, 1.0, -0.015]];
-export const TRUMBLER = { lane: -3.4, at: 0.75 };
+export const CHARGE = 1.8;
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
 const SQUEEZE_AT = 46;
 /* Something big, far off, while they rest - never seen: the woods on
@@ -411,8 +413,6 @@ class LastKnownPosition {
       squeeze: (s) => {
         add(s - HERD.mass - HERD.full, { kind: 'herd' });
         add(s - 1, { kind: 'narrow' });
-        /* (the trumbler, off on the left: there to be seen as it calls, and passed after) */
-        add(s - HERD.mass - HERD.full + HERD.call + (TRUMBLER.at - RUN) / (SPEED * squeeze), { kind: 'trumbler', lane: TRUMBLER.lane });
         crystalLine(s + 0.5, -0.65, 14);
         add(s + 10, { kind: 'wide' });
         ROAD.spans.push({ d0: at(s + 11), d1: at(s + 18.5), half: WIDE });
@@ -474,6 +474,14 @@ class LastKnownPosition {
       /* (her story's told in the opening now, on the radio: lkp-intro.js answer) */
       /* then: look up! - the sky, and what lives up there (_vista) */
       this.things.push({ d: atD(VISTA_AT), kind: 'vista' });
+      /* ...a drift of sky jellies, out there whether anyone comes or not:
+         off to the left of the path, high up, going their own slow way -
+         drifting right and a little away, on the wind */
+      for (let k = 0; k < JELLIES.n; k++){
+        const hs = (n) => { const v = Math.sin((k + n) * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+        this.things.push({ d: atD(VISTA_AT + 0.2 + 1.6 * hs(1)), kind: 'skyjelly', lane: -1.5 - 3.0 * hs(2), alt: 0.45 + 0.3 * hs(3),
+          vl: JELLIES.drift * (0.7 + 0.6 * hs(4)), vd: 0.006 + 0.01 * hs(5), size: 0.8 + 0.5 * hs(6), n: k });
+      }
       /* and only then, crystals to catch, picking up speed */
       const lineD = (dist, lane, k = 5) => { for (let i = 0; i < k; i++) this.things.push({ d: atD(dist + i * 0.09), kind: 'crystal', lane }); };
       const arcD = (dist, dir) => { for (let k = 0; k < 7; k++) this.things.push({ d: atD(dist + k * 0.1), kind: 'crystal', lane: dir * Math.sin(k / 6 * Math.PI) * 0.7 }); };
@@ -552,7 +560,10 @@ class LastKnownPosition {
     const rp = this.rest && this.rest.phase;
     this.viewDown = ease(this.viewDown, rp === 'heal' && this.rest.t > 2.5, VIEW_EASE);
     this.viewFar = ease(this.viewFar, rp === 'far', 2.2);
-    this.viewUp = ease(this.viewUp, !!this.vista && this.vista.t > UP_FROM && this.vista.t < UP_TILL, 1.8);
+    /* (barely a glance their way, as the nearest of the sky jellies drift by) */
+    const jl = this.things.find(t => t.kind === 'skyjelly' && t.d - this.z > 0.12 && t.d - this.z < 0.45);
+    this.viewUp = ease(this.viewUp, !!jl, 2.5);
+    if (jl) this.glanceSide = Math.sign(jl.lane) || -1;
     if (this.vista){ this.vista.t += dt; if (this.vista.t >= VISTA) this.vista = null; }
     this.viewHerd = 0;
     this.t += dt;
@@ -666,6 +677,8 @@ class LastKnownPosition {
     }
     else if (seg.kind === 'room' && seg.t >= seg.len) this._next();
     this.things = this.things.filter(th => th.d + (th.len || 0) - this.z > -0.15);
+    /* (the sky jellies: going their own way, whatever we do) */
+    for (const th of this.things) if (th.kind === 'skyjelly'){ th.lane += th.vl * dt; th.d += th.vd * dt; }
     this._stepBits(dt);
   }
 
@@ -815,8 +828,11 @@ class LastKnownPosition {
     SCOUTS.forEach(([at, lane0, rel0], j) => {
       const u = (h.t - at) / 1.1; if (u <= 0) return;
       const come = 1 - Math.pow(1 - Math.min(1, u), 3), go = m.scatter;
-      const lane = lane0 + 2.6 * (1 - come) + 7 * go * go * (0.8 + 0.4 * hs(j + 40)), rel = rel0 + 0.01 * Math.sin(h.t * 2 + j) + go * go * 0.2;
-      out.push({ rel, lane, side: Math.min(1, go * 2), n: 100 + j, deep: 0, hop: 1 - go });
+      /* (once the rest arrive: off into the mass, and lost in it) */
+      const melt = Math.max(0, Math.min(1, (h.t - HERD.mass - 0.5) / 1.4));
+      if (melt >= 1) return;
+      const lane = lane0 + 2.6 * (1 - come) + 0.9 * melt * melt, rel = rel0 + 0.01 * Math.sin(h.t * 2 + j) + 0.1 * melt;
+      out.push({ rel, lane, side: 0, n: 100 + j, deep: melt * 0.6, hop: 1 - melt, a: 1 - melt });
     });
     /* the clear ones: along the herd's near edge (by the crew), and its
        front rows (nearest us), each its own; the rest is the mass */
@@ -828,6 +844,18 @@ class LastKnownPosition {
       out.push({ rel, lane, side: Math.min(1, go * 2), n: j, deep: front ? 0 : 0.1 });
     }
     return out;
+  }
+  /* The trumbler, charging: up from behind the camera, in behind the
+     herd, bellowing, then on after them off to the right. Where it is
+     (lane, rel), or null. */
+  trumblerAt(){
+    const h = this.herd; if (!h) return null;
+    const u = (h.t - (HERD.call - CHARGE)) / CHARGE; if (u <= 0) return null;
+    /* (to call: up the screen and in; after: on and away right, after them) */
+    const a = Math.min(1, u), b = Math.max(0, u - 1);
+    const rel = -0.36 + 0.54 * (1 - (1 - a) * (1 - a)) + 0.3 * b, lane = 0.25 + 0.2 * a + 5 * b * b;
+    if (lane > 8) return null;
+    return { rel, lane };
   }
   /* The herd's mass, now: how far it's shifted (dx lanes: coming in from
      the right, or streaming off right), how much it's scattered (0..1),
@@ -1309,9 +1337,9 @@ class LastKnownPosition {
          above, the crew still running small below - and panning along
          slowly with the jellies as they drift over) */
       if (up > 0){
-        const vt = this.vista ? this.vista.t : UP_TILL, s = 1 - 0.14 * up, pan = W * 0.05 * up * Math.max(0, Math.min(1, (vt - UP_FROM) / (UP_TILL - UP_FROM)));
+        const s = 1 - 0.05 * up, pan = -(this.glanceSide || -1) * W * 0.025 * up;
         c.translate(W / 2 + pan, H * 0.98); c.scale(s, s); c.translate(-W / 2, -H * 0.98);
-        SKY.above = H * 0.25 * up; SKY.wide = W * 0.2 * up;
+        SKY.above = H * 0.08 * up; SKY.wide = W * 0.06 * up;
       }
       /* (down: their feet brought up the screen, closer - the water round them filling the view) */
       if (dn > 0){ const ay = P(0, RUN, W, H).y, z = 1 + 0.45 * dn, sy = ay + (H * 0.62 - ay) * dn; c.translate(W / 2, sy); c.scale(z, z); c.translate(-W / 2, -ay); }
@@ -1396,6 +1424,7 @@ class LastKnownPosition {
     if (this.depot) this.depot.items(items);
     if (this.ride) this.ride.items(items);
     if (this.herd && this.herd.t >= HERD.mass) items.push({ kind: 'herdMass', rel: 0.66 });
+    const tb = this.trumblerAt(); if (tb) items.push({ kind: 'trumbler', rel: tb.rel, lane: tb.lane, tb });
     for (const f of this._flock()) items.push({ kind: 'herd1', rel: f.rel, lane: f.lane, f });
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
@@ -1412,8 +1441,7 @@ class LastKnownPosition {
       this._drawItem(c, it, W, H);
       if (low) c.restore();
     }
-    /* the sky jellies, drifting over on their own way */
-    if (this.vista) driftJellies(c, W, H, this.t, this.vista.t);
+
     /* on the zip line: each hanging from the cable, or the feet above */
     if (this.zip) this.zip.drawRiders(c, W, H, (i, x, y, h, a) => {
       c.save(); c.translate(x, y); c.rotate(a);
@@ -1502,8 +1530,13 @@ class LastKnownPosition {
       case 'patch': worldPatch(c, W, H, it.lane, it.rel, this.t, PAL.world); break;
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
       case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter); break; }
-      case 'trumbler': { const call = this.trumpT != null ? (this.t - this.trumpT) / 1.6 : 0; trumbler(c, p.x, p.y, H * 0.5 * p.k, this.t, call > 0 && call < 1.6 ? call : 0); break; }
-      case 'herd1': if (it.rel > -0.12) glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep, it.f.hop || 0); break;
+      case 'skyjelly': skyJelly(c, W, H, it, this.t, PAL.world); break;
+      case 'trumbler': { const call = this.trumpT != null ? (this.t - this.trumpT) / 1.6 : 0; trumbler(c, p.x, p.y, H * 0.62 * p.k, this.t, call > 0 && call < 1.6 ? call : 0, 1, Math.min(0.6, Math.max(0, it.rel) * 0.8), PAL.world); break; }
+      case 'herd1': if (it.rel > -0.12 && (it.f.a ?? 1) > 0.01){
+        c.save(); c.globalAlpha = it.f.a ?? 1;
+        glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep, it.f.hop || 0);
+        c.restore();
+      } break;
     }
   }
 
