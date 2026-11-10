@@ -27,7 +27,7 @@ test('the opening: eyes open on a hopshell, following it to the ship; answer Nov
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'out', 'rise', 'move', 'go']);
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'vitals', 'out', 'rise', 'move', 'go']);
   const z = inst.z;
   /* the title card first - a film starting (the crash, before it, is out for now) */
   assert.equal(intro.stage, 'title');
@@ -62,7 +62,13 @@ test('the opening: eyes open on a hopshell, following it to the ship; answer Nov
   assert.equal(intro.stage, 'answer');
   assert.ok(intro.radio.busy && intro.radio.visible);
   inst.draw(fake(), W, H);
-  run(inst, say(inst, 'wakeup') + say(inst, 'walk') + SAID + 0.3);
+  run(inst, say(inst, 'wakeup') + say(inst, 'vitals') + 0.1);
+  /* how are your vitals? - the bars pop up, fill and stop short; then she says so */
+  assert.equal(intro.stage, 'vitals');
+  run(inst, 1); inst.draw(fake(), W, H);
+  run(inst, 3);
+  assert.ok(intro.radio.busy, 'you took some damage');
+  run(inst, say(inst, 'hurt') + SAID + 0.3);
   /* out of the helmet to the game's view: the crew sat in the grass */
   assert.equal(intro.stage, 'out');
   run(inst, OUT_TIME / 2); inst.draw(fake(), W, H);
@@ -100,7 +106,7 @@ test('the opening: eyes open on a hopshell, following it to the ship; answer Nov
 test('nobody answering or wiggling never holds it up for ever', () => {
   story.on = true; crew(1);
   const inst = game.create(1);
-  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE + WATCH + NOTICE + RING_MAX + 1 + say(inst, 'wakeup') + say(inst, 'walk') + SAID + 1 + OUT_TIME + RISE_MAX + 1 + MOVE_MAX + 2 + say(inst, 'ready') + GO + 2;
+  const most = CRASH_SHOT + TITLE_CARD + DARK + WAKE + WATCH + NOTICE + RING_MAX + 1 + say(inst, 'wakeup') + say(inst, 'vitals') + 4 + say(inst, 'hurt') + SAID + 1 + OUT_TIME + RISE_MAX + 1 + MOVE_MAX + 2 + say(inst, 'ready') + GO + 2;
   for (let k = 0; k < most / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   story.on = false;

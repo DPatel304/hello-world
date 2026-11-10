@@ -574,6 +574,17 @@ export const sfx = {
     hiss({ dur: 0.22, gain: 0.16, hp: 500, sweep: 4000 });
     blip({ freq: 700, to: 1600, dur: 0.18, type: 'triangle', gain: 0.18, delay: 0.05 });
   },
+  /* Getting up, cartoon style (Last Known Position's opening). "Hm?" - a
+     little two-note query, looking yourself over. */
+  hmm(){ blip({ freq: 440, to: 520, dur: 0.11, type: 'triangle', gain: 0.13 }); blip({ freq: 560, to: 760, dur: 0.15, type: 'triangle', gain: 0.13, delay: 0.13 }); },
+  /* A pat on the suit: a soft, padded thump. */
+  pat(){ blip({ freq: 210, to: 130, dur: 0.07, type: 'sine', gain: 0.22 }); hiss({ dur: 0.04, gain: 0.04, hp: 1200 }); },
+  /* Springing up: a rising boing. */
+  spring(k = 0){ const f = 190 * Math.pow(2, k / 12); blip({ freq: f, to: f * 4.2, dur: 0.28, type: 'triangle', gain: 0.24 }); blip({ freq: f / 2, to: f * 1.6, dur: 0.24, type: 'sine', gain: 0.16 }); },
+  /* Ta-da: up and ready - a bright little two-note flourish. */
+  tada(k = 0){ const f = 660 * Math.pow(2, k / 12); blip({ freq: f, dur: 0.1, type: 'square', gain: 0.06 }); blip({ freq: f * 1.5, dur: 0.22, type: 'square', gain: 0.06, delay: 0.1 }); blip({ freq: f * 1.5, dur: 0.22, type: 'sine', gain: 0.12, delay: 0.1 }); },
+  /* A meter stopping short: uh-oh, falling. */
+  uhoh(){ blip({ freq: 520, dur: 0.13, type: 'triangle', gain: 0.14 }); blip({ freq: 370, to: 340, dur: 0.24, type: 'triangle', gain: 0.14, delay: 0.17 }); },
   /* Somewhere picked to go to: a soft wooden tock. */
   pick(){ blip({ freq: 1100, to: 850, dur: 0.06, type: 'triangle', gain: 0.09 }); },
   /* The next kind of tower: click-clack. */

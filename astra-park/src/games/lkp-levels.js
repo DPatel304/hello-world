@@ -84,11 +84,14 @@ export const LEVELS = [
     },
     lines: {
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
-      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay!', '']],
+      wakeup: [['nova', 'ksssh \u2014 Crew, do you read me?', '']],
+      /* ...and their vitals: each one's health bar popping up - three-quarters full */
+      vitals: [['nova', 'Your ship looks like it\'s in bad shape. How are everyone\'s vitals doing?', '']],
+      hurt: [['nova', 'Hmm... looks like you took some damage when you crashed. Are you able to stand up, at least?', '']],
       /* ...and once they're up, on the path. */
       rise: [['nova', 'On your feet, crew!', '']],
       /* ...and up: can they move? - everyone wiggling, each one their own astronaut */
-      canMove: [['nova', 'Can you move? Give your arms and legs a wiggle!', 'WIGGLE!']],
+      canMove: [['nova', 'Great! Can you move at all? Give your arms and legs a wiggle!', 'WIGGLE!']],
       ready: [['nova', 'There you all are! Now follow that path.', '']],
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */

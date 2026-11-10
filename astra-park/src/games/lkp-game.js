@@ -1350,7 +1350,7 @@ class LastKnownPosition {
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
       const p = P(ic.lane, ic.rel, W, H), h = H * CREW_SIZE * p.k;
-      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x + (ic.dx || 0) * h, y: p.y, h, bob: (ic.bob || 0) * h, down: ic.down, pose: ic.pose, noBar: ic.noBar, ground: ic.ground || 0, look: ic.look || 0, body: ic.body || null } });
+      items.push({ kind: 'crew', rel: ic.rel, i: ic.i, at: { x: p.x + (ic.dx || 0) * h, y: p.y, h, bob: (ic.bob || 0) * h, down: ic.down, pose: ic.pose, noBar: ic.noBar, ground: ic.ground || 0, look: ic.look || 0, body: ic.body || null, sq: ic.sq || 1, nod: ic.nod || 0 } });
     }
     else for (let i = 0; i < this.players; i++) if (this.crew[i].played && !(this.zip && this.zip.holding(i))) items.push({ kind: 'crew', rel: RUN, i });
     if (this.fight && !this.fight.done) items.push({ kind: 'team', rel: RUN + 0.001 });
@@ -1495,7 +1495,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     (at && at.front ? worldCrewFront : drawCrew)(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: rn.nod || 0, ground: (at && at.ground) || 0, body: (at && at.body) || null, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: (at && at.nod) || rn.nod || 0, sq: (at && at.sq) || 1, ground: (at && at.ground) || 0, body: (at && at.body) || null, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       /* (noFace: the visor just dark glass - the opening's shot, before anyone's face is in it) */
       at && at.noFace ? null : (x, y, r) => {
         /* (the sleepy roll: the face they pulled sneaking past her, frozen on red) */
@@ -1524,7 +1524,7 @@ class LastKnownPosition {
     }
     if (rn.down){ drawZzz(c, p.x - h * 0.2, p.y - h * 0.35, h * 0.3, this.t + i); return; }
     /* Their health over their head; the guide's crown at a crossroads. */
-    const top = p.y - rn.air * h * 0.55 - h * (1 - rn.duck * 0.45);
+    const top = p.y - rn.air * h * 0.55 - (at ? at.bob || 0 : 0) - h * (1 - rn.duck * 0.45) + (at ? (at.ground || 0) * h * 0.34 : 0);
     /* Hurt (in the crash, or since), and nothing else going on: the bar
        pulsing orange, and now and then a spark fizzing off the suit - so
        it's seen, not read. Healed, it stops. */

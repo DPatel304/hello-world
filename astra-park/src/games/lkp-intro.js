@@ -53,9 +53,10 @@ export const INTRO_BEATS = [
   { id: 'watch', time: 9, shot: 'through the helmet: the hopshell hopping slowly away to the right, minding its own business - the view following it', blocking: 'nothing asked - wind, birds' },
   { id: 'notice', time: 6, shot: 'beyond it, in the distance: the ship, crashed, smoking - the view settling on it, staring', blocking: 'nothing asked' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'through the helmet, looking at the ship', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
-  { id: 'answer', until: 'her lines said', lines: 'wakeup, walk', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re okay; an unknown planet; the Star Core' },
+  { id: 'answer', until: 'her lines said', lines: 'wakeup, vitals', shot: 'through the helmet; her window top left', blocking: 'Nova: do you read me? how are your vitals?' },
+  { id: 'vitals', until: 'her line said', lines: 'hurt', max: 16, shot: 'through the helmet: each one\'s health bar popping up on the visor, filling - and stopping three-quarters of the way', blocking: 'Nova: you took some damage - can you stand?' },
   { id: 'out', time: 6, shot: 'the head turning to the path; the camera pulling straight back out over your shoulder into the game\'s view - the crew sat in the grass', blocking: 'nothing asked' },
-  { id: 'rise', until: 'everyone up', max: 8, shot: 'the game\'s view: the crew getting up, one after another', blocking: 'Nova: on your feet!' },
+  { id: 'rise', until: 'everyone up', max: 12, shot: 'the game\'s view: each astronaut, one after another, looking themselves over - an arm, a pat of the legs - then springing up onto their feet, ta-da', blocking: 'no words: they answer her by doing it' },
   { id: 'move', until: 'everyone wiggled, and a while to play', max: 30, shot: 'the game\'s view: each astronaut bouncing as their player wiggles', blocking: 'Nova: can you move? - everyone wiggling' },
   { id: 'go', time: 1, shot: 'behind them on the path, setting off', blocking: 'Nova: follow that path' }
 ];
@@ -76,7 +77,7 @@ export const PLAY = 9;
 /* The call: a hand held at the ear HOLD seconds answers it. */
 export const HOLD = 0.4;
 /* They start on START of their health: hurt in the crash. */
-export const START = 0.5;
+export const START = 0.75;
 /* Through the helmet: looking at (cx, cy) - screens - s times closer,
    tilted (lying on your side). */
 const POV = { cx: 0.152, cy: 0.41, s: 1.75, tilt: -0.12 };
@@ -104,6 +105,14 @@ const GRASS = 0;   /* (on the path itself: the camera comes out over their shoul
 const TURN = 2.2, OUT = 3.4, TO_PATH = -(0.5 - POV.cx) * POV.s * 0.82;
 /* A moment after it's done. */
 const AFTER = 0.5;
+/* The vitals: each bar popping up (STAGGER apart), then filling to START
+   over FILL seconds; her line once they've stopped. */
+const POP = 0.35, STAGGER = 0.22, FILL_AT = 0.7, FILL = 1.4, HURT_AT = 2.9;
+/* Getting up, cartoon style: each one GAP after the one before - looking
+   themselves over (an arm, then patting their legs), a crouch, a spring
+   up onto their feet, a landing, a ta-da. Seconds into each one's turn. */
+const GETUP = { first: 0.5, gap: 0.55, check: 0, pat: 1.0, crouch: 1.8, jump: 2.1, land: 2.6, tada: 2.8, done: 3.6 };
+const backOut = (k) => { k = Math.max(0, Math.min(1, k)); const c1 = 1.9; return 1 + (c1 + 1) * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
 
 export class Intro {
   constructor(game){
@@ -148,6 +157,7 @@ export class Intro {
       for (const i of g.here){ g.crew[i].played = true; g.crew[i].x = g._home(i); }
     }
     this.radio.step(dt);
+    if (this.vitT != null) this.vitT += dt;
     /* the heartbeat, while you're coming round */
     if (this.stage === 'dark' || (this.stage === 'wake' && this.st < WAKE * 0.6)){
       /* (your heartbeat, coming in in the dark) */
@@ -160,6 +170,7 @@ export class Intro {
     else if (this.stage === 'title') titleSound(this.st, dt, this.titleSnd);
     else this._sounds(dt);
     const b = this.beat;
+    this.dt = dt;
     const over = STEP[b.id].call(this, dt);
     /* the eyes: how open, eased */
     const want = EYES[this.stage].call(this);
@@ -332,17 +343,41 @@ export class Intro {
       c.fillStyle = '#7ff3ff'; c.beginPath(); c.moveTo(W / 2, y0 + H * 0.006); c.lineTo(W / 2 - H * 0.008, y0 + H * 0.018); c.lineTo(W / 2 + H * 0.008, y0 + H * 0.018); c.fill();
       c.globalAlpha = 1;
     }
-    /* the display, bottom left - a picture, no words: the suit's battery,
-       half gone */
-    const on = this.stage !== 'dark' && (Math.sin(this.t * 23) > -0.85 || this.stage !== 'wake') && !(this.stage === 'wake' && this.st < WAKE * 0.8);
-    if (on){
-      const x = W * 0.05, y = H * 0.8, w = H * 0.16, h = H * 0.075, flash = Math.sin(this.t * 6) > 0;
-      c.globalAlpha = 0.9;
-      c.fillStyle = 'rgba(5,6,15,.6)'; c.beginPath(); c.roundRect(x, y, w, h, h * 0.18); c.fill();
-      c.strokeStyle = flash ? '#ff6b5b' : '#ffb35b'; c.lineWidth = H * 0.007; c.stroke();
-      c.fillStyle = c.strokeStyle; c.fillRect(x + w, y + h * 0.3, h * 0.14, h * 0.4);
-      c.fillStyle = flash ? '#ff9c5b' : '#ff7a4a'; c.beginPath(); c.roundRect(x + h * 0.12, y + h * 0.12, (w - h * 0.24) * START, h * 0.76, h * 0.1); c.fill();
-    }
+    /* the suit's vitals, bottom centre, once she asks: each one's bar
+       popping up, then filling - and stopping short, three-quarters full */
+    if (this.vitT != null) this._vitals(c, W, H, this.vitT);
+    c.restore();
+  }
+
+  /* The vitals panel: a bar each, in their colour, popping up one after
+     another and filling to START. */
+  _vitals(c, W, H, vt){
+    const here = this.g.here; if (!here.length) return;
+    const n = here.length, bw = H * 0.34, bh = H * 0.034, gap = H * 0.022;
+    const ph = H * 0.05 + n * (bh + gap), pw = bw + H * 0.12, x0 = W / 2 - pw / 2, y0 = H * 0.9 - ph;
+    const panel = backOut(vt / POP);
+    if (panel <= 0.01) return;
+    c.save();
+    c.translate(W / 2, y0 + ph); c.scale(panel, panel); c.translate(-W / 2, -(y0 + ph));
+    c.globalAlpha = 0.92;
+    c.fillStyle = 'rgba(5,6,15,.62)'; c.beginPath(); c.roundRect(x0, y0, pw, ph, H * 0.014); c.fill();
+    c.strokeStyle = '#7ff3ff'; c.lineWidth = Math.max(1.5, H * 0.0025); c.stroke();
+    c.fillStyle = '#7ff3ff'; c.font = `700 ${Math.round(H * 0.022)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('VITALS', W / 2, y0 + H * 0.026);
+    here.forEach((i, k) => {
+      const t = vt - k * STAGGER, pop = backOut(t / POP);
+      if (pop <= 0.01) return;
+      const fill = START * (1 - Math.pow(1 - Math.max(0, Math.min(1, (t - FILL_AT) / FILL)), 3));
+      /* (a little shudder as it stops short) */
+      const stopT = t - FILL_AT - FILL, shake = stopT > 0 && stopT < 0.4 ? Math.sin(stopT * 60) * (0.4 - stopT) * H * 0.012 : 0;
+      const y = y0 + H * 0.05 + k * (bh + gap), x = x0 + H * 0.07 + shake;
+      c.save(); c.translate(x + bw / 2, y + bh / 2); c.scale(pop, pop); c.translate(-(x + bw / 2), -(y + bh / 2));
+      c.fillStyle = PLAYER_COLORS[i]; c.beginPath(); c.arc(x - H * 0.03, y + bh / 2, bh * 0.45, 0, 6.2832); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - 3, y - 3, bw + 6, bh + 6);
+      c.fillStyle = '#3fd07a'; c.fillRect(x, y, bw * fill, bh);
+      c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(x, y, bw * fill, bh * 0.35);
+      c.restore();
+    });
     c.restore();
   }
 
@@ -485,12 +520,32 @@ export class Intro {
     const m = s === 'move' && this.mirror && this.mirror[i];
     if (m && m.body) return { pose: null, look: 0, bob: 0, body: m.body };
     if (s === 'move' && this.stirring && this.stirring[i]) return { pose: 'hang', look: 0, bob: Math.abs(Math.sin(this.t * 13 + k)) * 0.12 };
-    if (s === 'out' || s === 'rise') return { pose: null, look: this.up[i] > 0.99 ? 0 : Math.sin(T * 0.8) * 0.5 };
+    if (s === 'rise') return this._getUpAct(i, k, T);
+    if (s === 'out') return { pose: null, look: Math.sin(T * 0.8) * 0.5 };
     return { pose: null, look: s === 'move' ? Math.sin(T * 1.1) * 0.4 : 0 };
+  }
+  /* Getting up, cartoon style - seconds into their own turn, u. */
+  _getUpAct(i, k, T){
+    const u = this.st - GETUP.first - k * GETUP.gap, G = GETUP;
+    const sat = { ground: 1 };
+    if (u < G.check) return { ...sat, pose: null, look: Math.sin(T * 0.8) * 0.5 };
+    /* "hm?" - holding an arm up, turning it over */
+    if (u < G.pat) return { ...sat, pose: 'check', look: -0.2 };
+    /* patting their legs: all there */
+    if (u < G.crouch) return { ...sat, pose: 'dust', look: 0, nod: 0.6 };
+    /* a crouch, squashed down, gathering themselves */
+    if (u < G.jump){ const p = (u - G.crouch) / (G.jump - G.crouch); return { ...sat, pose: null, sq: 1 - 0.24 * Math.sin(p * Math.PI / 2), nod: 0.3 }; }
+    /* boing! up and onto their feet, stretched tall, an arm thrown up */
+    if (u < G.land){ const p = (u - G.jump) / (G.land - G.jump); return { ground: 0, pose: 'reach', bob: Math.sin(p * Math.PI) * 0.32, sq: 1 + 0.16 * (1 - p) }; }
+    /* landing, squashed */
+    if (u < G.tada){ const p = (u - G.land) / (G.tada - G.land); return { ground: 0, pose: null, sq: 1 - 0.2 * Math.sin(p * Math.PI) }; }
+    /* ta-da: a fist up, a nod, a little bounce */
+    if (u < G.done){ const p = (u - G.tada) / (G.done - G.tada); return { ground: 0, pose: 'reach', bob: Math.abs(Math.sin(p * Math.PI * 2)) * 0.05, nod: Math.max(0, Math.sin(p * Math.PI * 2)) * 0.5 }; }
+    return { ground: 0, pose: null, look: 0 };
   }
   _outside(c, W, H){
     const g = this.g;
-    g.introCrew = g.here.map((i, k) => { const a = this._act(i, k); return { i, lane: this._lane(i), rel: RUN_AT, down: 0, ground: 1 - easeOut(this.up[i]), noBar: this.stage !== 'go', pose: a.pose, look: a.look, bob: a.bob || 0, body: a.body || null }; });
+    g.introCrew = g.here.map((i, k) => { const a = this._act(i, k); return { i, lane: this._lane(i), rel: RUN_AT, down: 0, ground: a.ground != null ? a.ground : 1 - easeOut(this.up[i]), noBar: this.stage === 'out' && this.st < TURN, pose: a.pose, look: a.look, bob: a.bob || 0, body: a.body || null, sq: a.sq || 1, nod: a.nod || 0 }; });
     g.inIntro = true;
     g._drawPlay(c, W, H);
     g.inIntro = false; g.introCrew = null;
@@ -500,8 +555,8 @@ export class Intro {
 /* ---------- what each beat does ---------- */
 
 const BEGIN = {
-  answer(){ this.radio.visible = true; this.radio.say(...script('wakeup', this.g), ...script('walk', this.g)); },
-  rise(){ this.radio.say(...script('rise', this.g)); },
+  answer(){ this.radio.visible = true; this.radio.say(...script('wakeup', this.g), ...script('vitals', this.g)); },
+  vitals(){ this.vitT = 0; },
   move(){ this.radio.say(...script('canMove', this.g)); },
   go(){ this.radio.say(...script('ready', this.g)); }
 };
@@ -514,7 +569,22 @@ const STEP = {
   notice(){ return false; },
   out(){ if (!this.pulled && this.st >= TURN){ this.pulled = true; sfx.pullBack?.(); } return false; },
   /* on your feet: up they get, one after another */
-  rise(dt){ this._getUp(dt, 0.9); if (this.g.here.some((i, k) => this.up[i] > 0.05 && !this.stepped?.[i])){ this.stepped = this.stepped || {}; for (const i of this.g.here) if (this.up[i] > 0.05 && !this.stepped[i]){ this.stepped[i] = true; sfx.step(i, 0.4); } } return this._settled(dt, this.g.here.every(i => this.up[i] >= 1) && !this.radio.busy); },
+  /* on their feet - no words: each one looks themselves over, then springs up */
+  rise(){
+    const G = GETUP, here = this.g.here;
+    this.cued = this.cued || {};
+    here.forEach((i, k) => {
+      const u = this.st - G.first - k * G.gap, cue = (name, at, f) => { const key = i + name; if (u >= at && !this.cued[key]){ this.cued[key] = true; f(); } };
+      cue('hmm', G.check, () => sfx.hmm?.());
+      cue('pat1', G.pat + 0.1, () => sfx.pat?.()); cue('pat2', G.pat + 0.45, () => sfx.pat?.());
+      cue('jump', G.jump, () => sfx.spring?.(k * 2));
+      cue('land', G.land, () => sfx.land?.());
+      cue('tada', G.tada, () => sfx.tada?.(k * 2));
+      if (u >= G.jump) this.up[i] = 1;
+    });
+    const last = G.first + (here.length - 1) * G.gap + G.done;
+    return this._settled(this.dt || 0, here.every(i => this.up[i] >= 1) && this.st >= last && !this.radio.busy);
+  },
   /* Nova: can you move? - everyone wiggling, each with their own astronaut */
   move(dt){
     if (this.radio.busy && this.st < 1.2) return false;
@@ -547,7 +617,21 @@ const STEP = {
     return this._settled(dt, here.every(i => this.answered[i]));
   },
   /* her words; then a quiet moment */
-  answer(dt){ this.quiet = this.radio.busy ? 0 : (this.quiet || 0) + dt; return this.quiet >= SAID; },
+  answer(){ return !this.radio.busy; },
+  /* the bars popping up and filling, ticking - stopping short, uh-oh; then her line, and a quiet moment */
+  vitals(dt){
+    const vt = this.vitT, n = this.g.here.length;
+    this.cued = this.cued || {};
+    this.g.here.forEach((i, k) => {
+      const t = vt - k * STAGGER;
+      if (t >= 0 && !this.cued['pop' + i]){ this.cued['pop' + i] = true; sfx.pop?.(0.4, k); }
+      if (t > FILL_AT && t < FILL_AT + FILL){ this.tickT = (this.tickT || 0) - dt; if (this.tickT <= 0){ this.tickT = 0.07; sfx.tick?.(); } }
+    });
+    if (vt >= FILL_AT + FILL + (n - 1) * STAGGER && !this.cued.uhoh){ this.cued.uhoh = true; sfx.uhoh?.(); }
+    if (vt >= HURT_AT + (n - 1) * STAGGER && !this.cued.hurt){ this.cued.hurt = true; this.radio.say(...script('hurt', this.g)); }
+    if (!this.cued.hurt) return false;
+    this.quiet = this.radio.busy ? 0 : (this.quiet || 0) + dt; return this.quiet >= SAID;
+  },
   go(){ return this.st > 0.4 && !this.radio.busy; }
 };
 /* How open the eyes want to be, in each beat. */
@@ -558,6 +642,7 @@ const EYES = {
   wake(){ const u = this.st / WAKE, blink = u > 0.35 && u < 0.5 ? Math.sin((u - 0.35) / 0.15 * Math.PI) * 0.6 : 0; return Math.min(1, 0.15 + u * 1.1 - blink); },
   watch(){ return 1; },
   notice(){ return 1; },
+  vitals(){ return 1; },
   out(){ return 1; },
   rise(){ return 1; },
   move(){ return 1; },
@@ -596,10 +681,6 @@ Intro.prototype._mirror = function (dt){
     m.body = body;
     this.mirror[i] = m;
   }
-};
-/* Up off the ground, one after another (after a while, from). */
-Intro.prototype._getUp = function (dt, from){
-  this.g.here.forEach((i, k) => { if (this.st > from + k * 0.7) this.up[i] = Math.min(1, this.up[i] + dt / 1.6); });
 };
 Intro.prototype._settled = function (dt, ok){
   if (!ok){ this.afterT = 0; return false; }

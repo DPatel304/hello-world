@@ -84,6 +84,8 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   c.scale(1, f);
+  /* (squashed and stretched, about their feet: st.sq, 1 = as they are) */
+  const sq = st.sq || 1; if (sq !== 1) c.scale(2 - sq, sq);
   /* (sitting: the seat is where the hips are) */
   if (pose === 'sit') c.translate(0, 120 * u);
   /* (st.ground: sat on the grass, 0..1 - lower, legs out in front of them, just the knees showing) */
@@ -195,6 +197,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   if (dn > 0){ c.translate(h * 0.42 * dn, -h * 0.14 * dn); c.rotate(-Math.PI / 2 * dn); if (st.down === true) c.globalAlpha = 0.6; }
   if (st.lost) c.globalAlpha = 0.35;
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
+  if (sq !== 1) c.scale(2 - sq, sq);
   if (pose === 'sit') c.translate(0, 120 * u);
   if (gk > 0) c.translate(0, 112 * u * gk);
   fromHips();
