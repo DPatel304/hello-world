@@ -5,7 +5,7 @@
    (lkp-art.js hands over to these); L is that world palette. */
 import { P, RUN, HORIZON, sign } from './lkp-art.js';
 import { mix, rgba, glow, cast, tree, PATH_HALF, treeKind, kindOf } from './lkp-world.js';
-import { drawZubuWall } from './lkp-zubu.js';
+import { drawZubuWall, zubuWallSnore, WALL_EYES } from './lkp-zubu.js';
 
 const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6.2832); c.fill(); };
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -423,11 +423,24 @@ export function worldGladeSide(c, W, H, red, t, L, light = 'green'){
   const top = H * 0.72, fg = c.createLinearGradient(0, top, 0, H);
   fg.addColorStop(0, mix(L.ground[0], L.haze, 0.15)); fg.addColorStop(1, L.ground[2]);
   c.fillStyle = fg; c.beginPath(); c.moveTo(0, top); for (let k = 0; k <= 12; k++) c.lineTo(W * k / 12, top + H * 0.01 * Math.sin(k * 2.1)); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
-  /* the trees in front of her: all kinds, with gaps - none over her face
-     (left of half way), the back row smaller and hazier */
-  for (const [row, y, sz, xs] of [[0, top + H * 0.01, 0.00042, [0.53, 0.64, 0.75, 0.86, 0.97, 0.03]], [1, top + H * 0.05, 0.00058, [0.59, 0.7, 0.81, 0.93]]]){
-    xs.forEach((u, k) => { const n = 40 + row * 10 + k; treeKind(c, W * u, y, H * sz * (0.85 + 0.3 * hash(n)), kindOf(n), L, 0.25 - row * 0.15, n); });
-  }
+  /* the woods in front of her, tall and thick - she shows only in the
+     gaps and over the tops (you can tell how big she is, but not see her
+     all) - except round her eyes, always clear. Back row tallest; tops
+     and sizes vary; front row shorter, and only low bushes under her eyes. */
+  const W0 = WALL_EYES.x0 * W, W1 = WALL_EYES.x1 * W;
+  const rows = [
+    [0, top - H * 0.005, 0.00102, 0.3, [0.01, 0.07, 0.4, 0.46, 0.52, 0.585, 0.64, 0.7, 0.76, 0.82, 0.88, 0.94, 0.995]],
+    [1, top + H * 0.03, 0.00092, 0.18, [0.04, 0.37, 0.43, 0.49, 0.55, 0.61, 0.67, 0.73, 0.79, 0.85, 0.91, 0.97]],
+    [2, top + H * 0.065, 0.00074, 0.05, [0.0, 0.08, 0.17, 0.25, 0.33, 0.4, 0.5, 0.6, 0.69, 0.78, 0.88, 0.96]]
+  ];
+  for (const [row, y, sz, hz, xs] of rows) xs.forEach((u, k) => {
+    const n = 40 + row * 20 + k, x = W * (u + (hash(n + 7) - 0.5) * 0.015);
+    let kind = kindOf(n), s = H * sz * (0.8 + 0.4 * hash(n));
+    /* under her eyes: only something low */
+    if (x > W0 - W * 0.05 && x < W1 + W * 0.05){ if (row < 2) return; kind = 'bush'; s = H * 0.0007; }
+    treeKind(c, x, y, s, kind, L, hz, n);
+  });
+  zubuWallSnore(c, W, H, light, t);
   /* the trodden path, across the bottom */
   c.fillStyle = rgba(L.path[0], 0.6);
   c.beginPath(); c.moveTo(0, H * 0.82); for (let k = 0; k <= 10; k++) c.lineTo(W * k / 10, H * (0.82 + 0.006 * Math.sin(k * 1.9))); c.lineTo(W, H * 0.96); for (let k = 10; k >= 0; k--) c.lineTo(W * k / 10, H * (0.96 + 0.006 * Math.sin(k * 2.3))); c.closePath(); c.fill();

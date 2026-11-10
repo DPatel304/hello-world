@@ -101,8 +101,13 @@ export function drawZubuWall(c, W, H, light, t){
   form(c, side, ZUBU.body, H, 0.4);
   /* freckles */
   freckles(c, [[0.5, 0.25], [0.62, 0.2], [0.78, 0.17], [0.9, 0.22], [0.55, 0.36], [0.95, 0.38], [0.68, 0.45]].map(([u, v]) => [u * W, v * H]), H * 0.008);
-  drawZubuAsleep(c, W, H, light, t, { x: 0.42, y: 0.68, size: 0.6, shadow: false });
+  drawZubuAsleep(c, W, H, light, t, WALL);
 }
+/* Where her head is, in the wall: and its snore, drawn over the trees. */
+const WALL = { x: 0.42, y: 0.68, size: 0.6, shadow: false, snore: false };
+export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * WALL.x, H * WALL.y, H * WALL.size); }
+/* Where her eyes are on screen (fractions): kept clear of trees. */
+export const WALL_EYES = { x0: 0.13, x1: 0.34, y0: 0.34, y1: 0.64 };
 
 export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 0.44, shadow: true }){
   const S = H * at.size, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;
@@ -144,7 +149,13 @@ export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 
   if (light === 'red'){ c.fillStyle = '#7a2a3a'; c.beginPath(); c.ellipse(x0 - S * 0.12, y0 + S * 0.05, S * 0.025, S * 0.03, 0, 0, TAU); c.fill(); }
   else { c.beginPath(); c.arc(x0 - S * 0.12, y0 + S * 0.02, S * 0.06, 0.25 * Math.PI, 0.7 * Math.PI); c.stroke(); }
   c.restore();
-  /* the snore, drifting up from it: ZZZUUUU... BBBUUUU... */
+  /* the snore, drifting up from it: ZZZUUUU... BBBUUUU... (unless it's
+     drawn later, over trees in front: zubuSnore) */
+  if (at.snore !== false) zubuSnore(c, H, light, t, x0, y0, S);
+}
+
+/* The snore's word, drifting up from beside her nose at (x0, y0). */
+export function zubuSnore(c, H, light, t, x0, y0, S){
   if (light === 'green'){
     const ph = (t % (SNORE / 2)) / (SNORE / 2), word = snoreWord(t);
     c.save(); c.textAlign = 'left'; c.textBaseline = 'middle';
