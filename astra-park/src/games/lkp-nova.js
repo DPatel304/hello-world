@@ -17,11 +17,12 @@ function rg(c, x, y, r0, r1, stops){ const g = c.createRadialGradient(x, y, r0, 
 function lg(c, x0, y0, x1, y1, stops){ const g = c.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, col]) => g.addColorStop(o, col)); return g; }
 
 /* Her portrait, 600 x 600, in a graphic-novel style: flat colour, hard
-   shadow down her right side, ink, halftone. A long face, big almond
-   blue-grey eyes, arched brows, a small nose; auburn hair tied back;
+   shadow down her right side, ink, halftone. Older now: a long face, big
+   almond blue-grey eyes, the lines of a long career round them; silver
+   hair tied back, a last streak of auburn; arched brows, a small nose;
    an eyepatch over her right eye; armour. (She'll be fighting alongside
    the crew, later on.) */
-const NOVA_LOOK = { skin: '#d8a888', hair: '#6a3a1e', style: 'tied', gear: 'armor', gearCol: '#4a5260', face: 'long', brows: 'arched', lips: 'neutral', iris: '#5a7a8a', eyes: { shape: 'almond', size: 1.25, gap: 45 }, nose: 'tiny', patch: 'right' };
+const NOVA_LOOK = { skin: '#d2a488', hair: '#a8a29c', grey: false, streak: '#7a4a2e', style: 'tied', gear: 'armor', gearCol: '#4a5260', face: 'long', brows: 'arched', browCol: '#8a8480', lips: 'thin', iris: '#5a7a8a', eyes: { shape: 'almond', size: 1.2, gap: 45 }, nose: 'tiny', patch: 'right', older: true };
 /* Where her open eye and her mouth are, in the portrait (for blinking and
    talking). */
 const EYE = [255, 230], MOUTH = [300, 334];
@@ -97,7 +98,7 @@ function drawNova(o){
   const BR = { straight: [0, 0, 1], arched: [-8, 4, 0.85], soft: [-3, 2, 0.7], high: [-6, 3, 0.8] }[o.brows || 'straight'];
   for (const s of [-1, 1]){
     const a = BR[0], t = BR[2];
-    shape(c, [[300 + s * 16, 214], [300 + s * 30, 204 + a * 0.5, 300 + s * 50, 196 + a, 300 + s * 72, 206 + BR[1]], [300 + s * 70, 206 + BR[1] + 5 * t], [300 + s * 50, 196 + a + 8 * t, 300 + s * 30, 206 + a * 0.5 + 6 * t, 300 + s * 18, 214 + 7 * t]]); c.fillStyle = mix(HR, INK, 0.3); c.fill(); ink(c, 1.2, INK);
+    shape(c, [[300 + s * 16, 214], [300 + s * 30, 204 + a * 0.5, 300 + s * 50, 196 + a, 300 + s * 72, 206 + BR[1]], [300 + s * 70, 206 + BR[1] + 5 * t], [300 + s * 50, 196 + a + 8 * t, 300 + s * 30, 206 + a * 0.5 + 6 * t, 300 + s * 18, 214 + 7 * t]]); c.fillStyle = o.browCol || mix(HR, INK, 0.3); c.fill(); ink(c, 1.2, INK);
   }
   /* ---- eyes: narrow, steady, lids heavy ---- */
   /* eyes: their shape, size, set */
@@ -144,6 +145,24 @@ function drawNova(o){
   if (o.scar === 'brow') scar([[330, 186], [338, 214]]), scar([[340, 240], [348, 266]]);
   if (o.scar === 'cheek') scar([[238, 262], [266, 298]]);
   if (o.scar === 'lip') scar([[312, 318], [316, 344]], 3);
+  /* ---- older: forehead lines, crow's feet, smile lines, softer jaw ---- */
+  if (o.older){
+    const L1 = mix(SH, INK, 0.25), L2 = mix(SK, SH, 0.75);
+    c.lineCap = 'round';
+    /* across the forehead */
+    for (const [y, w, a] of [[160, 46, 1], [172, 54, 0.9], [184, 40, 0.7]]){ c.beginPath(); c.moveTo(300 - w, y + 3); c.quadraticCurveTo(300, y - 4, 300 + w, y + 2); c.strokeStyle = L2; c.lineWidth = 2; c.globalAlpha = a; c.stroke(); }
+    c.globalAlpha = 1;
+    /* between the brows */
+    c.beginPath(); c.moveTo(292, 206); c.lineTo(294, 190); c.moveTo(308, 206); c.lineTo(306, 192); c.strokeStyle = L1; c.lineWidth = 1.6; c.stroke();
+    /* crow's feet, at both eyes' outer corners (the patch's too) */
+    for (const s of [-1, 1]){ const x = 300 + s * 76; for (const [dy, l] of [[-6, 12], [0, 14], [7, 11]]){ c.beginPath(); c.moveTo(x, 232 + dy * 0.5); c.lineTo(x + s * l, 232 + dy); c.strokeStyle = L1; c.lineWidth = 1.5; c.stroke(); } }
+    /* bags under the eyes */
+    for (const s of [-1, 1]){ c.beginPath(); c.moveTo(300 + s * 28, 252); c.quadraticCurveTo(300 + s * 46, 262, 300 + s * 64, 250); c.strokeStyle = L2; c.lineWidth = 1.8; c.stroke(); }
+    /* smile lines, nose to mouth; and down from the mouth's corners */
+    for (const s of [-1, 1]){ c.beginPath(); c.moveTo(300 + s * 24, 300); c.bezierCurveTo(300 + s * 40, 314, 300 + s * 42, 328, 300 + s * 38, 346); c.strokeStyle = L1; c.lineWidth = 2.2; c.stroke(); c.beginPath(); c.moveTo(300 + s * 32, 340); c.quadraticCurveTo(300 + s * 36, 352, 300 + s * 34, 362); c.strokeStyle = L2; c.lineWidth = 1.6; c.stroke(); }
+    /* the neck: a couple of lines */
+    c.beginPath(); c.moveTo(266, 404); c.quadraticCurveTo(300, 412, 334, 404); c.strokeStyle = L2; c.lineWidth = 1.6; c.stroke();
+  }
   /* ---- hair in front ---- */
   hairFront(c, o, HR, HRD, HRL, INK);
   /* ---- an eyepatch, over one eye, its strap round the head ---- */
@@ -220,12 +239,15 @@ function hairFront(c, o, HR, HRD, HRL, INK){
     if (st === 'crop'){ shape(c, [[256, 146], [246, 176, 250, 196, 240, 214], [258, 186, 266, 164, 270, 148]]); c.fillStyle = HR; c.fill(); ink(c, 2, INK); }
     if (st === 'tied'){ c.beginPath(); c.ellipse(300, 96, 30, 16, 0, 0, 7); c.fillStyle = HRD; c.fill(); ink(c, 3, INK); }
   }
+  if (o.streak){ c.beginPath(); c.moveTo(250, 112); c.bezierCurveTo(232, 140, 214, 176, 206, 220); c.strokeStyle = INK; c.lineWidth = 10; c.stroke(); c.strokeStyle = o.streak; c.lineWidth = 6; c.stroke(); }
   if (o.grey){ c.beginPath(); c.moveTo(320, 98); c.bezierCurveTo(350, 108, 380, 140, 394, 200); c.strokeStyle = INK; c.lineWidth = 11; c.stroke(); c.strokeStyle = '#d8d8d8'; c.lineWidth = 7; c.stroke(); }
 }
 
 /* Painted once, kept. */
 let PORTRAIT;
 const art = () => (PORTRAIT === undefined ? (PORTRAIT = portrait()) : PORTRAIT);
+/* (the portrait itself, for previews) */
+export const novaPortrait = art;
 
 /* The feed, built for a box size: three colour-split copies of her (red,
    green, blue), so the split costs three draws a frame; and a few frames
