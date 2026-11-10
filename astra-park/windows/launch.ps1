@@ -149,7 +149,7 @@ $page = ([System.Uri]$game).AbsoluteUri
 # Full screen for playing; a window, while the game's being worked on and
 # tried out (set $Windowed = $false for full screen again).
 $Windowed = $true
-# The window: small - about 55% of the screen's width (inside the taskbar),
+# The window: small - about 45% of the screen's width (inside the taskbar),
 # the game's own 16:9, in the middle. Measured in the browser's own scaled
 # units: a screen with Windows' display scaling turned up (125%, 150%...)
 # can report its size in real pixels, which would make the window far too
@@ -163,12 +163,25 @@ try {
     $scale = 1.0
     try { $g = [System.Drawing.Graphics]::FromHwnd([IntPtr]::Zero); $scale = [Math]::Max(1.0, $g.DpiX / 96.0); $g.Dispose() } catch { }
     $aw = $area.Width / $scale; $ah = $area.Height / $scale; $ax = $area.X / $scale; $ay = $area.Y / $scale
-    $winW = [int]($aw * 0.55)
+    $winW = [int]($aw * 0.45)
     $winH = [int]($winW * 9 / 16)
-    if ($winH -gt $ah * 0.6) { $winH = [int]($ah * 0.6); $winW = [int]($winH * 16 / 9) }
+    if ($winH -gt $ah * 0.5) { $winH = [int]($ah * 0.5); $winW = [int]($winH * 16 / 9) }
     $winX = [int]($ax + ($aw - $winW) / 2)
     $winY = [int]($ay + ($ah - $winH) / 2)
 } catch { }
+# The browser remembers where the game's window was, and uses that over the
+# size asked for here - so its remembered place is set to this one first.
+if ($Windowed) {
+    try {
+        $prefs = Join-Path $here 'browser-profile\Default\Preferences'
+        if (Test-Path $prefs) {
+            $json = [IO.File]::ReadAllText($prefs)
+            $place = { param($m) $m.Value -replace '"left":-?\d+', "`"left`":$winX" -replace '"top":-?\d+', "`"top`":$winY" -replace '"right":-?\d+', "`"right`":$($winX + $winW)" -replace '"bottom":-?\d+', "`"bottom`":$($winY + $winH)" -replace '"maximized":true', '"maximized":false' }
+            $fixed = [regex]::Replace($json, '"(app_)?window_placement":\{("[^"]*":\{[^{}]*\},?)*[^{}]*\}', [System.Text.RegularExpressions.MatchEvaluator]$place)
+            if ($fixed -ne $json) { [IO.File]::WriteAllText($prefs, $fixed) }
+        }
+    } catch { }
+}
 $screenMode = if ($Windowed) { "--window-size=$winW,$winH --window-position=$winX,$winY" } else { '--start-fullscreen' }
 $arguments = @(
     "--user-data-dir=`"$(Join-Path $here 'browser-profile')`"",
