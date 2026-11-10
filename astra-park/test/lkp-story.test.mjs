@@ -126,8 +126,8 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   for (let k = 0; k < 200 / DT && !inst.rest; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   assert.ok(inst.rest, 'stopped at the pond');
   /* (her story's told in the opening now: nothing more of it on the way) */
-  assert.ok(!inst.things.some(t => t.kind === 'say'), 'the story told before they set off');
-  assert.ok(!inst.captain.stay, 'her window stayed up for the story, and went once it was told');
+  assert.ok(inst.level.lines.walk.every(l => said.includes(l[1])), 'her story, told as they set off');
+  assert.ok(inst.captain.stay, 'her window up all through the start');
   assert.equal(inst.mood, -2, 'no music for now, the calm start');
   for (let k = 0; k < 15; k++) inst.step(DT, W, H);
   const z = inst.z;
@@ -164,12 +164,12 @@ test('the captain gives each tip once, as it comes', () => {
   const say = inst.captain.say.bind(inst.captain);
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
   for (let k = 0; k < 260 / DT && inst.step_ === 0; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
-  for (const w of ['CRYSTALS!', 'LEAN!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
-  /* (nothing said about the herd: it just happens) */
-  assert.ok(!said.includes('MOVE LEFT!'));
+  for (const w of ['CRYSTALS!', 'LEAN!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
+  /* (nothing said about the herd, or the path opening out: they just happen) */
+  assert.ok(!said.includes('MOVE LEFT!') && !said.includes('SPREAD OUT!'));
   /* crystals first; the herd, then it opens out; only after the pond, off the trail, dodging */
   const at = (w) => said.indexOf(w);
-  assert.ok(at('CRYSTALS!') < at('SPREAD OUT!') && at('SPREAD OUT!') < at('LEAN!'), said.join(', '));
+  assert.ok(at('CRYSTALS!') < at('LEAN!'), said.join(', '));
   /* And then straight on running: no fighting in level 1. */
   assert.equal(inst.phase, 'corridor');
   assert.ok(!inst.fight);

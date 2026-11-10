@@ -78,7 +78,6 @@ export const LEVELS = [
       gap: ['A ditch! Hop over it!', 'HOP!'],
       roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
       /* (no word for the herd, or the sky jellies: they just happen) */
-      wide: ['It opens right up! Spread out and grab them all!', 'SPREAD OUT!'],
       ravine: ['A gorge! Everyone, get ready to JUMP!', 'GET READY TO JUMP!'],
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
     },
@@ -100,7 +99,7 @@ export const LEVELS = [
         ['nova', 'I\'m picking up its glow, somewhere out there. We need to find that Star Core!', 'FIND THE STAR CORE']
       ],
       /* The healing pond, a stop along the first corridor. */
-      pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
+      pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you.', '']],
       /* (the pond's end: the ground shaking, the far ridge - lkp-game.js _rest) */
       offTrail: [['nova', 'Whoa... something big is out there. And the signal\'s coming from that way. Follow that path!', 'FOLLOW THE PATH']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],

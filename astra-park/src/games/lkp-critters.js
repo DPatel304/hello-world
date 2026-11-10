@@ -450,3 +450,55 @@ export function skyJelly(c, W, H, th, t, L){
   c.restore();
 }
 const rgbaHex = (h, a) => `rgba(${[1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',')},${a})`;
+
+/* The trumbler from behind - the way it's going, away up the screen: the
+   great plated shell, wide; its six legs pounding under it, the nearest
+   pair biggest; a stubby tail; and over the front of the shell, its fan
+   of a crest and the tips of its horns. turn: leaning into a curve (-1..1).
+   call 0..1: bellowing - the crest up and flared, rings of sound going
+   out ahead of it. World-drawn: flat tones, lit on top, the sun's rim. */
+export function trumblerBack(c, x, y, s, t, call = 0, run = 1, haze = 0, L = null, turn = 0){
+  const u = s / 300, ph = t * 8.5, bob = Math.abs(Math.sin(ph)) * 12 * u * run, cl = Math.sin(Math.min(1, call) * Math.PI);
+  const H_ = (a) => L ? mixHex(a, L.haze, haze) : a;
+  const shellD = H_('#2f6b62'), shellL = H_('#4f9a7e'), plate = H_('#79c49a'), skin = H_('#d9734a'), dark = H_('#7a3a2a'), crest = H_('#ffb04a');
+  c.save();
+  c.fillStyle = 'rgba(20,15,45,.35)'; c.beginPath(); c.ellipse(x, y, 175 * u, 34 * u, 0, 0, TAU); c.fill();
+  c.translate(x, y - bob); c.rotate(turn * 0.12);
+  /* the crest and horns, beyond the shell (further up the screen) */
+  c.save(); c.translate(0, -290 * u);
+  if (cl > 0.05) glow(c, 0, -30 * u, 170 * u, '#ffd27a', 0.45 * cl);
+  for (let k = 0; k < 9; k++){
+    const a = -Math.PI * 0.92 + k * (Math.PI * 0.84 / 8), r = (90 + 40 * cl) * u;
+    c.fillStyle = k % 2 ? crest : H_('#ff8a3a');
+    c.beginPath(); c.moveTo(0, 30 * u); c.lineTo(Math.cos(a - 0.1) * r, 30 * u + Math.sin(a - 0.1) * r); c.lineTo(Math.cos(a + 0.1) * r, 30 * u + Math.sin(a + 0.1) * r); c.closePath(); c.fill();
+  }
+  c.strokeStyle = H_('#fff1d6'); c.lineWidth = 14 * u; c.lineCap = 'round';
+  for (const d of [-1, 1]){ c.beginPath(); c.moveTo(d * 60 * u, 40 * u); c.quadraticCurveTo(d * 120 * u, 10 * u, d * 115 * u, -40 * u); c.stroke(); }
+  c.restore();
+  /* six legs, pounding: far pair small and dark, near pair big */
+  for (const [lx, w, h, far, k] of [[-70, 34, 60, 2, 0], [70, 34, 60, 2, 3], [-120, 44, 80, 1, 1], [120, 44, 80, 1, 4], [-95, 58, 90, 0, 2], [95, 58, 90, 0, 5]]){
+    const sw = Math.sin(ph + k * 1.05) * run, lift = Math.max(0, sw) * 30 * u;
+    c.fillStyle = far ? (far > 1 ? H_('#4a2418') : dark) : skin;
+    const top = -(far === 2 ? 110 : far === 1 ? 100 : 90);
+    c.beginPath(); c.roundRect((lx - w / 2) * u, top * u - lift, w * u, (h + 0) * u, 14 * u); c.fill();
+    c.fillStyle = H_('#4a2418'); c.beginPath(); c.ellipse(lx * u, (top + h) * u - lift, w * 0.6 * u, 10 * u, 0, 0, TAU); c.fill();
+  }
+  /* the shell, from behind: a great dome, dark under, lit on top, plates */
+  c.fillStyle = shellD; c.beginPath(); c.ellipse(0, -190 * u, 195 * u, 140 * u, 0, 0, TAU); c.fill();
+  c.fillStyle = shellL; c.beginPath(); c.ellipse(-20 * u, -220 * u, 165 * u, 105 * u, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = plate;
+  for (const [px, py, r] of [[-90, -260, 40], [0, -290, 44], [90, -260, 40], [-130, -195, 32], [-45, -215, 38], [45, -215, 38], [130, -195, 32], [0, -155, 34]]){
+    c.beginPath(); for (let k = 0; k < 6; k++){ const a = k / 6 * TAU + 0.5; c.lineTo((px + Math.cos(a) * r) * u, (py + Math.sin(a) * r * 0.75) * u); } c.closePath(); c.fill();
+  }
+  if (L){ c.strokeStyle = rgbaHex(L.rim, 0.6 * (1 - haze)); c.lineWidth = 6 * u; c.beginPath(); c.ellipse(0, -190 * u, 195 * u, 140 * u, 0, Math.PI * 1.0, Math.PI * 1.45); c.stroke(); }
+  /* a stubby tail, swishing */
+  c.strokeStyle = skin; c.lineWidth = 22 * u; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(0, -80 * u); c.quadraticCurveTo(Math.sin(t * 5) * 30 * u, -55 * u, Math.sin(t * 5 + 1) * 40 * u, -40 * u); c.stroke();
+  /* rings of sound, going out ahead of it */
+  if (call > 0 && call < 1.6) for (let k = 0; k < 4; k++){
+    const r = call * 1.3 - k * 0.2; if (r <= 0) continue;
+    c.strokeStyle = `rgba(255,240,220,${Math.max(0, 0.75 - r * 0.45)})`; c.lineWidth = 9 * u;
+    c.beginPath(); c.ellipse(0, -360 * u, r * 360 * u, r * 160 * u, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
+  }
+  c.restore();
+}
