@@ -421,19 +421,112 @@ export function tree(c, W, H, lane, rel, L, n = 0){
   const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.85 + hash(n + 300) * 0.4), haze = Math.min(0.7, Math.max(0, rel) * 0.9);
   if (p.x < -200 * s * 3 - SKY.wide || p.x > W + 200 * s * 3) return;
   cast(c, p.x, p.y, 26 * s, 380 * s);
-  c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(p.x, p.y, 70 * s, 16 * s, 0, 0, 6.2832); c.fill();
-  c.fillStyle = mix(L.trunk[0], L.haze, haze); c.fillRect(p.x - 9 * s, p.y - 160 * s, 18 * s, 160 * s);
-  c.fillStyle = mix(L.trunk[1], L.haze, haze); c.fillRect(p.x - 9 * s, p.y - 160 * s, 6 * s, 160 * s);
-  for (const [w, top, bot] of [[120, -360, -150], [98, -470, -270], [70, -560, -390], [40, -620, -500]]){
-    c.fillStyle = mix(L.tree[0], L.haze, haze); c.beginPath(); c.moveTo(p.x, p.y + top * s); c.lineTo(p.x - w * s, p.y + bot * s); c.lineTo(p.x + 6 * s, p.y + (bot + 18) * s); c.fill();
-    c.fillStyle = mix(L.tree[1], L.haze, haze); c.beginPath(); c.moveTo(p.x, p.y + top * s); c.lineTo(p.x + w * s, p.y + bot * s); c.lineTo(p.x + 6 * s, p.y + (bot + 18) * s); c.fill();
-    c.strokeStyle = rgba(L.rim, 0.55 * (1 - haze)); c.lineWidth = 2 * s + 0.5; c.beginPath(); c.moveTo(p.x, p.y + top * s); c.lineTo(p.x - w * s, p.y + bot * s); c.stroke();
-  }
-  if (hash(n + 301) < 0.5){
+  treeKind(c, p.x, p.y, s, kindOf(n), L, haze, n);
+  if (hash(n + 301) < 0.4){
     const bx = p.x - 130 * s; c.strokeStyle = mix('#6b5b8a', L.haze, haze); c.lineWidth = 6 * s;
     c.beginPath(); c.moveTo(bx, p.y); c.quadraticCurveTo(bx - 30 * s, p.y - 110 * s, bx - 6 * s, p.y - 200 * s); c.stroke();
     glow(c, bx - 6 * s, p.y - 210 * s, 60 * s + 4, L.bulb, 0.9); c.fillStyle = mix(L.bulb, '#ffffff', 0.5); circ(c, bx - 6 * s, p.y - 210 * s, 16 * s + 1);
   }
+}
+
+/* The kinds of tree, so the woods aren't all one - and it's another
+   planet, so some aren't like ours: faceted pines, tall firs, round
+   broadleaf trees, pale birches, pink blossom trees, low bushes; and
+   mushroom-capped trees with glowing spots, curling spiral trees,
+   stalks of floating balloon-pods, branching coral fronds, and umbrella
+   trees trailing glowing strands - which, for tree number n. */
+export const TREE_KINDS = ['pine', 'fir', 'round', 'blossom', 'puff', 'spiral', 'pine', 'balloon', 'coral', 'umbrella', 'round', 'birch', 'puff', 'bush', 'pine', 'coral'];
+export const kindOf = (n) => TREE_KINDS[Math.floor(hash(n + 302) * TREE_KINDS.length) % TREE_KINDS.length];
+/* A tree of a kind, its foot at (x, y), s its scale (about 620 s tall). */
+export function treeKind(c, x, y, s, kind, L, haze = 0, n = 0){
+  const col = (k) => mix(k, L.haze, haze), sway = 0;
+  c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(x, y, (kind === 'bush' ? 90 : 70) * s, 16 * s, 0, 0, 6.2832); c.fill();
+  const trunk = (h, w = 18, a = L.trunk[0], b = L.trunk[1]) => { c.fillStyle = col(a); c.fillRect(x - w / 2 * s, y - h * s, w * s, h * s); c.fillStyle = col(b); c.fillRect(x - w / 2 * s, y - h * s, w / 3 * s, h * s); };
+  /* a soft round clump of leaves: dark under, light on top */
+  const clump = (cx, cy, r, dark, light) => {
+    c.fillStyle = col(dark); c.beginPath(); c.arc(x + cx * s, y + cy * s, r * s, 0, 6.2832); c.fill();
+    c.fillStyle = col(light); c.beginPath(); c.arc(x + (cx - r * 0.18) * s, y + (cy - r * 0.2) * s, r * 0.78 * s, 0, 6.2832); c.fill();
+  };
+  if (kind === 'pine' || kind === 'fir'){
+    const tiers = kind === 'fir' ? [[80, -380, -150], [66, -500, -300], [52, -610, -430], [36, -700, -550], [20, -760, -660]] : [[120, -360, -150], [98, -470, -270], [70, -560, -390], [40, -620, -500]];
+    trunk(160);
+    const dark = kind === 'fir' ? mix(L.tree[0], '#1c3a30', 0.35) : L.tree[0], light = kind === 'fir' ? mix(L.tree[1], '#2a5a48', 0.3) : L.tree[1];
+    for (const [w, top, bot] of tiers){
+      c.fillStyle = col(dark); c.beginPath(); c.moveTo(x, y + top * s); c.lineTo(x - w * s, y + bot * s); c.lineTo(x + 6 * s, y + (bot + 18) * s); c.fill();
+      c.fillStyle = col(light); c.beginPath(); c.moveTo(x, y + top * s); c.lineTo(x + w * s, y + bot * s); c.lineTo(x + 6 * s, y + (bot + 18) * s); c.fill();
+      c.strokeStyle = rgba(L.rim, 0.55 * (1 - haze)); c.lineWidth = 2 * s + 0.5; c.beginPath(); c.moveTo(x, y + top * s); c.lineTo(x - w * s, y + bot * s); c.stroke();
+    }
+    return;
+  }
+  if (kind === 'round'){
+    trunk(230, 22);
+    clump(-70, -300, 95, '#3f7a4e', '#5f9e5c'); clump(70, -310, 90, '#3f7a4e', '#5f9e5c'); clump(0, -400, 115, '#4a8a55', '#74b46a');
+    return;
+  }
+  if (kind === 'birch'){
+    trunk(330, 16, '#e8e4dc', '#c9c2b6');
+    c.fillStyle = col('#3a3530'); for (let k = 0; k < 6; k++) c.fillRect(x - 8 * s + (k % 2) * 6 * s, y - (60 + k * 45) * s, 9 * s, 4 * s);
+    for (const [cx, cy, r] of [[-40, -360, 70], [40, -390, 72], [0, -460, 80]]) clump(cx, cy, r, '#7aa84e', '#a8d070');
+    return;
+  }
+  if (kind === 'blossom'){
+    trunk(200, 20);
+    for (const [cx, cy, r] of [[-70, -270, 80], [70, -280, 78], [0, -360, 100]]) clump(cx, cy, r, '#d47a9a', '#f2a6bf');
+    c.fillStyle = col('#ffe0ea'); for (let k = 0; k < 9; k++) circ(c, x + (hash(n * 9 + k) - 0.5) * 220 * s, y - (240 + hash(n * 7 + k) * 180) * s, 7 * s + 0.5);
+    return;
+  }
+  if (kind === 'puff'){
+    /* a mushroom tree: a pale fat stalk, a great domed cap, glowing spots */
+    c.fillStyle = col('#efe2cf'); c.beginPath(); c.moveTo(x - 26 * s, y); c.quadraticCurveTo(x - 14 * s, y - 200 * s, x - 30 * s, y - 330 * s); c.lineTo(x + 30 * s, y - 330 * s); c.quadraticCurveTo(x + 14 * s, y - 200 * s, x + 26 * s, y); c.fill();
+    c.fillStyle = col('#a24a8a'); c.beginPath(); c.ellipse(x, y - 330 * s, 170 * s, 120 * s, 0, Math.PI, 0); c.closePath(); c.fill();
+    c.fillStyle = col('#c868a8'); c.beginPath(); c.ellipse(x - 20 * s, y - 360 * s, 120 * s, 80 * s, 0, Math.PI, 0); c.closePath(); c.fill();
+    c.fillStyle = col('#7a3068'); c.fillRect(x - 170 * s, y - 334 * s, 340 * s, 10 * s);
+    for (const [dx, dy] of [[-90, -360], [-30, -410], [50, -380], [110, -350], [0, -350]]){ glow(c, x + dx * s, y + dy * s, 26 * s + 2, L.bulb, 0.8 * (1 - haze)); c.fillStyle = col('#fff6c0'); circ(c, x + dx * s, y + dy * s, 9 * s + 0.5); }
+    return;
+  }
+  if (kind === 'spiral'){
+    /* a curling tree: a twisting trunk ending in a spiral of leaves */
+    c.strokeStyle = col(L.trunk[0]); c.lineWidth = 20 * s; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x, y); c.bezierCurveTo(x - 60 * s, y - 150 * s, x + 70 * s, y - 260 * s, x, y - 380 * s); c.stroke();
+    c.strokeStyle = col('#3fa08a'); c.lineWidth = 34 * s;
+    c.beginPath(); for (let k = 0; k <= 40; k++){ const a = k / 40 * Math.PI * 3.4, r = (120 - k * 2.6) * s; const px = x + Math.cos(a) * r, py = y - 470 * s + Math.sin(a) * r * 0.8; k ? c.lineTo(px, py) : c.moveTo(px, py); } c.stroke();
+    c.strokeStyle = col('#7fe0b8'); c.lineWidth = 12 * s; c.stroke();
+    return;
+  }
+  if (kind === 'balloon'){
+    /* thin stalks, each with a round floating pod at the top, glowing */
+    for (const [dx, h, r, colr] of [[-50, 420, 60, '#ffb35c'], [30, 520, 72, '#ff8a6a'], [80, 360, 48, '#ffd27a']]){
+      c.strokeStyle = col('#6b8a5a'); c.lineWidth = 7 * s; c.beginPath(); c.moveTo(x + dx * 0.3 * s, y); c.quadraticCurveTo(x + dx * 0.8 * s, y - h * 0.5 * s, x + dx * s, y - h * s); c.stroke();
+      glow(c, x + dx * s, y - (h + r * 0.6) * s, r * 1.8 * s, colr, 0.5 * (1 - haze));
+      c.fillStyle = col(colr); c.beginPath(); c.ellipse(x + dx * s, y - (h + r * 0.6) * s, r * 0.8 * s, r * s, 0, 0, 6.2832); c.fill();
+      c.fillStyle = col('#fff2d0'); c.beginPath(); c.ellipse(x + (dx - r * 0.25) * s, y - (h + r * 0.95) * s, r * 0.22 * s, r * 0.3 * s, -0.4, 0, 6.2832); c.fill();
+    }
+    return;
+  }
+  if (kind === 'coral'){
+    /* branching fronds, like coral on land: teal and violet */
+    c.lineCap = 'round';
+    const branch = (bx, by, a, len, w, d) => {
+      const ex = bx + Math.sin(a) * len, ey = by - Math.cos(a) * len;
+      c.strokeStyle = col(d % 2 ? '#8a6ad8' : '#3fb8b0'); c.lineWidth = w; c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.stroke();
+      if (d < 3){ branch(ex, ey, a - 0.45, len * 0.72, w * 0.7, d + 1); branch(ex, ey, a + 0.4, len * 0.7, w * 0.7, d + 1); }
+      else { c.fillStyle = col('#c8b8ff'); circ(c, ex, ey, w * 0.9); }
+    };
+    branch(x, y, -0.15, 200 * s, 26 * s, 0); branch(x, y, 0.35, 150 * s, 20 * s, 1);
+    return;
+  }
+  if (kind === 'umbrella'){
+    /* a tall thin trunk, a flat wide canopy, glowing strands hanging down */
+    trunk(420, 14, '#5a4a7a', '#7a6aa0');
+    c.fillStyle = col('#2f8a7a'); c.beginPath(); c.ellipse(x, y - 430 * s, 210 * s, 55 * s, 0, 0, 6.2832); c.fill();
+    c.fillStyle = col('#4fb8a0'); c.beginPath(); c.ellipse(x - 10 * s, y - 450 * s, 180 * s, 36 * s, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = col('#9ff0e0'); c.lineWidth = 3 * s + 0.5;
+    for (let k = 0; k < 9; k++){ const sx = x + (k - 4) * 44 * s, len = (80 + hash(n * 11 + k) * 120) * s; c.beginPath(); c.moveTo(sx, y - 405 * s); c.quadraticCurveTo(sx + 10 * s, y - 405 * s + len * 0.5, sx, y - 405 * s + len); c.stroke(); glow(c, sx, y - 405 * s + len, 14 * s + 1, '#9ff0e0', 0.8 * (1 - haze)); }
+    return;
+  }
+  /* a bush: low, round, a few berries */
+  clump(-50, -70, 60, '#3f7a4e', '#5f9e5c'); clump(45, -65, 58, '#3f7a4e', '#5f9e5c'); clump(0, -110, 70, '#4a8a55', '#74b46a');
+  c.fillStyle = col('#e05a6a'); for (let k = 0; k < 5; k++) circ(c, x + (hash(n * 5 + k) - 0.5) * 140 * s, y - (60 + hash(n * 3 + k) * 80) * s, 7 * s + 0.5);
 }
 
 /* ---------- the finish ---------- */

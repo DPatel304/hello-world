@@ -35,7 +35,6 @@ import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { drawCrystal, PAL } from './lkp-art.js';
 import { worldHall, worldSleeper, worldGladeSide } from './lkp-places.js';
-import { drawZubuSide } from './lkp-zubu.js';
 import { armored } from './lkp-weapons.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
@@ -71,7 +70,7 @@ export function Q(lane, along, W, H){
    lane -1..1 a little nearer or further (lower and bigger, or higher). */
 export function QS(lane, along, W, H){
   const u = Math.max(-0.1, Math.min(1.15, along));
-  return { x: W * (0.3 + 0.6 * u + lane * 0.04), y: H * (0.57 + lane * 0.04), k: 0.82 + lane * 0.07 };
+  return { x: W * (0.1 + 0.8 * u + lane * 0.08), y: H * (0.89 + lane * 0.03), k: 1.15 + lane * 0.06 };
 }
 
 const rand = ([a, b]) => a + Math.random() * (b - a);
@@ -159,7 +158,7 @@ export class Lights {
     /* The floor, with lines across it every so far up, the start, and the
        finish. */
     const corner = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
-    if (PAL.world && this.giant) worldGladeSide(c, W, H, red, this.t, PAL.world);
+    if (PAL.world && this.giant) worldGladeSide(c, W, H, red, this.t, PAL.world, this.light);
     else if (PAL.world) worldHall(c, W, H, Q, red, this.t);
     else {
       c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
@@ -208,8 +207,6 @@ export class Lights {
       const going = this.light !== 'red' && !this.done ? rn.marching : 0;   /* frozen the moment they stop */
       drawCrew(i, q.x, q.y, H * 0.2 * q.k, 0);   /* the stride's drawn by the crew's own run */
     }
-    /* Zubu, asleep, right by the camera: in front of everything */
-    if (this.giant) drawZubuSide(c, W, H, this.light, this.t);
     /* In from the door: a quick fade up from black. */
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }
   }

@@ -91,10 +91,18 @@ export function garden(c, cx, cy, rx, ry, s, t = 0, tree = 0.3){
 export const SNORE = 3.6;
 export function snoreWord(t){ return (t % SNORE) < SNORE / 2 ? 'ZZZUUUU...' : 'BBBUUUU...'; }
 
-/* The sneak, side on (lkp-trap.js): its head right by the camera, low
-   in the bottom left - only the top of its face and its garden showing
-   above the bottom of the screen, its nose towards the path. */
-export function drawZubuSide(c, W, H, light, t){ drawZubuAsleep(c, W, H, light, t, { x: 0.42, y: 1.04, size: 0.62, shadow: false }); }
+/* The sneak, side on (lkp-trap.js): she's a wall behind the crew - her
+   great coral side filling the background, rising to the right, her
+   sleeping head on the left with its garden. (Trees and the meadow are
+   drawn over her lower half, in front.) */
+export function drawZubuWall(c, W, H, light, t){
+  const breathe = Math.sin(t / SNORE * TAU) * H * 0.006;
+  const side = [[-0.05 * W, 0.5 * H], [0.31 * W, 0.26 * H - breathe], [0.7 * W, 0.12 * H - breathe], [1.05 * W, 0.1 * H - breathe], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]];
+  form(c, side, ZUBU.body, H, 0.4);
+  /* freckles */
+  freckles(c, [[0.5, 0.25], [0.62, 0.2], [0.78, 0.17], [0.9, 0.22], [0.55, 0.36], [0.95, 0.38], [0.68, 0.45]].map(([u, v]) => [u * W, v * H]), H * 0.008);
+  drawZubuAsleep(c, W, H, light, t, { x: 0.42, y: 0.68, size: 0.6, shadow: false });
+}
 
 export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 0.44, shadow: true }){
   const S = H * at.size, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;
