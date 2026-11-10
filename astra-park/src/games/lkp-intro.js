@@ -81,9 +81,12 @@ const POV = { cx: 0.152, cy: 0.41, s: 1.75, tilt: -0.12 };
    hopshells, close, just in front; the chimeblooms, a little right of
    the ship (heard, not looked at). */
 const AT_CHIMES = -0.33;
-/* The hopshell, hopping along (lanes, across: from, to; and how far off,
-   rel), and where you're looking to follow it. */
-const HOP = { from: -5.6, to: -2.6, rel: 0.27 };
+/* The jellycrawl, walking off right and away (lanes and rel a second,
+   from where it starts, just in front of you); when it lifts off and is
+   gone (seconds of its walk); and the camera: how close it starts, on it,
+   zooming slowly out as it goes. */
+const CRAWL = { lane: -4.6, rel: 0.1, dl: 0.2, dr: 0.02, fly: 16.6, flyFor: 1.4 };
+const ZOOM_IN = 2.2;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -129,8 +132,8 @@ export class Intro {
     if (['out', 'rise', 'move', 'go'].includes(this.stage)) this.cineT = (this.cineT || 0) + dt;
     /* the hopshell, hopping along (it's out in the world: lkp-crashsite.js) */
     if (!['title', 'dark'].includes(this.stage)) this.hopT = (this.hopT || 0) + dt * (this.stage === 'wake' ? 0.25 : 1);
-    const hs = this.g.things.find(t => t.kind === 'hoppers');
-    if (hs){ hs.one = true; hs.lane = this._hopLane(); hs.d = this.g.z + HOP.rel; }
+    const jc = this.g.things.find(t => t.kind === 'crawler');
+    if (jc){ const cr = this._crawl(); jc.lane = cr.lane; jc.d = this.g.z + cr.rel; jc.walk = cr.walk; jc.fly = cr.fly; jc.gone = cr.fly >= 1; if (cr.fly > 0 && !this.flew){ this.flew = true; sfx.whoosh?.(); } }
     const g = this.g;
     /* Hurt in the crash; on the path, where play starts. */
     if (!this.hurt){
@@ -230,7 +233,9 @@ export class Intro {
     const view = (cx) => {
       cx.save();
       /* (sky: tipped right back, the sky filling the view) */
-      cx.translate(W / 2 + look.pan * W, H / 2 + look.rise * H * 0.06 + look.up * H * 0.14 - look.down * H * 0.42 + (look.sky || 0) * H * 0.75); cx.rotate((POV.tilt * (1 - look.rise * 0.45) * (1 - look.up) + sway * (1 - look.up * 0.6)) * (1 - 0.6 * (look.sky || 0))); cx.scale(POV.s * (1 - 0.18 * look.up), POV.s * (1 - 0.18 * look.up)); cx.translate(-POV.cx * W, -POV.cy * H);
+      /* (the head's tilt turns the view round its middle: what you're looking at stays in the middle) */
+      cx.translate(W / 2, H / 2); cx.rotate((POV.tilt * (1 - look.rise * 0.45) * (1 - look.up) + sway * (1 - look.up * 0.6)) * (1 - 0.6 * (look.sky || 0)));
+      cx.translate(look.pan * W, look.rise * H * 0.06 + look.up * H * 0.14 - look.down * H * 0.42 + (look.sky || 0) * H * 0.75); cx.scale(POV.s * (look.zoom || 1) * (1 - 0.18 * look.up), POV.s * (look.zoom || 1) * (1 - 0.18 * look.up)); cx.translate(-POV.cx * W, -POV.cy * H);
       g.inIntro = true; g.introCrew = []; SKY.above = H * (1 + (look.sky || 0)); SKY.wide = W * 1.3;
       g._drawPlay(cx, W, H);
       g.inIntro = false; g.introCrew = null; SKY.above = 0; SKY.wide = 0;
@@ -256,11 +261,12 @@ export class Intro {
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
     this._visor(c, W, H);
   }
-  /* The hopshell's lane, now (it's hopping along, slowly, to the right). */
-  _hopLane(){
-    /* (it never stops: on past the ship and away, while you stare at the ship) */
-    if (this.hopT == null) this.hopT = 0;
-    return HOP.from + (HOP.to - HOP.from) * this.hopT / (WATCH + 1);
+  /* The jellycrawl, now: where (lane, rel), walking - never stopping, on
+     past the ship while you stare at it - and then, near the edge of the
+     view, lifting off (fly 0..1) and gone. */
+  _crawl(){
+    const u = this.hopT || 0, fly = Math.max(0, Math.min(1, (u - CRAWL.fly) / CRAWL.flyFor));
+    return { lane: CRAWL.lane + CRAWL.dl * u, rel: CRAWL.rel + CRAWL.dr * u, fly, walk: 1 - fly };
   }
   /* Where you're looking, sitting there: following the hopshell (waking,
      watching); then on to the ship beyond it, settling there (noticing,
@@ -268,11 +274,14 @@ export class Intro {
   _looking(){
     const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
     const s = this.stage, t = this.st, W = 1920, H = 1080;
-    const q = P(this._hopLane(), HOP.rel, W, H);
-    const hop = { pan: (POV.cx * W - q.x) / W * POV.s, down: (q.y - H * 0.04 - POV.cy * H) * POV.s / (H * 0.42) };
-    const at = { rise: 1, up: 0, sky: 0 };
-    if (s === 'dark' || s === 'wake' || s === 'watch') return { ...at, ...hop, rise: s === 'dark' ? 0 : s === 'wake' ? e(t / WAKE) : 1 };
-    if (s === 'notice'){ const u = e((t - 1) / 3.2); return { ...at, pan: hop.pan * (1 - u), down: hop.down * (1 - u) }; }
+    /* (close in on it at first, looking down at the grass; zooming slowly out as it walks away) */
+    const zoom = s === 'dark' || s === 'wake' ? ZOOM_IN : s === 'watch' ? ZOOM_IN + (1 - ZOOM_IN) * e(t / WATCH) : 1;
+    const cr = this._crawl(), q = P(cr.lane, cr.rel, W, H), sc = POV.s * zoom, fy = q.y - H * 0.32 * q.k * 0.45;
+    const on = { pan: -sc * (q.x - POV.cx * W) / W, down: sc * (fy - POV.cy * H) / (H * 0.42) };
+    const at = { rise: 1, up: 0, sky: 0, zoom: 1 };
+    if (s === 'dark' || s === 'wake' || s === 'watch') return { ...at, ...on, zoom, rise: s === 'dark' ? 0 : s === 'wake' ? e(t / WAKE) : 1 };
+    /* the ship, glimpsed beyond it: the view settling there, and staying */
+    if (s === 'notice'){ const u = e((t - 0.4) / 3); return { ...at, pan: on.pan * (1 - u), down: on.down * (1 - u) }; }
     if (s === 'out'){ const u = e(t / TURN); return { ...at, pan: TO_PATH * u, down: 0 }; }
     return { ...at, pan: 0, down: 0 };
   }
@@ -441,6 +450,8 @@ export class Intro {
     const A = [W / 2 + look.pan * W, H / 2 + look.rise * H * 0.06 + look.up * H * 0.14], C = [POV.cx * W, POV.cy * H];
     const lerp = (a, b) => a + (b - a) * u, s = Math.exp(lerp(Math.log(s0), 0));
     c.save();
+    /* (the head's tilt, levelling out as the camera comes out) */
+    c.translate(W / 2, H / 2); c.rotate(POV.tilt * (1 - look.rise * 0.45) * (1 - look.up) * (1 - u)); c.translate(-W / 2, -H / 2);
     c.translate(lerp(A[0], W / 2), lerp(A[1], H / 2)); c.scale(s, s); c.translate(-lerp(C[0], W / 2), -lerp(C[1], H / 2));
     SKY.above = H * (1 - u); SKY.wide = W * 1.3 * (1 - u);
     this._outside(c, W, H);

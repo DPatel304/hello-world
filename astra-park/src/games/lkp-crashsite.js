@@ -28,10 +28,11 @@ const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, Math.max(0.1, r), 0, 6
    are spread round its middle, `spread` lanes apart. */
 export const SITE = {
   ship: [-5.0, 0.85, 1.3],
-  /* chimeblooms (tall ringing flowers), a little right of the ship; a few
-     hopshells out on the meadow, off to the left (lkp-critters.js) */
+  /* chimeblooms (tall ringing flowers), a little right of the ship; and a
+     jellycrawl, just in front of you as you wake, walking off right and
+     away (lkp-critters.js; the opening walks it: lkp-intro.js) */
   chimes: [-1.4, 0.45],
-  hoppers: [-5.6, 0.27],
+  crawler: [-4.6, 0.1],
   wreck: [-7.0, 0.75, 1],
   /* the woods round the site, [lane, rel] */
   trees: [[-8.2, 0.75], [-6.9, 0.9], [-5.4, 0.95], [-3.6, 0.92], [-9.5, 0.5], [-8.6, 0.4], [-10.5, 0.33], [-9.6, 0.26], [-7.9, 0.62], [-2.6, 0.98], [-11.5, 0.6], [-12, 0.42]]

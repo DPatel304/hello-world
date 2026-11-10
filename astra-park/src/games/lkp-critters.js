@@ -195,3 +195,44 @@ export function chimeblooms(c, W, H, lane, rel, t){
   }
   c.restore();
 }
+
+/* A jellycrawl: a see-through dome of a jelly on wobbly tentacle legs, a
+   glowing core inside, big eyes - walking along the ground. Feet at (x,
+   y), s tall; t the time; walk 0..1 (how hard it's going); fly 0..1 -
+   lifting off (its legs trailing, rising, gone). */
+export function jellycrawl(c, x, y, s, t, walk = 1, fly = 0){
+  const u = s / 260, lift = fly * fly * s * 2.2, bob = Math.abs(Math.sin(t * 5)) * 6 * u * walk * (1 - fly);
+  const by = y - lift - bob;
+  c.save();
+  /* its shadow, left on the ground as it rises */
+  c.globalAlpha = 1 - fly; c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(x, y, 80 * u * (1 - fly * 0.5), 14 * u, 0, 0, TAU); c.fill();
+  c.globalAlpha = Math.max(0, 1 - Math.max(0, fly - 0.7) / 0.3);
+  /* the legs: walking - each stepping in turn; flying - trailing down */
+  c.strokeStyle = 'rgba(255,140,200,.92)'; c.lineWidth = Math.max(1.5, 8 * u); c.lineCap = 'round';
+  for (let k = 0; k < 6; k++){
+    const ox = (k / 5 - 0.5) * 120 * u, step = Math.sin(t * 6 * walk + k * 1.9) * walk * (1 - fly);
+    const fx = x + ox * 1.15 + step * 14 * u, fy = by + 80 * u - Math.max(0, step) * 16 * u + fly * 40 * u;
+    c.beginPath(); c.moveTo(x + ox * 0.7, by - 70 * u);
+    c.quadraticCurveTo(x + ox + Math.sin(t * 3 + k) * 14 * u, by - 30 * u + fly * 20 * u, fx - fly * ox * 0.6, fy + (fly > 0 ? 30 * u * fly : 0));
+    c.stroke();
+  }
+  /* the dome, see-through, glowing */
+  glow(c, x, by - 110 * u, 110 * u, '#ff9ad2', 0.4);
+  c.fillStyle = 'rgba(255,190,225,.72)';
+  c.beginPath(); c.moveTo(x - 90 * u, by - 70 * u); c.bezierCurveTo(x - 100 * u, by - 190 * u, x + 100 * u, by - 190 * u, x + 90 * u, by - 70 * u); c.quadraticCurveTo(x, by - 50 * u, x - 90 * u, by - 70 * u); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = Math.max(1, 3 * u); c.stroke();
+  /* its core, glowing, pulsing */
+  const pulse = 1 + 0.15 * Math.sin(t * 3);
+  glow(c, x, by - 110 * u, 42 * u * pulse, '#fff6b8', 1);
+  c.fillStyle = '#fff6c0'; c.beginPath(); c.arc(x, by - 110 * u, 14 * u * pulse, 0, TAU); c.fill();
+  /* eyes, big, looking where it's going (right) */
+  for (const d of [-1, 1]){
+    const ex = x + d * 30 * u + 6 * u, ey = by - 140 * u, r = 12 * u;
+    const blink = (t % 4) < 0.12 ? 0.2 : 1;
+    c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(ex, ey, r, r * blink, 0, 0, TAU); c.fill();
+    if (blink > 0.5){ c.fillStyle = '#231a30'; c.beginPath(); c.arc(ex + r * 0.3, ey + r * 0.1, r * 0.62, 0, TAU); c.fill(); c.fillStyle = '#fff'; c.beginPath(); c.arc(ex + r * 0.1, ey - r * 0.2, r * 0.22, 0, TAU); c.fill(); }
+  }
+  /* a shine on the dome */
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.ellipse(x - 40 * u, by - 160 * u, 22 * u, 9 * u, -0.4, 0, TAU); c.fill();
+  c.restore();
+}
