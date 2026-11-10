@@ -32,7 +32,8 @@ import { pose, L, PLAYER_COLORS } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { SKY, mix } from './lkp-world.js';
-import { Radio, script } from './lkp-captain.js';
+import { Radio, script, novaBox } from './lkp-captain.js';
+import { novaFeed } from './lkp-nova.js';
 import { commanderFace } from './lkp-cast.js';
 import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { P } from './lkp-art.js';
@@ -45,12 +46,12 @@ export const INTRO_BEATS = [
   { id: 'dark', time: 5, shot: 'black, then a flutter of the eyes: the burning crash site, blurred, tilted, doubled', blocking: 'ringing, a heartbeat, a radio crackling' },
   { id: 'wake', until: 'eyes open', max: 20, shot: 'through the helmet, lying on your side, the ship burning', blocking: 'everyone wiggling opens the eyes, clears the blur' },
   { id: 'look', time: 6, shot: 'through the helmet, clear: a slow look round - the glade, the trees, the ship - the head lifting a little', blocking: 'nothing asked - the noise settling to wind, birds, a soft calm hum' },
-  { id: 'stand', time: 7.5, shot: 'through the helmet: getting up - the view righting itself and rising; a look round, standing; then down at your own boots', blocking: 'nothing asked - a shuffle of feet' },
-  { id: 'pull', time: 6.5, shot: 'slowly pulling back out through your visor - your view shrinking into it - to a close shot of the crew by the ship', blocking: 'the others getting up' },
+  { id: 'stand', time: 5.5, shot: 'through the helmet: getting up - the view righting itself and rising; a look round, standing', blocking: 'nothing asked - a shuffle of feet' },
+  { id: 'pull', time: 6.5, shot: 'slowly pulling back out through your visor - your view shrinking into it - to a close shot of the crew on the grass by the ship, the path beside them', blocking: 'the others getting up' },
   { id: 'gather', time: 7, shot: 'close on the crew, the camera drifting: looking round, a bit lost; dusting themselves off; checking their arms', blocking: 'nothing asked' },
   { id: 'call', until: 'everyone answered', max: 15, shot: 'close on the crew', blocking: 'their suits ring: INCOMING CALL - NOVA; a hand to the ear answers' },
   { id: 'answer', until: 'her line said', lines: 'wakeup', shot: 'close on the crew; her window top left', blocking: 'Nova: you\'re okay' },
-  { id: 'go', time: 2.6, shot: 'the camera easing back and up into the game\'s own view, behind the crew', blocking: 'Nova: on your feet, follow the path' }
+  { id: 'go', time: 5, shot: 'they walk over from the grass onto the path, the camera easing back and up into the game\'s own view behind them', blocking: 'Nova: follow the path' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
 export const DARK = BEAT.dark.time, STAND = BEAT.stand.time, PULL_TIME = BEAT.pull.time, GATHER = BEAT.gather.time, GO = BEAT.go.time;
@@ -71,6 +72,9 @@ export const START = 0.5;
 /* Through the helmet: looking at (cx, cy) - screens - s times closer,
    tilted (lying on your side). */
 const POV = { cx: -0.06, cy: 0.5, s: 1.75, tilt: -0.24 };
+/* Standing on the grass, this far (lanes) to the left of their places on
+   the path. */
+const GRASS = 2.4;
 /* The wake hint shows once nobody's moved for HINT seconds. */
 const HINT = 4;
 /* Pulling back out of the visor: from, to (seconds into the pull), and
@@ -90,7 +94,7 @@ export class Intro {
     this.up = pose.players.map(() => 0);         /* standing up, at the end */
     this.open = 0;                                /* how open the eyes are, 0..1, shown */
     this.beatT = 0;
-    this.radio = new Radio(); this.radio.visible = false; this.radio.top = 0.11;
+    this.radio = new Radio(); this.radio.visible = false;
     this.titleSnd = {}; this.crashSnd = {}; loadTitleFonts();
   }
   get beat(){ return INTRO_BEATS[this.k]; }
@@ -224,8 +228,6 @@ export class Intro {
       c.globalAlpha = 0.45 * (1 - clear); c.drawImage(buf, W * 0.035 * (1 - clear), H * 0.01 * (1 - clear), W, H);
       c.restore();
     } else view(c);
-    /* your own boots, looking down at them */
-    if (look.down > 0.02) this._boots(c, W, H, look.down);
     /* the edges: dark, pulsing red with the heartbeat */
     const beat = Math.exp(-(this.t - (this.beatAt ?? -9)) * 4) * (1 - clear * 0.7);
     const vg = c.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.62);
@@ -243,30 +245,9 @@ export class Intro {
        look round, standing; then down at your boots */
     if (this.stage === 'stand' || this.stage === 'pull'){
       const t = this.stage === 'pull' ? STAND : this.st;
-      return { pan: 0.09 * Math.sin(e((t - 2.2) / 2.6) * Math.PI * 2), rise: 1, up: e(t / 2), down: e((t - 5) / 1.6) };
+      return { pan: 0.09 * Math.sin(e((t - 2.2) / 2.8) * Math.PI * 2), rise: 1, up: e(t / 2), down: 0 };
     }
     return { pan: 0, rise: ['dark', 'wake'].includes(this.stage) ? 0 : 1, up: 0, down: 0 };
-  }
-  /* Your boots, at the bottom of the view as you look down: the lead
-     one's colour, scuffed, shuffling a little. */
-  _boots(c, W, H, k){
-    const i = this.g.here[0] ?? 0, col = PLAYER_COLORS[i];
-    c.save(); c.globalAlpha = Math.min(1, k * 1.5);
-    const leg = mix(col, '#0a0f2a', 0.3), legD = mix(col, '#0a0f2a', 0.5), boot = mix(col, '#0a0f2a', 0.62), cap = mix(col, '#ffffff', 0.2);
-    for (const d of [-1, 1]){
-      /* (seen from your own eyes: legs coming up from the bottom of the
-         screen, the boots at the end of them, toes pointing away) */
-      const shuffle = Math.sin(this.t * 1.7 + d) * H * 0.006, x = W * (0.5 + d * 0.11) + shuffle, ank = H * (1.25 - 0.55 * k);
-      c.fillStyle = leg; c.beginPath(); c.moveTo(x - W * 0.085, H * 1.05); c.lineTo(x - W * 0.04, ank); c.lineTo(x + W * 0.04, ank); c.lineTo(x + W * 0.085, H * 1.05); c.closePath(); c.fill();
-      c.fillStyle = legD; c.beginPath(); c.moveTo(x + d * W * 0.085, H * 1.05); c.lineTo(x + d * W * 0.04, ank); c.lineTo(x + d * W * 0.015, ank); c.lineTo(x + d * W * 0.04, H * 1.05); c.closePath(); c.fill();
-      c.strokeStyle = 'rgba(255,255,255,.4)'; c.lineWidth = H * 0.006; c.beginPath(); c.moveTo(x - W * 0.06, (ank + H) / 2); c.lineTo(x + W * 0.06, (ank + H) / 2); c.stroke();
-      /* the boot: a rounded toe out ahead, the sole's edge round it */
-      c.fillStyle = boot; c.beginPath(); c.ellipse(x, ank - H * 0.075, W * 0.05, H * 0.115, 0, 0, 6.2832); c.fill();
-      c.fillStyle = cap; c.beginPath(); c.ellipse(x, ank - H * 0.085, W * 0.04, H * 0.095, 0, 0, 6.2832); c.fill();
-      c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.ellipse(x - W * 0.012, ank - H * 0.12, W * 0.014, H * 0.035, 0, 0, 6.2832); c.fill();
-      c.fillStyle = 'rgba(90,70,60,.35)'; c.beginPath(); c.arc(x + W * 0.015, ank - H * 0.15, H * 0.01, 0, 6.2832); c.arc(x - W * 0.02, ank - H * 0.06, H * 0.007, 0, 6.2832); c.fill();
-    }
-    c.restore();
   }
   /* How clear the view is, 0..1: blurred coming round, clear once awake. */
   _clear(){
@@ -343,30 +324,29 @@ export class Intro {
   /* The suit's display ringing: INCOMING CALL - NOVA, and who's answered. */
   _ringing(c, W, H){
     const g = this.g, ring = 0.5 + 0.5 * Math.sin(this.t * 9);
-    /* it rings in bursts: two buzzes, a pause - the box shaking with each */
+    /* it rings in bursts: two buzzes, a pause - her window (where she
+       always is, novaBox) shaking with each */
     const ph = this.t % 1.6, buzz = ph < 0.25 || (ph > 0.35 && ph < 0.6);
-    const x = W / 2 + (buzz ? Math.sin(this.t * 70) * H * 0.008 : 0), y = H * 0.4;
-    const bw = H * 0.78, bh = H * 0.26;
+    const b = novaBox(W, H), x = b.x + (buzz ? Math.sin(this.t * 70) * H * 0.005 : 0), y = b.y;
     c.save();
-    c.fillStyle = 'rgba(5,12,30,.82)'; c.beginPath(); c.roundRect(x - bw / 2, y - bh / 2, bw, bh, H * 0.03); c.fill();
-    c.strokeStyle = `rgba(127,243,255,${buzz ? 0.95 : 0.5 + 0.2 * ring})`; c.lineWidth = H * (buzz ? 0.007 : 0.004); c.stroke();
-    /* her face, calling */
-    const fx = x - bw / 2 + bh * 0.52, fr = bh * 0.36;
-    c.save(); c.beginPath(); c.arc(fx, y, fr, 0, 6.2832); c.fillStyle = '#16264a'; c.fill(); c.clip();
-    commanderFace(c, fx, y - fr * 0.1, fr * 0.62, this.t, false);
+    c.fillStyle = '#0b1220'; c.beginPath(); c.roundRect(x, y, b.w, b.h, b.h * 0.08); c.fill();
+    c.save(); c.clip();
+    if (!novaFeed(c, x, y, b.w, b.h, this.t, false)) commanderFace(c, x + b.w / 2, y + b.h * 0.5, b.h * 0.3, this.t, false);
+    /* INCOMING CALL, across it */
+    c.fillStyle = 'rgba(5,12,30,.72)'; c.fillRect(x, y + b.h * 0.36, b.w, b.h * 0.28);
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.globalAlpha = buzz ? 1 : 0.6 + 0.3 * ring;
+    c.font = `700 ${Math.round(b.h * 0.13)}px Fredoka, sans-serif`; c.fillStyle = '#7ff3ff'; c.fillText('INCOMING CALL', x + b.w / 2, y + b.h * 0.5);
     c.restore();
-    c.strokeStyle = '#7ff3ff'; c.lineWidth = H * 0.005; c.beginPath(); c.arc(fx, y, fr, 0, 6.2832); c.stroke();
-    if (buzz) for (const k of [1, 1.3]){ c.globalAlpha = 0.5 / k; c.beginPath(); c.arc(fx, y, fr * k * (1 + 0.1 * Math.sin(this.t * 20)), 0, 6.2832); c.stroke(); }
+    c.strokeStyle = `rgba(127,243,255,${buzz ? 0.95 : 0.5 + 0.2 * ring})`; c.lineWidth = H * (buzz ? 0.006 : 0.003);
+    c.beginPath(); c.roundRect(x, y, b.w, b.h, b.h * 0.08); c.stroke();
+    if (buzz) for (const k of [1.04, 1.09]){ c.globalAlpha = 0.4 / k; c.beginPath(); c.roundRect(x - b.w * (k - 1), y - b.h * (k - 1), b.w * (2 * k - 1), b.h * (2 * k - 1), b.h * 0.1); c.stroke(); }
     c.globalAlpha = 1;
-    c.textAlign = 'left'; c.textBaseline = 'middle';
-    const tx = fx + fr + H * 0.04;
-    c.font = `700 ${Math.round(H * 0.032)}px Fredoka, sans-serif`; c.fillStyle = '#7ff3ff'; c.fillText('INCOMING CALL', tx, y - H * 0.05);
-    c.font = `700 ${Math.round(H * 0.05)}px Fredoka, sans-serif`; c.fillStyle = '#ffffff'; c.fillText('NOVA', tx, y + H * 0.005);
-    /* each of them: a dot filling as they hold a hand to their ear, full when they have */
-    const here = g.here, r = H * 0.018;
+    /* each of them: a dot under it, filling as they hold a hand to their ear */
+    const here = g.here, r = H * 0.014;
     here.forEach((i, k) => {
-      const dx = tx + r + k * r * 3.2, dy = y + H * 0.07;
-      c.fillStyle = 'rgba(255,255,255,.15)'; c.beginPath(); c.arc(dx, dy, r, 0, 6.2832); c.fill();
+      const dx = x + r + k * r * 3, dy = y + b.h + H * 0.025;
+      c.fillStyle = 'rgba(5,12,30,.6)'; c.beginPath(); c.arc(dx, dy, r * 1.15, 0, 6.2832); c.fill();
       c.fillStyle = PLAYER_COLORS[i];
       if (this.answered[i]){ c.beginPath(); c.arc(dx, dy, r, 0, 6.2832); c.fill(); }
       else { c.beginPath(); c.moveTo(dx, dy); c.arc(dx, dy, r, -Math.PI / 2, -Math.PI / 2 + 6.2832 * Math.min(1, this.ear[i] / HOLD)); c.closePath(); c.fill(); }
@@ -395,16 +375,25 @@ export class Intro {
      view still in it, shrinking - up and back to the game's view, the crew
      getting up by the ship. Where the lead one's helmet is: */
   _headAt(W, H){
-    const g = this.g, i = g.here[0] ?? 0, p = P(g._home(i), RUN_AT, W, H), h = H * CREW_SIZE * p.k;
+    const g = this.g, i = g.here[0] ?? 0, p = P(this._lane(i), RUN_AT, W, H), h = H * CREW_SIZE * p.k;
     /* (as lkp-cast.js lays them down: shifted, turned a quarter) */
     const dn = 1 - easeOut(this.up[i] || 0), th = -Math.PI / 2 * dn, hy = h * 0.8;
     return { x: p.x + h * 0.42 * dn + hy * Math.sin(th), y: p.y - h * 0.14 * dn - hy * Math.cos(th), h, tilt: th };
+  }
+  /* Where each of them is, across: on the grass beside the path (GRASS
+     lanes to its left, between it and the ship) until they walk over to
+     it, at the end. */
+  _lane(i){
+    const g = this.g, home = g._home(i);
+    if (this.stage !== 'go') return home - GRASS;
+    const u = Math.min(1, this.st / (GO * 0.85)), e = u * u * (3 - 2 * u);
+    return home - GRASS * (1 - e);
   }
   /* The close shot of the crew (not the game's view): where it looks
      (a point in the scene), where that sits on the screen, how close -
      drifting slowly. */
   _shot(W, H){
-    const g = this.g, ps = g.here.map(i => { const p = P(g._home(i), RUN_AT, W, H); return { x: p.x, y: p.y - H * CREW_SIZE * p.k * 0.55 }; });
+    const g = this.g, ps = g.here.map(i => { const p = P(g._home(i) - GRASS, RUN_AT, W, H); return { x: p.x, y: p.y - H * CREW_SIZE * p.k * 0.55 }; });
     if (!ps.length) ps.push({ x: W / 2, y: H * 0.7 });
     const x0 = Math.min(...ps.map(p => p.x)), x1 = Math.max(...ps.map(p => p.x)), y = ps.reduce((a, p) => a + p.y, 0) / ps.length;
     const drift = Math.sin((this.cineT || 0) * 0.25);
@@ -414,9 +403,13 @@ export class Intro {
   /* Drawn with a camera: anchor (ax, ay) in the scene at (sx, sy) on
      screen, z times closer. */
   _withCam(c, W, H, cam){
-    c.save(); c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+    /* (behind it all, the meadow's own green, so no edge ever shows) */
+    c.save(); const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#9cc4d8'); bg.addColorStop(0.45, '#6fae86'); bg.addColorStop(1, '#2f6a48'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
     c.translate(cam.sx, cam.sy); c.scale(cam.z, cam.z); c.translate(-cam.ax, -cam.ay);
+    /* (the world drawn wider than the game's view, off to the left where they stand) */
+    SKY.above = H; SKY.wide = W * 1.3;
     this._outside(c, W, H);
+    SKY.above = 0; SKY.wide = 0;
     c.restore();
   }
   _pullBack(c, W, H){
@@ -471,7 +464,7 @@ export class Intro {
   _outside(c, W, H){
     const g = this.g;
     const cine = ['pull', 'gather', 'call', 'answer'].includes(this.stage);
-    g.introCrew = g.here.map((i, k) => { const a = this.up[i] > 0.99 && cine ? this._act(i, k) : { pose: null, look: 0 }; return { i, lane: g._home(i), rel: RUN_AT, down: 1 - easeOut(this.up[i]), noBar: this.stage !== 'go', pose: a.pose, look: a.look }; });
+    g.introCrew = g.here.map((i, k) => { const a = this.up[i] > 0.99 && cine ? this._act(i, k) : { pose: null, look: 0 }; return { i, lane: this._lane(i), rel: RUN_AT, down: 1 - easeOut(this.up[i]), noBar: this.stage !== 'go', pose: a.pose, look: a.look }; });
     g.inIntro = true;
     g._drawPlay(c, W, H);
     g.inIntro = false; g.introCrew = null;
@@ -526,13 +519,17 @@ const STEP = {
   stand(dt){
     /* a shuffle of feet, getting up and looking down */
     if (!this.stoodSnd && this.st > 1.4){ this.stoodSnd = true; sfx.step(0, 0.4); }
-    if (!this.shuffled && this.st > 5.4){ this.shuffled = true; sfx.step(1, 0.25); }
     return false;
   },
   /* the others getting up as the camera pulls back */
   pull(dt){ this._getUp(dt, 2.2); return false; },
   gather(dt){ this._getUp(dt, 0); return false; },
-  go(){ return false; }
+  go(dt){
+    /* walking over to the path: a gentle walk, legs going */
+    const walking = this.st < GO * 0.85;
+    for (const i of this.g.here){ const rn = this.g.crew[i]; rn.run = walking ? 0.35 : Math.max(0, (rn.run || 0) - dt * 2); if (walking) rn.runPh = (rn.runPh || 0) + dt * 7; }
+    return false;
+  }
 };
 /* How open the eyes want to be, in each beat. */
 const EYES = {

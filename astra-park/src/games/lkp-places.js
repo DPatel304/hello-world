@@ -423,23 +423,28 @@ export function worldGladeSide(c, W, H, red, t, L, light = 'green'){
   const top = H * 0.72, fg = c.createLinearGradient(0, top, 0, H);
   fg.addColorStop(0, mix(L.ground[0], L.haze, 0.15)); fg.addColorStop(1, L.ground[2]);
   c.fillStyle = fg; c.beginPath(); c.moveTo(0, top); for (let k = 0; k <= 12; k++) c.lineTo(W * k / 12, top + H * 0.01 * Math.sin(k * 2.1)); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
-  /* the woods in front of her, tall and thick - she shows only in the
-     gaps and over the tops (you can tell how big she is, but not see her
-     all) - except round her eyes, always clear. Back row tallest; tops
-     and sizes vary; front row shorter, and only low bushes under her eyes. */
-  const W0 = WALL_EYES.x0 * W, W1 = WALL_EYES.x1 * W;
-  const rows = [
-    [0, top - H * 0.005, 0.00102, 0.3, [0.01, 0.07, 0.4, 0.46, 0.52, 0.585, 0.64, 0.7, 0.76, 0.82, 0.88, 0.94, 0.995]],
-    [1, top + H * 0.03, 0.00092, 0.18, [0.04, 0.37, 0.43, 0.49, 0.55, 0.61, 0.67, 0.73, 0.79, 0.85, 0.91, 0.97]],
-    [2, top + H * 0.065, 0.00074, 0.05, [0.0, 0.08, 0.17, 0.25, 0.33, 0.4, 0.5, 0.6, 0.69, 0.78, 0.88, 0.96]]
-  ];
-  for (const [row, y, sz, hz, xs] of rows) xs.forEach((u, k) => {
-    const n = 40 + row * 20 + k, x = W * (u + (hash(n + 7) - 0.5) * 0.015);
-    let kind = kindOf(n), s = H * sz * (0.8 + 0.4 * hash(n));
-    /* under her eyes: only something low */
-    if (x > W0 - W * 0.05 && x < W1 + W * 0.05){ if (row < 2) return; kind = 'bush'; s = H * 0.0007; }
-    treeKind(c, x, y, s, kind, L, hz, n);
-  });
+  /* in front of her, tall and thick - she shows only in the gaps and over
+     the tops (you can tell how big she is, but not see her all) - except
+     round her eyes, always clear. Kept calm: just a few kinds - tall
+     umbrella trees and pines at the back, a great mossy mound with
+     boulders, round trees, low bushes in front. */
+  const W0 = WALL_EYES.x0 * W, W1 = WALL_EYES.x1 * W, clear = (x) => x > W0 - W * 0.05 && x < W1 + W * 0.05;
+  const plant = (u, y, sz, kind, hz, n) => { const x = W * (u + (hash(n + 7) - 0.5) * 0.012); if (!clear(x)) treeKind(c, x, y, H * sz * (0.85 + 0.3 * hash(n)), kind, L, hz, n); };
+  [0.01, 0.07, 0.41, 0.48, 0.56, 0.63, 0.71, 0.79, 0.87, 0.95].forEach((u, k) => plant(u, top - H * 0.005, 0.00102, k % 3 === 1 ? 'pine' : 'umbrella', 0.3, 40 + k));
+  /* the mound: a long grassy hump, mossy boulders on it */
+  const mx0 = W * 0.5, mx1 = W * 1.05, my = top + H * 0.06, mh = H * 0.24;
+  const mg = c.createLinearGradient(0, my - mh, 0, my); mg.addColorStop(0, mix(L.ground[0], '#cfe8b0', 0.25)); mg.addColorStop(1, L.ground[1]);
+  c.fillStyle = mg; c.beginPath(); c.moveTo(mx0, my); c.bezierCurveTo(mx0 + W * 0.08, my - mh * 1.05, mx1 - W * 0.22, my - mh * 1.1, mx1, my - mh * 0.75); c.lineTo(mx1, my); c.closePath(); c.fill();
+  c.strokeStyle = rgba(L.grass[1], 0.5); c.lineWidth = Math.max(1, H * 0.003); c.stroke();
+  for (const [u, v, r] of [[0.66, 0.2, 0.075], [0.6, 0.12, 0.05], [0.84, 0.21, 0.065]]){
+    const bx = W * u, by = my - H * v, br = H * r;
+    c.fillStyle = 'rgba(20,30,30,.25)'; c.beginPath(); c.ellipse(bx, by + br * 0.7, br * 1.1, br * 0.25, 0, 0, 6.2832); c.fill();
+    const bg = c.createRadialGradient(bx - br * 0.3, by - br * 0.4, br * 0.1, bx, by, br * 1.1); bg.addColorStop(0, '#b8b4c8'); bg.addColorStop(1, '#6e6a88');
+    c.fillStyle = bg; c.beginPath(); c.ellipse(bx, by, br * 1.15, br * 0.85, 0, 0, 6.2832); c.fill();
+    c.fillStyle = mix(L.grass[0], '#7ec06e', 0.4); c.beginPath(); c.ellipse(bx - br * 0.1, by - br * 0.6, br * 0.8, br * 0.3, -0.1, 0, 6.2832); c.fill();
+  }
+  [0.04, 0.38, 0.45].forEach((u, k) => plant(u, top + H * 0.03, 0.00085, 'round', 0.15, 60 + k));
+  [0.0, 0.1, 0.18, 0.26, 0.33, 0.42, 0.52, 0.62, 0.74, 0.86, 0.96].forEach((u, k) => { const x = W * u; treeKind(c, x, top + H * 0.065, H * 0.0007 * (0.85 + 0.3 * hash(80 + k)), 'bush', L, 0.05, 80 + k); });
   zubuWallSnore(c, W, H, light, t);
   /* the trodden path, across the bottom */
   c.fillStyle = rgba(L.path[0], 0.6);

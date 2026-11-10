@@ -62,9 +62,9 @@ export class Captain {
   /* The window, top left: her face and, under it, her few words. */
   draw(c, W, H){
     if (this.show < 0.02) return;
-    /* (a wide video window, 4:3) */
-    const s = H * 0.2, sw = s * 1.33, x = H * 0.03 - (1 - this.show) * (sw + H * 0.05), y = H * 0.03;
-    radio(c, x, y, sw, s, this.t, this.talking, 1 - this.show);
+    /* (always in the same spot: novaBox) */
+    const b = novaBox(W, H), s = b.h, x = b.x - (1 - this.show) * (b.w + H * 0.05), y = b.y;
+    radio(c, x, y, b.w, b.h, this.t, this.talking, 1 - this.show);
     const w = this.line && this.line.words;
     if (w){
       c.save(); c.globalAlpha = this.show;
@@ -106,13 +106,16 @@ export class Radio {
   }
   draw(c, W, H){
     if (this.show > 0.02){
-      const s = H * 0.24, sw = s * 1.33, x = H * 0.03 - (1 - this.show) * (sw + H * 0.05), y = H * this.top;
-      radio(c, x, y, sw, s, this.t, this.talking, Math.max(0, 1 - this.show * 1.5), 'nova');
+      const b = novaBox(W, H), x = b.x - (1 - this.show) * (b.w + H * 0.05);
+      radio(c, x, b.y, b.w, b.h, this.t, this.talking, Math.max(0, 1 - this.show * 1.5), 'nova');
     }
     /* (subtitles: off for now, while the script's being settled - subtitles: true) */
     if (this.subtitles && this.line) subtitle(c, W, H, this.line.text, Math.min(1, this.line.t * 6));
   }
 }
+
+/* Where Nova's window always is: top left, a 4:3 video window. */
+export function novaBox(W, H){ const h = H * 0.2; return { x: H * 0.03, y: H * 0.03, w: h * 1.33, h }; }
 
 /* A subtitle at the bottom centre: big, white on a dark band, wrapped. */
 export function subtitle(c, W, H, text, a = 1){
