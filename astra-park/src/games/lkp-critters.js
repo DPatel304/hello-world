@@ -87,14 +87,17 @@ function fin(c, x, y, s, t, dir, col, a){
 
 /* Glowing fish in the healing pond, round the crew (their depth, rel
    0.., a little in front), swimming lazy loops - a: how clear (0..1). */
-export function glowfins(c, W, H, t, a = 1){
+export function glowfins(c, W, H, t, a = 1, fled = 0){
   if (a <= 0.02) return;
   for (let i = 0; i < 18; i++){
     const sp = 0.25 + 0.2 * hash(i + 60), ph = t * sp + hash(i + 61) * TAU;
-    const lane = Math.sin(ph) * (0.5 + 0.7 * hash(i + 62)) + (hash(i + 63) - 0.5) * 0.4;
-    const rel = -0.13 + 0.17 * (0.5 + 0.5 * Math.sin(ph * 0.7 + i));
-    const dir = Math.cos(ph) >= 0 ? 1 : -1, p = P(lane, rel, W, H);
-    fin(c, p.x, p.y - H * 0.01 * p.k, H * 0.05 * p.k * (0.8 + 0.4 * hash(i + 64)), t + i, dir, COLS[i % COLS.length], a * 0.85);
+    let lane = Math.sin(ph) * (0.5 + 0.7 * hash(i + 62)) + (hash(i + 63) - 0.5) * 0.4;
+    let rel = -0.13 + 0.17 * (0.5 + 0.5 * Math.sin(ph * 0.7 + i));
+    let dir = Math.cos(ph) >= 0 ? 1 : -1, aa = a;
+    /* (startled by the stomp: darting off, away from the crew, out of sight) */
+    if (fled > 0){ const out = lane >= 0 ? 1 : -1; lane += out * fled * (5 + 4 * hash(i + 65)); rel += fled * 0.12 * hash(i + 66); dir = out; aa *= Math.max(0, 1 - fled / 0.9); if (aa <= 0.01) continue; }
+    const p = P(lane, rel, W, H);
+    fin(c, p.x, p.y - H * 0.01 * p.k, H * 0.05 * p.k * (0.8 + 0.4 * hash(i + 64)), t + i * (fled > 0 ? 3 : 1), dir, COLS[i % COLS.length], aa * 0.85);
   }
 }
 

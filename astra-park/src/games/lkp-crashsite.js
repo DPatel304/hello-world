@@ -215,6 +215,29 @@ export function worldLake(c, W, H, rel, t, L, len = LAKE){
   g.addColorStop(0, mix(L.sky[2], L.water, 0.4)); g.addColorStop(0.35, mix(L.water, '#1f7489', 0.45)); g.addColorStop(1, '#174f63');
   c.fillStyle = g; band(0); c.fill();
   c.save(); band(0); c.clip();
+  /* looking into it: the bed, down through the water - pale sand in the
+     shallows, pebbles, swaying weed - all softened by the water's colour */
+  for (let k = 0; k < 50; k++){
+    const q = P((hash(k + 1800) - 0.5) * 10, n0 + len * (0.05 + 0.9 * hash(k + 1801)), W, H), r = H * (0.008 + hash(k + 1802) * 0.014) * q.k;
+    if (q.x < -40 || q.x > W + 40) continue;
+    c.fillStyle = mix(L.rock[0], L.water, 0.55); c.globalAlpha = 0.55;
+    c.beginPath(); c.ellipse(q.x + Math.sin(t * 1.1 + k) * r * 0.15, q.y, r * 1.4, r * 0.6, 0, 0, 6.2832); c.fill();
+    c.globalAlpha = 1;
+  }
+  for (let k = 0; k < 26; k++){
+    const q = P((hash(k + 1810) - 0.5) * 9, n0 + len * (0.1 + 0.8 * hash(k + 1811)), W, H), h = H * (0.03 + hash(k + 1812) * 0.03) * q.k;
+    if (q.x < -40 || q.x > W + 40) continue;
+    c.strokeStyle = 'rgba(70,150,110,.45)'; c.lineWidth = Math.max(1, H * 0.004 * q.k); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(q.x, q.y); c.quadraticCurveTo(q.x + Math.sin(t * 0.9 + k) * h * 0.3, q.y - h * 0.5, q.x + Math.sin(t * 0.9 + k + 1) * h * 0.4, q.y - h); c.stroke();
+  }
+  /* light, wobbling on the bed */
+  c.strokeStyle = 'rgba(220,255,250,.16)';
+  for (let k = 0; k < 30; k++){
+    const q = P((hash(k + 1820) - 0.5) * 9, n0 + len * (0.08 + 0.85 * hash(k + 1821)), W, H), w = W * 0.03 * q.k;
+    c.lineWidth = Math.max(1, H * 0.003 * q.k); c.beginPath();
+    for (let j = 0; j <= 6; j++){ const x = q.x - w + j * w / 3, y = q.y + Math.sin(t * 1.6 + k + j * 1.3) * w * 0.12; j ? c.lineTo(x, y) : c.moveTo(x, y); }
+    c.stroke();
+  }
   /* the healing light under the surface, round the path */
   glow(c, far.x, (far.y + near.y) / 2, Math.min(W * 0.35, (near.y - far.y) * 1.4 + W * 0.08), '#7ff3e0', 0.16 + 0.04 * Math.sin(t * 1.5));
   /* long glints of sky, drifting */
@@ -377,5 +400,38 @@ export function worldPatch(c, W, H, lane, rel, t, L){
     c.fillStyle = '#ff5a5a'; c.beginPath(); c.ellipse(0, 0, r, r * 0.8, 0, 0, 6.2832); c.fill();
     c.fillStyle = '#2a1a2a'; circ(c, -r * 0.3, -r * 0.35, r * 0.18); circ(c, -r * 0.3, r * 0.35, r * 0.18); circ(c, r * 0.3, 0, r * 0.16);
     c.restore(); }
+  c.restore();
+}
+
+/* The water's surface over what's under it (drawn after the fish): a thin
+   film of the water's colour and the sky's sheen, so they're down in it. */
+export function worldLakeSurface(c, W, H, rel, t, L, len = LAKE){
+  const n0 = rel - len / 2, n1 = rel + len / 2;
+  if (n1 < -0.15 || n0 > 1.05) return;
+  const N = 40, lanes = Array.from({ length: N + 1 }, (_, k) => -SPAN + 2 * SPAN * k / N);
+  c.save(); c.beginPath();
+  lanes.forEach((ln, k) => { const q = P(ln, Math.max(-0.14, n0 + shore(ln, 0)), W, H); k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); });
+  for (let k = N; k >= 0; k--){ const q = P(lanes[k], Math.min(1.02, n1 + shore(lanes[k], 1)), W, H); c.lineTo(q.x, q.y); }
+  c.closePath(); c.fillStyle = rgba(L.water, 0.16); c.fill(); c.clip();
+  c.strokeStyle = 'rgba(255,255,255,.1)';
+  for (let k = 0; k < 18; k++){
+    const q = P((hash(k + 1840) - 0.5) * 8, n0 + len * (0.1 + 0.8 * hash(k + 1841)), W, H), w = W * 0.07 * q.k;
+    c.lineWidth = Math.max(1, H * 0.003 * q.k); c.beginPath(); c.ellipse(q.x + Math.sin(t * 0.4 + k) * w * 0.2, q.y, w, w * 0.06, 0, 0, 6.2832); c.stroke();
+  }
+  c.restore();
+}
+
+/* A splash, sitting down hard in the water (u 0..1 since): drops flying
+   up and out, a ring spreading. */
+export function splash(c, x, y, size, u, n = 0){
+  c.save();
+  c.strokeStyle = `rgba(230,255,255,${0.7 * (1 - u)})`; c.lineWidth = Math.max(1, size * 0.02);
+  c.beginPath(); c.ellipse(x, y, size * (0.3 + u * 0.7), size * (0.08 + u * 0.15), 0, 0, 6.2832); c.stroke();
+  c.fillStyle = `rgba(225,255,255,${0.85 * (1 - u)})`;
+  for (let k = 0; k < 10; k++){
+    const a = Math.PI * (0.1 + 0.8 * hash(k + n * 13 + 1900)), v = size * (0.4 + 0.5 * hash(k + n * 13 + 1901));
+    const dx = Math.cos(a) * v * u * (hash(k + 1902) < 0.5 ? -1 : 1), dy = -Math.sin(a) * v * u + size * 1.2 * u * u;
+    circ(c, x + dx, y - size * 0.1 + dy, size * (0.025 + 0.02 * hash(k + 1903)) * (1 - u * 0.5));
+  }
   c.restore();
 }

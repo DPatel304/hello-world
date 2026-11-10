@@ -44,7 +44,7 @@ export function guideMove(g){
     return null;
   }
   if (g.roll) return g.roll.phase === 'run' ? 'run' : null;
-  if (g.rest) return 'hug';
+  if (g.rest) return g.rest.phase === 'heal' ? 'hug' : null;
   if (g.trap && !g.trap.done) return g.trap.light === 'green' ? 'run' : 'freeze';
   if (g.treasure && !g.treasure.done) return g.treasure.pool > 0 ? 'hug' : 'reach';
   if (g.leap) return g.leap.phase === 'ready' ? 'hop' : null;

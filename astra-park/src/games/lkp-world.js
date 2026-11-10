@@ -714,8 +714,13 @@ function trees(c, W, H, z, L){
   for (const tr of list) tree(c, W, H, tr.lane, tr.rel, L, tr.n);
 }
 
+/* A stretch of the view kept clear of trees (screen x0..x1): the line of
+   sight to something far off (lkp-game.js: the pond, looking to the far
+   woods). */
+export const SIGHT = { on: false, x0: 0, x1: 0 };
 export function tree(c, W, H, lane, rel, L, n = 0){
   const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.85 + hash(n + 300) * 0.4), haze = Math.min(0.7, Math.max(0, rel) * 0.9);
+  if (SIGHT.on && rel > 0.25 && p.x > SIGHT.x0 && p.x < SIGHT.x1) return;
   if (p.x < -200 * s * 3 - SKY.wide || p.x > W + 200 * s * 3) return;
   cast(c, p.x, p.y, 26 * s, 380 * s);
   treeKind(c, p.x, p.y, s, kindOf(n), L, haze, n);
@@ -1088,4 +1093,43 @@ export function worldStraightOn(c, W, H, L){
   c.closePath(); c.fill();
   /* its edge stones */
   for (let i = 1; i <= N; i++) for (const q of [Ls[i], Rs[i]]){ c.fillStyle = mix('#8f88a8', L.haze, Math.min(0.7, i / N)); circ(c, q.x, q.y, H * 0.006 * q.k + 0.5); }
+}
+
+/* Far off at the land's edge (at x, y on the screen - the horizon), what's
+   going on there: a calm strip of woods, just two kinds of tree, and
+   through them something huge - Zubu - drifting low along it (u 0..1, how
+   far she's got), trees shaking as she nears and going over behind her,
+   dust, birds. Tiny from the pond; the camera goes all the way in to it.
+   draw(c, x, y, s, t): Zubu herself (lkp-zubu.js drawZubuFar). */
+export function worldFarWoods(c, W, H, x, y, t, u, L, drawZ){
+  c.save();
+  const w = W * 0.28, x0 = x - w * 0.5, zx = x0 + w * (0.05 + 0.9 * Math.min(1, u)), zy = y - H * 0.012;
+  const row = (dy, s, haze, n, seed, front) => {
+    for (let k = 0; k < n; k++){
+      const tx = x0 + w * ((k + 0.5) / n) + (hash(k + seed) - 0.5) * w / n * 0.6, d = (tx - zx) / w;
+      let rot = 0;
+      if (Math.abs(d) < 0.08) rot = Math.sin(t * 14 + k) * 0.2 * (1 - Math.abs(d) / 0.08);
+      if (d < -0.04 && (!front || hash(k + seed + 2) < 0.5)) rot = Math.min(1.45, (-d - 0.04) * 14) * (hash(k + seed + 1) < 0.5 ? 1 : -1);
+      c.save(); c.translate(tx, y + dy); c.rotate(rot);
+      treeKind(c, 0, 0, s * (0.85 + 0.3 * hash(k + seed + 3)), hash(k + seed + 4) < 0.65 ? 'pine' : 'round', L, haze, k + seed);
+      c.restore();
+    }
+  };
+  /* the bare swathe she's left */
+  if (u > 0.02){ c.fillStyle = mix('#a8906c', L.haze, 0.35); c.beginPath(); c.moveTo(x0, y + H * 0.001); c.lineTo(zx, y); c.lineTo(zx, y + H * 0.004); c.lineTo(x0, y + H * 0.005); c.closePath(); c.fill(); }
+  row(-H * 0.002, H * 0.000042, 0.5, 20, 9500, false);
+  drawZ(c, zx, zy - Math.abs(Math.sin(t * 1.5)) * H * 0.002, H * 0.03, t);
+  row(H * 0.003, H * 0.00005, 0.42, 16, 9600, true);
+  /* dust, rolling up where she's going */
+  for (let k = 0; k < 7; k++){
+    const a = (t * 0.25 + k / 7) % 1, px = zx - w * (0.01 + a * 0.06) + Math.sin(k * 3) * w * 0.01, py = y - H * (0.003 + a * 0.018), r = H * (0.004 + a * 0.008);
+    c.fillStyle = rgba('#d8cfc0', 0.5 * (1 - a)); circ(c, px, py, r);
+  }
+  /* birds, bursting up out of the trees ahead of her */
+  c.strokeStyle = mix('#3a3450', L.haze, 0.3); c.lineWidth = Math.max(0.6, H * 0.0008); c.lineCap = 'round';
+  for (let k = 0; k < 9; k++){
+    const a = (t * 0.35 + k / 9) % 1, bx = zx + w * (0.03 + (hash(k + 9710) - 0.3) * 0.08) + a * w * (0.06 + hash(k + 9711) * 0.06), by = y - H * (0.02 + a * 0.04 * (0.6 + hash(k + 9712))), bw = H * 0.003, f = Math.sin(t * 12 + k) * 0.6;
+    c.globalAlpha = Math.min(1, (1 - a) * 2); c.beginPath(); c.moveTo(bx - bw, by - bw * f); c.quadraticCurveTo(bx - bw * 0.4, by - bw * 0.2, bx, by); c.quadraticCurveTo(bx + bw * 0.4, by - bw * 0.2, bx + bw, by - bw * f); c.stroke();
+  }
+  c.restore();
 }

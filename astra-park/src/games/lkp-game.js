@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { farStir, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { farStir, SIGHT, worldFarWoods, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
@@ -20,9 +20,10 @@ import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro, START } from './lkp-intro.js';
+import { drawZubuFar } from './lkp-zubu.js';
 import { worldShip, worldWreck } from './lkp-places.js';
 import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, trumblerBack, chimeblooms, jellycrawl } from './lkp-critters.js';
-import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch } from './lkp-crashsite.js';
+import { worldLake, worldLakeSurface, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch, splash } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
 import { levelUp, goldPick, meleePick, needFor, PICK_TIME } from './lkp-levelup.js';
@@ -154,7 +155,10 @@ export const ZUBU_FAR = [2.5, 9], STEP_EVERY = 1.3;
    then the camera swinging out (FAR_EASE seconds) all the way to the far
    woods where the trees are coming down, holding there at least
    FAR_HOLD seconds; then back. */
-export const RUMBLE = 5.2, FAR_HOLD = 8, FAR_EASE = 3.5, STOMPS = [0.4, 2.1, 3.6];
+export const RUMBLE = 7, FAR_HOLD = 6, FAR_EASE = 4.5, STOMPS = [0.5, 3.4, 5.4];
+/* (where it's happening, far off at the land's edge on the left - just in
+   view, tiny - and how close the camera goes in on it) */
+export const FAR_AT = [0.17, 0.392], FAR_ZOOM = 4.2;
 /* The team jump: how deep the gorge (depths; a wider one before the
    boss). (The jump itself: lkp-leap.js.) */
 export const RAVINE = 0.42, RAVINE_BIG = 0.56;
@@ -790,11 +794,23 @@ class LastKnownPosition {
       rn.nod = r.phase === 'heal' ? this.viewDown || 0 : 0;
       if (r.phase === 'heal') rn.look = Math.sin(r.t * (0.4 + 0.1 * i) + i * 1.7) * 0.35;
       else if (r.phase === 'rumble'){
-        const since = Math.min(...STOMPS.map(at => r.rt - at).filter(d => d >= 0), 9);
-        if (since < 0.45){ rn.pose = 'hang'; }
-        rn.look = since < 9 ? Math.sin(r.rt * (4 + i) + i * 2) * 0.9 : 0;
+        /* the first stomp: off balance - tottering, arms flailing, ??? -
+           the second: down on their bottoms, splash; then looking round,
+           and off left, where it came from */
+        const s1 = r.rt - STOMPS[0] - i * 0.08, s2 = r.rt - STOMPS[1] - i * 0.06;
+        rn.wobble = s1 > 0 && s2 < 0 ? Math.sin(s1 * 9 + i) * 1.6 * Math.exp(-s1 * 0.5) : 0;
+        if (s1 > 0 && s2 < 0) rn.pose = Math.sin(s1 * 7 + i) > -0.3 ? 'hang' : null;
+        rn.huh = s1 > 0.35 && s2 < 0 ? Math.min(1, (s1 - 0.35) * 4) : 0;
+        rn.ground = s2 > 0 ? Math.min(1, s2 / 0.22) : 0;
+        rn.look = s2 > 0 ? (r.rt > STOMPS[2] ? -0.85 : Math.sin(r.rt * (3 + i) + i * 2) * 0.8) : 0;
       }
-      else rn.look = -0.85 + 0.1 * Math.sin(r.t * 2 + i);
+      else {
+        /* sat in the water, watching off left; up again at the end */
+        rn.wobble = 0; rn.huh = 0; rn.look = -0.85 + 0.1 * Math.sin(r.t * 2 + i);
+        const up = r.phase === 'back' ? (r.bt - FAR_EASE - i * 0.15) / 0.35 : -1;
+        rn.ground = up > 0 ? Math.max(0, 1 - up) : 1;
+        if (up > 0 && up < 1) rn.pose = 'reach';
+      }
       if (rn.hp >= rn.max) continue;
       const was = rn.hp;
       rn.hp = Math.min(rn.max, rn.hp + rn.max * REST_FILL * (hug ? 2 : 1) * dt);
@@ -815,7 +831,11 @@ class LastKnownPosition {
        shaking; then, watching it far off, its steps going on, further away */
     if (r.phase === 'rumble'){
       r.stomped = r.stomped || 0;
-      if (r.stomped < STOMPS.length && r.rt >= STOMPS[r.stomped]){ r.stomped++; sfx.farStep?.(1.6); sfx.boom?.(); this.quake = 1; this.shake = Math.min(1, (this.shake || 0) + 0.7); }
+      if (r.stomped < STOMPS.length && r.rt >= STOMPS[r.stomped]){
+        r.stomped++; sfx.farStep?.(r.stomped === 3 ? 1.1 : 1.6); sfx.boom?.(); this.quake = 1; this.shake = Math.min(1, (this.shake || 0) + (r.stomped === 3 ? 0.35 : 0.7));
+        if (r.stomped === 1){ this.fishFled = this.t; sfx.hmm?.(); }
+        if (r.stomped === 2){ this.splashT = this.t; sfx.splash?.(); }
+      }
     } else {
       r.stepT = (r.stepT ?? 0) - dt;
       if (r.stepT <= 0){ r.stepT = STEP_EVERY; sfx.farStep?.(0.8); this.quake = 0.6; }
@@ -824,14 +844,20 @@ class LastKnownPosition {
       if (r.rt >= RUMBLE){ r.phase = 'far'; r.ft = 0; }
       return;
     }
+    if (r.phase === 'back'){
+      r.bt += dt;
+      if (!r.sprung && r.bt > FAR_EASE){ r.sprung = true; sfx.spring?.(2); }
+      if (r.bt > FAR_EASE + 0.9){
+        for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; rn.nod = 0; rn.ground = 0; rn.wobble = 0; rn.huh = 0; }
+        this.rest = null; cap.stay = false; this.cozy = false; this.fishFled = null;
+      }
+      return;
+    }
     r.ft += dt;
     if (talk && !r.pointed && r.ft > FAR_EASE + 1.5){ r.pointed = true; cap.say(...line(L.offTrail[0]), { polite: true, story: true }); }
     /* she's said it: off they go - the story's start over, the music
        back to the run's own */
-    if ((r.ft > FAR_EASE + FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_EASE + FAR_HOLD + 14){
-      for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; rn.nod = 0; }
-      this.rest = null; cap.stay = false; this.cozy = false;
-    }
+    if ((r.ft > FAR_EASE + FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_EASE + FAR_HOLD + 14){ r.phase = 'back'; r.bt = 0; }
   }
   /* How far the herd's pushing everyone over (0..1). */
   get herdPush(){
@@ -894,6 +920,12 @@ class LastKnownPosition {
 
   /* How far along the far ridge whatever it is has got (0..1), as the
      camera watches from the pond; or -1. */
+  /* How far along the far woods Zubu's got (0..1), from the first stomp on; or -1. */
+  get farWoodsU(){
+    const r = this.rest; if (!r || r.phase === 'heal') return -1;
+    const T = r.phase === 'rumble' ? r.rt : RUMBLE + (r.ft || 0) + (r.bt || 0);
+    return Math.min(1.1, T / (RUMBLE + FAR_EASE + FAR_HOLD + 2));
+  }
   get farStirU(){ const r = this.rest; return r && r.phase === 'far' ? Math.max(0, Math.min(1.1, (r.ft - FAR_EASE + 0.5) / 7)) : -1; }
   /* How high off the ground a crystal floats (px at depth scale k): low,
      or high for a hop. */
@@ -1369,10 +1401,15 @@ class LastKnownPosition {
       if (dn > 0){ const ay = P(0, RUN, W, H).y, z = 1 + 0.45 * dn, sy = ay + (H * 0.62 - ay) * dn; c.translate(W / 2, sy); c.scale(z, z); c.translate(-W / 2, -ay); }
       /* herd: the camera swinging over to watch the glimmerbacks zoom away, off the path to the right */
       if (hd > 0){ c.translate(-W * 0.26 * hd, -H * 0.04 * hd); c.translate(W * 0.75, H * 0.5); c.scale(1 + 0.18 * hd, 1 + 0.18 * hd); c.translate(-W * 0.75, -H * 0.5); SKY.wide = Math.max(SKY.wide, W * 0.45 * hd); }
-      /* far: the camera swinging away left from the crew, out across the land - and on, in a long lens, to the far woods */
-      if (far > 0){ const ax = W * 0.12, ay = H * 0.42, z = 1 + 0.7 * far; c.translate(W * 0.5 * far, H * 0.08 * far); c.translate(ax, ay); c.scale(z, z); c.translate(-ax, -ay); SKY.wide = Math.max(SKY.wide, W * 0.8 * far); SKY.above = Math.max(SKY.above, H * 0.2 * far); }
+      /* far: one camera move, no cuts - away from the crew, across the land and all the way in on what's going on at its far edge */
+      if (far > 0){
+        const tx = FAR_AT[0] * W, ty = FAR_AT[1] * H, z = Math.exp(Math.log(FAR_ZOOM) * far);
+        /* (the eye travelling there a little ahead of the zoom) */
+        const m = Math.min(1, far * 1.35), cx = W / 2 + (tx - W / 2) * m, cy = H / 2 + (ty - H / 2) * m;
+        c.translate(W / 2, H / 2); c.scale(z, z); c.translate(-cx, -cy);
+        SKY.wide = Math.max(SKY.wide, W * 0.4 * far);
+      }
       this._drawPlay(c, W, H);
-      if (far > 0 && PAL.world){ const k = Math.max(0, Math.min(1, (far - 0.45) / 0.55)); c.restore(); c.save(); c.globalAlpha = k * k * (3 - 2 * k); worldFarRidge(c, W, H, this.t, Math.max(0, this.farStirU), PAL.world); }
       SKY.above = 0; SKY.wide = 0; SKY.far = null; this.noHud = false; c.restore();
       this._drawHud(c, W, H);
     }
@@ -1422,12 +1459,16 @@ class LastKnownPosition {
     }
     const seg = this.seg;
     this._bend();
+    /* (at the pond: the line of sight off to the far woods kept clear) */
+    SIGHT.on = !!this.rest; SIGHT.x0 = (FAR_AT[0] - 0.2) * W; SIGHT.x1 = (FAR_AT[0] + 0.2) * W;
     /* On the zip line: the ground dropping away below (everything on it
        drawn lower; the crew, and the crystals hanging in the air, not). */
     const dropY = this.zip ? this.zip.drop * DROP * H : 0;
     if (dropY){ c.save(); c.translate(0, dropY); SKY.above = H; }
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
+    /* far off at the land's edge, while the stomping goes on: Zubu, in the woods */
+    if (PAL.world && this.farWoodsU >= 0) worldFarWoods(c, W, H, FAR_AT[0] * W, FAR_AT[1] * H, this.t, this.farWoodsU, PAL.world, (cx, x, y, sz, t) => drawZubuFar(cx, x, y, sz * 1.5, t, 0.35));
     /* (where they turn off the main path: the main path carrying on, straight ahead) */
     if (seg.corner && seg.corner.straightOn && PAL.world && seg.corner.at == null) worldStraightOn(c, W, H, PAL.world);
     /* Springs are part of the floor: under everything, there all the way
@@ -1440,7 +1481,8 @@ class LastKnownPosition {
     for (const th of this.things) if (th.kind === 'meadow'){ const rel = th.d - this.z; if (rel > -0.8) worldMeadow(c, W, H, rel, PAL.world); }
     for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel - LAKE / 2 < 1 && rel + LAKE / 2 > -0.15) worldLake(c, W, H, rel, this.t, PAL.world); else if (rel - LAKE / 2 >= 1) worldLakeAhead(c, W, H, rel - LAKE / 2, this.t); }
     /* stood in it: the little glowing fish swimming round their boots */
-    if (this.rest) glowfins(c, W, H, this.t, Math.min(1, this.rest.t / 2));
+    if (this.rest) glowfins(c, W, H, this.t, Math.min(1, this.rest.t / 2), this.fishFled != null ? this.t - this.fishFled : 0);
+    for (const th of this.things) if (th.kind === 'pond'){ const rel = th.d - this.z; if (rel - LAKE / 2 < 1 && rel + LAKE / 2 > -0.15) worldLakeSurface(c, W, H, rel, this.t, PAL.world); }
     if (dropY){ c.restore(); SKY.above = 0; }
     if (this.zip) this.zip.drawCable(c, W, H);
     const items = [];
@@ -1483,7 +1525,7 @@ class LastKnownPosition {
       const th = this.rest.th, k = Math.min(1, this.rest.t / 1.5);
       pondBeauty(c, W, H, th.lane, th.d - this.z, this.t, PAL.world, th.r * 0.6, k);
       /* each of them wading: rings round their feet, motes rising off them */
-      for (const i of this.here){ const p = P(this.crew[i].x, RUN, W, H); wading(c, p.x, p.y, H * CREW_SIZE, this.t + i * 0.4, k); if (this.quake > 0.05) healRipple(c, p.x, p.y, H * CREW_SIZE * 1.6, 1 - this.quake, '#e0faff'); }
+      for (const i of this.here){ const p = P(this.crew[i].x, RUN, W, H); if (this.splashT != null && this.t - this.splashT < 1.1) splash(c, p.x, p.y, H * CREW_SIZE, (this.t - this.splashT) / 1.1, i); wading(c, p.x, p.y, H * CREW_SIZE, this.t + i * 0.4, k); if (this.quake > 0.05) healRipple(c, p.x, p.y, H * CREW_SIZE * 1.6, 1 - this.quake, '#e0faff'); }
     }
     /* At the fork, still choosing: over each one's head an arrow, in their
        colour, pointing the way they're going. */
@@ -1611,7 +1653,7 @@ class LastKnownPosition {
     const bub = !at && rn.bubble && (!this.zip || this.zip.bubbled(i));
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     (at && at.front ? worldCrewFront : drawCrew)(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
-      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: (at && at.nod) || rn.nod || 0, sq: (at && at.sq) || 1, ground: (at && at.ground) || 0, body: (at && at.body) || null, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
+      { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean + (rn.wobble || 0), hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: (at && at.nod) || rn.nod || 0, sq: (at && at.sq) || 1, ground: (at && at.ground) || rn.ground || 0, body: (at && at.body) || null, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
       /* (noFace: the visor just dark glass - the opening's shot, before anyone's face is in it) */
       at && at.noFace ? null : (x, y, r) => {
         /* (the sleepy roll: the face they pulled sneaking past her, frozen on red) */
@@ -1646,6 +1688,13 @@ class LastKnownPosition {
        it's seen, not read. Healed, it stops. */
     const frac = rn.hp / rn.max, sore = frac < 0.6 && !this.fight && !this.inIntro && !this.over;
     if (at && at.noBar != null ? !at.noBar : !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, frac, PLAYER_COLORS[i], frac < 0.2);
+    /* (startled: ??? over their head, bobbing) */
+    if (rn.huh > 0){
+      c.save(); c.globalAlpha = rn.huh; c.font = `800 ${Math.round(h * 0.22)}px Fredoka, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'bottom';
+      const by = top - H * 0.05 - Math.abs(Math.sin(this.t * 6 + i)) * h * 0.05;
+      c.lineWidth = h * 0.035; c.strokeStyle = '#1a1430'; c.strokeText('???', p.x, by); c.fillStyle = '#ffffff'; c.fillText('???', p.x, by);
+      c.restore();
+    }
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 
