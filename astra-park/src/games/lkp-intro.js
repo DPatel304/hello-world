@@ -134,24 +134,26 @@ export class Intro {
   _gloves(c, W, H){
     const a = this.gloves || 0; if (a <= 0.01) return;
     const i = this.g.here[0]; if (i == null) return;
-    const p = pose.players[i], col = PLAYER_COLORS[i];
-    const cen = p.centre || { x: 0.5, y: 0.6 }, sc = p.scale || 0.3;
+    const col = PLAYER_COLORS[i];
+    /* (not copying your hands - just there, in front of you, with a slow
+       gentle flex of the fingers while you're wiggling yours) */
+    const want = this.stage === 'hands' && this.g.here.some(j => (pose.players[j].hands.left.speed || 0) > 0.5 || (pose.players[j].hands.right.speed || 0) > 0.5) ? 1 : 0;
+    this.flex = (this.flex || 0) + (want - (this.flex || 0)) * 0.04;
     c.save(); c.globalAlpha = a;
     for (const side of ['left', 'right']){
-      const h = p.hands[side], d = side === 'left' ? -1 : 1;
-      /* where it is, in front of you: as far out from your middle as the real hand is from the body's */
-      const hx = W * Math.max(0.05, Math.min(0.95, 0.5 + (h.x - cen.x) / sc * 0.85)), hy = H * Math.max(0.3, Math.min(1.05, 0.78 + (h.y - cen.y) / sc * 0.85)) + (1 - a) * H * 0.3;
-      const wig = Math.min(1, (h.speed || 0) * 0.6), sz = H * 0.13, ax = W * (0.5 + d * 0.32), ay = H * 1.25;
-      /* the arm, up from the bottom corner */
+      const d = side === 'left' ? -1 : 1;
+      const hx = W * (0.5 + d * 0.2) + Math.sin(this.t * 0.7 + d) * W * 0.006, hy = H * 0.74 + Math.sin(this.t * 0.9 + d * 2) * H * 0.008 + (1 - a) * H * 0.3;
+      const wig = this.flex * (0.5 + 0.5 * Math.sin(this.t * 2.2 + d)) * 0.5, sz = H * 0.13, ax = W * (0.5 + d * 0.26), ay = H * 1.15;
+      /* the forearm, up from the bottom edge */
       c.lineCap = 'round';
-      c.strokeStyle = mix(col, '#0a0f2a', 0.45); c.lineWidth = sz * 0.95; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo((ax + hx) / 2 + d * W * 0.05, (ay + hy) / 2 + H * 0.05, hx, hy + sz * 0.45); c.stroke();
+      c.strokeStyle = mix(col, '#0a0f2a', 0.45); c.lineWidth = sz * 0.95; c.beginPath(); c.moveTo(ax, ay); c.quadraticCurveTo((ax + hx) / 2 + d * W * 0.02, (ay + hy) / 2, hx, hy + sz * 0.45); c.stroke();
       c.strokeStyle = col; c.lineWidth = sz * 0.8; c.stroke();
       /* the cuff, glowing */
       c.strokeStyle = mix(col, '#ffffff', 0.6); c.lineWidth = sz * 0.12; c.beginPath(); c.ellipse(hx, hy + sz * 0.42, sz * 0.42, sz * 0.12, 0, 0, 6.2832); c.stroke();
       /* the glove: the back of the hand, four fingers, a thumb - spreading as you wiggle */
       const gc = mix(col, '#ffffff', 0.25), gd = mix(col, '#0a0f2a', 0.35);
       for (let f = 0; f < 4; f++){
-        const ang = -Math.PI / 2 + (f - 1.5) * (0.22 + wig * 0.18) + Math.sin(this.t * 14 + f) * wig * 0.15, len = sz * (0.55 - Math.abs(f - 1.5) * 0.06);
+        const ang = -Math.PI / 2 + (f - 1.5) * (0.22 + wig * 0.18) + Math.sin(this.t * 2.5 + f * 0.6) * wig * 0.05, len = sz * (0.55 - Math.abs(f - 1.5) * 0.06);
         c.strokeStyle = gd; c.lineWidth = sz * 0.2; c.beginPath(); c.moveTo(hx + (f - 1.5) * sz * 0.14, hy - sz * 0.1); c.lineTo(hx + (f - 1.5) * sz * 0.14 + Math.cos(ang) * len, hy - sz * 0.1 + Math.sin(ang) * len); c.stroke();
         c.strokeStyle = gc; c.lineWidth = sz * 0.15; c.stroke();
       }
