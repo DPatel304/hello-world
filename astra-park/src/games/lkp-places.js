@@ -369,7 +369,8 @@ export function worldHall(c, W, H, Q, red, t){
    trap.js): the sky and the hills at the top, woods down both sides, a
    soft grass floor with a trodden path up the middle. Q: the glade's own
    view, as worldHall. When it's looking (red), a red tint. */
-export function worldGlade(c, W, H, Q, red, t, L){
+/* (clearLeft: no trees on the near left - where Zubu lies asleep) */
+export function worldGlade(c, W, H, Q, red, t, L, { clearLeft = false } = {}){
   const pt = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
   const far = Q(0, 1.15, W, H).y;
   const sky = c.createLinearGradient(0, 0, 0, far);
@@ -393,6 +394,7 @@ export function worldGlade(c, W, H, Q, red, t, L){
   /* the woods down both sides, far ones first */
   for (let k = 9; k >= 0; k--) for (const d of [-1, 1]){
     const along = k / 9 * 1.15 - 0.05, q = Q(d * (1.25 + 0.2 * Math.sin(k * 2.3 + d)), along, W, H), s = H * 0.5 * q.k;
+    if (clearLeft && d < 0 && along < 1) continue;
     c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(q.x, q.y, s * 0.25, s * 0.05, 0, 0, 6.2832); c.fill();
     c.fillStyle = L.trunk[0]; c.fillRect(q.x - s * 0.03, q.y - s * 0.35, s * 0.06, s * 0.35);
     for (const [w, top, bot] of [[0.32, -1, -0.3], [0.25, -1.2, -0.6], [0.17, -1.35, -0.9]]){

@@ -149,7 +149,7 @@ export class Lights {
     /* The floor, with lines across it every so far up, the start, and the
        finish. */
     const corner = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
-    if (PAL.world && this.giant) worldGlade(c, W, H, Q, red, this.t, PAL.world);
+    if (PAL.world && this.giant) worldGlade(c, W, H, Q, red, this.t, PAL.world, { clearLeft: true });
     else if (PAL.world) worldHall(c, W, H, Q, red, this.t);
     else {
       c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
