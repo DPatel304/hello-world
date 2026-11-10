@@ -405,6 +405,45 @@ export function worldGlade(c, W, H, Q, red, t, L, { clearLeft = false } = {}){
   if (red){ c.fillStyle = 'rgba(255,60,60,.08)'; c.fillRect(0, 0, W, H); }
 }
 
+/* The glade, side on (lkp-trap.js QS): the sky, hills far off, the woods
+   in a long row behind, the meadow, and the trodden path running across
+   it, left to right. */
+export function worldGladeSide(c, W, H, red, t, L){
+  const back = H * 0.48;
+  const sky = c.createLinearGradient(0, 0, 0, back);
+  sky.addColorStop(0, L.sky[0]); sky.addColorStop(0.7, L.sky[2]); sky.addColorStop(1, L.haze);
+  c.fillStyle = sky; c.fillRect(0, 0, W, back + 2);
+  /* hills, far off */
+  c.fillStyle = mix(L.hillDark, L.haze, 0.45);
+  c.beginPath(); c.moveTo(0, back); for (let k = 0; k <= 14; k++) c.lineTo(W * k / 14, back - H * (0.08 + 0.05 * Math.sin(k * 1.3) + 0.03 * Math.sin(k * 2.9))); c.lineTo(W, back); c.closePath(); c.fill();
+  /* the meadow */
+  const fg = c.createLinearGradient(0, back, 0, H);
+  fg.addColorStop(0, mix(L.ground[0], L.haze, 0.3)); fg.addColorStop(1, L.ground[2]);
+  c.fillStyle = fg; c.fillRect(0, back, W, H - back);
+  /* the woods, in two rows behind: the far one hazy and small */
+  for (const [row, y, sz, n] of [[0, back + H * 0.005, 0.13, 22], [1, back + H * 0.03, 0.2, 13]]){
+    for (let k = 0; k < n; k++){
+      const x = W * ((k + 0.5 * row + 0.3 * Math.sin(k * 7.1 + row)) / (n - 1)), s = H * sz * (0.85 + 0.3 * Math.abs(Math.sin(k * 3.7 + row)));
+      c.fillStyle = mix(L.trunk[0], L.haze, 0.4 - row * 0.2); c.fillRect(x - s * 0.03, y - s * 0.3, s * 0.06, s * 0.3);
+      for (const [w, top, bot] of [[0.3, -1, -0.25], [0.23, -1.2, -0.55], [0.16, -1.35, -0.88]]){
+        c.fillStyle = mix(L.tree[0], L.haze, 0.5 - row * 0.25); c.beginPath(); c.moveTo(x, y + top * s); c.lineTo(x - w * s, y + bot * s); c.lineTo(x + w * s, y + bot * s); c.fill();
+        c.fillStyle = mix(L.tree[1], L.haze, 0.5 - row * 0.25); c.beginPath(); c.moveTo(x, y + top * s); c.lineTo(x + w * s, y + bot * s); c.lineTo(x, y + bot * s); c.fill();
+      }
+    }
+  }
+  /* the trodden path, across */
+  c.fillStyle = rgba(L.path[0], 0.55);
+  c.beginPath(); c.moveTo(0, H * 0.53); for (let k = 0; k <= 10; k++) c.lineTo(W * k / 10, H * (0.53 + 0.006 * Math.sin(k * 1.9))); c.lineTo(W, H * 0.64); for (let k = 10; k >= 0; k--) c.lineTo(W * k / 10, H * (0.64 + 0.006 * Math.sin(k * 2.3))); c.closePath(); c.fill();
+  /* grass tufts */
+  c.strokeStyle = rgba(L.grass[1], 0.7);
+  for (let k = 0; k < 110; k++){
+    const x = W * ((k * 0.6180339) % 1), y = back + (H - back) * ((k * 0.381966 * 3.1) % 1), h = H * 0.012 * (0.6 + (y - back) / (H - back));
+    if (y > H * 0.52 && y < H * 0.65) continue;
+    c.lineWidth = Math.max(1, H * 0.002); c.beginPath(); c.moveTo(x, y); c.lineTo(x - h * 0.3, y - h); c.moveTo(x, y); c.lineTo(x + h * 0.3, y - h); c.stroke();
+  }
+  if (red){ c.fillStyle = 'rgba(255,60,60,.08)'; c.fillRect(0, 0, W, H); }
+}
+
 /* The sleeping robot at the end of the hall: a great gunmetal dome, one
    eye - shut and snoring on green, flickering on yellow, wide open and red
    on red, its gaze washing down the hall. Its lamp on top in the light's

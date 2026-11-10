@@ -91,15 +91,22 @@ export function garden(c, cx, cy, rx, ry, s, t = 0, tree = 0.3){
 export const SNORE = 3.6;
 export function snoreWord(t){ return (t % SNORE) < SNORE / 2 ? 'ZZZUUUU...' : 'BBBUUUU...'; }
 
-export function drawZubuAsleep(c, W, H, light, t){
-  const S = H * 0.44, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;
-  /* its nose, at the left of the path; the rest of it off the screen */
-  const x0 = W * 0.28 + stir, y0 = H * 0.6 - breathe * S * 0.01;
+/* The sneak, side on (lkp-trap.js): its head right by the camera, low
+   in the bottom left - only the top of its face and its garden showing
+   above the bottom of the screen, its nose towards the path. */
+export function drawZubuSide(c, W, H, light, t){ drawZubuAsleep(c, W, H, light, t, { x: 0.42, y: 1.04, size: 0.62, shadow: false }); }
+
+export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 0.44, shadow: true }){
+  const S = H * at.size, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;
+  /* its nose, towards the path; the rest of it off the screen */
+  const x0 = W * at.x + stir, y0 = H * at.y - breathe * S * 0.01;
   c.save();
   /* its shadow on the grass */
+  if (at.shadow){
   const sg = c.createRadialGradient(x0 - S * 0.6, H * 0.72, 0, x0 - S * 0.6, H * 0.72, S * 1.6);
   sg.addColorStop(0, 'rgba(20,40,30,.4)'); sg.addColorStop(1, 'rgba(20,40,30,0)');
   c.fillStyle = sg; c.beginPath(); c.ellipse(x0 - S * 0.6, H * 0.72, S * 1.6, S * 0.22, 0, 0, TAU); c.fill();
+  }
   /* the head, side on, facing the path */
   const head = U(x0, y0, S, [[0, 0], [-0.04, -0.3], [-0.25, -0.58], [-0.7, -0.74], [-1.4, -0.76], [-2.4, -0.7], [-2.4, 0.42], [-1.2, 0.44], [-0.5, 0.36], [-0.12, 0.18]]);
   form(c, head, ZUBU.body, S, 0.5);

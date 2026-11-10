@@ -24,16 +24,18 @@
    Its own view: the hall is drawn by Q(lane, along) here, not the
    corridor's P.
 
-   In level 1 it's outdoors (giant): a forest glade with the friendly giant
-   (lkp-ride.js) fast asleep at the far end - snoring on green, an eye
-   peeking on yellow, both eyes open on red. Anyone it catches moving it
-   just snorts back down the glade a little: it never hurts. */
+   In level 1 it's outdoors (giant): a forest glade, seen side on (QS),
+   the crew tiptoeing left to right along a path past Zubu (lkp-zubu.js),
+   whose huge sleeping head fills the bottom left, right by the camera -
+   snoring on green, an eye peeking on yellow, both eyes open on red.
+   Anyone it catches moving it just snorts back along the path a little:
+   it never hurts. */
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { MoveWatch } from '../tracking/gestures.js';
 import { drawCrystal, PAL } from './lkp-art.js';
-import { worldHall, worldSleeper, worldGlade } from './lkp-places.js';
-import { drawZubuAsleep } from './lkp-zubu.js';
+import { worldHall, worldSleeper, worldGladeSide } from './lkp-places.js';
+import { drawZubuSide } from './lkp-zubu.js';
 import { armored } from './lkp-weapons.js';
 
 /* How long each light lasts (seconds: shortest, longest), and a moment's
@@ -65,11 +67,19 @@ export function Q(lane, along, W, H){
   return { x: W * (0.5 + lane * NEAR_HALF * k), y: H * (NEAR_Y + (FAR_Y - NEAR_Y) * u), k };
 }
 
+/* The glade, side on: along 0 (left) to 1 (right) across the screen;
+   lane -1..1 a little nearer or further (lower and bigger, or higher). */
+export function QS(lane, along, W, H){
+  const u = Math.max(-0.1, Math.min(1.15, along));
+  return { x: W * (0.3 + 0.6 * u + lane * 0.04), y: H * (0.57 + lane * 0.04), k: 0.82 + lane * 0.07 };
+}
+
 const rand = ([a, b]) => a + Math.random() * (b - a);
 
 export class Lights {
   constructor(game, len = TRAP_MAX, { giant = false } = {}){
     this.g = game; this.len = len; this.giant = giant;
+    this.Q = giant ? QS : Q;
     this.t = 0; this.light = 'red'; this.left = READY; this.redT = Infinity;   /* the first red's only to get ready: nobody's zapped */
     this.done = false; this.clearT = 0; this.fade = 0;
     this.moves = pose.players.map(() => new MoveWatch(true));
@@ -116,7 +126,7 @@ export class Lights {
     if (this.giant){
       /* a great sleepy snort: back down the glade a bit, nothing worse */
       rn.zapped = 1; rn.safe = ZAP_SAFE; rn.along = Math.max(0, rn.along - SNORT);
-      const p = Q(rn.x, rn.along, W, H);
+      const p = this.Q(rn.x, rn.along, W, H);
       g._sparkle(p.x / W, (p.y - H * 0.08) / H, 10, 140);
       g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.2) / H, vy: -0.08, age: 0, life: 0.9, text: 'HUFF!', col: '#ffffff' });
       sfx.whoosh(); sfx.thud();
@@ -125,7 +135,7 @@ export class Lights {
     rn.hp = Math.max(1, rn.hp - armored(rn, ZAP)); rn.hit = 1; rn.zapped = 1; rn.safe = ZAP_SAFE;
     g.ouch?.(0.8);
     rn.along = Math.max(0, rn.along - KNOCK);
-    const p = Q(rn.x, rn.along, W, H);
+    const p = this.Q(rn.x, rn.along, W, H);
     g._sparkle(p.x / W, (p.y - H * 0.08) / H, 14, 55);
     g.bits.push({ kind: 'num', x: p.x / W, y: (p.y - H * 0.2) / H, vy: -0.08, age: 0, life: 0.9, text: `-${ZAP}` });
     sfx.zap(); sfx.thud();
@@ -138,7 +148,7 @@ export class Lights {
     g.gain(CLEAR_CRYSTALS, 0.5, 0.3);
     sfx.gold();
     /* The pile bursts. */
-    for (const cn of this.pile){ const q = Q(cn.lane, 1.06 + cn.up, W, H); g._sparkle(q.x / W, q.y / H, 2, 50); }
+    for (const cn of this.pile){ const q = this.Q(cn.lane, 1.06 + cn.up, W, H); g._sparkle(q.x / W, q.y / H, 2, 50); }
     this.pile = [];
   }
 
@@ -149,7 +159,7 @@ export class Lights {
     /* The floor, with lines across it every so far up, the start, and the
        finish. */
     const corner = (lane, along) => { const q = Q(lane, along, W, H); return [q.x, q.y]; };
-    if (PAL.world && this.giant) worldGlade(c, W, H, Q, red, this.t, PAL.world, { clearLeft: true });
+    if (PAL.world && this.giant) worldGladeSide(c, W, H, red, this.t, PAL.world);
     else if (PAL.world) worldHall(c, W, H, Q, red, this.t);
     else {
       c.fillStyle = PAL.hall; c.fillRect(0, 0, W, H);
@@ -165,7 +175,7 @@ export class Lights {
     /* The finish: a checked strip - or, in the glade, a row of glowing
        flowers. */
     if (this.giant) for (let k = 0; k < 13; k++){
-      const q = Q(-1.05 + k * 0.175, 1, W, H);
+      const q = this.Q(-1.05 + k * 0.175, 1, W, H);
       c.fillStyle = 'rgba(255,140,216,.35)'; c.beginPath(); c.arc(q.x, q.y - H * 0.012, H * 0.02, 0, 6.2832); c.fill();
       c.fillStyle = '#ff8cd8'; c.beginPath(); c.arc(q.x, q.y - H * 0.012, H * 0.007, 0, 6.2832); c.fill();
     }
@@ -176,7 +186,7 @@ export class Lights {
     }
     /* The robot, beyond the finish: asleep (or recharging) on green,
        stirring on yellow, looking on red. */
-    if (this.giant) drawZubuAsleep(c, W, H, this.light, this.t);
+    if (this.giant){ /* (Zubu: drawn last, in front of everything) */ }
     else if (PAL.world) worldSleeper(c, W / 2, H * 0.335, H * 0.17, this.light, g.awake, this.t, lamp);
     else this._robot(c, W / 2, H * 0.22, H * 0.085, lamp, g.awake);
     /* Its gaze, on red: a red wash down the hall. */
@@ -187,17 +197,19 @@ export class Lights {
       c.restore();
     }
     for (const cn of this.pile){
-      const q = Q(cn.lane, 1.06 + cn.up, W, H);
+      const q = this.Q(cn.lane, 1.06 + cn.up, W, H);
       drawCrystal(c, q.x, q.y - H * 0.015 * q.k - cn.z * H * 0.0015, H * 0.02 * q.k, this.t + cn.z);
     }
     /* The crew, far ones first. */
-    const order = g.here.slice().sort((a, b) => g.crew[b].along - g.crew[a].along);
+    const order = g.here.slice().sort(this.giant ? (a, b) => g.crew[a].x - g.crew[b].x : (a, b) => g.crew[b].along - g.crew[a].along);
     for (const i of order){
-      const rn = g.crew[i], q = Q(rn.x, rn.along, W, H);
+      const rn = g.crew[i], q = this.Q(rn.x, rn.along, W, H);
       /* Walking, a steady bob; running, a quicker, bigger one. */
       const going = this.light !== 'red' && !this.done ? rn.marching : 0;   /* frozen the moment they stop */
       drawCrew(i, q.x, q.y, H * 0.2 * q.k, 0);   /* the stride's drawn by the crew's own run */
     }
+    /* Zubu, asleep, right by the camera: in front of everything */
+    if (this.giant) drawZubuSide(c, W, H, this.light, this.t);
     /* In from the door: a quick fade up from black. */
     if (this.fade < 1){ c.fillStyle = `rgba(0,0,0,${1 - this.fade})`; c.fillRect(0, 0, W, H); }
   }
