@@ -396,7 +396,7 @@ class LastKnownPosition {
          ship, a piece of it, the meadow and the woods round it, the
          healing pond by the path. They slide by as the crew set off.
          (CRASH; lkp-intro.js walks them from the pond onto the path.) */
-      ROAD.spans.length = 0; ROAD.gaps.length = 0;
+      ROAD.spans.length = 0; ROAD.gaps.length = 0; ROAD.surfaces.length = 0;
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
       this.things.push({ d: this.z, kind: 'meadow', len: 0.7 });
@@ -419,12 +419,21 @@ class LastKnownPosition {
       const arcD = (dist, dir) => { for (let k = 0; k < 7; k++) this.things.push({ d: atD(dist + k * 0.1), kind: 'crystal', lane: dir * Math.sin(k / 6 * Math.PI) * 0.7 }); };
       lineD(1.5, 0, 5); lineD(2.2, -0.5, 5); lineD(2.9, 0.5, 5); arcD(3.7, 1);
       for (let k = 0; k < 9; k++){ const d = 4.7 + k * 1.15; if (k % 3 === 2) arcD(d, k % 2 ? -1 : 1); else lineD(d, [0, -0.5, 0.5, 0.3, -0.3][k % 5], 6); }
+      /* the path's own stretches (lkp-world.js ROAD.surfaces): old
+         flagstones - a ruin's - through the squeeze; a boardwalk over the
+         marshy ground into the pond; a mossy track out of it */
+      ROAD.surfaces.push({ d0: at(37), d1: at(52), kind: 'flag' });
       let s = 41 + EVENTS[plan.event || 'squeeze'](41);
+      ROAD.surfaces.push({ d0: Math.max(at(53.5), at(s + 1) - LAKE / 2 - 0.6), d1: at(s + 1) - LAKE / 2 + 0.02, kind: 'boards' });
       /* the healing pond: a stop, to heal up after the crash */
       s += EVENTS.rest(s + 1) + 1;
+      ROAD.surfaces.push({ d0: at(s - 0.5), d1: at(s + 9), kind: 'moss' });
       beam(s + 1); blocker(s + 4.5, side(), 0.8); crystalLine(s + 6.5, 0, 5);
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
+      /* a stretch of mossy track, and one of old flagstones, along the way */
+      const len = FULL[n] || 45;
+      ROAD.surfaces.push({ d0: at(len * 0.12), d1: at(len * 0.3), kind: n % 2 ? 'moss' : 'flag' }, { d0: at(len * 0.62), d1: at(len * 0.8), kind: n % 2 ? 'flag' : 'moss' });
       crystalLine(3, 0, 5); blocker(6);
       let s = 9;
       const end = (FULL[n] || 45) - 3;

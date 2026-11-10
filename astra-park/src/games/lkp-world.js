@@ -310,6 +310,27 @@ function groundBits(c, W, H, z, L){
     for (const dx of [-1, 0, 1]){ c.moveTo(p.x + dx * h * 0.2, p.y); c.quadraticCurveTo(p.x + dx * h * 0.25, p.y - h * 0.6, p.x + dx * h * 0.45 - h * 0.15, p.y - h); }
     c.stroke();
   }
+  /* Now and then, a patch: a field of flowers, or a ring of glowing
+     mushrooms, off to one side. */
+  for (let n = 0; n < 8; n++){
+    const rel = along(n + 0.25, SPAN, 8, z); if (rel == null || rel < -0.05) continue;
+    const side = hash(n + 4600) < 0.5 ? -1 : 1, lane = side * (2.2 + hash(n + 4601) * 1.6), kind = hash(n + 4602) < 0.6 ? 'flowers' : 'shrooms';
+    if (CLEAR.some(q => Math.abs(lane - q.lane) < q.r + 0.6 && Math.abs(rel + z - q.d) < (q.depth ?? q.r * 0.3 + 0.12))) continue;
+    for (let j = 0; j < 22; j++){
+      const a = j * 2.4, rr = Math.sqrt((j + 0.5) / 22), p = P(lane + Math.cos(a) * rr * 0.9, rel + Math.sin(a) * rr * 0.06, W, H), k = p.k;
+      if (p.x < -40 || p.x > W + 40) continue;
+      if (kind === 'flowers'){
+        const h = H * 0.014 * k + 1, col = L.flowers[(n + j) % L.flowers.length];
+        c.strokeStyle = rgba(L.grass[1], 0.8); c.lineWidth = Math.max(1, H * 0.0015 * k); c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x, p.y - h); c.stroke();
+        c.fillStyle = col; circ(c, p.x, p.y - h, h * 0.35);
+      } else if (j % 2 === 0){
+        const h = H * 0.01 * k + 1, w = h * 1.5;
+        c.fillStyle = '#e8e0f0'; c.fillRect(p.x - w * 0.1, p.y - h, w * 0.2, h);
+        glow(c, p.x, p.y - h, w * 1.4, L.glow, 0.6);
+        c.fillStyle = L.glow; c.beginPath(); c.ellipse(p.x, p.y - h, w * 0.5, w * 0.38, 0, Math.PI, 6.2832); c.fill();
+      }
+    }
+  }
   /* Rocks, flowers, glowing mushrooms. */
   for (let n = 0; n < 70; n++){
     const rel = along(n + 0.5, SPAN, 70, z); if (rel == null) continue;
@@ -344,7 +365,16 @@ export const PATH_HALF = 1.15;
    (spans: { d0, d1, half } - from d0 to d1 it's half lanes either side,
    easing in and out over EASE), and where a ravine cuts right across it
    (gaps: { d, len }). In how far along (d), like the things. */
-export const ROAD = { spans: [], gaps: [] };
+export const ROAD = { spans: [], gaps: [], surfaces: [] };
+/* (surfaces: { d0, d1, kind } - stretches where the path is something
+   else: 'flag' (old flagstones, a ruin's), 'moss' (a mossy track),
+   'boards' (a boardwalk over boggy ground); dirt everywhere else. Each
+   blends in and out over SURF_EASE.) */
+const SURF_EASE = 0.08;
+export function surfaceAt(d){
+  for (const sf of ROAD.surfaces){ const k = Math.min(ramp((d - sf.d0) / SURF_EASE), ramp((sf.d1 - d) / SURF_EASE)); if (k > 0) return { kind: sf.kind, k }; }
+  return { kind: 'dirt', k: 1 };
+}
 const EASE = 0.12;
 const ramp = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
 export function roadHalf(d){
@@ -365,7 +395,11 @@ function path(c, W, H, z, L){
   c.fillStyle = pg; c.beginPath();
   Ls.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); for (let i = N; i >= 0; i--) c.lineTo(Rs[i].x, Rs[i].y);
   c.closePath(); c.fill();
-  /* Worn tracks. */
+  /* The stretches where it's something else: flagstones, moss, boards. */
+  c.save(); c.beginPath(); Ls.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); for (let i = N; i >= 0; i--) c.lineTo(Rs[i].x, Rs[i].y); c.closePath(); c.clip();
+  for (const sf of ROAD.surfaces) surface(c, W, H, z, L, sf);
+  c.restore();
+  /* Worn tracks (on the dirt). */
   for (const tx of [-0.5, 0.5]){
     c.fillStyle = 'rgba(40,30,70,.12)'; c.beginPath();
     for (let i = 0; i <= N; i++){ const rel = -0.1 + 1.1 * Math.pow(i / N, 1.6), q = P(tx - 0.18, rel, W, H); i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); }
@@ -375,19 +409,110 @@ function path(c, W, H, z, L){
   /* Pebbles. */
   for (let n = 0; n < 150; n++){
     const rel = along(n + 0.3, 1.0, 150, z); if (rel == null) continue;
+    if (surfaceAt(z + rel).kind !== 'dirt') continue;
     const q = P((hash(n + 200) * 2 - 1) * 1.05, rel, W, H), r = H * (0.002 + hash(n + 201) * 0.005) * q.k + 0.5;
     c.fillStyle = 'rgba(30,20,60,.25)'; c.beginPath(); c.ellipse(q.x + r * 0.5, q.y + r * 0.3, r, r * 0.5, 0, 0, 6.2832); c.fill();
     c.fillStyle = hash(n + 202) < 0.5 ? mix(L.path[0], '#ffffff', 0.3) : mix(L.path[1], '#000000', 0.15);
     c.beginPath(); c.ellipse(q.x, q.y, r, r * 0.6, 0, 0, 6.2832); c.fill();
   }
-  /* Stones along both edges. */
+  /* Bits along the dirt, kept to the sides (the middle's for what's
+     coming): fallen leaves, little puddles with the sky in them, cracks,
+     glowing seed-pods. */
+  pathBits(c, W, H, z, L);
+  /* Its edges: soft - grass spilling over in clumps here, stones there. */
   for (let n = 0; n < 40; n++){
     const rel = along(n, 1.0, 40, z); if (rel == null) continue;
     for (const side of [-1, 1]){
       const q = P(side * (roadHalf(z + rel) + 0.02), rel, W, H), r = H * 0.012 * q.k + 0.5;
+      if (hash(n * 2 + (side > 0 ? 1 : 0) + 4400) < 0.55){
+        /* a clump of grass, leaning over the edge */
+        const h = H * 0.028 * q.k + 1, haze = Math.min(0.6, Math.max(0, rel) * 0.8);
+        c.fillStyle = mix(L.ground[1], L.haze, haze); c.beginPath(); c.ellipse(q.x - side * r * 0.6, q.y, r * 2.4, r * 0.7, 0, 0, 6.2832); c.fill();
+        c.strokeStyle = mix(L.grass[0], L.haze, haze); c.lineWidth = Math.max(1, H * 0.003 * q.k);
+        c.beginPath(); for (let j = -3; j <= 3; j++){ const bx = q.x - side * r * 0.4 + j * r * 0.55; c.moveTo(bx, q.y); c.quadraticCurveTo(bx - side * h * 0.2, q.y - h * 0.6, bx - side * h * (0.35 + 0.1 * (j & 1)), q.y - h * (0.7 + 0.3 * hash(n + j + 4410))); } c.stroke();
+        continue;
+      }
       c.fillStyle = 'rgba(30,25,60,.3)'; c.beginPath(); c.ellipse(q.x + r * 0.6, q.y + r * 0.2, r * 1.1, r * 0.4, 0, 0, 6.2832); c.fill();
       c.fillStyle = L.rock[1]; c.beginPath(); c.ellipse(q.x, q.y - r * 0.3, r * 1.1, r * 0.7, 0, 0, 6.2832); c.fill();
       c.fillStyle = L.rock[0]; c.beginPath(); c.ellipse(q.x - r * 0.35, q.y - r * 0.55, r * 0.6, r * 0.35, 0, 0, 6.2832); c.fill();
+    }
+  }
+}
+
+/* A stretch of the path that's something else (ROAD.surfaces), drawn
+   over the dirt, inside the path's edges: old flagstones, a mossy track,
+   or a boardwalk - fading in and out at its ends, hazing far off. */
+function surface(c, W, H, z, L, sf){
+  const r0 = Math.max(-0.12, sf.d0 - z), r1 = Math.min(1.02, sf.d1 - z); if (r1 <= r0) return;
+  const quad = (a0, a1, b0, b1, col) => { const p = [P(a0, b0, W, H), P(a1, b0, W, H), P(a1, b1, W, H), P(a0, b1, W, H)]; c.fillStyle = col; c.beginPath(); p.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.closePath(); c.fill(); };
+  const fade = (rel) => surfaceAt(z + rel).k * (1 - Math.min(0.7, Math.max(0, rel) * 0.8));
+  const HW = 1.6;
+  if (sf.kind === 'flag'){
+    /* rows of old stones, the joints between offset row to row, moss in some */
+    const R = 0.055, first = Math.floor((z + r0 - sf.d0) / R);
+    for (let k = first; ; k++){
+      const d = sf.d0 + k * R, rel = d - z; if (rel > r1) break; if (rel + R < r0) continue;
+      const a = fade(rel + R / 2); if (a <= 0.02) continue;
+      const off = (k % 2) * 0.25;
+      for (let ln = -HW - off; ln < HW; ln += 0.5){
+        const shade = hash(k * 13 + Math.round(ln * 4) + 5000);
+        quad(ln + 0.025, ln + 0.475, rel + 0.004, rel + R - 0.004, rgba(mix('#b8b2cc', '#8e88a8', shade), 0.95 * a));
+        if (shade < 0.25) quad(ln + 0.06, ln + 0.22, rel + R * 0.55, rel + R - 0.006, rgba('#7fb07a', 0.55 * a));
+      }
+    }
+    return;
+  }
+  if (sf.kind === 'boards'){
+    /* planks across, on two runners, a post either side now and then */
+    const R = 0.022, first = Math.floor((z + r0 - sf.d0) / R);
+    for (let k = first; ; k++){
+      const d = sf.d0 + k * R, rel = d - z; if (rel > r1) break; if (rel + R < r0) continue;
+      const a = fade(rel + R / 2); if (a <= 0.02) continue;
+      const shade = hash(k + 5100), wood = mix(mix(L.wood || '#c9a77a', L.path[0], 0.15), '#8a6a50', shade * 0.3);
+      quad(-HW, HW, rel, rel + R, rgba(wood, 0.95 * a));
+      quad(-HW, HW, rel + R - 0.003, rel + R, rgba('#3a2a30', 0.5 * a));
+      if (k % 9 === 0) for (const sd of [-1, 1]){ const q = P(sd * (roadHalf(d) - 0.04), rel, W, H), w = H * 0.012 * q.k + 1, h = H * 0.05 * q.k; c.fillStyle = rgba('#6b4a2e', a); c.fillRect(q.x - w / 2, q.y - h, w, h); c.fillStyle = rgba('#8a6440', a); c.fillRect(q.x - w / 2, q.y - h, w, w * 0.6); }
+    }
+    return;
+  }
+  /* moss: a soft green track, darker clumps */
+  for (let k = 0; k < 40; k++){
+    const rel = r0 + (r1 - r0) * hash(k + 5200); const a = fade(rel); if (a <= 0.02) continue;
+    const ln = (hash(k + 5201) * 2 - 1) * 1.2, q = P(ln, rel, W, H), rr = H * (0.03 + hash(k + 5202) * 0.05) * q.k;
+    c.fillStyle = rgba(mix(L.grass[1], L.ground[1], 0.4), 0.5 * a); c.beginPath(); c.ellipse(q.x, q.y, rr * 2, rr * 0.5, 0, 0, 6.2832); c.fill();
+  }
+  quad(-HW, HW, r0, r1, rgba(L.grass[1], 0.28));
+}
+
+/* Little things lying on the dirt path, to the sides: fallen leaves
+   (pink and amber - the trees here are odd), small puddles with the sky
+   in them, cracks, a glowing seed-pod now and then. Flat on the ground,
+   low-key: never mistaken for something to dodge or catch. */
+function pathBits(c, W, H, z, L){
+  for (let n = 0; n < 60; n++){
+    const rel = along(n + 0.6, 1.0, 60, z); if (rel == null || surfaceAt(z + rel).kind !== 'dirt') continue;
+    const side = hash(n + 5300) < 0.5 ? -1 : 1, lane = side * (0.6 + hash(n + 5301) * 0.45), q = P(lane, rel, W, H), k = q.k;
+    const haze = Math.min(0.7, Math.max(0, rel) * 0.9), kind = hash(n + 5302);
+    if (kind < 0.4){
+      /* a leaf */
+      const l = H * 0.0075 * k + 1, a = hash(n + 5303) * 6.28;
+      c.fillStyle = rgba(mix(['#d9a25e', '#c98a6a', '#b8a05a'][n % 3], L.haze, haze), 0.85);
+      c.save(); c.translate(q.x, q.y); c.scale(1, 0.45); c.rotate(a); c.beginPath(); c.moveTo(-l, 0); c.quadraticCurveTo(0, -l * 0.55, l, 0); c.quadraticCurveTo(0, l * 0.55, -l, 0); c.fill(); c.restore();
+    } else if (kind < 0.6){
+      /* a puddle, the sky in it */
+      const w = H * (0.03 + hash(n + 5304) * 0.03) * k + 2;
+      c.fillStyle = rgba(mix(L.path[1], '#3a3050', 0.25), 0.6); c.beginPath(); c.ellipse(q.x, q.y, w * 1.08, w * 0.3, 0, 0, 6.2832); c.fill();
+      c.fillStyle = rgba(mix(mix(L.sky[1], L.path[1], 0.55), L.haze, haze), 0.55); c.beginPath(); c.ellipse(q.x, q.y, w, w * 0.25, 0, 0, 6.2832); c.fill();
+      c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.ellipse(q.x - w * 0.3, q.y - w * 0.06, w * 0.3, w * 0.035, 0, 0, 6.2832); c.fill();
+    } else if (kind < 0.85){
+      /* a crack */
+      const w = H * 0.03 * k + 2;
+      c.strokeStyle = rgba(mix(L.path[1], '#2a2040', 0.4), 0.55 * (1 - haze)); c.lineWidth = Math.max(1, H * 0.002 * k);
+      c.beginPath(); c.moveTo(q.x - w, q.y); c.lineTo(q.x - w * 0.3, q.y + w * 0.08); c.lineTo(q.x + w * 0.2, q.y - w * 0.05); c.lineTo(q.x + w, q.y + w * 0.06); c.moveTo(q.x - w * 0.3, q.y + w * 0.08); c.lineTo(q.x - w * 0.2, q.y + w * 0.2); c.stroke();
+    } else {
+      /* a glowing seed-pod */
+      const r = H * 0.005 * k + 1;
+      glow(c, q.x, q.y - r, r * 4, L.glow, 0.5 * (1 - haze)); c.fillStyle = mix(L.glow, '#ffffff', 0.4); c.beginPath(); c.ellipse(q.x, q.y - r, r * 1.2, r, 0, 0, 6.2832); c.fill();
     }
   }
 }
