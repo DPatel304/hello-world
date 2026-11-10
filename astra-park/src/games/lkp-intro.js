@@ -37,7 +37,7 @@ import { MoveWatch } from '../tracking/gestures.js';
 import { SKY, mix } from './lkp-world.js';
 import { Radio, script, novaBox } from './lkp-captain.js';
 import { novaFeed } from './lkp-nova.js';
-import { commanderFace } from './lkp-cast.js';
+import { commanderFace, mirrorBody } from './lkp-cast.js';
 import { cockpit, cockpitSound, CRASH } from './lkp-cockpit.js';
 import { P } from './lkp-art.js';
 import { CREW_SIZE } from './lkp-game.js';
@@ -56,7 +56,7 @@ export const INTRO_BEATS = [
   { id: 'answer', until: 'her lines said', lines: 'wakeup, walk', shot: 'through the helmet; her window top left', blocking: 'Nova: you\'re okay; an unknown planet; the Star Core' },
   { id: 'out', time: 6, shot: 'the head turning to the path; the camera pulling straight back out over your shoulder into the game\'s view - the crew sat in the grass', blocking: 'nothing asked' },
   { id: 'rise', until: 'everyone up', max: 8, shot: 'the game\'s view: the crew getting up, one after another', blocking: 'Nova: on your feet!' },
-  { id: 'move', until: 'everyone wiggled', max: 20, shot: 'the game\'s view: each astronaut bouncing as their player wiggles', blocking: 'Nova: can you move? - everyone wiggling' },
+  { id: 'move', until: 'everyone wiggled, and a while to play', max: 30, shot: 'the game\'s view: each astronaut bouncing as their player wiggles', blocking: 'Nova: can you move? - everyone wiggling' },
   { id: 'go', time: 1, shot: 'behind them on the path, setting off', blocking: 'Nova: follow that path' }
 ];
 const BEAT = Object.fromEntries(INTRO_BEATS.map(b => [b.id, b]));
@@ -70,6 +70,9 @@ export const RING_FIRST = 2, SAID = 1.4;
    seconds of it each and you've done your share - it slips back DROOP a
    second when you stop. */
 export const STIR = 0.45, WIGGLE = 1.6, DROOP = 0.35;
+/* ...and then a while longer to play with it: each astronaut copying its
+   own player, arm for arm - PLAY seconds from Nova asking. */
+export const PLAY = 9;
 /* The call: a hand held at the ear HOLD seconds answers it. */
 export const HOLD = 0.4;
 /* They start on START of their health: hurt in the crash. */
@@ -86,7 +89,10 @@ const AT_CHIMES = -0.33;
    gone (seconds of its walk); and the camera: how close it starts, on it,
    zooming slowly out as it goes. */
 const CRAWL = { lane: -4.6, rel: 0.1, dl: 0.2, dr: 0.02, fly: 16.6, flyFor: 1.4 };
-const ZOOM_IN = 2.2;
+const ZOOM_IN = 1.76;
+/* (waking, it's off to the left of the view - SPOT across - till it
+   catches your eye and you look round at it, GLANCE seconds into watching) */
+const SPOT = 0.2, GLANCE = 0.9;
 /* Standing on the grass, this far (lanes) to the left of their places on
    the path. */
 const GRASS = 0;   /* (on the path itself: the camera comes out over their shoulders, looking down it) */
@@ -279,7 +285,8 @@ export class Intro {
     const cr = this._crawl(), q = P(cr.lane, cr.rel, W, H), sc = POV.s * zoom, fy = q.y - H * 0.32 * q.k * 0.45;
     const on = { pan: -sc * (q.x - POV.cx * W) / W, down: sc * (fy - POV.cy * H) / (H * 0.42) };
     const at = { rise: 1, up: 0, sky: 0, zoom: 1 };
-    if (s === 'dark' || s === 'wake' || s === 'watch') return { ...at, ...on, zoom, rise: s === 'dark' ? 0 : s === 'wake' ? e(t / WAKE) : 1 };
+    const side = s === 'watch' ? SPOT * (1 - e(t / GLANCE)) : SPOT;
+    if (s === 'dark' || s === 'wake' || s === 'watch') return { ...at, ...on, pan: on.pan - side, zoom, rise: s === 'dark' ? 0 : s === 'wake' ? e(t / WAKE) : 1 };
     /* the ship, glimpsed beyond it: the view settling there, and staying */
     if (s === 'notice'){ const u = e((t - 0.4) / 3); return { ...at, pan: on.pan * (1 - u), down: on.down * (1 - u) }; }
     if (s === 'out'){ const u = e(t / TURN); return { ...at, pan: TO_PATH * u, down: 0 }; }
@@ -474,13 +481,16 @@ export class Intro {
      wiggling - bouncing, arms up - when their own player is. */
   _act(i, k){
     const s = this.stage, T = (this.cineT || 0) + k * 1.9;
+    /* (their own body, if the camera can see it; a bounce, arms up, if not) */
+    const m = s === 'move' && this.mirror && this.mirror[i];
+    if (m && m.body) return { pose: null, look: 0, bob: 0, body: m.body };
     if (s === 'move' && this.stirring && this.stirring[i]) return { pose: 'hang', look: 0, bob: Math.abs(Math.sin(this.t * 13 + k)) * 0.12 };
     if (s === 'out' || s === 'rise') return { pose: null, look: this.up[i] > 0.99 ? 0 : Math.sin(T * 0.8) * 0.5 };
     return { pose: null, look: s === 'move' ? Math.sin(T * 1.1) * 0.4 : 0 };
   }
   _outside(c, W, H){
     const g = this.g;
-    g.introCrew = g.here.map((i, k) => { const a = this._act(i, k); return { i, lane: this._lane(i), rel: RUN_AT, down: 0, ground: 1 - easeOut(this.up[i]), noBar: this.stage !== 'go', pose: a.pose, look: a.look, bob: a.bob || 0 }; });
+    g.introCrew = g.here.map((i, k) => { const a = this._act(i, k); return { i, lane: this._lane(i), rel: RUN_AT, down: 0, ground: 1 - easeOut(this.up[i]), noBar: this.stage !== 'go', pose: a.pose, look: a.look, bob: a.bob || 0, body: a.body || null }; });
     g.inIntro = true;
     g._drawPlay(c, W, H);
     g.inIntro = false; g.introCrew = null;
@@ -509,6 +519,8 @@ const STEP = {
   move(dt){
     if (this.radio.busy && this.st < 1.2) return false;
     const here = this.g.here;
+    this.playT = (this.playT || 0) + dt;
+    this._mirror(dt);
     for (const i of here){
       const moving = this.moves[i].step(pose.players[i], dt, pose.mouse.active);
       this.stirring = this.stirring || [];
@@ -520,7 +532,7 @@ const STEP = {
     const notch = Math.floor(this.wiggled * 4 + 1e-6);
     if (notch > (this.notch || 0)){ this.notch = notch; sfx.step(notch, 0.45); }
     if (notch < (this.notch || 0)) this.notch = notch;
-    return this._settled(dt, (here.length > 0 && this.wiggled >= 1) || (!here.length && this.st > 3));
+    return this._settled(dt, (here.length > 0 && this.wiggled >= 1 && this.playT >= PLAY) || (!here.length && this.st > 3));
   },
   crash(){ return false; },
   title(){ return false; },
@@ -560,6 +572,30 @@ const FORCE = {
   rise(){ for (const i of this.g.here) this.up[i] = 1; },
   move(){ for (const i of this.g.here) this.woke[i] = WIGGLE; },
   call(){ for (const i of this.g.here) this.answered[i] = true; }
+};
+/* Each astronaut copying its own player, standing its ground: their arms,
+   legs, lean, head and hips. */
+Intro.prototype._mirror = function (dt){
+  this.mirror = this.mirror || [];
+  for (const i of this.g.here){
+    const lm = pose.players[i] && pose.players[i].lm;
+    const body = mirrorBody(lm);
+    if (!body){ this.mirror[i] = null; continue; }
+    /* their hips, against where they've been standing (following slowly):
+       a hip shake sways the astronaut's, its feet staying put */
+    const sw = Math.max(0.03, Math.abs(lm[L.R_SHOULDER].x - lm[L.L_SHOULDER].x));
+    const hipsSeen = (lm[L.L_HIP].v ?? 1) > 0.4 && (lm[L.R_HIP].v ?? 1) > 0.4;
+    const hx = hipsSeen ? (lm[L.L_HIP].x + lm[L.R_HIP].x) / 2 : null;
+    const m = this.mirror[i] || { rest: hx };
+    if (hx == null){ m.rest = null; body.sway = 0; }
+    else {
+      if (m.rest == null) m.rest = hx;
+      m.rest += (hx - m.rest) * Math.min(1, dt * 0.7);
+      body.sway = Math.max(-38, Math.min(38, (hx - m.rest) / sw * 92));
+    }
+    m.body = body;
+    this.mirror[i] = m;
+  }
 };
 /* Up off the ground, one after another (after a while, from). */
 Intro.prototype._getUp = function (dt, from){

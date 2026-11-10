@@ -27,6 +27,41 @@ const hexMix = (a, b, k) => '#' + mix(a, b, k).slice(4, -1).split(',').map(v => 
    someone else draws them), 'sit' (sat astride something at (x, base),
    legs hanging down either side, hands resting on it), else at their
    sides - or pumping, running. */
+/* Mirroring a player: their own body, from the camera's landmarks, as the
+   astronaut's (seen from behind, so screen left is still screen left).
+   Directions only - each bone keeps the suit's own length - so arms and
+   legs swing where theirs do whatever their size or distance. Legs only
+   when the camera can see their knees and ankles. In suit units (x u). */
+const ASPECT = 16 / 9, ARM = [58, 52], LEG = [60, 56];
+export function mirrorBody(lm){
+  if (!lm) return null;
+  const at = (k) => lm[k] && { x: lm[k].x * ASPECT, y: lm[k].y, v: lm[k].v == null ? 1 : lm[k].v };
+  const sl = at(11), sr = at(12), hl = at(23), hr = at(24), nose = at(0);
+  if (!sl || !sr || sl.v < 0.4 || sr.v < 0.4) return null;
+  const dir = (a, b) => { const dx = b.x - a.x, dy = b.y - a.y, n = Math.hypot(dx, dy) || 1; return [dx / n, dy / n]; };
+  const bone = (a, b, c, len) => {
+    if (!b || !c || b.v < 0.4 || c.v < 0.4) return null;
+    const d1 = dir(a, b), d2 = dir(b, c);
+    const e = [d1[0] * len[0], d1[1] * len[0]];
+    return [e, [e[0] + d2[0] * len[1], e[1] + d2[1] * len[1]]];
+  };
+  const hipsSeen = hl && hr && hl.v > 0.4 && hr.v > 0.4;
+  const sm = { x: (sl.x + sr.x) / 2, y: (sl.y + sr.y) / 2 };
+  /* leaning: the line from the hips up to the shoulders, off upright */
+  let tilt = 0;
+  if (hipsSeen){ const hm = { x: (hl.x + hr.x) / 2, y: (hl.y + hr.y) / 2 }; tilt = Math.atan2(sm.x - hm.x, hm.y - sm.y); }
+  else tilt = Math.atan2(sr.y - sl.y, sr.x - sl.x) * 0.8;
+  tilt = Math.max(-0.5, Math.min(0.5, tilt));
+  /* the head: tipped to one side, towards their nose */
+  let head = 0;
+  if (nose && nose.v > 0.4){ const w = Math.abs(sr.x - sl.x) || 0.1; head = Math.max(-1, Math.min(1, (nose.x - sm.x) / w * 2)); }
+  return {
+    arms: [bone(sl, at(13), at(15), ARM), bone(sr, at(14), at(16), ARM)],
+    legs: hipsSeen ? [bone(hl, at(25), at(27), LEG), bone(hr, at(26), at(28), LEG)] : [null, null],
+    tilt, head
+  };
+}
+
 export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const u = h / 330, f = 1 - (st.duck || 0) * 0.4;
   const run = st.run || 0, ph = st.runPh || 0;
@@ -55,6 +90,10 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   const gk = st.ground || 0;
   if (gk > 0) c.translate(0, 112 * u * gk);
   c.lineCap = 'round'; c.lineJoin = 'round';
+  /* (mirroring a player: their hips swaying over planted feet, and the
+     body above them leaning from the hips) */
+  const sway = st.body ? (st.body.sway || 0) * u : 0;
+  const fromHips = () => { if (!st.body) return; c.translate(sway, -128 * u); c.rotate(st.body.tilt); c.translate(0, 128 * u); };
   /* a limb: a dark edge, its colour, lit down one side */
   const limb = (pts, w, side = -1) => {
     for (const [lw, sc] of [[w + 6 * u, line], [w, col]]){ c.strokeStyle = sc; c.lineWidth = lw; c.beginPath(); pts.forEach(([a, b], k) => (k ? c.lineTo(a, b) : c.moveTo(a, b))); c.stroke(); }
@@ -78,8 +117,17 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
     c.fillStyle = dark; c.beginPath(); c.ellipse(foot[0], foot[1], 17 * u, 12 * u, 0, 0, 6.2832); c.fill();
   }
   else for (const d of [-1, 1]){
+    const mb = st.body && st.body.legs[d < 0 ? 0 : 1];
+    if (mb){
+      /* their own leg: the knee and foot where theirs are */
+      const hip = [d * 22 * u + sway, -128 * u], knee = [hip[0] + mb[0][0] * u, hip[1] + mb[0][1] * u], foot = [hip[0] + mb[1][0] * u, hip[1] + mb[1][1] * u];
+      limb([hip, knee], 31 * u); limb([knee, foot], 25 * u);
+      trim(knee[0], knee[1] + 4 * u, 30 * u);
+      c.fillStyle = dark; c.beginPath(); c.ellipse(foot[0], foot[1] + 4 * u, 17 * u, 11 * u, 0, 0, 6.2832); c.fill();
+      continue;
+    }
     const lift = run * Math.max(0, Math.sin(ph + (d < 0 ? 0 : Math.PI)));
-    const hip = [d * 22 * u, -128 * u], knee = [d * 25 * u, (-68 - 26 * lift) * u], foot = [d * (23 + 4 * lift) * u, (-12 - 78 * lift) * u];
+    const hip = [d * 22 * u + sway, -128 * u], knee = [d * 25 * u + sway * 0.5, (-68 - 26 * lift) * u], foot = [d * (23 + 4 * lift) * u, (-12 - 78 * lift) * u];
     limb([hip, knee], 31 * u); limb([knee, foot], 25 * u);
     trim(knee[0], knee[1] + 4 * u, 30 * u);
     /* the boot: heel down, or its sole up at us */
@@ -87,6 +135,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
     c.beginPath(); c.ellipse(foot[0], foot[1] + (lift > 0.3 ? 0 : 4 * u), (17 + 4 * lift) * u, (11 + 9 * lift) * u, 0, 0, 6.2832); c.fill();
     if (lift <= 0.3){ c.strokeStyle = gl; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(foot[0] - 15 * u, foot[1] - 6 * u); c.lineTo(foot[0] + 15 * u, foot[1] - 6 * u); c.stroke(); }
   }
+  fromHips();
   /* the body: a V from the shoulders to the waist, panel lines down it */
   const tg = c.createLinearGradient(-52 * u, 0, 52 * u, 0); tg.addColorStop(0, lite); tg.addColorStop(0.45, col); tg.addColorStop(1, dark);
   c.fillStyle = tg;
@@ -100,6 +149,16 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   /* arms: at their sides; pumping, elbows bent, when they run */
   if (pose !== 'stretch') for (const d of [-1, 1]){
     const sh = [d * 46 * u, -222 * u];
+    const ma = st.body && st.body.arms[d < 0 ? 0 : 1];
+    if (ma){
+      /* their own arm: elbow and hand where theirs are */
+      const elbow = [sh[0] + ma[0][0] * u, sh[1] + ma[0][1] * u], fist = [sh[0] + ma[1][0] * u, sh[1] + ma[1][1] * u];
+      limb([sh, elbow], 22 * u, d); limb([elbow, fist], 19 * u, d);
+      trim(elbow[0], elbow[1], 22 * u);
+      c.fillStyle = dark; circ(c, fist[0], fist[1], 13 * u);
+      c.fillStyle = col; circ(c, fist[0] - d * 2.5 * u, fist[1] - 2.5 * u, 7 * u);
+      continue;
+    }
     if (pose === 'sit'){ limb([sh, [d * 58 * u, -178 * u], [d * 52 * u, -132 * u]], 26 * u, d); trim(d * 58 * u, -178 * u, 22 * u); c.fillStyle = dark; circ(c, d * 52 * u, -128 * u, 14 * u); continue; }
     if (pose === 'hug'){ limb([sh, [d * 62 * u, -188 * u], [d * 30 * u, -178 * u]], 26 * u, d); trim(d * 62 * u, -186 * u, 22 * u); continue; }
     if (pose === 'hang'){ limb([sh, [d * 52 * u, -282 * u], [d * 26 * u, -334 * u]], 24 * u, d); trim(d * 52 * u, -282 * u, 22 * u); c.fillStyle = dark; circ(c, d * 26 * u, -338 * u, 14 * u); continue; }
@@ -138,9 +197,10 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   else if (st.blink && Math.floor(t * 12) % 2) c.globalAlpha = 0.5;
   if (pose === 'sit') c.translate(0, 120 * u);
   if (gk > 0) c.translate(0, 112 * u * gk);
+  fromHips();
   /* the head turning: looking round (st.look, -1..1), or down at an arm, or at their legs */
   /* (st.nod: looking down at their feet, 0..1) */
-  const turn = (st.look || 0) * 0.3 + (pose === 'check' ? -0.28 : 0), nod = (pose === 'dust' ? 10 * u : pose === 'check' ? 4 * u : 0) + (st.nod || 0) * 12 * u;
+  const turn = (st.look || 0) * 0.3 + (pose === 'check' ? -0.28 : 0) + (st.body ? st.body.head * 0.25 : 0), nod = (pose === 'dust' ? 10 * u : pose === 'check' ? 4 * u : 0) + (st.nod || 0) * 12 * u;
   if (turn || nod){ c.translate((st.look || 0) * 8 * u, nod); c.translate(0, -238 * u * f); c.rotate(turn); c.translate(0, 238 * u * f); }
   const hy = -238 * u * f - 40 * u, r = 44 * u;
   c.fillStyle = deep; c.beginPath(); c.ellipse(0, -238 * u * f, 26 * u, 10 * u, 0, 0, 6.2832); c.fill();

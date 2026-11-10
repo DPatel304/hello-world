@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
-import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, WAKE, WATCH, NOTICE, OUT_TIME, RING_FIRST, SAID, WIGGLE, GO, MOVE_MAX, RING_MAX, RISE_MAX, START } from '../src/games/lkp-intro.js';
+import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, WAKE, WATCH, NOTICE, OUT_TIME, RING_FIRST, SAID, WIGGLE, PLAY, GO, MOVE_MAX, RING_MAX, RISE_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
 import { REST_MAX } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
@@ -83,6 +83,10 @@ test('the opening: eyes open on a hopshell, following it to the ship; answer Nov
   assert.ok(intro.wiggled <= was, 'stopping, they droop');
   for (let k = 0; k < (WIGGLE + 1.5) / DT; k++){ hands(0, 0.5, 0.5, 2); hands(1, 0.5, 0.5, 2); inst.step(DT, W, H); }
   hands(0, 0.5, 0.5); hands(1, 0.5, 0.5);
+  /* everyone's wiggled - and there's still a while to play with it */
+  assert.ok(intro.wiggled >= 1);
+  assert.equal(intro.stage, 'move', 'a while longer to play');
+  for (let k = 0; k < PLAY / DT && intro.stage === 'move'; k++) inst.step(DT, W, H);
   assert.equal(intro.stage, 'go');
   for (let k = 0; k < 40 && inst.scene; k++){ inst.step(DT, W, H); assert.equal(inst.z, z, 'nothing moves till it\'s done'); if (k % 10 === 0) inst.draw(fake(), W, H); }
   for (let k = 0; k < 10 / DT && inst.scene; k++) inst.step(DT, W, H);
