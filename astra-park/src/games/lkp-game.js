@@ -19,7 +19,6 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { drawZubuFar } from './lkp-zubu.js';
 import { worldLake, worldLakeAhead, wading, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -115,8 +114,8 @@ export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 25;
    pause to look round - the camera tilting up to the sky and the land,
    VIEW_EASE seconds to get there and back. */
 export const REST_MIN = 9, VIEW_EASE = 2.5;
-/* Zubu, far off over the mountains while they rest: from (seconds in),
-   and how long she takes to glide across the sky. */
+/* Something big, far off, while they rest: her call, ZUBU_FAR[0] + 3
+   seconds in. (She's not seen yet - kept a mystery.) */
 export const ZUBU_FAR = [2, 16];
 /* The team jump: how deep the gorge (depths; a wider one before the
    boss). (The jump itself: lkp-leap.js.) */
@@ -653,12 +652,11 @@ class LastKnownPosition {
     }
     /* her call, echoing across the land, as she glides over */
     if (!r.called && r.t > ZUBU_FAR[0] + 3){ r.called = true; sfx.giantCall?.(0.6); }
-    if (story.on && r.viewed && !r.spotted && r.t > 9.5 && !this.captain.busy && this.level.lines.pondZubu){ r.spotted = true; this.captain.say(...line(this.level.lines.pondZubu[0]), { polite: true }); }
     if (story.on && !r.viewed && r.t > 3.5 && !this.captain.busy && this.level.lines.pondView){ r.viewed = true; this.captain.say(...line(this.level.lines.pondView[0]), { polite: true }); }
     if (story.on && !r.waited && r.t > 14 && !this.captain.busy){ r.waited = true; this.captain.say(...line(this.level.lines.pondWait[0])); }
     const full = this.here.every(i => this.crew[i].hp >= this.crew[i].max);
     r.ok = full ? r.ok + dt : 0;
-    if ((r.ok > 0.8 && r.t >= Math.max(REST_MIN, story.on ? 13 : 0)) || r.t >= REST_MAX){
+    if ((r.ok > 0.8 && r.t >= REST_MIN) || r.t >= REST_MAX){
       for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; }
       if (story.on) this.captain.say(...line(this.level.lines.pondDone[0]), { polite: true });
       this.rest = null;
@@ -1117,10 +1115,6 @@ class LastKnownPosition {
       /* (pulling back round their feet: they stay put, small, the sky opens above) */
       c.save(); c.translate(W / 2, H * 0.97); c.scale(s, s); c.translate(-W / 2, -H * 0.97);
       SKY.above = H * 0.5 * k; SKY.wide = W * 0.3 * k; this.noHud = true;
-      /* far off, while they rest: Zubu, gliding across the sky over the
-         mountains - the first glimpse of her */
-      const zt = this.rest ? this.rest.t : null;
-      if (zt != null) SKY.far = (cc, w, h, hy) => { const u = (zt - ZUBU_FAR[0]) / ZUBU_FAR[1]; if (u > 0 && u < 1) drawZubuFar(cc, w * (-0.25 + 1.5 * u), hy - h * (0.2 + 0.04 * Math.sin(u * 3)), w * 0.17, this.t); };
       this._drawPlay(c, W, H);
       SKY.above = 0; SKY.wide = 0; SKY.far = null; this.noHud = false; c.restore();
       this._drawHud(c, W, H);
