@@ -76,7 +76,7 @@ export const LEVELS = [
       beam: ['Low branch! Duck!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
       roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
-      narrow: ['The path\'s closing in! Squeeze together!', 'SQUEEZE IN!'],
+      narrow: ['A herd coming through! Move over to the left!', 'MOVE LEFT!'],
       wide: ['It opens right up! Spread out and grab them all!', 'SPREAD OUT!'],
       ravine: ['A gorge! Everyone, get ready to JUMP!', 'GET READY TO JUMP!'],
       fountain: ['Spring water! Run along it to heal up.', 'HEAL']
@@ -85,38 +85,18 @@ export const LEVELS = [
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
       wakeup: [['nova', 'ksssh \u2014 Crew, do you read me? ...You\'re okay!', '']],
       /* ...and once they're up, on the path. */
-      rise: [['nova', 'On your feet! Follow the path, and I\'ll talk you through it.', '']],
+      rise: [['nova', 'On your feet, crew! Follow the path.', '']],
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */
       walk: [
-        ['nova', 'This is Commander Nova, up on the Meridian. Your ship came down hard in the storm \u2014 but you\'re all okay. That\'s what matters.', ''],
-        ['nova', 'Here\'s the trouble: the crash knocked a piece clean out of your engine. Without it, that ship can\'t fly.', ''],
-        ['nova', 'My scans show a signal up ahead. I think it\'s the engine piece! Find it, and we can get you home.', 'FIND THE ENGINE PIECE'],
-        ['nova', 'Your suits took a knock in the crash. Keep an eye out for somewhere to heal up.', '']
+        ['nova', 'Your ship came down hard \u2014 but you\'re all okay. Trouble is, the crash knocked a piece out of your engine. Without it, you can\'t fly home.', ''],
+        ['nova', 'I\'m picking up its signal, somewhere ahead. Find that engine piece!', 'FIND THE ENGINE PIECE']
       ],
-      /* More of her story, as they walk: where they are. */
-      lore: [
-        ['nova', 'And crew \u2014 you\'re the first explorers ever to set foot on this planet. We call it Verdant. Nobody has ever seen any of this before.', ''],
-        ['nova', 'I\'m up here on the Meridian, orbiting high above you. Get that engine piece back in your ship, and you can fly up and meet me.', '']
-      ],
-      /* Looking up (lkp-game.js _vista): what lives in the sky. */
-      skyLook: [['nova', 'Crew, look up! Up in the sky! Floating jellies... they\'re drifting on the wind. Beautiful!', 'LOOK UP!']],
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
-      pondView: [['nova', 'Now look down, into the water. See them, swimming round your boots? Little glowing fish! I think they\'re what makes this water heal.', 'LOOK DOWN']],
-      /* and while they heal, a little more (lkp-game.js _rest) */
-      pondStory: [
-        ['nova', 'Here\'s something strange. Just before you crashed, my scanners picked up something in these woods. Something big. Really big.', ''],
-        ['nova', 'Its readings are slow... and calm. Almost like it\'s sleeping. Let\'s hope it stays that way.', '']
-      ],
-      /* then the ground shakes, and far off, the trees come down */
-      rumble: [['nova', 'Whoa! Did you feel that?', '']],
-      farView: [['nova', 'Look, way over there! The trees are falling... something huge is pushing right through them.', '']],
-      offTrail: [['nova', 'And the engine signal? It\'s coming from that way too. We\'re leaving the trail, crew. Follow that path \u2014 and watch out for fallen trees!', 'FOLLOW THE PATH']],
+      /* (the pond's end: the ground shaking, the far ridge - lkp-game.js _rest) */
+      offTrail: [['nova', 'Whoa... something big is out there. And the signal\'s coming from that way. Follow that path!', 'FOLLOW THE PATH']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
-      /* the trail through the woods, before the glade */
-      trail: [['nova', 'Look at those trees \u2014 snapped like twigs. Something huge came through here... Stay close, crew.', '']],
-      pondDone: [['nova', 'Vitals green across the board. Let\'s move!', '']],
       /* Zubu rolling down the hill after them, in her sleep (lkp-roll.js). */
       rollStart: [['nova', 'Uh-oh... Zubu rolled over in her sleep \u2014 and she\'s rolling down the hill! Run, crew! Run on the spot! Lean out of the way of anything rolling!', 'RUN!']],
       rollEnd: [['nova', 'She stopped... and she\'s still snoring! She slept through the whole thing. Ha! Okay crew, tiptoe on.', '']],

@@ -120,9 +120,7 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   assert.ok(inst.rest, 'stopped at the pond');
   const walk = inst.level.lines.walk.map(l => l[1]);
   assert.ok(walk.every(l => said.includes(l)), 'the whole story told on the way');
-  assert.ok(inst.level.lines.lore.every(l => said.includes(l[1])), 'and where they are');
-  assert.ok(said.includes(inst.level.lines.skyLook[0][1]), 'a look up at the sky');
-  assert.ok(inst.captain.stay, 'her window staying up, all the calm start');
+  assert.ok(!inst.captain.stay, 'her window stayed up for the story, and went once it was told');
   assert.equal(inst.mood, -1, 'cozy music');
   for (let k = 0; k < 15; k++) inst.step(DT, W, H);
   const z = inst.z;
@@ -133,7 +131,7 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   for (let k = 0; k < (REST_MAX + 40) / DT && inst.rest; k++){ if (inst.rest.phase === 'far') assert.ok(inst.farStirU >= 0, 'the far ridge, the trees coming down'); inst.step(DT, W, H); }
   assert.equal(inst.rest, null);
   assert.equal(inst.crew[0].hp, inst.crew[0].max, 'full');
-  for (const k of ['pondView', 'rumble', 'farView', 'offTrail']) assert.ok(said.includes(inst.level.lines[k][0][1]), k);
+  assert.ok(said.includes(inst.level.lines.offTrail[0][1]), 'off the trail');
   assert.ok(!inst.captain.stay && inst.mood !== -1, 'and the calm start over');
   run(inst, 1);
   assert.ok(inst.z > z + 0.1, 'and on they go');
@@ -159,10 +157,10 @@ test('the captain gives each tip once, as it comes', () => {
   const say = inst.captain.say.bind(inst.captain);
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
   for (let k = 0; k < 260 / DT && inst.step_ === 0; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
-  for (const w of ['CRYSTALS!', 'LEAN!', 'SQUEEZE IN!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
+  for (const w of ['CRYSTALS!', 'LEAN!', 'MOVE LEFT!', 'SPREAD OUT!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
   /* crystals first; the squeeze; only after the pond, off the trail, dodging */
   const at = (w) => said.indexOf(w);
-  assert.ok(at('CRYSTALS!') < at('SQUEEZE IN!') && at('SQUEEZE IN!') < at('SPREAD OUT!') && at('SPREAD OUT!') < at('LEAN!'), said.join(', '));
+  assert.ok(at('CRYSTALS!') < at('MOVE LEFT!') && at('MOVE LEFT!') < at('SPREAD OUT!') && at('SPREAD OUT!') < at('LEAN!'), said.join(', '));
   /* And then straight on running: no fighting in level 1. */
   assert.equal(inst.phase, 'corridor');
   assert.ok(!inst.fight);

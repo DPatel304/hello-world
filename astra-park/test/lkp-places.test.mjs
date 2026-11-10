@@ -32,7 +32,7 @@ test('all of level 1 is the one place, and the only jump is the big one', () => 
   for (const k of ['narrow', 'wide', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
 });
 
-test('the path squeezes everyone together, then opens out and spreads them wide', () => {
+test('a herd of puffhens takes the right of the path - everyone pushed over to the left - then it opens out and spreads them wide', () => {
   story.on = false; crew(4);
   const inst = game.create(4); quiet(inst);
   inst.scene = null;
@@ -42,8 +42,10 @@ test('the path squeezes everyone together, then opens out and spreads them wide'
   const nar = inst.things.find(t => t.kind === 'narrow');
   while (inst.z + RUN < nar.d + 0.5) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);
-  assert.ok(spread() < normal * (NARROW / PATH_HALF) * 1.15, 'squeezed');
-  assert.ok(inst.here.every(i => Math.abs(inst.crew[i].x) < NARROW), 'all inside the narrow path');
+  assert.ok(inst.herd && inst._flock().length > 10, 'the herd, alongside');
+  assert.ok(inst._flock().every(f => f.lane > 0.1), 'all on the right');
+  assert.ok(inst.here.every(i => inst.crew[i].x < 0.12), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
+  assert.ok(spread() < normal * 0.6, 'pushed together');
   const wide = inst.things.find(t => t.kind === 'wide');
   while (inst.z + RUN < wide.d + 0.6) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);

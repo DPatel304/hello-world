@@ -21,7 +21,7 @@ import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro } from './lkp-intro.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { skyJellies, glowfins } from './lkp-critters.js';
+import { skyJellies, glowfins, puffhen } from './lkp-critters.js';
 import { worldLake, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -68,7 +68,7 @@ export const PICKING = { levelUp: false, weapon: false };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [108, 50, 36, 52, 40];                      /* seconds of each corridor, in full */
+const FULL = [90, 50, 36, 52, 40];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -116,12 +116,17 @@ export const REST_POND = 1.3, REST_FILL = 0.12, REST_MAX = 50;
 /* At the pond they stay at least REST_MIN seconds, healed or not: a
    pause to look round - the camera tilting up to the sky and the land,
    VIEW_EASE seconds to get there and back. */
-export const REST_MIN = 9, VIEW_EASE = 2.5;
+export const REST_MIN = 12, VIEW_EASE = 2.5;
 /* The look up at the sky, in the first corridor: how far along (from the
    crew at the start) and how long (seconds). */
-export const VISTA_AT = 13.7, VISTA = 9;
+export const VISTA_AT = 5.5, VISTA = 10;
+/* The herd of puffhens (seconds from when it starts): coming up from
+   behind and filling the path's right side by full; running alongside
+   till off, then zooming away, the camera watching them go till end. How
+   many, and how far over everyone's pushed (0..1: the right side theirs). */
+export const HERD = { full: 2.6, off: 9, end: 12.5, n: 22, push: 1 };
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
-const SQUEEZE_AT = 64;
+const SQUEEZE_AT = 46;
 /* Something big, far off, while they rest - never seen: the woods on
    the far ridge stirring as it pushes through them, from ZUBU_FAR[0]
    seconds in, for ZUBU_FAR[1]; a deep footfall every STEP_EVERY seconds,
@@ -268,7 +273,7 @@ class LastKnownPosition {
     if (kind !== 'corridor') for (const i of this.here) if (this.crew[i].bubble) this._pop(i);
     this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null; this.ride = null; this.roll = null;
     /* (the calm start's only the first corridor's: set again there) */
-    this.cozy = false; this.captain.stay = false; this.vista = null;
+    this.cozy = false; this.captain.stay = false; this.vista = null; this.herd = null;
     if (kind === 'corridor'){
       const n = plan.slice(0, this.step_ + 1).filter(k => k === 'corridor').length - 1;
       this.seg.n = n;
@@ -383,14 +388,17 @@ class LastKnownPosition {
       },
       /* The path squeezing narrow - everyone pushed together into the
          middle - then bursting open wide, crystals all over. */
+      /* (in level 1, a herd of puffhens: the path's right side filling up
+         with them, running past - everyone pushed over to the left - then
+         off they zoom, the camera watching them go: _flock) */
       squeeze: (s) => {
+        add(s - HERD.full, { kind: 'herd' });
         add(s - 1, { kind: 'narrow' });
-        ROAD.spans.push({ d0: at(s), d1: at(s + 7), half: NARROW });
-        crystalLine(s + 1, 0, 14);
-        add(s + 7.5, { kind: 'wide' });
-        ROAD.spans.push({ d0: at(s + 8.5), d1: at(s + 16), half: WIDE });
-        for (let k = 0; k < 22; k++) add(s + 9 + k * 0.32, { kind: 'crystal', lane: (Math.random() * 2 - 1) * (WIDE - 0.3) });
-        return 17;
+        crystalLine(s + 0.5, -0.65, 14);
+        add(s + 10, { kind: 'wide' });
+        ROAD.spans.push({ d0: at(s + 11), d1: at(s + 18.5), half: WIDE });
+        for (let k = 0; k < 22; k++) add(s + 11.5 + k * 0.32, { kind: 'crystal', lane: (Math.random() * 2 - 1) * (WIDE - 0.3) });
+        return 20;
       },
       /* A gorge right across the way: the team jump (lkp-leap.js) - slow
          motion, JUMP!, and if anyone does, they all fly across. */
@@ -423,7 +431,7 @@ class LastKnownPosition {
          healing pond by the path. They slide by as the crew set off.
          (CRASH; lkp-intro.js walks them from the pond onto the path.) */
       ROAD.spans.length = 0; ROAD.gaps.length = 0; ROAD.surfaces.length = 0;
-      /* the calm start, exploring: cozy music, Nova's window staying up (till the pond's rumble: _rest) */
+      /* the calm start, exploring: cozy music (till the pond's rumble: _rest), Nova's window staying up while she tells them why they're here */
       this.cozy = true; this.captain.stay = story.on;
       this.things.push({ d: this.z + CRASH.ship[1], kind: 'ship', lane: CRASH.ship[0], s: CRASH.ship[2] });
       this.things.push({ d: this.z + CRASH.wreck[1], kind: 'wreck', lane: CRASH.wreck[0], s: CRASH.wreck[2], n: 1 });
@@ -443,8 +451,7 @@ class LastKnownPosition {
       const atD = (dist) => this.z + RUN + dist;
       /* her story first - where they are, what's wrong, what to do - with
          nothing on the path at all (each waits for the one before) */
-      if (story.on) [0.05, 0.3, 0.6, 0.9].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', line: k }));
-      if (story.on) [1.3, 1.7].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', key: 'lore', n: k }));
+      if (story.on) [0.05, 0.3].forEach((dist, k) => this.things.push({ d: atD(dist), kind: 'say', line: k }));
       /* then: look up! - the sky, and what lives up there (_vista) */
       this.things.push({ d: atD(VISTA_AT), kind: 'vista' });
       /* and only then, crystals to catch, picking up speed */
@@ -452,7 +459,7 @@ class LastKnownPosition {
       const arcD = (dist, dir) => { for (let k = 0; k < 7; k++) this.things.push({ d: atD(dist + k * 0.1), kind: 'crystal', lane: dir * Math.sin(k / 6 * Math.PI) * 0.7 }); };
       const c0 = VISTA_AT + 2.8;
       lineD(c0, 0, 5); lineD(c0 + 0.8, -0.5, 5); lineD(c0 + 1.6, 0.5, 5); arcD(c0 + 2.4, 1);
-      for (let k = 0; k < 3; k++){ const d = c0 + 3.4 + k * 1.15; if (k % 3 === 2) arcD(d, k % 2 ? -1 : 1); else lineD(d, [0, -0.5, 0.5, 0.3, -0.3][k % 5], 6); }
+      for (let k = 0; k < 5; k++){ const d = c0 + 3.4 + k * 1.15; if (k % 3 === 2) arcD(d, k % 2 ? -1 : 1); else lineD(d, [0, -0.5, 0.5, 0.3, -0.3][k % 5], 6); }
       /* the path's own stretches (lkp-world.js ROAD.surfaces): old
          flagstones - a ruin's - through the squeeze; a boardwalk over the
          marshy ground into the pond; a mossy track out of it */
@@ -484,7 +491,6 @@ class LastKnownPosition {
         const tl = side() * 1.75, td = at(len - 12);
         this.things.push({ d: td, kind: 'trail', lane: tl });
         CLEARINGS.push({ lane: tl + Math.sign(tl) * 1.2, d: td + 0.05, r: 1.8 });
-        if (story.on) this.things.push({ d: td - 0.25, kind: 'say', key: 'trail' });
       }
       let s = 9;
       const end = (FULL[n] || 45) - 3;
@@ -523,6 +529,7 @@ class LastKnownPosition {
     this.viewFar = ease(this.viewFar, rp === 'far', 2.2);
     this.viewUp = ease(this.viewUp, !!this.vista && this.vista.t < VISTA - 1.4, 1.4);
     if (this.vista){ this.vista.t += dt; if (this.vista.t >= VISTA) this.vista = null; }
+    this.viewHerd = ease(this.viewHerd, !!this.herd && this.herd.t > HERD.off - 0.3 && this.herd.t < HERD.end - 1.2, 1.3);
     this.t += dt;
     stepGuide(this, dt);
     this.faces.step(dt);
@@ -665,7 +672,18 @@ class LastKnownPosition {
     /* Looking up: the sky, and what's floating in it. */
     if (!this.vista){
       const th = this.things.find(t => t.kind === 'vista' && !t.taken && t.d - this.z - RUN <= 0);
-      if (th){ th.taken = true; this.vista = { t: 0 }; if (story.on && this.level.lines.skyLook) this.captain.say(...line(this.level.lines.skyLook[0]), { polite: true, story: true }); }
+      /* (nothing said: just a look) */
+      if (th){ th.taken = true; this.vista = { t: 0 }; }
+    }
+    /* The herd: coming up from behind, alongside, then away. */
+    if (!this.herd){
+      const th = this.things.find(t => t.kind === 'herd' && !t.taken && t.d - this.z - RUN <= 0);
+      if (th){ th.taken = true; this.herd = { t: 0 }; }
+    } else {
+      const h = this.herd; h.t += dt;
+      if (h.t < HERD.off && Math.random() < dt * 2.5) sfx.bird?.(0.5);
+      if (Math.random() < dt * 10 && h.t < HERD.end) sfx.step?.(Math.random() * 3, 0.12);
+      if (h.t >= HERD.end) this.herd = null;
     }
     /* (the road's narrows and ravines, once they're behind) */
     ROAD.spans = ROAD.spans.filter(sp => sp.d1 > this.z - 0.3);
@@ -724,12 +742,9 @@ class LastKnownPosition {
     const full = this.here.every(i => this.crew[i].hp >= this.crew[i].max);
     r.ok = full ? r.ok + dt : 0;
     if (r.phase === 'heal'){
-      /* the fish; then her story, a piece at a time */
-      if (talk && !r.viewed && r.t > 3.5 && !cap.busy){ r.viewed = true; cap.say(...line(L.pondView[0]), { polite: true, story: true }); }
-      if (talk && r.viewed && !r.told && !cap.busy && L.pondStory){ r.told = true; for (const l of L.pondStory) cap.say(...line(l), { polite: true, story: true }); }
+      /* (the fish, and the quiet: nothing said but a nudge, if it's slow) */
       if (talk && !r.waited && !full && r.t > 18 && !cap.busy){ r.waited = true; cap.say(...line(L.pondWait[0]), { polite: true }); }
-      if (talk && full && r.told && !r.green && !cap.busy){ r.green = true; cap.say(...line(L.pondDone[0]), { polite: true }); }
-      const said = !talk || (r.green && !cap.busy);
+      const said = !talk || !cap.busy;
       if ((r.ok > 0.8 && r.t >= REST_MIN && said) || r.t >= REST_MAX){ r.phase = 'rumble'; r.rt = 0; for (const i of this.here) this.crew[i].hp = this.crew[i].max; }
       return;
     }
@@ -738,18 +753,41 @@ class LastKnownPosition {
     r.stepT = (r.stepT ?? 0) - dt;
     if (r.stepT <= 0){ r.stepT = r.phase === 'rumble' ? 0.75 : STEP_EVERY; sfx.farStep?.(r.phase === 'rumble' ? 1.1 : 0.8); this.quake = 1; }
     if (r.phase === 'rumble'){
-      if (talk && !r.rumbled){ r.rumbled = true; cap.say(...line(L.rumble[0])); }
       if (r.rt >= RUMBLE){ r.phase = 'far'; r.ft = 0; }
       return;
     }
     r.ft += dt;
-    if (talk && !r.pointed && r.ft > 1.6){ r.pointed = true; cap.say(...line(L.farView[0]), { polite: true, story: true }); cap.say(...line(L.offTrail[0]), { polite: true, story: true }); }
+    if (talk && !r.pointed && r.ft > 2.2){ r.pointed = true; cap.say(...line(L.offTrail[0]), { polite: true, story: true }); }
     /* she's said it: off they go - the story's start over, the music
        back to the run's own */
     if ((r.ft > FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_HOLD + 14){
       for (const i of this.here){ const rn = this.crew[i]; rn.hp = rn.max; rn.pose = null; rn.look = 0; rn.nod = 0; }
       this.rest = null; cap.stay = false; this.cozy = false;
     }
+  }
+  /* How far the herd's pushing everyone over (0..1). */
+  get herdPush(){
+    const h = this.herd; if (!h) return 0;
+    const e = (k) => { k = Math.max(0, Math.min(1, k)); return k * k * (3 - 2 * k); };
+    return HERD.push * e(h.t / HERD.full) * (1 - e((h.t - HERD.off) / 1.4));
+  }
+  /* The puffhens, where they are now: each its own spot on the right of
+     the path, sprinting up from behind into it, bobbing along there, then
+     away up the path and off to the right. */
+  _flock(){
+    const h = this.herd; if (!h) return [];
+    const hs = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+    const out = [];
+    for (let j = 0; j < HERD.n; j++){
+      const lane = 0.22 + 0.95 * hs(j + 1), relT = -0.06 + 0.32 * Math.pow(hs(j + 2), 1.3), delay = 0.1 + (HERD.full - 0.9) * hs(j + 3);
+      const u = (h.t - delay) / 0.9; if (u <= 0) continue;
+      let rel = -0.3 + (relT + 0.3) * (1 - Math.pow(1 - Math.min(1, u), 2)) + 0.015 * Math.sin(h.t * 3 + j), ln = lane, side = 0;
+      const go = h.t - HERD.off - hs(j + 4) * 0.6;
+      if (go > 0){ rel += go * go * (0.35 + 0.25 * hs(j + 5)); ln += go * (0.9 + 0.7 * hs(j + 6)); side = Math.min(1, go * 2); }
+      if (rel > 1.4) continue;
+      out.push({ rel, lane: ln, side, n: j });
+    }
+    return out;
   }
   /* How far along the far ridge whatever it is has got (0..1), as the
      camera watches from the pond; or -1. */
@@ -765,6 +803,9 @@ class LastKnownPosition {
   _lane(x){
     if (this.seg.kind !== 'corridor') return clamp(x, -1, 1);
     const f = roadHalf(this.z + RUN) / PATH_HALF;
+    /* the herd taking up the right: everyone over on the left */
+    const q = this.herdPush;
+    if (q > 0) return clamp(x * f * (1 - 0.55 * q) - 0.5 * q, -f, f);
     return clamp(x * f, -f, f);
   }
 
@@ -854,6 +895,8 @@ class LastKnownPosition {
   _cues(){
     const cap = this.captain, seg = this.seg, f = this.fight, bs = this.boss, up = this.here.filter(i => !this.crew[i].down);
     if (seg.kind === 'corridor'){
+      /* her story told: her window can go (it stays up for the start: Captain.stay) */
+      if (cap.stay && seg.n === 0 && !cap.busy && !this.things.some(t => t.kind === 'say' && !t.said)) cap.stay = false;
       /* her story, as the run reaches each piece of it - never over a tip */
       for (const th of this.things) if (th.kind === 'say' && !th.said && th.d - this.z - RUN <= 0){ th.said = true; const l = th.key ? this.level.lines[th.key] && this.level.lines[th.key][th.n || 0] : this.level.lines.walk[th.line]; if (l) cap.say(...line(l), { polite: true, story: true }); }
       for (const th of this.things){
@@ -1203,17 +1246,26 @@ class LastKnownPosition {
     }
     /* the team jump's hero shot, from in front, in place of the run */
     if (this.leap && this.leap.phase === 'hero') this.leap.view(c, W, H, PAL.world);
-    else if ((this.viewDown || 0) + (this.viewFar || 0) + (this.viewUp || 0) > 0.001){
+    else if ((this.viewDown || 0) + (this.viewFar || 0) + (this.viewUp || 0) + (this.viewHerd || 0) > 0.001){
       /* the camera's own moves (the HUD stays put, out of them):
            up    tilting up at the sky, the floating jellies drifting over
            down  dipping towards the pond's water round their boots
            far   away off to the far ridge, the trees coming down there */
-      const sm = (k) => k * k * (3 - 2 * k), up = sm(this.viewUp || 0), dn = sm(this.viewDown || 0), far = sm(this.viewFar || 0);
+      const sm = (k) => k * k * (3 - 2 * k), up = sm(this.viewUp || 0), dn = sm(this.viewDown || 0), far = sm(this.viewFar || 0), hd = sm(this.viewHerd || 0);
       c.save(); this.noHud = true;
       if (this.quake > 0) c.translate(Math.sin(this.t * 60) * H * 0.004 * this.quake, Math.cos(this.t * 47) * H * 0.004 * this.quake);
-      if (up > 0){ c.translate(0, H * 0.62 * up); SKY.above = H * 0.7 * up; }
+      /* (up: just a little - easing back round their feet, the sky opening
+         above, the crew still running small below - and panning along
+         slowly with the jellies as they drift over) */
+      if (up > 0){
+        const s = 1 - 0.3 * up, pan = W * 0.1 * up * Math.min(1, (this.vista ? this.vista.t : VISTA) / VISTA);
+        c.translate(W / 2 + pan, H * 0.98); c.scale(s, s); c.translate(-W / 2, -H * 0.98);
+        SKY.above = H * 0.6 * up; SKY.wide = W * 0.5 * up;
+      }
       /* (down: their feet brought up the screen, closer - the water round them filling the view) */
       if (dn > 0){ const ay = P(0, RUN, W, H).y, z = 1 + 0.45 * dn, sy = ay + (H * 0.62 - ay) * dn; c.translate(W / 2, sy); c.scale(z, z); c.translate(-W / 2, -ay); }
+      /* herd: the camera swinging over to watch the puffhens zoom away, off the path to the right */
+      if (hd > 0){ c.translate(-W * 0.26 * hd, -H * 0.04 * hd); c.translate(W * 0.75, H * 0.5); c.scale(1 + 0.18 * hd, 1 + 0.18 * hd); c.translate(-W * 0.75, -H * 0.5); SKY.wide = Math.max(SKY.wide, W * 0.45 * hd); }
       this._drawPlay(c, W, H);
       /* far: the camera away across the valley to the far ridge (a long lens), cross-fading in */
       if (far > 0 && PAL.world){ c.save(); c.globalAlpha = far; worldFarRidge(c, W, H, this.t, Math.max(0, this.farStirU), PAL.world); c.restore(); }
@@ -1293,6 +1345,7 @@ class LastKnownPosition {
     if (this.boss) this.boss.items(items);
     if (this.depot) this.depot.items(items);
     if (this.ride) this.ride.items(items);
+    for (const f of this._flock()) items.push({ kind: 'puffhen', rel: f.rel, lane: f.lane, f });
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
       const p = P(ic.lane, ic.rel, W, H), h = H * CREW_SIZE * p.k;
@@ -1392,6 +1445,7 @@ class LastKnownPosition {
       case 'roller': worldLog(c, W, H, rollerLane(it, it.rel), it.rel, PAL.world, (it.rel - RUN) * 30 * it.dir); break;
       case 'tree': tree(c, W, H, it.lane, it.rel, PAL.world, it.n); break;
       case 'trail': worldTrail(c, W, H, it.lane, it.rel, PAL.world); break;
+      case 'puffhen': if (it.rel > -0.12) puffhen(c, p.x, p.y, H * 0.11 * p.k, this.t + it.f.n * 0.37, it.f.side); break;
     }
   }
 
@@ -1439,7 +1493,8 @@ class LastKnownPosition {
     if (bub) p = { ...p, y: p.y - H * (0.1 + 0.015 * Math.sin(this.t * 2 + i)) - (this.zip ? this.zip.drop * H * 0.38 : 0) };
     (at && at.front ? worldCrewFront : drawCrew)(c, p.x, p.y, h, this.t + i * 0.37, PLAYER_COLORS[i],
       { air: rn.air * h * 0.55 + (at ? at.bob : 0), flying: rn.air > 0.6 || !!rn.bubble || (!at && !!this.ride && this.ride.on(i)) || !!(this.zip && (this.zip.holding(i) || this.zip.phase === 'fall')), duck: rn.duck, lean: rn.lean, hit: rn.hit, heal: rn.heal || 0, run: rn.run || 0, runPh: rn.runPh || 0, pose: (at && at.pose) || (!at && this.ride && this.ride.sitting(i) ? 'sit' : rn.pose), look: (at && at.look) || rn.look || 0, nod: rn.nod || 0, blink: rn.safe > 0, lost: !here, photo: here && this.faces.has(i), down: at && at.down != null ? at.down : this.lying ? this.lying[i] : rn.down },
-      (x, y, r) => {
+      /* (noFace: the visor just dark glass - the opening's shot, before anyone's face is in it) */
+      at && at.noFace ? null : (x, y, r) => {
         /* (the sleepy roll: the face they pulled sneaking past her, frozen on red) */
         if (here && this.faces.has(i)) (at && at.moment ? this.faces.drawMoment(c, i, x, y, r, PLAYER_COLORS[i]) : this.faces.draw(c, i, x, y, r, PLAYER_COLORS[i]));
         else drawKid(c, x, y + r * 0.1, r, this.t + i, KID_SKINS[i]);
@@ -1477,7 +1532,7 @@ class LastKnownPosition {
       c.save(); c.strokeStyle = '#fff3a6'; c.lineWidth = Math.max(2, u * 0.2); c.lineJoin = 'round';
       c.beginPath(); c.moveTo(sx - u * 0.3, sy + u * 0.6); c.lineTo(sx + u * 0.2, sy); c.lineTo(sx - u * 0.1, sy - u * 0.1); c.lineTo(sx + u * 0.35, sy - u * 0.7); c.stroke(); c.restore();
     }
-    if (at && at.noBar != null ? !at.noBar : !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, frac, sore && Math.sin(this.t * 6) > 0 ? '#ff9c3b' : PLAYER_COLORS[i], frac < 0.3);
+    if (at && at.noBar != null ? !at.noBar : !this.inIntro) drawHealth(c, p.x, top - H * 0.03, h * 0.53, frac, PLAYER_COLORS[i], frac < 0.2);
     if (this.seg.kind === 'cross' && i === this.guide) drawCrown(c, p.x, top - H * 0.065, H * 0.022, this.t);
   }
 

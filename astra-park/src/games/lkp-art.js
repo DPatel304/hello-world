@@ -556,10 +556,13 @@ export function drawSweep(c, W, H, rel, t){
 }
 
 /* Health: a plain bar, in their colour, red when low. */
+/* Health: green, however low - just shorter when hurt - and red below
+   HEALTH_RED (col and low are kept for callers; the colour's its own). */
+export const HEALTH_RED = 0.2;
 export function drawHealth(c, x, y, w, frac, col, low){
   const h = w * 0.16;
   c.fillStyle = 'rgba(0,0,0,.7)'; c.fillRect(x - w / 2 - 2, y - 2, w + 4, h + 4);
-  c.fillStyle = low ? '#ef4444' : col; c.fillRect(x - w / 2, y, Math.max(2, w * frac), h);
+  c.fillStyle = frac < HEALTH_RED ? '#ef4444' : '#3fd07a'; c.fillRect(x - w / 2, y, Math.max(2, w * frac), h);
 }
 
 function box(c, x, y, w, h, col){

@@ -47,16 +47,18 @@ function jelly(c, x, y, s, t, col, a = 1){
   c.restore();
 }
 
-/* The sky, looking up: a drift of sky jellies floating across on the
-   wind, slow, bobbing - k how far the view's tilted up (0..1, they fade
-   in with it), t the time, u how long since the look began. */
+/* The sky, looking up: a drift of sky jellies floating over on the wind,
+   slow, bobbing - the camera following them, so they stay up in the sky
+   above the crew as they go. k: how far the view's tilted up (0..1, they
+   fade in with it); t: the time; u: seconds since the look began. */
 export function skyJellies(c, W, H, t, k, u = 0){
   if (k <= 0.02) return;
-  const n = 11;
-  for (let i = 0; i < n; i++){
-    const far = hash(i + 40), s = H * (0.035 + 0.11 * (1 - far));
-    /* drifting right to left across the sky, each its own pace and height */
-    const speed = 0.018 + 0.03 * (1 - far), x = W * (1.15 - ((hash(i + 41) + u * speed) % 1.3)), y = H * (0.1 + 0.42 * far + 0.05 * Math.sin(t * 0.5 + i)) ;
+  /* the drift's middle, coming in from the right and slowing, the camera keeping up */
+  const cx = W * (0.62 - 0.012 * u) + W * 0.35 * Math.pow(1 - Math.min(1, u / 3), 2), cy = H * 0.2;
+  for (let i = 0; i < 12; i++){
+    const far = hash(i + 40), s = H * (0.03 + 0.07 * (1 - far));
+    const x = cx + (hash(i + 41) - 0.5) * W * 0.62 + Math.sin(t * 0.3 + i) * W * 0.01 - u * W * 0.004 * (1 - far);
+    const y = cy + (hash(i + 42) - 0.5) * H * 0.24 + 0.02 * H * Math.sin(t * 0.5 + i * 1.3);
     jelly(c, x, y, s, t + i * 0.7, COLS[i % COLS.length], k * (0.55 + 0.45 * (1 - far)));
   }
 }
@@ -87,4 +89,41 @@ export function glowfins(c, W, H, t, a = 1){
     const dir = Math.cos(ph) >= 0 ? 1 : -1, p = P(lane, rel, W, H);
     fin(c, p.x, p.y - H * 0.01 * p.k, H * 0.05 * p.k * (0.8 + 0.4 * hash(i + 64)), t + i, dir, COLS[i % COLS.length], a * 0.85);
   }
+}
+
+/* A puffhen: Verdant's little herd animal - half sheep, half chicken: a
+   round woolly body, a chicken's head on top (a red comb, an orange beak),
+   stubby wings flapping, quick orange legs. Seen from behind, running up
+   the path (as the crew do), its feet at (x, y), s tall; t the time; side
+   -1..1, turning (veering off, side on). */
+export function puffhen(c, x, y, s, t, side = 0){
+  const run = t * 16, bob = Math.abs(Math.sin(run)) * s * 0.06, by = y - s * 0.45 - bob;
+  c.save();
+  c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(x, y, s * 0.4, s * 0.08, 0, 0, TAU); c.fill();
+  /* legs, quick */
+  c.strokeStyle = '#f0a040'; c.lineWidth = Math.max(1, s * 0.06); c.lineCap = 'round';
+  for (const d of [-1, 1]){ const k = Math.sin(run + (d < 0 ? 0 : Math.PI)); c.beginPath(); c.moveTo(x + d * s * 0.12, by + s * 0.25); c.lineTo(x + d * s * 0.14 + k * s * 0.04 * side, y - s * 0.02 - Math.max(0, k) * s * 0.1); c.stroke(); }
+  /* the wool: a cloud of puffs, shaded */
+  for (let k = 0; k < 9; k++){
+    const a = k / 9 * TAU, px = x + Math.cos(a) * s * 0.28, py = by + Math.sin(a) * s * 0.22;
+    c.fillStyle = Math.sin(a) > 0.3 ? '#d8d2e6' : Math.cos(a) < -0.3 ? '#ffffff' : '#f2eef8'; c.beginPath(); c.arc(px, py, s * 0.17, 0, TAU); c.fill();
+  }
+  const g = c.createRadialGradient(x - s * 0.1, by - s * 0.1, s * 0.05, x, by, s * 0.35); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e4def0');
+  c.fillStyle = g; c.beginPath(); c.ellipse(x, by, s * 0.3, s * 0.25, 0, 0, TAU); c.fill();
+  /* little wings, flapping */
+  const flap = Math.sin(t * 22) * 0.5;
+  c.fillStyle = '#ece6f4';
+  for (const d of [-1, 1]){ c.save(); c.translate(x + d * s * 0.3, by - s * 0.02); c.rotate(d * (0.4 + flap)); c.beginPath(); c.ellipse(d * s * 0.08, 0, s * 0.13, s * 0.06, 0, 0, TAU); c.fill(); c.restore(); }
+  /* a tuft of tail feathers */
+  c.fillStyle = '#ffd27a'; for (const d of [-1, 0, 1]){ c.beginPath(); c.ellipse(x + d * s * 0.05, by + s * 0.05, s * 0.03, s * 0.08, d * 0.4, 0, TAU); c.fill(); }
+  /* the head on top, a little to the side it's turning */
+  const hx = x + side * s * 0.18, hy = by - s * 0.3;
+  c.fillStyle = '#fff8f0'; c.beginPath(); c.arc(hx, hy, s * 0.13, 0, TAU); c.fill();
+  c.fillStyle = '#e8434e'; for (let k = 0; k < 3; k++){ c.beginPath(); c.arc(hx + (k - 1) * s * 0.05, hy - s * 0.13 - (k === 1 ? s * 0.02 : 0), s * 0.045, 0, TAU); c.fill(); }
+  if (Math.abs(side) > 0.2){
+    const d = Math.sign(side);
+    c.fillStyle = '#f5a623'; c.beginPath(); c.moveTo(hx + d * s * 0.11, hy - s * 0.02); c.lineTo(hx + d * s * 0.2, hy + s * 0.01); c.lineTo(hx + d * s * 0.11, hy + s * 0.04); c.fill();
+    c.fillStyle = '#2b2440'; c.beginPath(); c.arc(hx + d * s * 0.05, hy - s * 0.03, s * 0.025, 0, TAU); c.fill();
+  }
+  c.restore();
 }

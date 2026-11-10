@@ -259,15 +259,9 @@ export class Intro {
     return 1;
   }
 
-  /* The visor: a crack across it, and the suit's display - damaged,
-     half its power. */
+  /* The visor: the suit's display - damaged, half its power. */
   _visor(c, W, H){
     c.save();
-    c.strokeStyle = 'rgba(235,245,255,.55)'; c.lineWidth = Math.max(1.5, H * 0.0025); c.lineCap = 'round';
-    const cr = [[0.97, 0.05], [0.86, 0.17], [0.8, 0.16], [0.71, 0.3], [0.66, 0.31], [0.6, 0.42]];
-    c.beginPath(); cr.forEach(([x, y], k) => (k ? c.lineTo(x * W, y * H) : c.moveTo(x * W, y * H))); c.stroke();
-    c.beginPath(); c.moveTo(0.86 * W, 0.17 * H); c.lineTo(0.9 * W, 0.27 * H); c.moveTo(0.71 * W, 0.3 * H); c.lineTo(0.68 * W, 0.21 * H); c.stroke();
-    c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = Math.max(1, H * 0.0015); c.beginPath(); cr.forEach(([x, y], k) => (k ? c.lineTo(x * W + 2, y * H + 2) : c.moveTo(x * W + 2, y * H + 2))); c.stroke();
     /* the display, bottom left - a picture, no words: the suit's battery,
        half gone, flashing, a spark jumping off it */
     const on = this.stage !== 'dark' && (Math.sin(this.t * 23) > -0.85 || this.stage !== 'wake');
@@ -410,7 +404,7 @@ export class Intro {
     here.forEach((i, k) => {
       const a = this._act(i, k), rise = easeOut(this.up[i]), h = H * 0.6 * push;
       const x = W * (0.5 + (k - (n - 1) / 2) * gap + drift * 0.004), y = H * 1.04 + (1 - rise) * h * 0.55;
-      g._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, noBar: true, pose: a.pose, look: a.look });
+      g._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, noBar: true, noFace: true, pose: a.pose, look: a.look });
     });
   }
   /* One picture over another, fading (a: how much of the top one). */

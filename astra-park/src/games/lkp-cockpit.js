@@ -143,19 +143,13 @@ function visor(c, W, H, t, d){
 }
 
 /* The helmet round the visor: dark at the edges, a gleam across the
-   glass, and late on a little crack. */
+   glass. */
 function helmet(c, W, H, t, d){
   const g = c.createRadialGradient(W / 2, H * 0.55, H * 0.42, W / 2, H * 0.55, W * 0.62);
   g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.82, 'rgba(0,0,0,.88)'); g.addColorStop(1, '#000');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   c.strokeStyle = 'rgba(255,255,255,.14)'; c.lineWidth = H * 0.025; c.lineCap = 'round';
   c.beginPath(); c.ellipse(W / 2, H * 0.55, W * 0.5, H * 0.62, 0, Math.PI * 1.1, Math.PI * 1.42); c.stroke();
-  const cr = ramp(t, 5, 6.2);
-  if (cr > 0){
-    c.strokeStyle = 'rgba(235,245,255,.75)'; c.lineWidth = 1.5;
-    const ox = W * 0.78, oy = H * 0.2;
-    for (let k = 0; k < 7; k++){ const a = k * 0.9 + 0.3, len = H * (0.05 + (k % 3) * 0.04) * cr; c.beginPath(); c.moveTo(ox, oy); c.lineTo(ox + Math.cos(a) * len * 0.5, oy + Math.sin(a) * len * 0.5 + 3); c.lineTo(ox + Math.cos(a) * len, oy + Math.sin(a) * len); c.stroke(); }
-  }
 }
 
 /* What you hear: the ship's rumble building, the klaxon, the alarm pips
