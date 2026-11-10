@@ -1,10 +1,10 @@
 /* The moment the story turns: the old depot, where the crew find the
-   ship's engine piece - and powering it up wakes every robot on the
+   ship's Star Core - and powering it up wakes every robot on the
    planet.
 
    The depot comes up out of the haze ahead - the crew run on up to it
    (APPROACH) and stop: a shed at the end of the path and, on the floor in
-   front of it, the engine piece, glowing. "ENGINE PIECE FOUND."
+   front of it, the Star Core, glowing. "STAR CORE FOUND."
    Nova asks everyone to roll their arms to power it up: the ring round it
    fills as they do - all of them for POWER seconds - or, whoever's
    rolling, by itself after AUTO. Then the SURGE: a shockwave rolling out
@@ -47,7 +47,7 @@ export class Depot {
     const g = this.g;
     this.t += dt; this.st += dt;
     if (this.state === 'approach'){
-      if (this.rel <= SHED + 0.002){ this.state = 'power'; this.st = 0; this.banner = 'ENGINE PIECE FOUND'; sfx.learnt(); }
+      if (this.rel <= SHED + 0.002){ this.state = 'power'; this.st = 0; this.banner = 'STAR CORE FOUND'; sfx.learnt(); }
     } else if (this.state === 'power'){
       const here = g.here, rolling = here.filter(i => { this.cranks[i].step(pose.players[i], dt); return this.cranks[i].rolling; }).length;
       this.charge = Math.min(1, this.charge + dt / POWER * (here.length ? rolling / here.length : 0));

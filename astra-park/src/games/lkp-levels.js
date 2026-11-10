@@ -27,7 +27,7 @@ export const GIANT = 'Zubu';
 
 export const LEVELS = [
   {
-    id: 'verdant', name: 'Verdant Crash Site', goal: 'Find the engine piece',
+    id: 'verdant', name: 'Verdant Crash Site', goal: 'Find the Star Core',
     palette: {
       bg: '#14261b', floor: '#2d4b2b', edge: 'rgba(255,255,255,.3)', trees: '#1f5a34',
       blocker: '#7a5230', beam: '#6b4423', post: '#3d2a17', gap: '#0b0e09', fountain: '#38bdf8',
@@ -46,10 +46,10 @@ export const LEVELS = [
     },
     /* The way through: the tutorial run (and the healing pond); a first,
        easy fight, straight in, to learn fighting; a run with the team
-       jump over a gorge; the engine piece (the robots wake); a run with
+       jump over a gorge; the Star Core (the robots wake); a run with
        a ride on Mossy, the forest giant; a fork and a room; a run with a bigger gorge; the
        boss. */
-    /* (Level 1 is all running, no fighting: it ends at the engine piece -
+    /* (Level 1 is all running, no fighting: it ends at the Star Core -
        the robots wake, and a friendly giant carries the crew away. After
        its 'end', the rest - the tutorial fight, a fork, a room, the big
        gorge and the Sweeper - kept for level 2: not played yet.) */
@@ -89,8 +89,8 @@ export const LEVELS = [
       /* The first corridor: the story, a piece at a time, in the quiet
          between her tips (lkp-game.js: said as the run reaches them). */
       walk: [
-        ['nova', 'Your ship came down hard \u2014 but you\'re all okay. Trouble is, the crash knocked a piece out of your engine. Without it, you can\'t fly home.', ''],
-        ['nova', 'I\'m picking up its signal, somewhere ahead. Find that engine piece!', 'FIND THE ENGINE PIECE']
+        ['nova', 'Your ship came down hard \u2014 but you\'re all okay. Trouble is, the crash knocked out your Star Core. It\'s what powers your ship. Without it, you can\'t fly home.', ''],
+        ['nova', 'I\'m picking up its glow, somewhere ahead. Find that Star Core!', 'FIND THE STAR CORE']
       ],
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you. Hug yourselves to heal even faster!', 'HUG TO HEAL']],
@@ -105,7 +105,7 @@ export const LEVELS = [
       rideOn: [['nova', 'Everyone on? Sit down and rest, crew. You\'ve earned it.', 'SIT AND RELAX']],
       rideOff: [['nova', `What a ride! Say thank you, crew. I think we'll call it... ${GIANT}!`, `BYE, ${GIANT.toUpperCase()}!`]],
       depot: [
-        ['nova', 'There it is! The engine piece! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
+        ['nova', 'There it is! The Star Core! Everyone, roll your arms to power it up!', 'ROLL YOUR ARMS']
       ],
       waking: [
         ['robot', 'Clean. The planet. Of everything.', 'CLEAN THE PLANET.'],
@@ -116,7 +116,7 @@ export const LEVELS = [
         ['nova', 'An old street sweeper, gone haywire! Watch the red, dodge its charges, and hit it when it stops!', 'DODGE!']
       ],
       won: [
-        ['nova', 'We\'ve got the engine piece! Brilliant work, crew.', 'LEVEL CLEAR!'],
+        ['nova', 'We\'ve got the Star Core! Brilliant work, crew.', 'LEVEL CLEAR!'],
         'PRAISE',
         ['nova', 'The ship\'s still a long way off, and more robots are waking. Rest up, crew.', '']
       ],

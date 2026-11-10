@@ -1,5 +1,5 @@
 /* Last Known Position, the look - the places and the boss: the fork in
-   the path, the depot (a whole works yard), the engine piece, the red-light
+   the path, the depot (a whole works yard), the Star Core, the red-light
    room, the treasure cave with its suits copying the players, and Level
    1's boss, the Sweeper. Drawn when the level's palette has a `world`
    (lkp-art.js hands over to these); L is that world palette. */
@@ -197,7 +197,7 @@ export function worldDepot(c, W, H, rel, t, L){
   c.fillStyle = '#3a3756'; c.fillRect(at(100), top - 165 * m, 40 * m, 26 * m);
 }
 
-/* The engine piece on the ground at depth rel: a glowing hex crystal in a
+/* The Star Core - the ship's power, knocked out in the crash - on the ground at depth rel: a glowing hex crystal in a
    metal cradle, a ring round it filling (charge 0..1) as the crew power
    it up. */
 export function worldPiece(c, W, H, rel, t, charge){

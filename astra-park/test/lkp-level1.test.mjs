@@ -77,7 +77,7 @@ test('the depot comes up out of the haze ahead, and the crew run on up to it bef
   assert.ok(inst.speed < 0.05, 'stopped at it');
 });
 
-test('the depot: the run stops at the engine piece, and it powers up by itself after a while', () => {
+test('the depot: the run stops at the Star Core, and it powers up by itself after a while', () => {
   const inst = at('depot');
   arrive(inst);
   run(inst, 1);

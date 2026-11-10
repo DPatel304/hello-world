@@ -347,7 +347,7 @@ export function drawBeast(c, x, base, s, t, st){
 }
 
 /* The depot, at depth rel: what = 'shed', an old metal shed across the
-   end of the path, its door open; or 'piece', the ship's engine piece on
+   end of the path, its door open; or 'piece', the ship's Star Core on
    the floor, glowing, with a ring round it filling (charge 0..1) as the
    crew power it up. */
 export function drawDepot(c, W, H, rel, t, what, charge = 0){
