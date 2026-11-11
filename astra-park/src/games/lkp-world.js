@@ -1212,3 +1212,102 @@ export function creek(c, W, H, rel, t, L){
   }
   c.restore();
 }
+
+/* ---------- the lookout ---------- */
+
+/* Up high, at the start: the path comes out onto the top of a great
+   ridge, and the land drops away in front of it - and there's the whole
+   of the planet laid out below. A valley going on for ever, a river
+   winding through it to lakes, woods, far blue mountain ranges; islands
+   of land floating in the sky, waterfalls pouring off their edges into
+   mist; and away on the horizon, the faint glow of the Star Core.
+   Everything above the ridge's edge (edge: px down the screen) is this;
+   a: how much (it fades in as they come up, and away as they go on);
+   t: time, for the slow drift of it all; dx: sliding it aside. */
+const hx2 = (a, b, k) => { const A = hex(a), B = hex(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * Math.max(0, Math.min(1, k))).toString(16).padStart(2, '0')).join(''); };
+export function worldOverlook(c, W, H, edge, t, L, a = 1, dx = 0){
+  if (a <= 0.001) return;
+  c.save(); c.globalAlpha = a; c.beginPath(); c.rect(0, 0, W, edge); c.clip(); c.translate(dx, 0);
+  const hz = H * 0.34, X0 = -W * 0.2, WW = W * 1.4;
+  /* the sky, big and open, the low sun */
+  const sg = c.createLinearGradient(0, 0, 0, hz); sg.addColorStop(0, L.sky[0]); sg.addColorStop(0.55, L.sky[1]); sg.addColorStop(0.85, L.sky[2]); sg.addColorStop(1, L.sky[3]);
+  c.fillStyle = sg; c.fillRect(X0, 0, WW, hz + 2);
+  const sun = c.createRadialGradient(W * 0.2, hz * 0.72, 0, W * 0.2, hz * 0.72, H * 0.45); sun.addColorStop(0, 'rgba(255,244,224,.85)'); sun.addColorStop(1, 'rgba(255,244,224,0)'); c.fillStyle = sun; c.fillRect(X0, 0, WW, hz + 2);
+  /* far, far off: mountain ranges, blue, one behind another */
+  [[0.6, 0.15, 3.1], [0.42, 0.1, 5.3], [0.25, 0.065, 7.7]].forEach(([hzk, amp, seed], r) => {
+    c.fillStyle = hx2(r ? L.hillLit : L.hillDark, L.haze, hzk); c.beginPath(); c.moveTo(X0, hz + 2);
+    for (let k = 0; k <= 40; k++){ const x = X0 + WW * k / 40, v = Math.abs(Math.sin(k * 0.7 + seed)) * 0.6 + Math.abs(Math.sin(k * 0.23 + seed * 2)) * 0.4; c.lineTo(x, hz - H * amp * v); }
+    c.lineTo(X0 + WW, hz + 2); c.closePath(); c.fill();
+  });
+  /* the Star Core's glow, far off on the horizon - where they're going */
+  const cx = W * 0.74, cg = c.createRadialGradient(cx, hz, 0, cx, hz, H * 0.12); cg.addColorStop(0, 'rgba(190,250,255,.75)'); cg.addColorStop(1, 'rgba(190,250,255,0)');
+  c.fillStyle = cg; c.fillRect(cx - H * 0.12, hz - H * 0.12, H * 0.24, H * 0.24);
+  c.fillStyle = 'rgba(200,250,255,.35)'; c.fillRect(cx - H * 0.003, hz - H * 0.22, H * 0.006, H * 0.22);
+  /* the valley, far below, going on and on: bands of land, hazier further off */
+  const vb = Math.max(hz + H * 0.05, edge);
+  for (let r = 0; r < 7; r++){
+    const y0 = hz + (vb - hz) * Math.pow(r / 7, 1.5), k = r / 7;
+    c.fillStyle = hx2(r % 2 ? L.ground[0] : '#6fbf8a', L.haze, 0.55 - 0.5 * k);
+    c.beginPath(); c.moveTo(X0, vb + 2);
+    for (let q = 0; q <= 30; q++){ const x = X0 + WW * q / 30; c.lineTo(x, y0 + H * 0.008 * Math.sin(q * 0.9 + r * 2.3)); }
+    c.lineTo(X0 + WW, vb + 2); c.closePath(); c.fill();
+    /* woods along it: dark round clumps */
+    c.fillStyle = hx2(L.tree[1], L.haze, 0.55 - 0.5 * k);
+    for (let q = 0; q < 18; q++){ if (hash(r * 40 + q) < 0.45) continue; const x = X0 + WW * hash(r * 40 + q + 7), rr = H * (0.006 + 0.012 * k) * (0.7 + hash(q + r)); for (let j = 0; j < 4; j++){ c.beginPath(); c.arc(x + j * rr * 1.3, y0 + rr * 0.3, rr, Math.PI, 6.2832); c.fill(); } }
+  }
+  /* the river, winding down through it out of the distance, to a lake */
+  c.strokeStyle = hx2(L.water, L.haze, 0.35); c.lineCap = 'round';
+  for (const [w, al] of [[H * 0.012, 0.9], [H * 0.004, 0.5]]){
+    c.lineWidth = w; c.globalAlpha = a * al; c.beginPath(); c.moveTo(W * 0.62, hz + H * 0.005);
+    c.bezierCurveTo(W * 0.5, hz + (vb - hz) * 0.3, W * 0.7, hz + (vb - hz) * 0.5, W * 0.42, hz + (vb - hz) * 0.75);
+    c.quadraticCurveTo(W * 0.25, hz + (vb - hz) * 0.9, W * 0.18, vb + H * 0.02); c.stroke();
+  }
+  c.globalAlpha = a;
+  c.fillStyle = hx2(L.water, L.haze, 0.4); c.beginPath(); c.ellipse(W * 0.58, hz + (vb - hz) * 0.42, W * 0.05, H * 0.008, 0, 0, 6.2832); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.45)'; c.beginPath(); c.ellipse(W * 0.57, hz + (vb - hz) * 0.415, W * 0.02, H * 0.002, 0, 0, 6.2832); c.fill();
+  /* great stone spires standing up out of it, here and there, for scale */
+  for (const [u, hh, w, hzk] of [[0.3, 0.2, 0.018, 0.5], [0.34, 0.13, 0.012, 0.55], [0.86, 0.26, 0.022, 0.35], [0.55, 0.09, 0.008, 0.65]]){
+    const x = X0 + WW * u, base = hz + (vb - hz) * (0.25 + 0.4 * (1 - hzk)), top = base - H * hh, ww = H * w;
+    c.fillStyle = hx2('#6d6690', L.haze, hzk); c.beginPath(); c.moveTo(x - ww, base); c.lineTo(x - ww * 0.6, top + ww); c.quadraticCurveTo(x, top - ww * 0.5, x + ww * 0.6, top + ww); c.lineTo(x + ww, base); c.closePath(); c.fill();
+    c.fillStyle = hx2('#9a92c0', L.haze, hzk); c.beginPath(); c.moveTo(x - ww, base); c.lineTo(x - ww * 0.6, top + ww); c.quadraticCurveTo(x - ww * 0.2, top, x - ww * 0.1, top + ww * 0.5); c.lineTo(x - ww * 0.3, base); c.closePath(); c.fill();
+    c.fillStyle = hx2('#8fd08a', L.haze, hzk); c.beginPath(); c.ellipse(x, top + ww * 0.3, ww * 0.75, ww * 0.3, 0, 0, 6.2832); c.fill();
+  }
+  /* mist lying in the valley */
+  const mg = c.createLinearGradient(0, hz, 0, hz + H * 0.08); mg.addColorStop(0, rgba(L.haze, 0.6)); mg.addColorStop(1, rgba(L.haze, 0)); c.fillStyle = mg; c.fillRect(X0, hz - H * 0.01, WW, H * 0.09);
+  /* islands of land floating in the sky - far ones small and hazy, near
+     ones big - drifting, bobbing slowly; trees on top, rock hanging
+     under, waterfalls pouring off into mist */
+  const isl = [[0.36, 0.06, 0.03, 0.65], [0.6, 0.1, 0.035, 0.55], [0.5, 0.2, 0.025, 0.6], [0.82, 0.05, 0.03, 0.7], [0.9, 0.15, 0.075, 0.25], [0.16, 0.17, 0.12, 0.08]];
+  isl.forEach(([u, v, sz, hzk], n) => {
+    const x = X0 + WW * u + Math.sin(t * 0.05 + n) * W * 0.01 - t * W * 0.002 * (1 - hzk), y = H * v + Math.sin(t * 0.3 + n * 2) * H * 0.006, s = H * sz;
+    const rock = hx2('#8f88a8', L.haze, hzk), rockD = hx2('#5d5680', L.haze, hzk), top = hx2('#8fd08a', L.haze, hzk), topD = hx2(L.ground[1], L.haze, hzk);
+    /* its waterfall, falling and falling, into mist */
+    if (n % 2 === 0){ const wg = c.createLinearGradient(0, y, 0, y + s * 6); wg.addColorStop(0, rgba(hx2('#dff6ff', L.haze, hzk * 0.5), 0.85)); wg.addColorStop(1, rgba('#ffffff', 0)); c.fillStyle = wg; c.fillRect(x + s * 0.5, y, s * 0.16, s * 6); }
+    /* the rock under it, hanging down to a point */
+    c.fillStyle = rockD; c.beginPath(); c.moveTo(x - s * 1.6, y); c.quadraticCurveTo(x - s * 0.8, y + s * 1.2, x - s * 0.1, y + s * 2.2); c.quadraticCurveTo(x + s * 0.7, y + s * 1.1, x + s * 1.6, y); c.closePath(); c.fill();
+    c.fillStyle = rock; c.beginPath(); c.moveTo(x - s * 1.6, y); c.quadraticCurveTo(x - s * 1.0, y + s * 0.9, x - s * 0.3, y + s * 1.8); c.lineTo(x - s * 0.2, y); c.closePath(); c.fill();
+    /* its top: grass, lit, and little trees */
+    c.fillStyle = topD; c.beginPath(); c.ellipse(x, y, s * 1.62, s * 0.32, 0, 0, 6.2832); c.fill();
+    c.fillStyle = top; c.beginPath(); c.ellipse(x - s * 0.1, y - s * 0.08, s * 1.4, s * 0.22, 0, 0, 6.2832); c.fill();
+    for (let j = 0; j < 5; j++){ const tx = x + (j - 2) * s * 0.55 + hash(n * 9 + j) * s * 0.2, tr = s * (0.18 + 0.12 * hash(n + j)); c.fillStyle = hx2(L.tree[1], L.haze, hzk); c.beginPath(); c.arc(tx, y - tr * 1.2, tr, 0, 6.2832); c.fill(); c.fillStyle = hx2(L.tree[0], L.haze, hzk); c.beginPath(); c.arc(tx - tr * 0.25, y - tr * 1.45, tr * 0.65, 0, 6.2832); c.fill(); }
+  });
+  /* clouds drifting along below them, and some down in the valley */
+  for (let k = 0; k < 6; k++){
+    const x = X0 + ((k * 0.23 + t * 0.004) % 1) * WW, y = H * (0.2 + 0.05 * (k % 3)) + (k > 3 ? hz * 0.4 : 0), r = H * (0.03 + 0.015 * (k % 2));
+    c.fillStyle = 'rgba(214,200,240,.6)'; c.beginPath(); c.ellipse(x - r, y, r * 0.9, r * 0.5, 0, Math.PI, 6.2832); c.ellipse(x, y - r * 0.2, r * 1.1, r * 0.75, 0, Math.PI, 6.2832); c.ellipse(x + r * 1.1, y, r * 0.8, r * 0.45, 0, Math.PI, 6.2832); c.fill();
+    c.fillStyle = 'rgba(255,248,255,.7)'; c.beginPath(); c.ellipse(x, y - r * 0.3, r * 0.9, r * 0.55, 0, Math.PI, 6.2832); c.fill();
+  }
+  /* birds, tiny, far off */
+  c.strokeStyle = 'rgba(60,50,90,.5)'; c.lineWidth = Math.max(1, H * 0.0015);
+  for (let k = 0; k < 7; k++){ const x = X0 + ((k * 0.13 + t * 0.01) % 1) * WW, y = H * (0.14 + 0.03 * Math.sin(k * 2 + t * 0.2)), w = H * 0.006, f = Math.sin(t * 6 + k) * w * 0.6; c.beginPath(); c.moveTo(x - w, y - f); c.lineTo(x, y); c.lineTo(x + w, y - f); c.stroke(); }
+  c.restore();
+  /* the ridge's edge they're stood at: grass, rocks, the land falling away */
+  if (a > 0.05 && edge < H){
+    c.save(); c.globalAlpha = a;
+    c.fillStyle = hx2(L.ground[1], '#3a3456', 0.25); c.beginPath(); c.moveTo(0, edge + H * 0.01);
+    for (let k = 0; k <= 30; k++) c.lineTo(W * k / 30, edge - H * 0.006 * Math.abs(Math.sin(k * 1.7)) - H * 0.004);
+    c.lineTo(W, edge + H * 0.02); c.lineTo(0, edge + H * 0.02); c.closePath(); c.fill();
+    for (let k = 0; k < 9; k++){ const x = W * hash(k + 600), r = H * (0.008 + 0.01 * hash(k + 601)); c.fillStyle = hx2('#8f88a8', L.haze, 0.1); c.beginPath(); c.ellipse(x, edge, r * 1.4, r, 0, Math.PI, 6.2832); c.fill(); }
+    c.restore();
+  }
+}

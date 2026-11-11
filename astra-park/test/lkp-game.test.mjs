@@ -26,7 +26,7 @@ function hop(inst, i = 0){
   for (let k = 0; k < 4; k++){ p.centre.y += 0.03; inst.step(DT, W, H); }
 }
 /* A quiet corridor: nothing in it unless a test puts it there. */
-function quiet(n = 1){ crew(n); const inst = game.create(n); inst.things = []; run(inst, 0.2); return inst; }
+function quiet(n = 1){ crew(n); const inst = game.create(n); inst.things = []; inst.jog = false; run(inst, 0.2); return inst; }
 function ahead(inst, kind, secs, extra = {}){
   const th = { kind, d: inst.z + RUN + inst.speed * secs, ...extra };
   inst.things.push(th);
@@ -227,7 +227,8 @@ test('the first corridor is a calm walk: Nova\'s story, a look up at the sky, cr
   const pond = first('pond');
   assert.ok(first('vista') < first('crystal'), 'the sky before the crystals');
   assert.ok(inst.things.some(th => th.kind === 'crystal' && th.fall), 'crystals falling from the jellies');
-  assert.ok(first('narrow') < first('burrow'), 'the herd, then the creatures');
+  assert.ok(first('overlook') < first('crystal'), 'the lookout first, before any crystals');
+  assert.ok(first('herd') < first('burrow'), 'the herd, then the creatures');
   for (const k of ['burrow', 'creek', 'chimes', 'flutter', 'longneck']) assert.ok(first(k) < pond, `${k} before the pond`);
   assert.ok(first('burrow') < first('creek') && first('creek') < first('flutter') && first('flutter') < first('longneck'));
   assert.ok(inst.things.some(th => th.kind === 'crystal' && th.toss != null), 'crystals tossed by the burrow puffs');

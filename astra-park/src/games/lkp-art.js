@@ -24,7 +24,7 @@ export const RUN = 0.03;              /* the crew's own depth */
 export const HORIZON = 0.38;          /* screen heights */
 /* How thick the haze over the far end of the path is (1: as it was - so
    thick the way ahead was hard to make out; lower: clearer). */
-export const FOG = 0.4;
+export const FOG = 0.15;
 /* How fast they run along the path, against how it was first made (0.8:
    a bit slower - an easier pace to keep up with, more time to see
    what's coming). Things placed by distance scale with it, so they come
@@ -34,7 +34,7 @@ const BOTTOM = 0.97;                  /* where the crew's feet are */
 const HALF = 0.36;                    /* half the floor's width at the crew, in screen widths */
 const WALL = 1.15;                    /* the walls, in lanes */
 /* (the perspective: how fast things shrink with distance - less, so what's coming up ahead is bigger, sooner) */
-const S = (z) => 1 / (1 + 4.5 * Math.max(-0.1, z));
+const S = (z) => 1 / (1 + 4 * Math.max(-0.1, z));
 
 /* The path's bends, for the look only (lanes, and so the play, don't
    change): `curve` bends it gently left (-) or right (+) into the
@@ -57,9 +57,17 @@ const bendAt = (rel) => {
    a table of how far up (-) or down each depth ahead is drawn - never so
    much that a rise hides what's beyond it. */
 export const ELEV = { amp: 0, z: 0, tab: null };
-/* how high the ground is at world depth d (corridor depths): long slow
-   swells, and smaller ones on them */
-export const ground = (d) => 0.5 * Math.sin(d * 0.75 + 0.6) + 0.22 * Math.sin(d * 1.9 + 2.1);
+/* how high the ground is at world depth d (corridor depths): mostly
+   level, with now and then one gentle hill or one hollow - each a smooth
+   swell on its own, never a run of them (that looked like waves) */
+const HILL = 6;
+const hillAt = (i) => { const v = Math.sin(i * 127.1 + 311.7) * 43758.5453, r = v - Math.floor(v); return r < 0.5 ? 0 : r < 0.78 ? 1 : -0.8; };
+export const ground = (d) => {
+  const u = d / HILL, i = Math.floor(u), f = u - i, e = (1 - Math.cos(f * Math.PI)) / 2;
+  /* (flat on the way between: a hill's only ever next to level ground) */
+  const a = i % 2 ? 0 : hillAt(i), b = (i + 1) % 2 ? 0 : hillAt(i + 1);
+  return 0.55 * (a + (b - a) * e);
+};
 const ELEV_N = 48, ELEV_A = 0.9, ELEV_LO = -0.1, ELEV_HI = 1.3;
 const flatY = (rel) => HORIZON + (BOTTOM - HORIZON) * (S(rel) - S(1)) / (S(RUN) - S(1));
 export function setElev(z, amp){

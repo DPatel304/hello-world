@@ -99,9 +99,11 @@ export const LEVELS = [
         ['nova', 'Your ship came down hard, on a planet nobody\'s ever explored. Trouble is, the crash knocked out your Star Core \u2014 it\'s what powers your ship. Without it, you can\'t fly home.', ''],
         ['nova', 'I\'m picking up its glow, somewhere out there. We need to find that Star Core!', 'FIND THE STAR CORE']
       ],
+      /* At the lookout, up on the ridge: the whole planet below. */
+      overlook: [['nova', 'Whoa... look at it all, crew. A whole new world \u2014 and it goes on for ever.', '']],
       /* ...and more of it, in the quiet between the creatures along the way. */
       lore: [
-        ['nova', 'Look at all this life, crew. Nobody\'s ever seen any of it before \u2014 you\'re the first!', ''],
+        ['nova', 'So much life out here, crew. Nobody\'s ever seen any of it before \u2014 you\'re the first!', ''],
         ['nova', 'Those crystals are bits of Star Core energy, scattered all over. It\'s like the planet\'s sharing them with you.', ''],
         ['nova', 'Everything out here is so big and gentle... I wonder what the biggest thing on this planet is.', '']
       ],

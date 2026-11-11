@@ -29,34 +29,31 @@ test('all of level 1 is the one place, and the only jump is the big one', () => 
   const key = PAL.world.key, kinds = new Set(inst.things.map(t => t.kind));
   for (const n of [1, 2, 3]){ corridor(inst, n); inst.things.forEach(t => kinds.add(t.kind)); assert.equal(PAL.world.key, key); }
   assert.ok(!kinds.has('gap') && !kinds.has('ledge'), 'no little ditches');
-  for (const k of ['narrow', 'wide', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
+  for (const k of ['overlook', 'herd', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
 });
 
-test('a herd of glimmerbacks takes the right of the path - everyone pushed over to the left - then wanders off, and it opens out and spreads them wide', () => {
-  story.on = false; crew(4);
-  const inst = game.create(4); quiet(inst);
-  inst.scene = null;
-  const spread = () => Math.max(...inst.here.map(i => inst.crew[i].x)) - Math.min(...inst.here.map(i => inst.crew[i].x));
-  for (let k = 0; k < 30; k++) inst.step(DT, W, H);
-  const normal = spread();
-  const nar = inst.things.find(t => t.kind === 'narrow');
-  const wide = inst.things.find(t => t.kind === 'wide');
-  while (inst.z + RUN < nar.d + 0.5) inst.step(DT, W, H);
-  for (let k = 0; k < 20; k++) inst.step(DT, W, H);
-  assert.ok(inst.herd && inst._flock().length > 10, 'the herd, alongside');
-  assert.ok(inst._flock().every(f => f.lane > -0.3), 'all on the right');
-  assert.ok(inst.here.every(i => inst.crew[i].x < -0.15), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
-  assert.ok(spread() < normal * 0.6, 'pushed together');
-  /* calm, in the first run: no trumbler - they just wander off to the right, in their own time */
-  assert.ok(!inst.trumblerAt(), 'nothing charging');
-  while (inst.herd && !inst.herd.called) inst.step(DT, W, H);
-  assert.equal(inst.trumpT, undefined, 'no call');
-  for (let k = 0; k < 10 / DT && inst.herdPush > 0; k++) inst.step(DT, W, H);
-  assert.equal(inst.herdPush, 0, 'the path theirs again');
-  while (inst.z + RUN < wide.d + 0.6) inst.step(DT, W, H);
-  for (let k = 0; k < 20; k++) inst.step(DT, W, H);
-  assert.ok(spread() > normal * 1.4, 'spread out');
+test('a herd of glimmerbacks going its own way: in from behind on the left, a few at first, building to a great many - quicker than the crew, on up the path ahead; nobody pushed about, nothing moved', () => {
+  story.on = false; crew(2);
+  const inst = game.create(2); quiet(inst);
+  inst.scene = null; inst.jog = false;
+  const herd = inst.things.find(t => t.kind === 'herd');
+  while (inst.z + RUN < herd.d) inst.step(DT, W, H);
+  inst.step(DT, W, H);
+  assert.ok(inst.herd && !inst.herd.charge, 'the herd, calm');
+  for (let k = 0; k < 1.5 / DT; k++) inst.step(DT, W, H);
+  assert.equal(inst._flock().length, 1, 'one to start with');
+  const one = inst._flock()[0];
+  assert.ok(one.lane < 0, 'in on the left');
+  for (let k = 0; k < 3 / DT; k++) inst.step(DT, W, H);
+  assert.equal(inst._flock().length, 3, 'then two more');
+  assert.ok(inst._flock()[0].rel > one.rel, 'quicker than the crew: on ahead');
+  for (let k = 0; k < 25 / DT; k++) inst.step(DT, W, H);
+  assert.ok(inst._flock().length > 40, `a great many (${inst._flock().length})`);
+  assert.equal(inst.herdPush, 0, 'nobody pushed about');
+  assert.ok(!inst.things.some(t => t.kind === 'crystal' && t.shifted), 'no crystals moved');
   inst.draw(fake(), W, H);
+  for (let k = 0; k < 60 / DT && inst.herd; k++) inst.step(DT, W, H);
+  assert.equal(inst.herd, null, 'and gone, on ahead');
 });
 
 test('the second run: off the trail, then the herd again - stampeding, a trumbler charging in behind it, giant feet and all', () => {
