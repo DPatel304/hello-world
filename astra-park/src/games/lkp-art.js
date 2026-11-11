@@ -25,11 +25,11 @@ export const HORIZON = 0.38;          /* screen heights */
 /* How thick the haze over the far end of the path is (1: as it was - so
    thick the way ahead was hard to make out; lower: clearer). */
 export const FOG = 0.4;
-/* How fast they run along the path, against how it was first made (0.5:
-   half as fast - an easier pace to keep up with, more time to see
+/* How fast they run along the path, against how it was first made (0.8:
+   a bit slower - an easier pace to keep up with, more time to see
    what's coming). Things placed by distance scale with it, so they come
    up at the same moments as before. */
-export const PACE = 0.5;
+export const PACE = 0.8;
 const BOTTOM = 0.97;                  /* where the crew's feet are */
 const HALF = 0.36;                    /* half the floor's width at the crew, in screen widths */
 const WALL = 1.15;                    /* the walls, in lanes */
