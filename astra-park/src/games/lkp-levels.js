@@ -99,6 +99,8 @@ export const LEVELS = [
         ['nova', 'Your ship came down hard, on a planet nobody\'s ever explored. Trouble is, the crash knocked out your Star Core \u2014 it\'s what powers your ship. Without it, you can\'t fly home.', ''],
         ['nova', 'I\'m picking up its glow, somewhere out there. We need to find that Star Core!', 'FIND THE STAR CORE']
       ],
+      /* At the ship, its bay scanned: empty (lkp-summit.js). */
+      shipCore: [['nova', 'Oh no... your Star Core is gone! It must have been thrown clear in the crash. Without it, the ship can\'t fly. Let\'s get up high and look for it.', 'STAR CORE: MISSING']],
       /* At the summit, looking out over the whole planet (lkp-summit.js). */
       summit: [['nova', 'Look at it all... The Star Core\'s signal is coming from down the river, crew. Let\'s follow it!', 'FOLLOW THE RIVER']],
       /* At the lookout, up on the ridge: the whole planet below. */

@@ -1070,6 +1070,8 @@ class LastKnownPosition {
   /* ...and down the far side onto the trail: the crash site left far behind, the run beginning */
   _fromSummit(){
     this.summit = null; this.captain.stay = story.on;
+    /* (her story's been told, at the ship) */
+    for (const th of this.things) if (th.kind === 'say' && th.line != null) th.said = true;
     const CRASHED = new Set(['ship', 'wreck', 'meadow', 'crawler', 'patch']);
     this.things = this.things.filter(t => !CRASHED.has(t.kind) && !(t.kind === 'tree' && t.n >= 70 && t.n < 100) && !(t.kind === 'chimes' && !t.ring));
     for (const i of this.here){ const rn = this.crew[i]; rn.pose = null; rn.look = 0; rn.played = true; }
@@ -1394,7 +1396,7 @@ class LastKnownPosition {
     rn.heal = Math.max(0, (rn.heal || 0) - dt * 2.5);
     /* The running stride: how hard (0..1) and where in it - a footstep at
        each half. Walking in a trap room goes by how much they move. */
-    const run = this.summit ? (this.summit.phase === 'walk' ? 0.35 : 0) : this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
+    const run = this.summit ? (this.summit.phase === 'walk' || this.summit.phase === 'ship' ? 0.35 : 0) : this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
       : this.ride && this.ride.on(i) ? 0
       : this.fight || rn.bubble || (this.zip && this.zip.holding(i)) || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
     rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);

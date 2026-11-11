@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import game, { story } from '../src/games/lkp-game.js';
-import { WALK, CLIMB, CREST, LOOK, SLIDE, PULL } from '../src/games/lkp-summit.js';
+import { SHIP, DWELL, WALK, CLIMB, CREST, LOOK, SLIDE, PULL } from '../src/games/lkp-summit.js';
 import { pose } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 30;
@@ -18,9 +18,25 @@ test('the summit: up the hill, CLIMB hand over hand, over the top - the world, t
   const said = []; const say = inst.captain.say.bind(inst.captain); inst.captain.say = (t, w, o) => { said.push(t); return say(t, w, o); };
   inst._toSummit();
   assert.ok(inst.summit, 'up on the mountain');
-  assert.equal(inst.summit.phase, 'walk');
+  assert.equal(inst.summit.phase, 'ship', 'over to the ship first');
   const z = inst.z;
   inst.draw(fake(), W, H);
+  run(inst, SHIP + 0.1);
+  assert.equal(inst.summit.phase, 'scan');
+  /* the scanner where they lean: the middle (the hull) - held there, scanned */
+  inst.leanOf = () => 0;
+  run(inst, DWELL + 0.8);
+  assert.ok(inst.summit.scanned[1], 'the hull scanned');
+  inst.draw(fake(), W, H);
+  /* the bay's locked till the rest are done; then: empty */
+  inst.leanOf = () => 1; run(inst, DWELL + 2.5);
+  assert.ok(inst.summit.scanned[2], 'the engines scanned');
+  inst.leanOf = () => -1; run(inst, DWELL + 2.5);
+  assert.ok(inst.summit.scanned[0], 'the bay: the Star Core missing');
+  assert.ok(said.includes(inst.level.lines.shipCore[0][1]), 'Nova: it\'s gone');
+  inst.leanOf = () => 0;
+  for (let k = 0; k < 40 / DT && inst.summit.phase !== 'walk'; k++) inst.step(DT, W, H);
+  assert.equal(inst.summit.phase, 'walk', 'then off toward the hilltop');
   run(inst, WALK + 0.1);
   assert.equal(inst.summit.phase, 'climb');
   assert.ok(Math.abs(inst.z - z) < 0.001, 'the run waiting below');
