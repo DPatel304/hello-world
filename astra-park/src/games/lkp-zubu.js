@@ -355,28 +355,16 @@ export function drawOnZubu(c, W, H, t, u, L){
   const sk = c.createLinearGradient(0, 0, 0, hz); sk.addColorStop(0, L.sky[0]); sk.addColorStop(0.6, L.sky[1]); sk.addColorStop(1, L.sky[3]);
   c.fillStyle = sk; c.fillRect(0, 0, W, hz + 2);
   const sg = c.createRadialGradient(W * 0.18, hz * 0.55, 0, W * 0.18, hz * 0.55, H * 0.4); sg.addColorStop(0, 'rgba(255,240,220,.7)'); sg.addColorStop(1, 'rgba(255,240,220,0)'); c.fillStyle = sg; c.fillRect(0, 0, W, hz);
-  /* far below: the land, hazy - mountains on the edge, woods, sliding slowly back */
-  const lg = c.createLinearGradient(0, hz, 0, H); lg.addColorStop(0, mixH(L.ground[0], L.haze, 0.75)); lg.addColorStop(1, mixH(L.ground[1], L.haze, 0.45));
-  c.fillStyle = lg; c.fillRect(0, hz, W, H - hz);
-  c.fillStyle = mixH(L.hillDark, L.haze, 0.6); c.beginPath(); c.moveTo(0, hz);
-  for (let k = 0; k <= 12; k++) c.lineTo(W * k / 12, hz - H * (0.03 + 0.04 * Math.abs(Math.sin(k * 1.9)))); c.lineTo(W, hz); c.closePath(); c.fill();
-  const drift = (t * 0.012) % 1;
-  for (let k = 0; k < 60; k++){
-    const a = (k / 60 + drift) % 1, x = W * ((k * 0.618) % 1), y = hz + (H * 0.3) * Math.pow(a, 1.6) + H * 0.005, r = H * (0.004 + 0.012 * a);
-    c.fillStyle = mixH(L.tree[k % 2], L.haze, 0.7 - 0.4 * a); c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
-  }
-  /* the glimmerbacks, specks grazing in a field down there */
-  for (let k = 0; k < 18; k++){ const x = W * (0.12 + 0.012 * (k % 6)) + Math.sin(t * 0.3 + k) * 2, y = hz + H * (0.06 + 0.006 * Math.floor(k / 6)); c.fillStyle = mixH('#6a5fc8', L.haze, 0.4); c.beginPath(); c.arc(x, y, H * 0.003, 0, TAU); c.fill(); }
-  /* the great legs, tiny on the land's edge, striding slowly */
-  { const gx = W * (0.82 - 0.05 * u), gy = hz + H * 0.004;
-    c.fillStyle = 'rgba(40,40,70,.25)'; c.beginPath(); c.ellipse(gx, gy + H * 0.004, H * 0.05, H * 0.006, 0, 0, TAU); c.fill();
-    c.strokeStyle = mixH('#3d4a66', L.haze, 0.55); c.lineWidth = H * 0.006; c.lineCap = 'round';
-    for (const [dx, ph] of [[-0.018, 0], [-0.006, 0.5], [0.008, 0.25], [0.02, 0.75]]){ const lift = Math.max(0, Math.sin((t / 2.8 + ph) * TAU)) * H * 0.006; c.beginPath(); c.moveTo(gx + dx * H * 2, gy - lift); c.lineTo(gx + dx * H * 2.2, gy - H * 0.09); c.stroke(); } }
-  /* clouds, drifting along under her, below the edge of her back */
-  for (let k = 0; k < 5; k++){
-    const a = ((t * 0.02 + k / 5) % 1), x = W * (-0.2 + 1.4 * ((k * 0.37 + a) % 1)), y = hz + H * (0.04 + 0.05 * (k % 3)), r = H * (0.05 + 0.03 * (k % 2));
-    c.fillStyle = 'rgba(251,242,255,.75)';
-    for (let j = 0; j < 4; j++){ c.beginPath(); c.arc(x + (j - 1.5) * r * 0.8, y - (j % 2) * r * 0.3, r * (0.7 + 0.2 * (j % 2)), 0, TAU); c.fill(); }
+  /* far below: the land she's carrying them over - hazy blue mountains on
+     the edge of the world, then row on row of rolling green hills, woods
+     on their crests, a creek winding through, a pond, a meadow where the
+     herd grazes - all sliding slowly back under her as she walks. */
+  landBelow(c, W, H, t, u, L, hz);
+  /* clouds, drifting along under her, below the edge of her back: flat-bottomed, lit on top */
+  for (let k = 0; k < 4; k++){
+    const a = ((t * 0.015 + k / 4) % 1), x = W * (-0.25 + 1.5 * ((k * 0.37 + a) % 1)), y = hz + H * (0.03 + 0.045 * (k % 3)), r = H * (0.035 + 0.02 * (k % 2));
+    const puff = (col, dy) => { c.fillStyle = col; c.beginPath(); c.ellipse(x - r * 1.1, y + dy, r * 0.9, r * 0.55, 0, Math.PI, TAU); c.ellipse(x, y - r * 0.25 + dy, r * 1.1, r * 0.8, 0, Math.PI, TAU); c.ellipse(x + r * 1.2, y + dy, r * 0.8, r * 0.5, 0, Math.PI, TAU); c.fill(); };
+    puff('rgba(214,200,240,.8)', 0); puff('rgba(255,248,255,.85)', -r * 0.12);
   }
   /* sky jellies, floating by at their height */
   for (let k = 0; k < 4; k++){
@@ -411,3 +399,74 @@ export function drawOnZubu(c, W, H, t, u, L){
   c.restore();
 }
 const mixH = (a, b, k) => { const h = (x) => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), A = h(a), B = h(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`; };
+
+/* The land below, seen from up on Zubu's back: rows of hills, nearest at
+   the bottom, each sliding down and growing as she walks on, new ones
+   coming up out of the haze at the horizon. */
+const hashZ = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+function landBelow(c, W, H, t, u, L, hz){
+  const N = 8, D = H * 0.26, p = t * 0.06, f = p - Math.floor(p), base = Math.floor(p);
+  /* the far mountains, two hazy ranges */
+  for (const [k, hgt, hzk] of [[0, 0.07, 0.6], [1, 0.045, 0.45]]){
+    c.fillStyle = mixH(k ? L.hillLit : L.hillDark, L.haze, hzk); c.beginPath(); c.moveTo(0, hz + 2);
+    for (let x = 0; x <= 24; x++) c.lineTo(W * x / 24, hz - H * hgt * (0.45 + 0.55 * Math.abs(Math.sin(x * (0.9 + k * 0.6) + k * 2)) * (0.6 + 0.4 * Math.sin(x * 0.31))));
+    c.lineTo(W, hz + 2); c.closePath(); c.fill();
+  }
+  c.fillStyle = mixH(L.ground[0], L.haze, 0.8); c.fillRect(0, hz, W, H - hz);
+  const rowY = (a) => hz + D * Math.pow(1 - a, 2.1), rowS = (a) => 0.2 + 1.3 * Math.pow(1 - a, 1.6);
+  const creekX = (id) => W * (0.5 + 0.28 * Math.sin(id * 0.55) + 0.1 * Math.sin(id * 1.3));
+  const crest = (id, a, x) => rowY(a) - H * 0.04 * rowS(a) * (0.6 + 0.4 * Math.sin(x / W * (4 + 3 * hashZ(id)) + id * 1.7));
+  for (let j = N; j >= 0; j--){
+    const a = (j + 1 - f) / (N + 1), id = base + j, sc = rowS(a), fog = 0.72 - 0.62 * Math.pow(1 - a, 0.7);
+    if (a <= 0) continue;
+    /* the hill: lit on top, darker below */
+    const g = c.createLinearGradient(0, rowY(a) - H * 0.03 * sc, 0, rowY(a) + H * 0.08 * sc);
+    g.addColorStop(0, mixH(j % 2 ? L.grass[0] : '#8fd0a0', L.haze, fog)); g.addColorStop(1, mixH(L.ground[2], L.haze, fog));
+    c.fillStyle = g; c.beginPath(); c.moveTo(0, H);
+    for (let x = 0; x <= 32; x++) c.lineTo(W * x / 32, crest(id, a, W * x / 32)); c.lineTo(W, H); c.closePath(); c.fill();
+    /* the creek, winding down this hill to the next one */
+    const a2 = Math.max(0, a - 1 / (N + 1)), x1 = creekX(id), x2 = creekX(id - 1), w1 = W * 0.012 * sc, w2 = W * 0.012 * rowS(a2);
+    const y1 = crest(id, a, x1) + H * 0.004 * sc, y2 = rowY(a2) + H * 0.01;
+    c.fillStyle = mixH(L.water, L.haze, fog * 0.8); c.beginPath(); c.moveTo(x1 - w1, y1); c.bezierCurveTo(x1 - w1, (y1 + y2) / 2, x2 - w2, (y1 + y2) / 2, x2 - w2, y2); c.lineTo(x2 + w2, y2); c.bezierCurveTo(x2 + w2, (y1 + y2) / 2, x1 + w1, (y1 + y2) / 2, x1 + w1, y1); c.closePath(); c.fill();
+    const kind = hashZ(id * 3.1);
+    /* now and then a pond, shining - or a meadow, with the herd grazing on it */
+    if (kind < 0.18){
+      const px = W * (0.15 + 0.7 * hashZ(id + 9)), py = rowY(a) + H * 0.025 * sc;
+      c.fillStyle = mixH(L.water, L.haze, fog * 0.7); c.beginPath(); c.ellipse(px, py, W * 0.05 * sc, H * 0.012 * sc, 0, 0, TAU); c.fill();
+      c.fillStyle = `rgba(255,255,255,${0.5 * (1 - fog)})`; c.beginPath(); c.ellipse(px - W * 0.012 * sc, py - H * 0.003 * sc, W * 0.018 * sc, H * 0.003 * sc, 0, 0, TAU); c.fill();
+    } else if (kind > 0.82){
+      const mx = W * (0.15 + 0.7 * hashZ(id + 5)), my = rowY(a) + H * 0.02 * sc;
+      for (let k = 0; k < 28; k++){
+        const dx = (hashZ(id * 7 + k) - 0.5) * W * 0.07 * sc, dy = (hashZ(id * 11 + k) - 0.5) * H * 0.012 * sc, bob = Math.sin(t * 2 + k) * H * 0.001 * sc;
+        c.fillStyle = mixH(k % 3 ? '#6a5fc8' : '#8f84e0', L.haze, fog * 0.8); c.beginPath(); c.ellipse(mx + dx, my + dy + bob, H * 0.005 * sc, H * 0.0035 * sc, 0, 0, TAU); c.fill();
+      }
+    }
+    /* woods: groves packed along the crest - a dark mass, lit round tops - and a few lone trees between */
+    const grove = (gx0, gw, seed) => {
+      const step = H * 0.014 * sc, n = Math.max(2, Math.floor(gw / step));
+      const tops = [];
+      for (let k = 0; k <= n; k++){ const x = gx0 + gw * k / n, e = Math.sin(k / n * Math.PI); tops.push([x, crest(id, a, x) + H * 0.006 * sc, H * (0.012 + 0.016 * e + 0.008 * hashZ(seed + k)) * sc]); }
+      c.fillStyle = mixH(L.tree[1], L.haze, fog); for (const [x, y, r] of tops){ c.beginPath(); c.arc(x, y - r * 0.8, r, 0, TAU); c.fill(); }
+      c.fillStyle = mixH(L.tree[0], L.haze, fog); for (const [x, y, r] of tops){ c.beginPath(); c.arc(x - r * 0.25, y - r * 1.05, r * 0.62, 0, TAU); c.fill(); }
+    };
+    const nG = 1 + Math.floor(hashZ(id + 2) * 3);
+    for (let k = 0; k < nG; k++){ const gw = W * (0.12 + 0.25 * hashZ(id * 5 + k)), gx0 = W * (-0.1 + 1.1 * hashZ(id * 7 + k * 3)); if (!(x1 > gx0 && x1 < gx0 + gw)) grove(gx0, gw, id * 31 + k * 7); }
+    for (let k = 0; k < 6; k++){
+      const x = W * hashZ(id * 13 + k), y = crest(id, a, x) + H * 0.008 * sc, r = H * 0.014 * sc;
+      if (Math.abs(x - x1) < W * 0.03 * sc) continue;
+      c.fillStyle = mixH(L.tree[1], L.haze, fog); c.beginPath(); c.moveTo(x - r * 0.8, y); c.lineTo(x, y - r * 2.8); c.lineTo(x + r * 0.8, y); c.closePath(); c.fill();
+      c.fillStyle = mixH(L.tree[0], L.haze, fog); c.beginPath(); c.moveTo(x - r * 0.1, y - r * 0.5); c.lineTo(x, y - r * 2.8); c.lineTo(x - r * 0.72, y - r * 0.15); c.closePath(); c.fill();
+    }
+  }
+  /* the great legs, far off by the mountains, striding slowly: a long hazy hump of a body over thick legs */
+  const gx = W * (0.84 - 0.05 * u), gy = hz + H * 0.006, fogG = 0.62;
+  c.fillStyle = 'rgba(40,40,70,.18)'; c.beginPath(); c.ellipse(gx, gy + H * 0.004, H * 0.06, H * 0.006, 0, 0, TAU); c.fill();
+  c.fillStyle = mixH('#3d4a66', L.haze, fogG);
+  for (const [dx, ph] of [[-0.04, 0], [-0.016, 0.5], [0.014, 0.25], [0.036, 0.75]]){
+    const lift = Math.max(0, Math.sin((t / 2.8 + ph) * TAU)) * H * 0.006, lx = gx + dx * H;
+    c.beginPath(); c.roundRect(lx - H * 0.006, gy - H * 0.07 - lift, H * 0.012, H * 0.07, H * 0.004); c.fill();
+  }
+  /* (a long low back, and its neck stretched out ahead, as it lumbers off) */
+  c.beginPath(); c.ellipse(gx, gy - H * 0.068, H * 0.075, H * 0.035, 0, Math.PI, TAU); c.ellipse(gx, gy - H * 0.068, H * 0.075, H * 0.01, 0, 0, Math.PI); c.fill();
+  c.beginPath(); c.moveTo(gx - H * 0.06, gy - H * 0.08); c.quadraticCurveTo(gx - H * 0.1, gy - H * 0.1, gx - H * 0.12, gy - H * 0.085); c.lineTo(gx - H * 0.115, gy - H * 0.072); c.quadraticCurveTo(gx - H * 0.09, gy - H * 0.08, gx - H * 0.055, gy - H * 0.065); c.closePath(); c.fill();
+}
