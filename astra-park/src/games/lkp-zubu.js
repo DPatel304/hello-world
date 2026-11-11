@@ -101,16 +101,26 @@ export function drawZubuWall(c, W, H, light, t){
      the rest of her going up and away off the screen) */
   /* the rest of her, behind: her great side rising up behind the glade, right across, off the top */
   const breathe = Math.sin(t / SNORE * TAU) * H * 0.006;
-  form(c, [[-0.05 * W, 0.55 * H], [0.25 * W, 0.04 * H - breathe], [0.62 * W, 0.12 * H - breathe], [0.9 * W, 0.26 * H - breathe], [1.05 * W, 0.36 * H], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]], ZUBU.body, H, 0.4);
+  const side = [[-0.05 * W, 0.55 * H], [0.25 * W, 0.04 * H - breathe], [0.62 * W, 0.12 * H - breathe], [0.9 * W, 0.26 * H - breathe], [1.05 * W, 0.36 * H], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]];
+  /* her side is further back and in her own shade - a deeper tone - so her head stands out in front of it;
+     and the low sun catches her back's top edge, so her shape reads against the sky */
+  form(c, side, '#cf8670', H, 0.25);
+  rim(c, side.slice(0, 5), H);
   freckles(c, [[0.45, 0.14], [0.58, 0.16], [0.7, 0.2], [0.82, 0.27], [0.52, 0.28], [0.66, 0.32], [0.88, 0.38]].map(([u, v]) => [u * W, v * H]), H * 0.007);
-  const at = { ...WALL, x: (W * EYE[0] + H * WALL.size * 0.4) / W, y: EYE[1] + WALL.size * 0.2 };
+  const at = { ...WALL, x: (W * EYE[0] + H * WALL.size * 0.4) / W, y: EYE[1] + WALL.size * 0.2, rim: true };
   drawZubuAsleep(c, W, H, light, t, at);
+}
+/* A line of sunlight just inside an edge, with a dark edge outside it. */
+function rim(c, pts, H){
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  path(c, pts, false); c.strokeStyle = ZUBU.line; c.lineWidth = H * 0.012; c.stroke();
+  c.save(); c.translate(0, H * 0.008); path(c, pts, false); c.strokeStyle = 'rgba(255,226,190,.75)'; c.lineWidth = H * 0.006; c.stroke(); c.restore();
 }
 /* Where her head is, in the wall: and its snore, drawn over the trees.
    (Seen from well back - so all of her head's in view, and her great side
    behind - and everything else in the glade small against her: the
    trees, the crew. Her eye small for her size, as a great creature's is.) */
-const WALL = { x: 0.95, y: 0.98, size: 1.4, shadow: false, snore: false, eye: 0.65 };
+const WALL = { x: 0.95, y: 0.98, size: 0.85, shadow: false, snore: false, eye: 1.05 };
 /* (where her big eye is on the screen, fractions) */
 const EYE = [0.345, 0.52];
 export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * EYE[0] + H * WALL.size * 0.4, H * (EYE[1] + WALL.size * 0.2), H * 0.6); }
@@ -135,7 +145,9 @@ export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 
   path(c, U(x0, y0, S, [[0.02, 0.05], [-0.4, 0.1], [-1.2, 0.12], [-2.4, 0.06], [-2.4, 0.6], [0, 0.6]])); c.fillStyle = ZUBU.belly; c.fill();
   c.strokeStyle = 'rgba(192,144,128,.35)'; c.lineWidth = S * 0.006;
   for (let k = 0; k < 4; k++){ path(c, U(x0, y0, S, [[-0.15, 0.18 + k * 0.045], [-0.7, 0.24 + k * 0.045], [-1.6, 0.22 + k * 0.04]]), false); c.stroke(); }
-  c.restore(); path(c, head); c.strokeStyle = ZUBU.line; c.lineWidth = S * 0.008; c.stroke();
+  c.restore(); path(c, head); c.strokeStyle = ZUBU.line; c.lineWidth = at.rim ? H * 0.012 : S * 0.008; c.stroke();
+  /* (seen from far back, as a great dark-edged, sunlit shape: brow and snout) */
+  if (at.rim) rim(c, U(x0, y0, S, [[-2.4, -0.7], [-1.4, -0.76], [-0.7, -0.74], [-0.25, -0.58], [-0.04, -0.3], [0, 0]]), H);
   freckles(c, U(x0, y0, S, [[-0.5, -0.45], [-0.82, -0.56], [-1.1, -0.4], [-0.33, -0.3], [-1.4, -0.55], [-0.95, -0.24]]), S * 0.01);
   /* a wing-fin draped on the grass in front */
   form(c, U(x0, y0, S, [[-0.6, 0.32], [-0.2, 0.44], [0.25, 0.52], [0.15, 0.58], [-0.5, 0.57], [-1.2, 0.5]]), ZUBU.fin, S);
@@ -144,7 +156,9 @@ export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 
   /* its garden */
   garden(c, x0 - S * 0.95, y0 - S * 0.77, S * 0.6, S * 0.1, S * 0.9, t, -0.1);
   /* its eyes: shut fast asleep; one peeking when it stirs; open on red */
-  const big = [x0 - S * 0.4, y0 - S * 0.2], small = [x0 - S * 0.62, y0 - S * 0.42], E = S * (at.eye || 1);
+  const big = [x0 - S * 0.4, y0 - S * 0.2], E = S * (at.eye || 1);
+  /* (her far eye: hidden round the curve of her head when she's seen side on from far back) */
+  const small = at.rim ? [-1e4, -1e4] : [x0 - S * 0.62, y0 - S * 0.42];
   if (light === 'red'){ eye(c, big[0], big[1], E * 0.065, 0.6); eye(c, small[0], small[1], E * 0.035, 0.6); }
   else if (light === 'yellow'){
     shut(c, big[0], big[1], E * 0.07, E * 0.014);
