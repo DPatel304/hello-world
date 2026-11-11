@@ -99,15 +99,22 @@ export function drawZubuWall(c, W, H, light, t){
   /* (so big now - five times what she was - that all there is of her is
      one great sleeping eye and her cheek, filling the glade's left side,
      the rest of her going up and away off the screen) */
-  const at = { ...WALL, x: (W * 0.27 + H * WALL.size * 0.4) / W };
+  /* the rest of her, behind: her great side rising up behind the glade, right across, off the top */
+  const breathe = Math.sin(t / SNORE * TAU) * H * 0.006;
+  form(c, [[-0.05 * W, 0.6 * H], [0.35 * W, 0.08 * H - breathe], [0.7 * W, -0.02 * H - breathe], [1.05 * W, -0.04 * H], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]], ZUBU.body, H, 0.4);
+  freckles(c, [[0.58, 0.22], [0.7, 0.15], [0.84, 0.12], [0.95, 0.2], [0.66, 0.34], [0.9, 0.36], [0.78, 0.44]].map(([u, v]) => [u * W, v * H]), H * 0.009);
+  const at = { ...WALL, x: (W * EYE[0] + H * WALL.size * 0.4) / W, y: EYE[1] + WALL.size * 0.2 };
   drawZubuAsleep(c, W, H, light, t, at);
 }
 /* Where her head is, in the wall: and its snore, drawn over the trees.
-   (Her big eye at a quarter across, a third down; she's over 3 screens tall.) */
-const WALL = { x: 0.95, y: 0.98, size: 3.4, shadow: false, snore: false };
-export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * 0.27 + H * WALL.size * 0.4, H * WALL.y, H * 0.6); }
+   (Seen from further back: her eye, cheek and smile, the rest of her - her
+   head nearly two screens tall - going up off the screen.) */
+const WALL = { x: 0.95, y: 0.98, size: 1.8, shadow: false, snore: false };
+/* (where her big eye is on the screen, fractions) */
+const EYE = [0.24, 0.45];
+export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * EYE[0] + H * WALL.size * 0.4, H * (EYE[1] + WALL.size * 0.2), H * 0.6); }
 /* Where her eyes are on screen (fractions): kept clear of trees. */
-export const WALL_EYES = { x0: 0.14, x1: 0.4, y0: 0.14, y1: 0.58 };
+export const WALL_EYES = { x0: 0.15, x1: 0.34, y0: 0.32, y1: 0.6 };
 
 export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 0.44, shadow: true }){
   const S = H * at.size, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;

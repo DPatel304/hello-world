@@ -74,7 +74,8 @@ export function Q(lane, along, W, H){
    lane -1..1 a little nearer or further (lower and bigger, or higher). */
 export function QS(lane, along, W, H){
   const u = Math.max(-0.1, Math.min(1.15, along));
-  return { x: W * (0.1 + 0.8 * u + lane * 0.08), y: H * (0.89 + lane * 0.03), k: 1.15 + lane * 0.06 };
+  /* (the crew small against her - seen from further back) */
+  return { x: W * (0.1 + 0.8 * u + lane * 0.08), y: H * (0.89 + lane * 0.03), k: 0.85 + lane * 0.05 };
 }
 
 const rand = ([a, b]) => a + Math.random() * (b - a);
@@ -178,7 +179,7 @@ export class Lights {
       const u = 1 - this.reveal / REVEAL, e = u * u * (3 - 2 * u), z = Math.exp(Math.log(2.6) * (1 - e));
       /* (from close on her sleeping face, up on the left, out to the whole glade - never past its edges) */
       const hw = W / (2 * z), hh = H / (2 * z);
-      const cx = Math.max(hw, Math.min(W - hw, W * (0.24 + 0.26 * e))), cy = Math.max(hh, Math.min(H - hh, H * (0.36 + 0.14 * e)));
+      const cx = Math.max(hw, Math.min(W - hw, W * (0.24 + 0.26 * e))), cy = Math.max(hh, Math.min(H - hh, H * (0.45 + 0.05 * e)));
       c.save(); c.translate(W / 2, H / 2); c.scale(z, z); c.translate(-cx, -cy);
       this._draw(c, W, H, drawCrew);
       c.restore();
