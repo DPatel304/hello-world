@@ -65,8 +65,10 @@ export const story = { on: true };
 /* For now, while the world's being built: the real game starts where the
    crew first set off running, the opening skipped (skipOpening: false to
    see it again). Only in the browser - the tests and the screenshot tool
-   always have the opening. */
-export const DEV = { skipOpening: !(typeof process !== 'undefined' && process.versions && process.versions.node) && typeof location !== 'undefined' && !/[?&]opening\b/.test(location.search) };
+   always have the opening. startAt: 'overlook' - and straight on to the
+   last stretch of the walk up to the lookout, the moment being worked on
+   (null for the whole first corridor). */
+export const DEV = { skipOpening: !(typeof process !== 'undefined' && process.versions && process.versions.node) && typeof location !== 'undefined' && !/[?&]opening\b/.test(location.search), startAt: 'overlook' };
 /* The choosing screens, on or off. Off (for now, while they're
    reworked): a level up is more health for everyone, straight away; and
    at the depot everyone's handed a knife. */
@@ -686,6 +688,13 @@ class LastKnownPosition {
       this.fromRun = false;
       for (const rn of this.crew) rn.hp = Math.round(rn.max * START);
       for (const i of this.here){ this.crew[i].played = true; this.crew[i].x = this._home(i); }
+      /* (for now, while it's being worked on: straight to the last stretch up to the lookout) */
+      const ov = this.things.find(t => t.kind === 'overlook');
+      if (ov && DEV.startAt === 'overlook'){
+        const z = ov.d - RUN - OVERLOOK.stop - 0.3;
+        for (const th of this.things) if (th.kind === 'say' && th.d - RUN <= z) th.said = true;
+        this.z = Math.max(this.z, z);
+      }
     }
     /* the pond's view: the camera easing up while they rest, back after */
     this.quake = Math.max(0, (this.quake || 0) - dt * 1.6);
