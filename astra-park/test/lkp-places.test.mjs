@@ -32,7 +32,7 @@ test('all of level 1 is the one place, and the only jump is the big one', () => 
   for (const k of ['narrow', 'wide', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
 });
 
-test('a herd of glimmerbacks takes the right of the path - everyone pushed over to the left - then it opens out and spreads them wide', () => {
+test('a herd of glimmerbacks takes the right of the path - everyone pushed over to the left - then wanders off, and it opens out and spreads them wide', () => {
   story.on = false; crew(4);
   const inst = game.create(4); quiet(inst);
   inst.scene = null;
@@ -47,16 +47,29 @@ test('a herd of glimmerbacks takes the right of the path - everyone pushed over 
   assert.ok(inst._flock().every(f => f.lane > -0.3), 'all on the right');
   assert.ok(inst.here.every(i => inst.crew[i].x < -0.15), `everyone over on the left (${inst.here.map(i => inst.crew[i].x.toFixed(2))})`);
   assert.ok(spread() < normal * 0.6, 'pushed together');
-  /* a trumbler walking in from the bottom right - and they make way, off to the right */
-  while (inst.herd && !inst.trumblerAt()) inst.step(DT, W, H);
-  assert.ok(inst.trumblerAt() && inst.trumblerAt().rel < 0.2, 'charging in from behind');
+  /* calm, in the first run: no trumbler - they just wander off to the right, in their own time */
+  assert.ok(!inst.trumblerAt(), 'nothing charging');
   while (inst.herd && !inst.herd.called) inst.step(DT, W, H);
-  assert.ok(inst.trumpT != null, 'its call');
-  for (let k = 0; k < 8 / DT && inst.herdPush > 0; k++) inst.step(DT, W, H);
+  assert.equal(inst.trumpT, undefined, 'no call');
+  for (let k = 0; k < 10 / DT && inst.herdPush > 0; k++) inst.step(DT, W, H);
   assert.equal(inst.herdPush, 0, 'the path theirs again');
   while (inst.z + RUN < wide.d + 0.6) inst.step(DT, W, H);
   for (let k = 0; k < 20; k++) inst.step(DT, W, H);
   assert.ok(spread() > normal * 1.4, 'spread out');
+  inst.draw(fake(), W, H);
+});
+
+test('the second run: off the trail, then the herd again - stampeding, a trumbler charging in behind it, giant feet and all', () => {
+  story.on = false; crew(2);
+  const inst = game.create(2); quiet(inst);
+  corridor(inst, 1);
+  assert.ok(inst.things.some(t => t.kind === 'footprint') && inst.things.some(t => t.kind === 'blocker' && t.fallen), 'the trampled trail');
+  for (let k = 0; k < 120 / DT && !inst.herd; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  assert.ok(inst.herd && inst.herd.charge, 'the herd, stampeding');
+  for (let k = 0; k < 30 / DT && inst.herd && !inst.trumblerAt(); k++) inst.step(DT, W, H);
+  assert.ok(inst.trumblerAt(), 'the trumbler charging in');
+  for (let k = 0; k < 30 / DT && inst.herd && !inst.herd.called; k++) inst.step(DT, W, H);
+  assert.ok(inst.trumpT != null, 'its call');
   inst.draw(fake(), W, H);
 });
 

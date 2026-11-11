@@ -138,10 +138,14 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   for (let k = 0; k < (REST_MAX + 40) / DT && inst.rest; k++){ if (inst.rest.phase === 'far') assert.ok(inst.farStirU >= 0, 'the far ridge, the trees coming down'); inst.step(DT, W, H); }
   assert.equal(inst.rest, null);
   assert.equal(inst.crew[0].hp, inst.crew[0].max, 'full');
-  assert.ok(said.includes(inst.level.lines.offTrail[0][1]), 'off the trail');
-  assert.ok(!inst.captain.stay && inst.mood > -1, 'and the calm start over');
+  assert.ok(inst.lookT != null, 'and far off, one deep rumble: they look round');
+  assert.ok(!inst.captain.stay, 'her window down again');
   run(inst, 1);
   assert.ok(inst.z > z + SPEED * 0.5, 'and on they go');
+  /* into the next run: off the trail after it - and the calm start over */
+  for (let k = 0; k < 40 / DT && !said.includes(inst.level.lines.offTrail[0][1]); k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  assert.ok(said.includes(inst.level.lines.offTrail[0][1]), 'off the trail');
+  assert.ok(inst.mood > -1, 'the calm start over');
   story.on = false;
 });
 
@@ -164,6 +168,11 @@ test('the captain gives each tip once, as it comes', () => {
   const say = inst.captain.say.bind(inst.captain);
   inst.captain.say = (text, words, o) => { const ok = say(text, words, o); if (ok) said.push(words); return ok; };
   for (let k = 0; k < 260 / DT && inst.step_ === 0; k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
+  /* (the first run's a calm walk: crystals, and nothing to dodge) */
+  assert.equal(said.filter(s => s === 'CRYSTALS!').length, 1, said.join(', '));
+  assert.ok(!said.includes('LEAN!'), 'nothing to dodge yet');
+  /* off the trail in the next: the fallen trees */
+  for (let k = 0; k < 60 / DT && !said.includes('LEAN!'); k++){ if (inst.levelup) inst.levelup.t = 1e9; inst.step(DT, W, H); }
   for (const w of ['CRYSTALS!', 'LEAN!']) assert.equal(said.filter(s => s === w).length, 1, `${w}: ${said}`);
   /* (nothing said about the herd, or the path opening out: they just happen) */
   assert.ok(!said.includes('MOVE LEFT!') && !said.includes('SPREAD OUT!'));

@@ -627,3 +627,80 @@ export function giantShadow(c, W, H, x, y, k){
   c.fillStyle = 'rgba(20,15,45,.12)'; c.beginPath(); c.ellipse(x, y, H * 1.5 * k, H * 0.22 * k, 0, 0, TAU); c.fill();
   c.restore();
 }
+
+/* ---------- the first corridor's creatures: a nature walk ---------- */
+
+/* A burrow puff: a little round fluffy thing that lives in a hole by the
+   path - popping up as you come by (pop 0..1), tossing a crystal out to
+   you, and ducking back in. Its mound, and it in it. */
+export function burrowPuff(c, x, y, s, t, pop, haze, L, n = 0){
+  const col = (k) => mixHex(k, L.haze, haze);
+  /* the mound, and the hole in its top */
+  c.fillStyle = col(mixHex(L.ground[1], '#6b5a46', 0.45)); c.beginPath(); c.ellipse(x, y, s * 0.9, s * 0.32, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = col(mixHex(L.ground[0], '#8a7458', 0.35)); c.beginPath(); c.ellipse(x - s * 0.15, y - s * 0.12, s * 0.55, s * 0.14, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = col('#2a2040'); c.beginPath(); c.ellipse(x, y - s * 0.22, s * 0.36, s * 0.1, 0, 0, TAU); c.fill();
+  if (pop <= 0.01) return;
+  /* it, coming up out of the hole: round, fluffy, two little ears, big eyes */
+  c.save(); c.beginPath(); c.rect(x - s, y - s * 2.2, s * 2, s * 2.2 - s * 0.22); c.clip();
+  const up = pop * s * 0.85, cy = y - s * 0.22 - up + s * 0.35, r = s * 0.36, bob = Math.sin(t * 9 + n) * s * 0.02 * pop;
+  const body = ['#f3b8d8', '#c9b8f3', '#f6cf9a'][n % 3];
+  c.fillStyle = col(mixHex(body, '#5a3a6a', 0.25)); circ0(c, x, cy + bob, r);
+  c.fillStyle = col(body); circ0(c, x - r * 0.18, cy - r * 0.15 + bob, r * 0.82);
+  for (const d of [-1, 1]){ c.fillStyle = col(mixHex(body, '#5a3a6a', 0.2)); c.beginPath(); c.ellipse(x + d * r * 0.55, cy - r * 0.85 + bob, r * 0.2, r * 0.38, d * 0.4, 0, TAU); c.fill(); }
+  c.fillStyle = col('#2a1a30'); for (const d of [-1, 1]) circ0(c, x + d * r * 0.32, cy - r * 0.1 + bob, r * 0.13);
+  c.fillStyle = 'rgba(255,255,255,.9)'; for (const d of [-1, 1]) circ0(c, x + d * r * 0.32 - r * 0.04, cy - r * 0.15 + bob, r * 0.05);
+  c.fillStyle = col('#ff9ab8'); circ0(c, x, cy + r * 0.12 + bob, r * 0.07);
+  c.restore();
+}
+
+/* Flutterlights: a little swarm of glowing moth-things, fluttering along
+   ahead of the crew - and leaving crystals where they've been. Each its
+   own wobble round the swarm's middle; away (0..1) as they lift off. */
+export function flutterSwarm(c, x, y, s, t, haze, away = 0){
+  for (let k = 0; k < 14; k++){
+    const a = k * 2.399, ph = t * (2.2 + 0.3 * (k % 4)) + k, rx = s * (0.5 + 0.6 * ((k * 37) % 10) / 10);
+    const fx = x + Math.cos(a + t * 0.6) * rx + Math.sin(ph) * s * 0.12, fy = y - s * 0.3 + Math.sin(a * 1.7 + t * 0.8) * s * 0.35 + Math.cos(ph * 1.3) * s * 0.08 - away * s * 3 * (0.6 + 0.4 * (k % 3));
+    const w = s * 0.11 * (0.8 + 0.3 * (k % 2)), flap = Math.abs(Math.sin(t * 14 + k));
+    const col = mixHex(k % 3 ? '#fff2b0' : '#bff4ff', '#ffffff', 0.2);
+    c.globalAlpha = (1 - haze * 0.7) * (1 - away);
+    c.fillStyle = 'rgba(255,245,200,.25)'; circ0(c, fx, fy, w * 1.6);
+    c.fillStyle = mixHex(col, '#c8a8e8', 0.25);
+    for (const d of [-1, 1]){ c.beginPath(); c.ellipse(fx + d * w * 0.55, fy, w * 0.6, w * 0.4 * (0.3 + 0.7 * flap), d * 0.5, 0, TAU); c.fill(); }
+    c.fillStyle = col; circ0(c, fx, fy, w * 0.22);
+  }
+  c.globalAlpha = 1;
+}
+
+/* A long-neck: a tall, gentle grazer, stepping slowly across the path
+   far ahead - so tall the crew run right between its legs, its belly
+   high overhead. Its legs (each [x, y, lift] on the ground, screen),
+   how tall it stands (px), which way it's going (dir: -1 left). */
+export function longNeck(c, legs, hgt, t, haze, L, dir = -1){
+  const col = (k) => mixHex(k, L.haze, haze);
+  const xs = legs.map(l => l[0]), x0 = Math.min(...xs), x1 = Math.max(...xs), yb = Math.min(...legs.map(l => l[1])) - hgt;
+  const bw = (x1 - x0) * 0.75 + hgt * 0.15, bx = (x0 + x1) / 2, bh = hgt * 0.26;
+  const dark = '#6f86b0', lit = '#a9c0e2';
+  /* its legs: long and slender, a knee in each, far ones darker */
+  legs.forEach(([lx, ly, lift], k) => {
+    const far = k >= 2, top = [bx + (lx - bx) * 0.55, yb + bh * 0.3], footY = ly - lift * hgt * 0.06, w = hgt * (far ? 0.03 : 0.036);
+    const knee = [lx + (top[0] - lx) * 0.35 - dir * w * 0.6, footY - (footY - top[1]) * 0.45];
+    c.strokeStyle = col(far ? mixHex(dark, '#3a3466', 0.3) : dark); c.lineWidth = w * 2; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(top[0], top[1]); c.lineTo(knee[0], knee[1]); c.lineTo(lx, footY); c.stroke();
+    if (!far){ c.strokeStyle = col(lit); c.lineWidth = w * 0.6; c.beginPath(); c.moveTo(top[0] - w * 0.5, top[1]); c.lineTo(knee[0] - w * 0.5, knee[1]); c.lineTo(lx - w * 0.5, footY); c.stroke(); }
+    c.fillStyle = col('#3a3466'); c.beginPath(); c.ellipse(lx, footY, w * 1.3, w * 0.5, 0, 0, TAU); c.fill();
+  });
+  /* its body: a long soft barrel, lit on top, spotted */
+  c.fillStyle = col(dark); c.beginPath(); c.ellipse(bx, yb, bw * 0.5, bh, 0, 0, TAU); c.fill();
+  c.fillStyle = col(lit); c.beginPath(); c.ellipse(bx - bw * 0.04, yb - bh * 0.3, bw * 0.44, bh * 0.62, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = col('#c8d8f0'); for (let k = 0; k < 6; k++) circ0(c, bx + (k / 5 - 0.5) * bw * 0.7, yb - bh * (0.35 + 0.25 * Math.sin(k * 2.1)), bh * 0.12);
+  /* its tail, swishing */
+  const tx = bx - dir * bw * 0.5; c.strokeStyle = col(dark); c.lineWidth = bh * 0.12; c.beginPath(); c.moveTo(tx, yb); c.quadraticCurveTo(tx - dir * bh * 0.6, yb + bh * 0.3, tx - dir * bh * (0.7 + 0.2 * Math.sin(t * 2)), yb + bh * 1.1); c.stroke();
+  /* its long neck, up and forward, and its small head, chewing */
+  const nx = bx + dir * bw * 0.42, ny = yb - bh * 0.4, hx = nx + dir * hgt * 0.42, hy = yb - hgt * 0.62 + Math.sin(t * 0.7) * hgt * 0.02;
+  c.strokeStyle = col(dark); c.lineWidth = bh * 0.42; c.lineCap = 'round'; c.beginPath(); c.moveTo(nx, ny); c.quadraticCurveTo(nx + dir * hgt * 0.06, hy + hgt * 0.2, hx, hy); c.stroke();
+  c.strokeStyle = col(lit); c.lineWidth = bh * 0.18; c.beginPath(); c.moveTo(nx - bh * 0.1, ny - bh * 0.15); c.quadraticCurveTo(nx + dir * hgt * 0.05 - bh * 0.1, hy + hgt * 0.25, hx - bh * 0.1, hy - bh * 0.1); c.stroke();
+  c.fillStyle = col(dark); c.beginPath(); c.ellipse(hx + dir * bh * 0.3, hy, bh * 0.62, bh * 0.36, dir * 0.3, 0, TAU); c.fill();
+  c.fillStyle = col(lit); c.beginPath(); c.ellipse(hx + dir * bh * 0.2, hy - bh * 0.08, bh * 0.38, bh * 0.16, dir * 0.3, Math.PI, TAU); c.fill();
+  c.fillStyle = col('#2a1a30'); circ0(c, hx + dir * bh * 0.2, hy - bh * 0.05, bh * 0.06);
+  for (const d of [0, 1]){ c.strokeStyle = col(dark); c.lineWidth = bh * 0.06; c.beginPath(); c.moveTo(hx - dir * bh * 0.05, hy - bh * 0.2); c.lineTo(hx - dir * bh * (0.1 + d * 0.15), hy - bh * 0.6); c.stroke(); }
+}

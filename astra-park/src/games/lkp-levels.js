@@ -99,6 +99,12 @@ export const LEVELS = [
         ['nova', 'Your ship came down hard, on a planet nobody\'s ever explored. Trouble is, the crash knocked out your Star Core \u2014 it\'s what powers your ship. Without it, you can\'t fly home.', ''],
         ['nova', 'I\'m picking up its glow, somewhere out there. We need to find that Star Core!', 'FIND THE STAR CORE']
       ],
+      /* ...and more of it, in the quiet between the creatures along the way. */
+      lore: [
+        ['nova', 'Look at all this life, crew. Nobody\'s ever seen any of it before \u2014 you\'re the first!', ''],
+        ['nova', 'Those crystals are bits of Star Core energy, scattered all over. It\'s like the planet\'s sharing them with you.', ''],
+        ['nova', 'Everything out here is so big and gentle... I wonder what the biggest thing on this planet is.', '']
+      ],
       /* The run on to the Star Core: its signal getting stronger. */
       signal: [['nova', 'The Star Core\'s signal is getting stronger, crew. It\'s close now \u2014 look for the glow!', '']],
       /* The healing pond, a stop along the first corridor. */

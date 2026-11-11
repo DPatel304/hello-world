@@ -220,20 +220,20 @@ test('level 1 runs as its plan says - the teaching run, the team jump, sneaking 
   assert.ok(inst.over);
 });
 
-test('the first corridor starts gently: Nova\'s story, a look up at the sky, then crystals; the squeeze; the pond; then off the trail - fallen trees to dodge, and a rolling log', () => {
+test('the first corridor is a calm walk: Nova\'s story, a look up at the sky, crystals; the herd; the creatures; the pond - and nothing to dodge', () => {
   crew(1);
   const inst = game.create(1);
   const first = (k) => inst.things.filter(th => th.kind === k).reduce((a, th) => Math.min(a, th.d), Infinity);
   const pond = first('pond');
-  /* nothing to dodge before the pond: the sky, crystals, the squeeze, and the pond */
   assert.ok(first('vista') < first('crystal'), 'the sky before the crystals');
-  assert.ok(first('narrow') < pond && pond < first('blocker') && first('blocker') < first('roller'));
-  assert.ok(inst.things.filter(th => th.kind === 'blocker').every(th => th.fallen), 'fallen trees');
-  assert.equal(inst.things.filter(th => th.kind === 'roller').length, 1, 'one rolling log');
-  assert.equal(first('beam'), Infinity, 'nothing to duck');
-  const early = inst.things.filter(th => ['blocker', 'beam', 'roller', 'gap'].includes(th.kind) && th.d < pond);
-  assert.equal(early.length, 0);
-  assert.ok(inst.things.some(th => th.kind === 'crystal' && th.d < first('narrow')), 'crystals to catch first');
+  assert.ok(inst.things.some(th => th.kind === 'crystal' && th.fall), 'crystals falling from the jellies');
+  assert.ok(first('narrow') < first('burrow'), 'the herd, then the creatures');
+  for (const k of ['burrow', 'creek', 'chimes', 'flutter', 'longneck']) assert.ok(first(k) < pond, `${k} before the pond`);
+  assert.ok(first('burrow') < first('creek') && first('creek') < first('flutter') && first('flutter') < first('longneck'));
+  assert.ok(inst.things.some(th => th.kind === 'crystal' && th.toss != null), 'crystals tossed by the burrow puffs');
+  assert.ok(inst.things.some(th => th.kind === 'crystal' && th.trail), 'and left by the flutterlights');
+  for (const k of ['blocker', 'beam', 'roller', 'gap', 'footprint', 'trail']) assert.equal(first(k), Infinity, `no ${k}`);
+  inst.draw(new Proxy({}, { get: (_, k) => k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop(){} }) : k === 'measureText' ? () => ({ width: 10 }) : () => {}, set: () => true }), W, H);
 });
 
 test('someone who drops out of view holds their place till they are back', () => {
