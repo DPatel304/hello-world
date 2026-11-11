@@ -1,54 +1,57 @@
 /* Last Known Position - the summit, at the very start of level 1.
 
-   On their feet after the crash, the crew are high on a mountain: no
-   path yet, just open grass sloping up to its top, two boulders on it
-   hiding whatever's beyond - only birds, and light, coming up over them.
-   Up they walk (leaning still steers, but the slope keeps them headed
-   for the top); up they CLIMB, hand over hand; and over the top, the
-   camera rising past them, the whole planet opens up below. A slow look
-   across it all, the title coming up over it, Nova's one line; then down
-   the far side - WHEEE - onto the old trail by the river, and the run
-   begins.
+   A cut-scene, played out in one small place - the crash site, high on a
+   mountain - everything in it fixed where it is, the crew walking through
+   it and the camera taking its shots (not the run's view yet):
 
-     ship   over to the ship, crashed in the grass (SHIP seconds)
-     scan   SCAN THE SHIP - lean to aim: the hull (dented), the engines
-            (cold) - then the Star Core's bay: empty. MISSING (SCAN at
-            most - after a while it scans the rest by itself)
-     core   Nova: it's gone, thrown clear - let's get up high and look
-     turn   the view turning to a hilltop nearby, two boulders on it
-     walk   up the hillside to the boulders (WALK seconds)
+     ship   a wide shot: on their feet in the grass, the crew walk over to
+            the ship, crashed in a long furrow (SHIP)
+     core   closer, at the ship: they look it over - Nova: the Star Core's
+            gone, thrown clear; let's get up high and look (CORE at least)
+     walk   behind them as they walk on up the slope, through the trees,
+            to two boulders on the hilltop (WALK)
      climb  CLIMB! - each reach up, an arm at a time, pulls you up; a
             little by itself as well, and anyone left behind is helped
             up once the others are there (CLIMB at most)
-     crest  over the top: the camera rising past them (CREST)
-     look   a slow pan across the world; the title fades in over it;
-            Nova: follow the river (LOOK)
-     slide  down the far side, onto the trail (SLIDE)
+     crest  the camera rising up past them - over the boulders, the whole
+            world opening up below (CREST)
+     look   a slow look across it; the title over it; Nova: follow the
+            river (LOOK)
+     slide  and down, onto the trail (SLIDE)
 
-   Its own view (like the wing's): drawn instead of the corridor. */
+   The world's in metres: x across, z away from where they woke (the
+   cliff edge at the far end of the hilltop, the valley below it); the
+   camera a point, a height and a heading, looking level at the horizon. */
 import { pose, L as LM } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
-import { PAL, P } from './lkp-art.js';
-import { worldOverlook } from './lkp-world.js';
-import { worldShip } from './lkp-places.js';
-import { flutterSwarm } from './lkp-critters.js';
+import { PAL } from './lkp-art.js';
+import { worldOverlook, treeKind } from './lkp-world.js';
+import { shipAt } from './lkp-places.js';
 import { banner, smooth } from './lkp-zip.js';
 import { TITLE } from './lkp-title.js';
 
-export const SHIP = 6, SCAN = 16, DWELL = 1.2, TURN = 3, WALK = 9, CLIMB = 16, CREST = 4.5, LOOK = 16, SLIDE = 2.4;
-/* The ship, in the grass (lane, depth, size), and where the view turns to the hill. */
-const SHIP_AT = [-0.4, 0.42, 1.25], PAN = 0.35;
-/* What there is to scan on it: [label, done label, x, y (in the hull's own units: lkp-places.js worldShip)] - left to right. */
-const SPOTS = [['STAR CORE BAY', 'STAR CORE: MISSING!', -305, -10], ['HULL', 'HULL: DENTED', 120, -60], ['ENGINES', 'ENGINES: COLD', 600, 0]];
-/* A pull up the boulder for each reach (of the climb, 0..1); how much it
-   climbs by itself a second; how fast anyone behind is helped up. */
+export const SHIP = 7, CORE = 4, WALK = 9, CLIMB = 16, CREST = 4.5, LOOK = 16, SLIDE = 2.4;
 export const PULL = 0.16, CREEP = 0.025, HELP = 0.35;
-/* When in the look the title comes up, and Nova speaks. */
-/* (the title up for a good look, then away before she speaks) */
 const TITLE_AT = 2.5, TITLE_END = 8.5, SAY_AT = 9.5;
 
+/* ---- the place ---- */
+export const PLACE = {
+  wake: [0, 0],
+  ship: { at: [16, 13], len: 15 },                         /* (its middle; nose to tail, metres) */
+  byShip: [4, 9],                                    /* where they stop to look at it */
+  rocks: [{ at: [13.4, 29], w: 3.6, h: 2.4, n: 1 }, { at: [16.4, 29.6], w: 3.1, h: 2.0, n: 5 }],
+  edge: 34,                                               /* the cliff edge, beyond the rocks */
+  trees: [[9.5, 27.5, 'pine', 1.1], [11, 31.5, 'round', 1], [19.5, 28, 'pine', 1.2], [20.5, 31, 'round', 0.9], [8.5, 24, 'round', 0.8], [21.5, 25, 'pine', 1],
+          [-4, 14, 'round', 1], [-7, 22, 'pine', 1.2], [1, 24, 'round', 0.9], [26, 18, 'pine', 1.3], [28, 24, 'round', 1.1], [30, 14, 'pine', 1], [-10, 6, 'pine', 1.1], [24, 9, 'round', 1]],
+  meadows: [[-3, 5, 4, 2.2, ['#ffc2e6', '#fff4c2']], [11, 22, 3, 1.6, ['#c9f7ff', '#fff4c2']], [22, 12, 3.4, 1.8, ['#ffc2e6', '#ffe39a']]],
+  stream: [[12, 28], [10, 23], [6, 19], [2, 14], [-1, 8], [-5, 2], [-9, -6]],
+  pond: [-6, 8, 2.6, 1.6],
+  furrow: [[-6, 0], [2, 7], [8, 11], [12, 13]]
+};
+const CREW_M = 1.8;                                        /* (how tall they stand, metres) */
 const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 const lerp = (a, b, k) => a + (b - a) * k;
+const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
 
 /* A reach up: either hand going up past the head (from the camera's
    landmarks; with the mouse, the hand going high), one reach at a time. */
@@ -70,50 +73,30 @@ export class Summit {
   constructor(game, talk = true){
     this.g = game; this.talk = talk;
     this.t = 0; this.pt = 0; this.phase = 'ship'; this.done = false;
-    this.aim = 1; this.dwell = 0; this.scanned = [false, false, false]; this.scanT = [-9, -9, -9];
     this.climb = pose.players.map(() => 0); this.pulled = pose.players.map(() => -9);
     this.reach = pose.players.map(() => new ReachWatch());
-    this.x = pose.players.map((_, i) => 0); this.said = false; this.titled = false;
+    this.said = false; this.titled = false; this.told = false;
     sfx.wind?.(0.5);
   }
-  _scan(k){ this.scanned[k] = true; this.scanT[k] = this.t; if (k === 0){ sfx.uhoh?.(); sfx.alert?.(); } else sfx.chirp?.(4); }
-  /* (nothing to run along yet: the corridor stands still) */
   speed(){ return 0; }
 
   step(dt){
     const g = this.g, here = g.here;
     this.t += dt; this.pt += dt;
-    /* leaning steers them across the slope - and the slope brings them back toward its top */
-    for (const i of here){ const want = (g.leanOf ? g.leanOf(i) : g.crew[i].lean || 0) * 0.5; this.x[i] += (want - this.x[i]) * Math.min(1, dt * 2); }
-    const lean = here.length ? here.reduce((a, i) => a + this.x[i], 0) / here.length / 0.5 : 0;
+    const walking = this.phase === 'ship' || this.phase === 'walk';
+    if (walking && Math.floor(this.t / 0.55) !== Math.floor((this.t - dt) / 0.55)) sfx.step?.(Math.floor(this.t * 2) % 3, 0.1);
     if (this.phase === 'ship'){
-      if (Math.floor(this.t / 0.55) !== Math.floor((this.t - dt) / 0.55)) sfx.step?.(Math.floor(this.t * 2) % 3, 0.1);
-      if (this.pt >= SHIP){ this.phase = 'scan'; this.pt = 0; sfx.visorOn?.(); }
-    } else if (this.phase === 'scan'){
-      /* the scanner aims where they lean: left the bay, the middle the hull, right the engines */
-      const want = Math.max(0, Math.min(2, 1 + lean * 1.4));
-      this.aim += (want - this.aim) * Math.min(1, dt * 3);
-      const at = Math.round(this.aim), ready = at !== 0 || (this.scanned[1] && this.scanned[2]);
-      if (!this.scanned[at] && ready && Math.abs(this.aim - at) < 0.25){ this.dwell += dt; if (Math.floor(this.dwell * 6) !== Math.floor((this.dwell - dt) * 6)) sfx.tick?.(); }
-      else this.dwell = Math.max(0, this.dwell - dt * 2);
-      /* (taking too long: it scans the rest by itself, the bay last) */
-      if (this.pt > SCAN * 0.6 && this.dwell === 0 && Math.floor(this.pt / 1.6) !== Math.floor((this.pt - dt) / 1.6)){ const k = [1, 2, 0].find(j => !this.scanned[j]); if (k != null){ this.aim = k; this.dwell = DWELL; this._scan(k); } }
-      if (this.dwell >= DWELL && !this.scanned[at]){ this.dwell = 0; this._scan(at); }
-      if (this.scanned[0]){ this.phase = 'core'; this.pt = 0; if (this.talk){ const l = g.level.lines.shipCore; if (l) g.captain.say(l[0][1], l[0][2] || '', { story: true }); } }
+      if (this.pt >= SHIP){ this.phase = 'core'; this.pt = 0; }
     } else if (this.phase === 'core'){
-      if (this.pt > 2 && (!this.talk || !g.captain.busy) || this.pt > 14){ this.phase = 'turn'; this.pt = 0; sfx.whoosh?.(); }
-    } else if (this.phase === 'turn'){
-      for (const i of here) g.crew[i].look = 0.5 * Math.min(1, this.pt);
-      if (this.pt >= TURN){ this.phase = 'walk'; this.pt = 0; for (const i of here) g.crew[i].look = 0; }
+      if (this.talk && !this.told && this.pt > 1){ this.told = true; const l = g.level.lines.shipCore; if (l) g.captain.say(l[0][1], l[0][2] || '', { story: true }); }
+      if ((this.pt >= CORE && (!this.talk || (this.told && !g.captain.busy))) || this.pt > CORE + 14){ this.phase = 'walk'; this.pt = 0; }
     } else if (this.phase === 'walk'){
-      if (Math.floor(this.t / 0.55) !== Math.floor((this.t - dt) / 0.55)) sfx.step?.(Math.floor(this.t * 2) % 3, 0.1);
       if (this.pt >= WALK){ this.phase = 'climb'; this.pt = 0; sfx.pat?.(); }
     } else if (this.phase === 'climb'){
       for (const i of here){
         if (this.reach[i].step(pose.players[i], pose.mouse.active)){ this.climb[i] = Math.min(1, this.climb[i] + PULL); this.pulled[i] = this.t; sfx.pat?.(); }
         this.climb[i] = Math.min(1, this.climb[i] + CREEP * dt);
       }
-      /* (the ones at the top reach down for the rest) */
       const top = here.filter(i => this.climb[i] >= 1).length;
       if (top > 0) for (const i of here) if (this.climb[i] < 1) this.climb[i] = Math.min(1, this.climb[i] + HELP * dt * top / here.length);
       if (here.every(i => this.climb[i] >= 1) || this.pt >= CLIMB){ for (const i of here) this.climb[i] = 1; this.phase = 'crest'; this.pt = 0; sfx.titleSwell?.(); sfx.whoosh?.(); sfx.wind?.(1); }
@@ -128,144 +111,112 @@ export class Summit {
     }
   }
 
+  /* ---------- where everyone is, and the camera ---------- */
+
+  /* each of them: where they stand (x, z), how high up (y), which way they face (0: away up the hill), walking? */
+  _crew(k, n){
+    const off = (k - (n - 1) / 2) * 1.3, rock = PLACE.rocks[k % 2], ph = this.phase;
+    const nearShip = [PLACE.byShip[0] + off, PLACE.byShip[1] - Math.abs(off) * 0.3];
+    if (ph === 'ship'){ const u = smooth(Math.min(1, this.pt / (SHIP * 0.92))); const p = lerp2([PLACE.wake[0] + off, PLACE.wake[1] - Math.abs(off) * 0.3], nearShip, u); return { x: p[0], z: p[1], y: 0, walk: u < 0.99 }; }
+    if (ph === 'core') return { x: nearShip[0], z: nearShip[1], y: 0, look: 0.5 + 0.15 * Math.sin(this.t * 0.6 + k) };
+    const foot = [rock.at[0] + (k > 1 ? 0.9 : -0.6) * (k % 2 ? -1 : 1), rock.at[1] - rock.w * 0.42];
+    if (ph === 'walk'){ const u = smooth(this.pt / WALK); const p = lerp2(nearShip, foot, u); return { x: p[0], z: p[1], y: 0, walk: u < 0.99 }; }
+    /* the climb: up its face, to stand on top */
+    const u = ph === 'climb' ? this.climb[this.g.here[k]] : 1;
+    return { x: foot[0], z: lerp(foot[1], rock.at[1] - rock.w * 0.12, u), y: rock.h * 0.96 * u, climbing: u < 1 };
+  }
+  /* the camera: [x, z] it's at, how high, where it's looking ([x, z]) - each shot, and the moves between */
+  _cam(){
+    const ph = this.phase, n = this.g.here.length, mid = (f) => { let x = 0, z = 0; for (let k = 0; k < n; k++){ const p = this._crew(k, n); x += p.x; z += p.z; } return [x / n, z / n]; };
+    const SHOTS = {
+      /* a wide shot, from behind them and off to the left, low: them, the ship, the hill beyond */
+      ship: (u) => ({ at: lerp2([-8, -9], [-5, -4], u), h: lerp(2.4, 2.8, u), to: [12, 16] }),
+      /* closer, beside them, the ship filling the frame */
+      core: (u) => ({ at: lerp2([-2.5, -0.5], [-1.6, 0.8], u), h: 1.7, to: [13, 13] }),
+      /* following behind them up the slope, the boulders ahead */
+      walk: (u) => { const m = mid(); return { at: [m[0] - 6, m[1] - 7], h: lerp(2.6, 2.2, u), to: [15, 30] }; },
+      /* at the foot of the boulders */
+      climb: () => ({ at: [15, 20.5], h: 1.7, to: [15, 30] }),
+      /* rising up past them, over the top */
+      crest: (u) => ({ at: [15, lerp(20.5, 18, u)], h: lerp(1.7, 5.5, u), to: [15, 60] }),
+      look: () => ({ at: [15, 18], h: 5.5, to: [15, 60] }),
+      slide: () => ({ at: [15, 18], h: 5.5, to: [15, 60] })
+    };
+    const T = { ship: SHIP, core: CORE + 4, walk: WALK, climb: CLIMB, crest: CREST, look: LOOK, slide: SLIDE }[ph];
+    const u = Math.min(1, this.pt / T), cur = SHOTS[ph](ph === 'crest' ? smooth(u) : u);
+    /* (a smooth move from the shot before into this one, its first couple of seconds) */
+    const prev = { core: 'ship', walk: 'core', climb: 'walk' }[ph];
+    if (prev && this.pt < 2){ const e = smooth(this.pt / 2), was = SHOTS[prev](1); return { at: lerp2(was.at, cur.at, e), h: lerp(was.h, cur.h, e), to: lerp2(was.to, cur.to, e) }; }
+    return cur;
+  }
+
   /* ---------- drawing ---------- */
 
   draw(c, W, H, drawCrew){
     const L = PAL.world, t = this.t, here = this.g.here, n = here.length;
+    const cam = this._cam(), yaw = Math.atan2(cam.to[0] - cam.at[0], cam.to[1] - cam.at[1]), cs = Math.cos(yaw), sn = Math.sin(yaw);
+    const F = W * 0.75, HZ = H * 0.4;
+    /* world (x, y up, z) to the screen: [x, y, px a metre], or null behind the camera */
+    const S = (x, y, z) => { const dx = x - cam.at[0], dz = z - cam.at[1], rx = dx * cs - dz * sn, rz = dx * sn + dz * cs; if (rz < 0.4) return null; const k = F / rz; return [W / 2 + rx * k, HZ + (cam.h - y) * k, k, rz]; };
     c.save();
-    /* how far the camera's come: walking up (0..1), and risen over the top (0..1) */
-    const atShip = ['ship', 'scan', 'core', 'turn'].includes(this.phase);
-    const walk = this.phase === 'walk' ? smooth(this.pt / WALK) : atShip ? 0 : 1;
-    const rise = this.phase === 'crest' ? smooth(this.pt / CREST) : this.phase === 'look' || this.phase === 'slide' ? 1 : 0;
+    /* the world beyond the edge: the valley, far below (its own picture), panned with the camera's heading */
     const look = this.phase === 'look' ? this.pt / LOOK : this.phase === 'slide' ? 1 : 0;
-    const slide = this.phase === 'slide' ? smooth(this.pt / SLIDE) : 0;
-    /* behind it all, the world (seen once they're over the top): a slow look across it */
-    worldOverlook(c, W, H, H, t, L, 1, lerp(W * 0.12, -W * 0.12, smooth(look)));
-    /* the hillside, the boulders on top - sinking away as the camera rises over them */
-    c.save(); c.translate(0, rise * H * 0.26 + slide * H * 0.6);
-    const crest = lerp(H * 0.44, H * 0.62, walk);
-    this._sky(c, W, H, crest, L, 1 - rise);
-    this._hill(c, W, H, crest, L);
-    /* the ship, crashed in the grass: walked up to, scanned; then the view turning away to the hill, and it left behind */
-    const pan = this.phase === 'turn' ? smooth(this.pt / TURN) : atShip ? 0 : 1;
-    if (atShip || (this.phase === 'walk' && this.pt < WALK * 0.5)){
-      const rel = this.phase === 'ship' ? lerp(1.0, SHIP_AT[1], smooth(this.pt / SHIP)) : SHIP_AT[1];
-      const away = this.phase === 'walk' ? smooth(this.pt / (WALK * 0.5)) : 0;
-      const p = P(SHIP_AT[0], rel, W, H), gy = lerp(crest + H * 0.05, H * 0.7, Math.pow((1 - rel) / (1 - SHIP_AT[1]), 1.2));
-      c.save(); c.translate(-W * PAN * pan - W * 0.9 * away, gy - p.y + H * 0.08 * away);
-      worldShip(c, W, H, rel, SHIP_AT[0], t, SHIP_AT[2]);
-      if (this.phase === 'scan' || this.phase === 'core') this._scanner(c, W, H, rel);
-      c.restore();
+    worldOverlook(c, W, H, H, t, L, 1, -yaw * F * 0.35 + lerp(W * 0.1, -W * 0.1, smooth(look)));
+    /* the hilltop's ground, up to the cliff edge */
+    const reveal = this.phase === 'crest' ? smooth(this.pt / CREST) : this.phase === 'look' || this.phase === 'slide' ? 1 : 0;
+    const edge = []; for (let x = -80; x <= 100; x += 4){ const p = S(x, 0, PLACE.edge); if (p){ p[1] = lerp(HZ, p[1], reveal); edge.push(p); } }
+    if (edge.length > 1){
+      const top = Math.min(...edge.map(p => p[1])), gg = c.createLinearGradient(0, top, 0, H);
+      gg.addColorStop(0, '#8ccf98'); gg.addColorStop(0.25, L.grass[0]); gg.addColorStop(1, L.ground[2]);
+      c.fillStyle = gg; c.beginPath(); c.moveTo(-10, H + 10); edge.forEach(([x, y]) => c.lineTo(x, y)); c.lineTo(W + 10, H + 10); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(255,245,215,.55)'; c.lineWidth = 3; c.beginPath(); edge.forEach(([x, y], k) => k ? c.lineTo(x, y) : c.moveTo(x, y)); c.stroke();
     }
-    const bw = lerp(0.085, 0.28, walk), bh = lerp(0.095, 0.36, walk), b1 = { x: W * lerp(0.46, 0.37, walk), y: lerp(crest + H * 0.035, H * 0.9, walk), w: W * bw, h: H * bh }, b2 = { x: W * lerp(0.54, 0.64, walk), y: lerp(crest + H * 0.04, H * 0.92, walk), w: W * bw * 0.86, h: H * bh * 0.84 };
-    /* (off to the right while they're at the ship: the view turns to them) */
-    const bx = W * PAN * (1 - pan); b1.x += bx; b2.x += bx;
-    this._boulder(c, b1.x, b1.y, b1.w, b1.h, 1); this._boulder(c, b2.x, b2.y, b2.w, b2.h, 5);
-    if (this.phase === 'walk') flutterSwarm(c, W * 0.6, lerp(H * 0.62, H * 0.5, walk), H * 0.12, t, 0.1, 0);
-    /* the crew: walking up the slope; up the boulders' faces; stood on top */
+    /* on the ground: the furrow the ship ploughed, the meadows, the stream, the pond */
+    const poly = (pts, fill) => { const q = pts.map(([x, z]) => S(x, 0, z)).filter(Boolean); if (q.length < 3) return; c.fillStyle = fill; c.beginPath(); q.forEach(([x, y], k) => k ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); };
+    const ellipse = (x, z, rx, rz, fill, m = 24) => poly(Array.from({ length: m }, (_, k) => [x + Math.cos(k / m * 6.2832) * rx, z + Math.sin(k / m * 6.2832) * rz]), fill);
+    const ribbon = (line, w, fill) => { const Lf = [], Rt = []; line.forEach(([x, z], k) => { const [a, b] = line[Math.min(line.length - 1, k + 1)], [p0, q0] = line[Math.max(0, k - 1)]; const dx = a - p0, dz = b - q0, d = Math.hypot(dx, dz) || 1; Lf.push([x - dz / d * w, z + dx / d * w]); Rt.push([x + dz / d * w, z - dx / d * w]); }); poly([...Lf, ...Rt.reverse()], fill); };
+    ribbon(PLACE.furrow, 1.6, 'rgba(110,90,80,.55)');
+    for (const [x, z, rx, rz, cols] of PLACE.meadows){
+      ellipse(x, z, rx, rz, '#8ccf8a');
+      for (let k = 0; k < 40; k++){ const a = hash(k + x) * 6.28, r = Math.sqrt(hash(k + z)), p = S(x + Math.cos(a) * rx * r * 0.9, 0, z + Math.sin(a) * rz * r * 0.9); if (p){ c.fillStyle = cols[k % 2]; c.beginPath(); c.arc(p[0], p[1], Math.max(1, p[2] * 0.06), 0, 6.2832); c.fill(); } }
+    }
+    ribbon(PLACE.stream, 0.75, '#e6d6a8'); ribbon(PLACE.stream, 0.45, '#5fe0f0');
+    ellipse(PLACE.pond[0], PLACE.pond[1], PLACE.pond[2] * 1.15, PLACE.pond[3] * 1.15, '#e6d6a8'); ellipse(...PLACE.pond, '#5fe0f0');
+    /* grass tufts here and there, fixed */
+    c.strokeStyle = L.grass[1]; c.lineCap = 'round';
+    for (let k = 0; k < 220; k++){ const p = S(-20 + 50 * hash(k + 3), 0, -6 + 40 * hash(k + 4)); if (!p || p[3] > 40) continue; const l = p[2] * 0.25; c.lineWidth = Math.max(1, p[2] * 0.03); c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(p[0] - l * 0.3, p[1] - l); c.moveTo(p[0], p[1]); c.lineTo(p[0] + l * 0.35, p[1] - l * 0.9); c.stroke(); }
+    /* everything standing up: far to near */
+    const items = [];
+    const sp = S(PLACE.ship.at[0], 0, PLACE.ship.at[1]); if (sp) items.push({ d: sp[3], draw: () => shipAt(c, sp[0], sp[1], sp[2] * PLACE.ship.len / 1530, t) });
+    for (const [x, z, kind, s] of PLACE.trees){ const p = S(x, 0, z); if (p) items.push({ d: p[3], draw: () => treeKind(c, p[0], p[1], p[2] * 0.0075 * s, kind, L, Math.min(0.4, p[3] / 120), Math.round(x * 7 + z)) }); }
+    for (const r of PLACE.rocks){ const p = S(r.at[0], 0, r.at[1]); if (p) items.push({ d: p[3], draw: () => this._boulder(c, p[0], p[1], r.w * p[2], r.h * p[2], r.n) }); }
     here.forEach((i, k) => {
-      const rn = this.g.crew[i], rock = k % 2 ? b2 : b1, off = (k - (n - 1) / 2) * W * 0.14;
-      let x, y, h = H * 0.17, st = {};
-      if (this.phase === 'walk' || atShip){ x = W * 0.5 + off + this.x[i] * W * 0.18; y = H * (0.97 - 0.02 * Math.abs(k - 1)); st.look = this.phase === 'scan' ? (this.aim - 1) * 0.5 : rn.look || 0; }
-      else {
-        const u = this.climb[i], foot = rock.y, top = rock.y - rock.h * 0.96;
-        /* (each their own spot: two on the bigger rock, one or two on the other) */
-        const rx = rock.x + rock.w * [-0.2, 0, 0.18, 0.05][k % 4];
-        x = lerp(W * 0.5 + off, rx, Math.min(1, u * 3)); y = lerp(H * 0.97, top, u); h = H * 0.2 * (1 - 0.25 * rise);
-        rn.run = 0;
-        /* hand over hand, one arm up then the other; at the top, arms up to the view */
-        st.pose = u < 1 ? (Math.floor((this.t - this.pulled[i]) * 3) % 2 ? 'reach' : 'hang') : this.phase === 'look' && this.pt > SAY_AT + 3 ? 'hang' : null;
-        st.look = u >= 1 ? 0.4 * Math.sin(this.t * 0.3 + k * 1.7) * rise : 0;
-      }
-      drawCrew(i, x, y, h, st);
+      const m = this._crew(k, n), p = S(m.x, m.y, m.z); if (!p) return;
+      const st = { look: m.look || 0 };
+      if (m.climbing) st.pose = Math.floor((this.t - this.pulled[i]) * 3) % 2 ? 'reach' : 'hang';
+      else if (this.phase === 'look' && this.pt > SAY_AT + 3) st.pose = 'hang';
+      this.g.crew[i].run = m.walk ? 0.35 : 0;
+      items.push({ d: p[3] - (m.y > 0 ? 1.5 : 0.01), draw: () => drawCrew(i, p[0], p[1], CREW_M * p[2], st) });
     });
+    items.sort((a, b) => b.d - a.d);
+    for (const it of items) it.draw();
     c.restore();
-    /* the scan's words */
-    if (this.phase === 'scan'){
-      banner(c, W, H, 'SCAN THE SHIP', '#7ff3ff', 1.05, H * 0.14);
-      c.font = `600 ${H * 0.03}px Fredoka, sans-serif`; c.textAlign = 'center'; c.lineWidth = H * 0.006; c.strokeStyle = 'rgba(20,15,45,.8)';
-      c.strokeText('LEAN TO AIM', W / 2, H * 0.22); c.fillStyle = '#fff'; c.fillText('LEAN TO AIM', W / 2, H * 0.22);
-    }
     /* the climb's words */
     if (this.phase === 'climb' && this.pt < CLIMB - 1){
       banner(c, W, H, 'CLIMB!', '#ffd24a', 1.15 + 0.04 * Math.sin(t * 8), H * 0.16);
       c.font = `600 ${H * 0.03}px Fredoka, sans-serif`; c.textAlign = 'center'; c.lineWidth = H * 0.006; c.strokeStyle = 'rgba(20,15,45,.8)';
       c.strokeText('REACH UP - HAND OVER HAND', W / 2, H * 0.25); c.fillStyle = '#fff'; c.fillText('REACH UP - HAND OVER HAND', W / 2, H * 0.25);
     }
-    /* the title, fading in over the world - and away as they go */
-    if (this.phase === 'look' || this.phase === 'slide'){
-      const a = this.phase === 'slide' ? 0 : Math.min(1, Math.max(0, (this.pt - TITLE_AT) / 2.5)) * Math.min(1, Math.max(0, (TITLE_END - this.pt) / 1.2));
-      this._title(c, W, H, a);
-    }
-    c.restore();
-    /* sliding down: the trail coming up to meet them */
+    /* the title, over the world */
+    if (this.phase === 'look'){ const a = Math.min(1, Math.max(0, (this.pt - TITLE_AT) / 2.5)) * Math.min(1, Math.max(0, (TITLE_END - this.pt) / 1.2)); this._title(c, W, H, a); }
+    /* a cut-scene's frame: bars top and bottom, till the climb */
+    const bars = this.phase === 'ship' || this.phase === 'core' ? 1 : this.phase === 'walk' ? 1 - smooth(Math.max(0, (this.pt - WALK + 1.2) / 1.2)) : this.phase === 'crest' || this.phase === 'look' ? Math.min(1, this.phase === 'look' ? 1 : this.pt / CREST) : 0;
+    if (bars > 0){ c.fillStyle = '#05060a'; c.fillRect(0, 0, W, H * 0.09 * bars); c.fillRect(0, H * (1 - 0.09 * bars), W, H * 0.09 * bars); }
+    /* down, onto the trail */
+    const slide = this.phase === 'slide' ? smooth(this.pt / SLIDE) : 0;
     if (slide > 0.5){ c.fillStyle = `rgba(255,250,240,${(slide - 0.5) * 2 * 0.9})`; c.fillRect(0, 0, W, H); }
   }
 
-  /* the sky over the hilltop, and the light coming up from beyond it (fading as they rise into the open) */
-  _sky(c, W, H, top, L, a){
-    if (a <= 0.01) return;
-    c.save(); c.globalAlpha = a;
-    const sg = c.createLinearGradient(0, -H, 0, top); sg.addColorStop(0, '#3e4fb8'); sg.addColorStop(0.5, L.sky[0]); sg.addColorStop(0.85, L.sky[1]); sg.addColorStop(1, L.sky[2]);
-    c.fillStyle = sg; c.fillRect(0, -H, W, top + H * 1.2);
-    const lg = c.createRadialGradient(W * 0.5, top, 0, W * 0.5, top, W * 0.5); lg.addColorStop(0, 'rgba(255,248,230,.6)'); lg.addColorStop(1, 'rgba(255,248,230,0)'); c.fillStyle = lg; c.fillRect(0, -H, W, top + H);
-    /* birds, bursting up from beyond */
-    c.strokeStyle = 'rgba(50,40,80,.7)'; c.lineWidth = 2;
-    for (let k = 0; k < 8; k++){ const x = W * (0.42 + 0.16 * hash(k + 50)) + Math.sin(this.t * 0.5 + k) * 10, y = top - H * (0.08 + 0.12 * hash(k + 51)) - ((this.t * 0.02 + hash(k)) % 1) * H * 0.1, w = 9, fl = Math.sin(this.t * 9 + k) * 6; c.beginPath(); c.moveTo(x - w, y - fl); c.lineTo(x, y); c.lineTo(x + w, y - fl); c.stroke(); }
-    c.restore();
-  }
-  /* the open hillside, up to its top - the wind running up the grass toward it */
-  _hill(c, W, H, crest, L){
-    const gg = c.createLinearGradient(0, crest, 0, H); gg.addColorStop(0, '#9edb98'); gg.addColorStop(0.3, L.grass[0]); gg.addColorStop(1, L.ground[2]);
-    c.fillStyle = gg; c.beginPath(); c.moveTo(-10, H * 2); c.lineTo(-10, crest + H * 0.12); c.quadraticCurveTo(W * 0.5, crest - H * 0.06, W + 10, crest + H * 0.12); c.lineTo(W + 10, H * 2); c.closePath(); c.fill();
-    c.strokeStyle = 'rgba(255,245,215,.6)'; c.lineWidth = 3; c.beginPath(); c.moveTo(-10, crest + H * 0.12); c.quadraticCurveTo(W * 0.5, crest - H * 0.06, W + 10, crest + H * 0.12); c.stroke();
-    c.lineCap = 'round';
-    for (let k = 0; k < 26; k++){
-      const u = hash(k + 7), v = (0.15 + 0.85 * hash(k + 8) + this.t * 0.05) % 1, y = crest + (H - crest) * (1 - v), x = W * (0.5 + (u - 0.5) * (0.4 + 1.2 * (1 - v))), l = H * 0.05 * (1 - v) + 6;
-      c.strokeStyle = `rgba(230,255,220,${(0.18 + 0.25 * (1 - v)) * Math.sin(v * Math.PI)})`; c.lineWidth = 1.5 + 3 * (1 - v);
-      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + (W * 0.5 - x) * 0.05, y - l * 0.6, x + (W * 0.5 - x) * 0.12, y - l * 1.4); c.stroke();
-    }
-    for (let k = 0; k < 140; k++){
-      const v = Math.pow(hash(k + 90), 0.7), y = crest + H * 0.03 + (H - crest) * v, x = W * hash(k + 91), s = 2 + 14 * v;
-      c.strokeStyle = k % 2 ? L.grass[1] : '#5fae86'; c.lineWidth = 1 + s * 0.15; c.beginPath(); c.moveTo(x, y); c.lineTo(x - s * 0.3, y - s); c.moveTo(x, y); c.lineTo(x + s * 0.35, y - s * 0.9); c.stroke();
-      if (k % 7 === 0){ c.fillStyle = ['#fff4c2', '#ffc2e6', '#c9f7ff'][k % 3]; c.beginPath(); c.arc(x, y - s, s * 0.22, 0, 6.2832); c.fill(); }
-    }
-  }
-  /* The scanner over the ship: a ring on what it's aimed at, filling as it
-     holds there; each part scanned, labelled; the bay, once scanned, open -
-     its cradle empty, a red light blinking. */
-  _scanner(c, W, H, rel){
-    const p = P(SHIP_AT[0], rel, W, H), u = H * 0.0011 * p.k * SHIP_AT[2], cs = Math.cos(-0.12), sn = Math.sin(-0.12);
-    const at = (x, y) => [p.x + (x * cs - y * sn) * u, p.y - 150 * u + (x * sn + y * cs) * u];
-    /* the bay, opened: empty */
-    if (this.scanned[0]){
-      const [x, y] = at(-305, -10), r = 80 * u;
-      c.fillStyle = '#141826'; c.beginPath(); c.roundRect(x - r * 0.95, y - r * 1.25, r * 1.9, r * 2.5, r * 0.35); c.fill();
-      c.strokeStyle = '#5a6078'; c.lineWidth = Math.max(2, r * 0.08); c.beginPath(); c.arc(x, y + r * 0.1, r * 0.55, 0, 6.2832); c.stroke();
-      c.strokeStyle = 'rgba(127,243,255,.25)'; c.setLineDash([r * 0.15, r * 0.12]); c.beginPath(); c.arc(x, y + r * 0.1, r * 0.4, 0, 6.2832); c.stroke(); c.setLineDash([]);
-      if (Math.floor(this.t * 3) % 2){ c.fillStyle = '#ff5b5b'; c.beginPath(); c.arc(x + r * 0.6, y - r * 0.95, r * 0.09, 0, 6.2832); c.fill(); }
-    }
-    SPOTS.forEach(([name, done, sx, sy], k) => {
-      const [x, y] = at(sx, sy), r = H * 0.05, on = Math.abs(this.aim - k) < 0.5 && this.phase === 'scan';
-      if (on){
-        c.strokeStyle = 'rgba(127,243,255,.9)'; c.lineWidth = 3;
-        const rr = r * (1 + 0.06 * Math.sin(this.t * 6));
-        for (let q = 0; q < 4; q++){ const a = q * Math.PI / 2 + this.t; c.beginPath(); c.arc(x, y, rr, a, a + 0.9); c.stroke(); }
-        if (this.dwell > 0){ c.strokeStyle = '#7ff3ff'; c.lineWidth = 6; c.beginPath(); c.arc(x, y, rr * 0.72, -Math.PI / 2, -Math.PI / 2 + 6.2832 * this.dwell / DWELL); c.stroke(); }
-      }
-      const shown = this.scanned[k] ? Math.min(1, (this.t - this.scanT[k]) * 3) : on ? 0.8 : 0;
-      if (shown > 0){
-        const txt = this.scanned[k] ? done : name, bad = k === 0 && this.scanned[k];
-        c.save(); c.globalAlpha = shown; c.font = `700 ${H * (bad ? 0.036 : 0.026)}px Fredoka, sans-serif`; c.textAlign = 'center';
-        const tw = c.measureText(txt).width + H * 0.03, ty = y - r * 1.5;
-        c.fillStyle = bad ? 'rgba(80,10,20,.8)' : 'rgba(10,20,40,.7)'; c.beginPath(); c.roundRect(x - tw / 2, ty - H * 0.03, tw, H * 0.045, H * 0.01); c.fill();
-        c.strokeStyle = bad ? '#ff6b6b' : '#7ff3ff'; c.lineWidth = 2; c.stroke();
-        c.fillStyle = bad ? '#ffd0d0' : '#dff8ff'; c.fillText(txt, x, ty + H * 0.004);
-        c.beginPath(); c.moveTo(x, ty + H * 0.015); c.lineTo(x, y - r); c.stroke();
-        c.restore();
-      }
-    });
-  }
   /* A boulder - a real rock: a lumpy, uneven shape, flatter where it sits in
      the ground; lit face, mid face and shadowed side; cracks, lichen, moss
      on its top, grass tufts round its foot, and a smaller stone leaning

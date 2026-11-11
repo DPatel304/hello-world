@@ -556,6 +556,11 @@ export function worldPool(c, W, H, wet, t){
 export function worldShip(c, W, H, rel, lane, t, s = 1){
   const p = P(lane, rel, W, H), u = H * 0.0011 * p.k * s;
   if (p.x < -1400 * u || p.x > W + 1400 * u) return;
+  shipAt(c, p.x, p.y, u, t);
+}
+/* The same, at any spot on the screen (x, y: the middle of where it sits; u: its scale, px a unit - about 1530 units nose to tail). */
+export function shipAt(c, x, y, u, t){
+  const p = { x, y };
   cast(c, p.x - 200 * u, p.y, 120 * u, 1500 * u, 0.4);
   c.fillStyle = 'rgba(20,15,45,.4)'; c.beginPath(); c.ellipse(p.x, p.y, 760 * u, 70 * u, 0, 0, 6.2832); c.fill();
   /* a furrow ploughed behind it */
