@@ -6,7 +6,7 @@ PICKING.levelUp = PICKING.weapon = true;
 import { MELEE } from '../src/games/lkp-weapons.js';
 import { LEVELS } from '../src/games/lkp-levels.js';
 import { PAL } from '../src/games/lkp-art.js';
-import { AUTO, POWER, SURGE, APPROACH } from '../src/games/lkp-depot.js';
+import { AUTO, POWER, SURGE, APPROACH, ARRIVE, STIR } from '../src/games/lkp-depot.js';
 import { TELL, CHARGE, CHARGE_W, REST, STAGGER, BURN, PHASES, SWEPT, OVERSHOOT, DASH } from '../src/games/lkp-scout.js';
 import { FRONT, SWING, SWING_HIT, FURY, FIGHT_MAX } from '../src/games/lkp-combat.js';
 import { pose } from '../src/tracking/pose.js';
@@ -52,7 +52,7 @@ test('before the depot the fights are wild beasts; after it, robots', () => {
   inst.rooms.push('combat'); inst.step_ = inst.level.plan.indexOf('room') - 1; inst._next();
   assert.ok(inst.fight.bots.every(b => b.kind === 'beast'));
   const later = at('depot');
-  for (let k = 0; k < (AUTO + SURGE + 12) / DT && later.phase === 'depot'; k++) later.step(DT, W, H);
+  for (let k = 0; k < (ARRIVE + AUTO + 4 + STIR + SURGE + 20) / DT && later.phase === 'depot'; k++) later.step(DT, W, H);
   assert.equal(later.awake, true);
   later.rooms.push('combat'); later.step_ = later.level.plan.lastIndexOf('room') - 1; later._next();
   assert.ok(later.fight.bots.every(b => b.kind === 'rustbot'));
@@ -72,7 +72,7 @@ test('the depot comes up out of the haze ahead, and the crew run on up to it bef
   run(inst, 0.5);
   assert.ok(inst.speed > 0.1, 'still running');
   const t = arrive(inst);
-  assert.ok(t > 1.5 && t < 8, `${t.toFixed(1)}s to get there`);
+  assert.ok(t > 1.5 && t < 16, `${t.toFixed(1)}s to get there`);
   run(inst, 0.5);
   assert.ok(inst.speed < 0.05, 'stopped at it');
 });
@@ -83,7 +83,9 @@ test('the depot: the run stops at the Star Core, and it powers up by itself afte
   run(inst, 1);
   assert.ok(inst.speed < 0.05, 'stopped');
   assert.equal(inst.awake, false);
-  run(inst, AUTO - 1 + 1.5);
+  /* a quiet moment there first; then it powers up by itself; then something stirs, far off */
+  assert.equal(inst.depot.state, 'arrive');
+  for (let k = 0; k < (ARRIVE + AUTO + 4 + STIR) / DT && inst.depot.state !== 'surge'; k++) inst.step(DT, W, H);
   assert.equal(inst.depot.state, 'surge');
   run(inst, SURGE + 0.1);
   assert.equal(inst.awake, true, 'the planet is waking');
@@ -93,6 +95,7 @@ test('the depot: the run stops at the Star Core, and it powers up by itself afte
 test('the depot powers up quicker with everyone rolling their arms', () => {
   const inst = at('depot');
   arrive(inst);
+  for (let k = 0; k < (ARRIVE + 1) / DT && inst.depot.state !== 'power'; k++) inst.step(DT, W, H);
   pose.mouse.active = false;
   const p = pose.players[0];
   let t = 0;
@@ -218,7 +221,7 @@ test('the Scout draws', () => {
 
 test('at the depot, once the robots wake, everyone picks a melee weapon - theirs for good', () => {
   const inst = at('depot', 2);
-  for (let k = 0; k < (AUTO + SURGE + 12) / DT && inst.phase === 'depot'; k++) inst.step(DT, W, H);
+  for (let k = 0; k < (ARRIVE + AUTO + 4 + STIR + SURGE + 20) / DT && inst.phase === 'depot'; k++) inst.step(DT, W, H);
   const pick = inst.levelup;
   assert.ok(pick && pick.weapon, 'a weapon to pick');
   assert.equal(pick.cards[0].length, 2);

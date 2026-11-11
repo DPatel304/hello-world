@@ -4,7 +4,7 @@ import { sfx } from '../audio/sound.js';
 import { FaceCam } from '../ui/faces.js';
 import { drawKid, KID_SKINS } from '../ui/kids.js';
 import { JumpWatch } from '../tracking/jump.js';
-import { farStir, SIGHT, FAR_STEP, worldFarWoods, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
+import { farStir, footprint, creek, SIGHT, FAR_STEP, worldFarWoods, worldStraightOn, worldTrail, worldFallen, worldFarRidge, turn, resetView, tree, worldLog, glow, CLEAR as CLEARINGS, ROAD, roadHalf, PATH_HALF, SKY } from './lkp-world.js';
 import { Zip, worldZipStart, hangY, ZIP_SPEED, RIDE, LAND, DROP, COUNT, CABLE } from './lkp-zip.js';
 import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
@@ -74,7 +74,7 @@ export const PICKING = { levelUp: false, weapon: false };
    seconds long - each corridor, and at most each fight - so it's quick
    to try everything. 0 for the full lengths. */
 export const PLAYTEST = 0;
-const FULL = [90, 50, 36, 52, 40];                      /* seconds of each corridor, in full */
+const FULL = [124, 80, 52, 60, 40];                      /* seconds of each corridor, in full */
 /* The first corridor starts quiet - LEAD seconds of just running, out of
    the crash site - before anything comes along. */
 export const LEAD = 10;
@@ -145,6 +145,8 @@ export const HERD = { mass: 6, full: 1.8, call: 14, scatter: 3.2, end: 28, edge:
 /* The first few, each its own: when it turns up, and where it trots along (lane, depth). */
 export const SCOUTS = [[0, 1.05, 0.04], [2, 1.35, 0.01], [2.3, 0.95, 0.12], [4, 1.2, 0.15], [4.2, 1.6, 0.06], [4.5, 1.0, -0.015]];
 export const CHARGE = 3.6;
+/* The giant's trail out of the pond, seconds of it. */
+export const TRAIL = 38;
 /* (the giant's slow walk in: how long from the bottom right to where the herd was; a stride, seconds; its legs - lane, depth off its middle, and when in the stride each steps) */
 const TRUMBLE_IN = 9, STRIDE = 2.6, LEGS = [[-0.7, -0.07, 0], [0.7, -0.07, 0.5], [-0.7, 0.13, 0.25], [0.7, 0.13, 0.75]];
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
@@ -343,7 +345,7 @@ class LastKnownPosition {
     } else if (kind === 'depot'){
       this.depot = new Depot(this);
       this.things = [];
-      if (story.on){ const [, text, words] = this.level.lines.depot[0]; this.captain.say(text, words); }
+
     } else if (kind === 'boss'){
       if (story.on) this.scene = new Scene('boss', this);
       /* While playtesting, a boss you can beat in a playtest's time. */
@@ -514,20 +516,26 @@ class LastKnownPosition {
          trees across it to dodge, and a log rolling down */
       /* (off to the left - towards the stomping - the main path going on straight) */
       this.seg.corner = { d: at(s + 0.6), dir: -1, at: null, straightOn: true, sharp: 0.35 };
-      ROAD.surfaces.push({ d0: at(s + 0.7), d1: at(s + 30), kind: 'trampled' });
+      ROAD.surfaces.push({ d0: at(s + 0.7), d1: at(s + TRAIL + 4), kind: 'trampled' });
       /* (the way it's flattened: wider than the path) */
-      ROAD.spans.push({ d0: at(s + 0.7), d1: at(s + 9), half: 1.6 });
-      for (const [t, sd] of [[2.5, -1], [5, 1], [8, -1], [12.5, 1], [15.5, -1]]) this.things.push({ d: at(s + t), kind: 'trail', lane: sd * 1.9 });
+      ROAD.spans.push({ d0: at(s + 0.7), d1: at(s + TRAIL), half: 1.6 });
+      for (const [t, sd] of [[2.5, -1], [6, 1], [10, -1], [15, 1], [19, -1], [24, 1], [29, -1], [34, 1]]) this.things.push({ d: at(s + t), kind: 'trail', lane: sd * 1.9 });
+      /* its footprints, pressed deep into the ground - some with water in -
+         one, right across the way, that they splash straight through */
+      for (let k = 0; k < 9; k++) this.things.push({ d: at(s + 2 + k * 4), kind: 'footprint', lane: k === 4 ? 0 : (k % 2 ? 0.75 : -0.75), wet: k === 4 || k % 3 === 1, n: k });
       const fallen = (t, sd, w = 0.85) => { const a = sd < 0 ? -1.05 : 1.05 - w; add(t, { kind: 'blocker', a, b: a + w, seed: Math.floor(Math.random() * 100), fallen: true }); crystalLine(t - 0.6, sd < 0 ? 0.6 : -0.6, 4); };
       const f0 = side();
-      fallen(s + 4, f0); fallen(s + 7.5, -f0); fallen(s + 11, f0, 0.75);
-      roller(s + 14.5);
+      fallen(s + 6, f0); fallen(s + 14, -f0); fallen(s + 23, f0, 0.75);
+      roller(s + 31);
+      /* (and all along it, far off ahead, its footfalls) */
+      this.trailAt = [at(s), at(s + TRAIL)];
     } else {
       const hard = n === 1 ? 0.8 : 0.65;
       /* a stretch of mossy track, and one of old flagstones, along the way */
       const len = FULL[n] || 45;
       ROAD.surfaces.push({ d0: at(len * 0.12), d1: at(len * 0.3), kind: n % 2 ? 'moss' : 'flag' }, { d0: at(len * 0.62), d1: at(len * 0.8), kind: n % 2 ? 'flag' : 'moss' });
-      crystalLine(3, 0, 5); blocker(6);
+      /* (level 1's own runs lay out their own start) */
+      if (!(this.level.id === 'verdant' && (n === 1 || (n === 2 && !plan.event)))){ crystalLine(3, 0, 5); blocker(6); }
       /* the corridor before the glade: near its end, beside the path, a
          swathe of woods flattened - trees snapped - something huge came
          through here (a sign of the giant, unseen) */
@@ -535,6 +543,46 @@ class LastKnownPosition {
         const tl = side() * 1.75, td = at(len - 12);
         this.things.push({ d: td, kind: 'trail', lane: tl });
         CLEARINGS.push({ lane: tl + Math.sign(tl) * 1.2, d: td + 0.05, r: 1.8 });
+      }
+      /* Level 1's second run, to the gorge: each thing to do once, with
+         room round it - and the planet going on round them in between:
+         a creek with fish leaping over it, a meadow of chimeblooms that
+         ring as they lean by, and the land opening out to the gorge, wind
+         coming up it, sky jellies drifting down in it. After the jump, a
+         quiet run on to the glade. */
+      if (n === 1 && this.level.id === 'verdant'){
+        crystalLine(3, 0, 5);
+        add(7, { kind: 'creek', lane: 0 });
+        crystalLine(10.5, -0.5, 5);
+        beam(14); beam(15.6);
+        for (let k = 0; k < 8; k++) add(19 + k * 0.7, { kind: 'chimes', lane: (k % 2 ? 1 : -1) * (1.35 + 0.2 * Math.sin(k * 1.7)), ring: true });
+        PIECES.arc(25);
+        roller(30);
+        /* the gorge: the land opening out, wind, jellies drifting down in it */
+        const gs = 38;
+        add(gs - 4, { kind: 'windup' });
+        const after = EVENTS.leap(gs);
+        for (let k = 0; k < 5; k++) this.things.push({ d: at(gs) + 0.05 + k * 0.08, kind: 'skyjelly', lane: (k % 2 ? 1 : -1) * (0.6 + 0.5 * k / 5), alt: 0.02 + 0.05 * (k % 3), vl: 0.03 * (k % 2 ? -1 : 1), vd: 0.004, size: 0.7 + 0.2 * (k % 2), n: 20 + k, low: true });
+        const s2 = gs + after + 4;
+        PIECES.slalom(s2); crystalLine(s2 + 7, 0, 6);
+        fountain(s2 + 11, side() * 0.5);
+        PIECES.duckrun(s2 + 16);
+        return;
+      }
+      /* Level 1's last run, on to the Star Core: its glow up ahead on the
+         horizon, growing as they come; Nova picking up its signal; and,
+         passing over them, the shadow of something vast in the sky. */
+      if (n === 2 && this.level.id === 'verdant' && !plan.event){
+        this.seg.coreGlow = true;
+        crystalLine(3, 0, 5);
+        PIECES.logs(8);
+        add(12, { kind: 'say', key: 'signal' });
+        crystalLine(15, 0.5, 5);
+        add(20, { kind: 'shadowpass' });
+        PIECES.slalom(27);
+        PIECES.arc(36);
+        beam(41); crystalLine(44, -0.4, 6);
+        return;
       }
       let s = 9;
       const end = (FULL[n] || 45) - 3;
@@ -683,10 +731,12 @@ class LastKnownPosition {
     else if (this.treasure){ this.treasure.step(dt, W, H); if (this.treasure.done && this.treasure.clearT > AFTER.treasure) this._next(); }
     else if (this.depot){
       this.depot.step(dt, W, H);
+      /* (once they're there and it's been seen: Nova asks them to power it up) */
+      if (story.on && this.depot.state === 'power' && !this.depot.asked){ this.depot.asked = true; const [, text, words] = this.level.lines.depot[0]; this.captain.say(text, words); }
       /* Woken: the robots speak - and then, everyone picks their weapon. */
       if (this.depot.done){
         this._next();
-        if (story.on) this.scene = new Scene('waking', this);
+        if (story.on){ this.scene = new Scene('waking', this); this.scene.noSkip = true; }
         if (PICKING.weapon){ this.levelup = meleePick(this, PLAYTEST || PICK_TIME); this.levelup.weapon = true; }
         else for (const rn of this.crew) rn.melee = KNIFE;
       }
@@ -723,6 +773,22 @@ class LastKnownPosition {
       const th = this.things.find(t => t.kind === 'pond' && t.rest && !t.taken && t.d - this.z - RUN <= this.speed * 0.15);
       if (th){ th.taken = true; this.rest = { th, t: 0, ok: 0, waited: false }; if (story.on) this.captain.say(...line(this.level.lines.pondIn[0])); sfx.splash?.(); }
     } else this._rest(dt, W, H);
+    /* along the giant's trail: its far-off footfalls, now and then */
+    if (this.trailAt && this.z + RUN > this.trailAt[0] && this.z + RUN < this.trailAt[1] && !this.rest){
+      this.trailStep = (this.trailStep ?? 2) - dt;
+      if (this.trailStep <= 0){ this.trailStep = 4 + Math.random() * 2; sfx.farStep?.(0.7); this.quake = 0.35; }
+    }
+    /* something vast passing over, high up: its shadow sweeping across the land */
+    if (!this.overShadow){ const th = this.things.find(t => t.kind === 'shadowpass' && !t.taken && t.d - this.z - RUN <= 0); if (th){ th.taken = true; this.overShadow = { t: 0 }; sfx.wind?.(1); sfx.whoosh?.(); } }
+    else { this.overShadow.t += dt; if (this.overShadow.t > 4.5) this.overShadow = null; }
+    /* the chimeblooms ringing as someone leans by them; the wind coming up the gorge; splashing through the creek */
+    for (const th of this.things){
+      const rel = th.d - this.z - RUN;
+      if (th.kind === 'chimes' && th.ring && Math.abs(rel) < 0.04 && !th.rang && this.here.some(i => Math.abs(this.crew[i].x - th.lane) < 0.75)){ th.rang = true; sfx.chime?.(1); sfx.chime?.(0.7); }
+      if (th.kind === 'windup' && rel < 0 && !th.blew){ th.blew = true; sfx.wind?.(0.9); }
+      if (th.kind === 'creek' && Math.abs(rel) < 0.03 && !th.splashed){ th.splashed = true; this.splashT = this.t; sfx.splash?.(); }
+    }
+    for (const th of this.things) if (th.kind === 'footprint' && th.wet && !th.splashed && Math.abs(th.d - this.z - RUN) < 0.03 && Math.abs(th.lane) < 0.3){ th.splashed = true; this.splashT = this.t; sfx.splash?.(); }
     /* Looking up: the sky, and what's floating in it. */
     if (!this.vista){
       const th = this.things.find(t => t.kind === 'vista' && !t.taken && t.d - this.z - RUN <= 0);
@@ -1068,7 +1134,7 @@ class LastKnownPosition {
         if (th.got || ahead < 0 || ahead > SPEED * 2.4) continue;
         /* (never over her story: the tip waits for her to finish) */
         if (cap.storyTalking) break;
-        const kind = th.kind === 'ledge' ? 'gap' : th.kind, tip = this.level.tips[kind];
+        const kind = th.kind === 'ledge' ? 'gap' : th.fallen ? 'fallen' : th.kind, tip = this.level.tips[kind];
         if (tip && cap.say(tip[0], tip[1], { once: kind })) break;
       }
     }
@@ -1123,14 +1189,16 @@ class LastKnownPosition {
     if (this.treasure && !seg.told){ seg.told = true; cap.say('Treasure! Grab all the crystals you can, with your hands!', 'GRAB THE CRYSTALS!'); }
     if (this.treasure && this.treasure.pool > 0 && !seg.toldPool){ seg.toldPool = true; cap.say('Healing water! Hug yourselves to heal faster!', 'HUG TO HEAL!'); }
     const tr = this.trap;
-    if (tr && !seg.told){
+    if (tr && !seg.told && !(tr.reveal > 0)){
       seg.told = true;
-      const first = tr.giant ? 'Shh! Something huge, fast asleep. Creep past while it snores. When its eyes open, freeze!'
+      const first = tr.giant ? 'Shh... it\'s fast asleep. Creep past while it snores. When its eyes open, freeze.'
         : this.awake ? 'A sentry robot, recharging! Run on the spot while it\'s green. When its eye opens, freeze!'
         : 'Shh! A sleeping robot. Run on the spot while it sleeps. When its eye opens, freeze!';
       if (!cap.say(first, tr.giant ? 'SHH! CREEP, THEN FREEZE' : this.awake ? 'RUN, THEN FREEZE' : 'SHH! RUN, THEN FREEZE', { once: 'lights' })) cap.say(this.awake ? 'Another sentry. Careful now.' : 'Another sleeper. Quietly now!', '');
     }
-    if (tr && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
+    /* (in the glade, the first time her eyes open: freeze - whispered; elsewhere, once someone's caught) */
+    if (tr && tr.giant && tr.reds === 1) cap.say('Freeze!', 'FREEZE!', { once: 'firstRed' });
+    else if (tr && !tr.giant && this.crew.some(rn => rn.zapped > 0.9)) cap.say('Freeze on red!', 'FREEZE!', { once: 'zapped' });
     if (tr && tr.done && !seg.cleared){ seg.cleared = true; if (this.here.some(i => this.crew[i].over)) cap.say('Made it! The crystals are yours.', ''); }
     if (bs && !bs.done) bs.cues(cap);
   }
@@ -1496,6 +1564,19 @@ class LastKnownPosition {
     if (dropY){ c.save(); c.translate(0, dropY); SKY.above = H; }
     if (this.boss) this.boss.arena(c, W, H, this.t);
     else drawCorridor(c, W, H, this.z, this.t, seg.kind === 'cross' ? 0.4 : this.fight && !this.fight.done ? 0.3 : 0);
+    /* the Star Core, its glow up ahead over the land, growing as they come */
+    if (seg.coreGlow && PAL.world){
+      const k = Math.min(1, seg.t / seg.len), q = P(0, 1, W, H), r = H * (0.12 + 0.35 * k * k);
+      glow(c, q.x, q.y, r, '#9ff8ff', 0.25 + 0.55 * k);
+      const bg = c.createLinearGradient(0, 0, 0, q.y); bg.addColorStop(0, 'rgba(160,248,255,0)'); bg.addColorStop(1, `rgba(200,255,255,${0.15 + 0.35 * k})`);
+      c.fillStyle = bg; c.fillRect(q.x - H * (0.01 + 0.025 * k), 0, H * (0.02 + 0.05 * k), q.y);
+    }
+    /* a creek across the way, fish leaping over it */
+    for (const th of this.things) if (th.kind === 'creek'){ const rel = th.d - this.z; if (rel < 1.05 && rel > -0.2) creek(c, W, H, rel, this.t, PAL.world); }
+    /* the giant's footprints, pressed into the ground */
+    for (const th of this.things) if (th.kind === 'footprint'){ const rel = th.d - this.z; if (rel < 1 && rel > -0.15) footprint(c, W, H, th.lane, rel, this.t, PAL.world, th.wet, th.n); }
+    /* (splashing through one: round their feet) */
+    if (this.splashT != null && !this.rest && this.t - this.splashT < 1.1) for (const i of this.here){ const p = P(this.crew[i].x, RUN, W, H); splash(c, p.x, p.y, H * CREW_SIZE, (this.t - this.splashT) / 1.1, i); }
     /* far off at the land's edge, while the stomping goes on: Zubu, in the woods */
     if (PAL.world && this.farWoodsU >= 0) worldFarWoods(c, W, H, FAR_AT[0] * W, FAR_AT[1] * H, this.t, this.farWoodsT, PAL.world);
     /* (where they turn off the main path: the main path carrying on, straight ahead) */
@@ -1540,6 +1621,15 @@ class LastKnownPosition {
       if (low) c.restore();
     }
 
+    /* the shadow of something vast high overhead, sweeping across from the left */
+    if (this.overShadow){
+      const u = this.overShadow.t / 4.5, x = -W * 0.6 + u * W * 2.2;
+      c.save(); c.fillStyle = `rgba(20,15,45,${0.28 * Math.sin(u * Math.PI)})`;
+      c.beginPath(); c.ellipse(x, H * 0.78, W * 0.55, H * 0.2, -0.08, 0, 6.2832); c.fill();
+      c.beginPath(); c.ellipse(x - W * 0.35, H * 0.72, W * 0.3, H * 0.08, 0.3, 0, 6.2832); c.fill();
+      c.beginPath(); c.ellipse(x + W * 0.35, H * 0.74, W * 0.3, H * 0.08, -0.3, 0, 6.2832); c.fill();
+      c.restore();
+    }
     /* on the zip line: each hanging from the cable, or the feet above */
     if (this.zip) this.zip.drawRiders(c, W, H, (i, x, y, h, a) => {
       c.save(); c.translate(x, y); c.rotate(a);
@@ -1630,6 +1720,16 @@ class LastKnownPosition {
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
       case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter, this.trumblerAt()); break; }
       case 'skyjelly': skyJelly(c, W, H, it, this.t, PAL.world); break;
+      case 'grazer': if (it.rel < 1.1) glimmerback(c, p.x, p.y, H * 0.11 * p.k, this.t * 0.25 + it.n, 0, Math.min(0.7, Math.max(0, it.rel) * 0.7), 0); break;
+      /* far off on the land's edge: the great legs, striding slowly along */
+      case 'farGiant': if (it.rel < 1.2){
+        const hz = Math.min(0.75, Math.max(0, it.rel) * 0.85), st = this.t / 2.8;
+        giantShadow(c, W, H, p.x, p.y, p.k);
+        [[-0.6, 0], [0.6, 0.5], [-0.6, 0.25], [0.6, 0.75]].forEach(([dl, ph], n) => {
+          const f = (st + ph) % 1, lift = f > 0.7 ? Math.sin((f - 0.7) / 0.3 * Math.PI) : 0, q = P(it.lane + dl + 0.15 * Math.floor(st + ph), it.rel + (n > 1 ? 0.06 : 0), W, H);
+          giantLeg(c, W, H, q.x, q.y, q.k, lift, this.t, PAL.world, hz, n);
+        });
+      } break;
       case 'giantShadow': { const q = P(it.tb.lane, it.tb.rel + 0.03, W, H); giantShadow(c, W, H, q.x, q.y, q.k); break; }
       case 'giantLeg': giantLeg(c, W, H, p.x, p.y, p.k, it.lg.lift, this.t, PAL.world, Math.min(0.7, Math.max(0, it.rel) * 0.85), it.lg.n); break;
       case 'herd1': if (it.rel > -0.12 && (it.f.a ?? 1) > 0.01 && !nearTrumbler(this.trumblerAt(), it.lane, it.rel)){

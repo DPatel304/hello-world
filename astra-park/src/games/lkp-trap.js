@@ -55,6 +55,10 @@ export const SNORT = 0.12;
 /* The pile of crystals at the end, everyone's when the first is over. */
 export const CLEAR_CRYSTALS = 35;
 export const TRAP_MAX = 90;
+/* In the glade: first, REVEAL seconds of just looking - close in on a great
+   mossy shape, breathing, the camera slowly pulling back and up to take
+   her in - before anything's asked. */
+export const REVEAL = 9;
 
 /* The hall, from up high: the near end low on the screen and wide, the
    far end higher up and narrower. lane -1..1 across, along 0 (start) to
@@ -79,7 +83,8 @@ export class Lights {
   constructor(game, len = TRAP_MAX, { giant = false } = {}){
     this.g = game; this.len = len; this.giant = giant;
     this.Q = giant ? QS : Q;
-    this.t = 0; this.light = 'red'; this.left = READY; this.redT = Infinity;   /* the first red's only to get ready: nobody's zapped */
+    this.reveal = giant ? REVEAL : 0;
+    this.t = 0; this.light = giant ? 'green' : 'red'; this.left = READY; this.redT = Infinity;   /* the first red's only to get ready: nobody's zapped */
     this.done = false; this.clearT = 0; this.fade = 0;
     this.moves = pose.players.map(() => new MoveWatch(true));
     for (const rn of game.crew){ rn.along = 0; rn.over = false; rn.zapped = 0; rn.marching = 0; rn.caught = 0; }
@@ -92,12 +97,19 @@ export class Lights {
     this.t += dt; this.fade = Math.min(1, this.fade + dt * 2.5);
     for (const rn of g.crew) rn.zapped = Math.max(0, rn.zapped - dt * 2);
     if (this.done){ this.clearT += dt; return; }
+    /* (the reveal: her breathing, the camera pulling back - nobody moves yet) */
+    if (this.reveal > 0){
+      this.reveal -= dt;
+      this.breathT = (this.breathT ?? 1) - dt; if (this.breathT <= 0){ this.breathT = 3.2; sfx.yawn?.(); }
+      if (this.reveal <= 0){ this.light = 'red'; this.left = READY; this.redT = Infinity; }
+      return;
+    }
 
     /* The lights going round: green, yellow, red, green ... */
     this.left -= dt;
     if (this.left <= 0){
       if (this.light === 'green'){ this.light = 'yellow'; this.left = YELLOW; sfx.siren(false); }
-      else if (this.light === 'yellow'){ this.light = 'red'; this.left = rand(RED); this.redT = this.t; sfx.siren(true); }
+      else if (this.light === 'yellow'){ this.light = 'red'; this.left = rand(RED); this.redT = this.t; this.reds = (this.reds || 0) + 1; sfx.siren(true); }
       else { this.light = 'green'; this.left = rand(GREEN); sfx.pick(); }
     }
     const looking = this.light === 'red' && this.t - this.redT >= GRACE;
@@ -161,6 +173,20 @@ export class Lights {
   /* The hall, the robot, and the crew - drawn by the game's own crew
      drawing, at their places in the hall. */
   draw(c, W, H, drawCrew){
+    /* (the reveal: from close in, low down on her, pulling back and up to the whole glade) */
+    if (this.reveal > 0){
+      const u = 1 - this.reveal / REVEAL, e = u * u * (3 - 2 * u), z = Math.exp(Math.log(2.6) * (1 - e));
+      /* (from close on her sleeping face, up on the left, out to the whole glade - never past its edges) */
+      const hw = W / (2 * z), hh = H / (2 * z);
+      const cx = Math.max(hw, Math.min(W - hw, W * (0.24 + 0.26 * e))), cy = Math.max(hh, Math.min(H - hh, H * (0.36 + 0.14 * e)));
+      c.save(); c.translate(W / 2, H / 2); c.scale(z, z); c.translate(-cx, -cy);
+      this._draw(c, W, H, drawCrew);
+      c.restore();
+      return;
+    }
+    this._draw(c, W, H, drawCrew);
+  }
+  _draw(c, W, H, drawCrew){
     const g = this.g, red = this.light === 'red', lamp = { green: '#3fcf7f', yellow: '#ffc531', red: '#ff3b3b' }[this.light];
     /* The floor, with lines across it every so far up, the start, and the
        finish. */

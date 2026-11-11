@@ -258,7 +258,7 @@ export class Scene {
     if (this.done) return;
     this.t += dt;
     this.waves.step(dt, handsFrom(pose, this.n));
-    if (this.waves.done){ this.done = true; voice.hush(); return; }
+    if (this.waves.done && !this.noSkip){ this.done = true; voice.hush(); return; }
     this.line.t += dt;
     if (over(this.line)) this._next();
   }

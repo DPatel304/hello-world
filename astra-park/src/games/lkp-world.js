@@ -1156,3 +1156,56 @@ export function worldFarWoods(c, W, H, x, y, t, T, L){
   }
   c.restore();
 }
+
+/* A footprint of the giant's, pressed deep into the ground at lane, rel:
+   a great rounded hollow, three toe-dents at its front, the earth pushed up
+   round its rim - some with water lying in them, the sky in it. */
+export function footprint(c, W, H, lane, rel, t, L, wet = false, n = 0){
+  if (!L) return;
+  const p = P(lane, rel, W, H), w = (P(lane + 0.7, rel, W, H).x - p.x), h = w * 0.32, haze = Math.min(0.6, Math.max(0, rel) * 0.8);
+  if (p.x < -w * 2 || p.x > W + w * 2) return;
+  c.save();
+  /* the pushed-up rim, then the hollow */
+  c.fillStyle = mix(mix(L.ground[0], '#c2b08a', 0.3), L.haze, haze); c.beginPath(); c.ellipse(p.x, p.y, w * 1.08, h * 1.12, 0, 0, 6.2832); c.fill();
+  c.fillStyle = mix(mix(L.ground[2], '#4a3f5a', 0.35), L.haze, haze); c.beginPath(); c.ellipse(p.x, p.y + h * 0.05, w, h, 0, 0, 6.2832); c.fill();
+  for (const d of [-1, 0, 1]){ c.beginPath(); c.ellipse(p.x + d * w * 0.6, p.y - h * 0.95, w * 0.26, h * 0.34, 0, 0, 6.2832); c.fill(); }
+  if (wet){
+    /* water lying in it, the sky in the water, rings */
+    c.fillStyle = mix(mix(L.water, L.sky[2], 0.45), L.haze, haze); c.beginPath(); c.ellipse(p.x, p.y + h * 0.1, w * 0.86, h * 0.8, 0, 0, 6.2832); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = Math.max(1, H * 0.003 * p.k);
+    const u = (t * 0.3 + n * 0.37) % 1; c.globalAlpha = 1 - u; c.beginPath(); c.ellipse(p.x + w * 0.2, p.y + h * 0.1, w * 0.3 * (0.3 + u), h * 0.25 * (0.3 + u), 0, 0, 6.2832); c.stroke();
+    c.globalAlpha = 1; c.fillStyle = 'rgba(255,255,255,.25)'; c.beginPath(); c.ellipse(p.x - w * 0.3, p.y, w * 0.25, h * 0.08, 0, 0, 6.2832); c.fill();
+  }
+  c.restore();
+}
+
+/* A creek right across the way at rel: a band of quick shallow water, the
+   sky in it, pebbles under it, damp banks either side - and every so often
+   a fish leaping over it in an arc, from one bank to the other. */
+export function creek(c, W, H, rel, t, L){
+  if (!L) return;
+  const r0 = rel - 0.025, r1 = rel + 0.025, N = 30, lanes = Array.from({ length: N + 1 }, (_, k) => -8 + 16 * k / N);
+  const wob = (ln, side) => 0.006 * Math.sin(ln * 1.3 + side * 2);
+  const band = (out) => { c.beginPath(); lanes.forEach((ln, k) => { const q = P(ln, Math.max(-0.14, r0 + wob(ln, 0) - out), W, H); k ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y); }); for (let k = N; k >= 0; k--){ const q = P(lanes[k], r1 + wob(lanes[k], 1) + out, W, H); c.lineTo(q.x, q.y); } c.closePath(); };
+  c.save();
+  c.fillStyle = mix(L.ground[0], '#cfe8d0', 0.35); band(0.008); c.fill();
+  const near = P(0, r0, W, H), far = P(0, r1, W, H), g = c.createLinearGradient(0, far.y, 0, near.y + 1);
+  g.addColorStop(0, mix(L.sky[2], L.water, 0.45)); g.addColorStop(1, mix(L.water, '#1f7489', 0.4));
+  c.fillStyle = g; band(0); c.fill();
+  c.save(); band(0); c.clip();
+  /* glints, running along it */
+  c.fillStyle = 'rgba(255,255,255,.35)';
+  for (let k = 0; k < 16; k++){ const ln = ((hash(k + 1990) * 16 + t * 0.8) % 16) - 8, q = P(ln, rel + (hash(k + 1991) - 0.5) * 0.04, W, H), w = W * 0.03 * q.k; c.beginPath(); c.ellipse(q.x, q.y, w, Math.max(1, w * 0.06), 0, 0, 6.2832); c.fill(); }
+  c.restore();
+  /* fish leaping across, one after another */
+  for (let k = 0; k < 3; k++){
+    const u = (t * 0.45 + k / 3) % 1, from = (k % 2 ? 1 : -1) * 2.2, ln = from * (1 - 2 * u), q = P(ln, rel, W, H), hgt = Math.sin(u * Math.PI) * H * 0.12 * q.k, s = H * 0.035 * q.k;
+    c.save(); c.translate(q.x, q.y - hgt); c.rotate((k % 2 ? 1 : -1) * Math.cos(u * Math.PI) * 0.7); c.scale(k % 2 ? -1 : 1, 1);
+    c.fillStyle = mix('#7fd8e8', L.water, 0.3); c.beginPath(); c.ellipse(0, 0, s, s * 0.4, 0, 0, 6.2832); c.fill();
+    c.beginPath(); c.moveTo(-s * 0.8, 0); c.lineTo(-s * 1.4, -s * 0.4); c.lineTo(-s * 1.4, s * 0.4); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(s * 0.1, -s * 0.12, s * 0.5, s * 0.1, 0, 0, 6.2832); c.fill();
+    c.restore();
+    if (u < 0.08 || u > 0.92){ c.strokeStyle = 'rgba(230,255,255,.6)'; c.lineWidth = Math.max(1, H * 0.003 * q.k); c.beginPath(); c.ellipse(q.x, q.y, s * 1.2, s * 0.3, 0, 0, 6.2832); c.stroke(); }
+  }
+  c.restore();
+}

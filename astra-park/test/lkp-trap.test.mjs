@@ -187,6 +187,11 @@ test('level 1\'s sneak: past the friendly giant asleep in a glade - caught movin
   assert.equal(inst.phase, 'sneak');
   assert.ok(inst.trap && inst.trap.giant, 'the giant, asleep');
   const tr = inst.trap, rn = inst.crew[0];
+  /* first, the reveal: just looking, nobody moving - and nothing asked */
+  assert.ok(tr.reveal > 0, 'a slow look at her first');
+  for (let k = 0; k < 30; k++){ body(0, inst.t, 'march'); inst.step(DT, W, H); }
+  assert.equal(rn.along, 0, 'no one moves while she\'s revealed');
+  tr.reveal = 0;
   rn.along = 0.5; rn.safe = 0;
   const hp = rn.hp;
   tr.light = 'red'; tr.redT = tr.t - GRACE - 0.1; tr.left = 9;
@@ -210,7 +215,7 @@ test('sneaking past Zubu: frozen on red, each player\'s face is quietly snapped 
   const took = [];
   inst.faces.photo = (i) => { took.push(i); return true; };
   const tr = inst.trap;
-  tr.light = 'green'; tr.left = 9;
+  tr.reveal = 0; tr.light = 'green'; tr.left = 9;
   for (let k = 0; k < 20; k++){ body(0); body(1); inst.step(DT, W, H); }
   assert.equal(took.length, 0, 'not while sneaking along');
   tr.light = 'red'; tr.redT = tr.t; tr.left = 9;

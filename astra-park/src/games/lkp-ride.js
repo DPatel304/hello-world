@@ -134,6 +134,13 @@ export class Ride {
         this.phase = 'relax'; this.pt = 0;
         pose.keepSitters = true;
         this._say('rideOn');
+        /* (and out there, as they ride: old friends - sky jellies drifting
+           by at their height, the glimmerbacks grazing off in a field, and
+           far away on the land's edge the great legs, striding along) */
+        const d0 = g.z + RUN + AHEAD;
+        for (let k = 0; k < 6; k++) g.things.push({ d: d0 + 0.9 + k * 0.35, kind: 'skyjelly', lane: (k % 2 ? 1 : -1) * (1.15 + 0.4 * (k % 3)), alt: 0.24 + 0.08 * (k % 2), vl: 0.03, vd: 0.006, size: 0.9, n: 40 + k });
+        for (let k = 0; k < 14; k++) g.things.push({ d: d0 + 1.6 + (k % 5) * 0.12, kind: 'grazer', lane: -1.7 - (k % 7) * 0.26 - Math.floor(k / 7) * 0.15, n: k });
+        g.things.push({ d: d0 + 3.0, kind: 'farGiant', lane: 3.0 });
       }
     } else if (this.phase === 'relax'){
       this.d = g.z + RUN + AHEAD;

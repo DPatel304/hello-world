@@ -74,12 +74,13 @@ export const LEVELS = [
     tips: {
       crystal: ['See those glowing crystals? Collect them to level up! Lean to grab them!', 'CRYSTALS!'],
       blocker: ['Debris! Lean around it.', 'LEAN!'],
+      fallen: ['A fallen tree! Lean round it.', 'LEAN!'],
       beam: ['Low branch! Duck!', 'DUCK!'],
       gap: ['A ditch! Hop over it!', 'HOP!'],
       roller: ['A log, rolling across! Lean out of its way!', 'DODGE IT!'],
       /* (no word for the herd, or the sky jellies: they just happen) */
-      ravine: ['A gorge! Everyone, get ready to JUMP!', 'GET READY TO JUMP!'],
-      fountain: ['Spring water! Run along it to heal up.', 'HEAL']
+      ravine: ['A gorge! Everyone, get ready to JUMP!', 'GET READY TO JUMP!']
+      /* (no word for the springs: they're seen, healing) */
     },
     lines: {
       /* The opening (lkp-intro.js): answering her call, inside the helmet. */
@@ -98,15 +99,17 @@ export const LEVELS = [
         ['nova', 'Your ship came down hard, on a planet nobody\'s ever explored. Trouble is, the crash knocked out your Star Core \u2014 it\'s what powers your ship. Without it, you can\'t fly home.', ''],
         ['nova', 'I\'m picking up its glow, somewhere out there. We need to find that Star Core!', 'FIND THE STAR CORE']
       ],
+      /* The run on to the Star Core: its signal getting stronger. */
+      signal: [['nova', 'The Star Core\'s signal is getting stronger, crew. It\'s close now \u2014 look for the glow!', '']],
       /* The healing pond, a stop along the first corridor. */
       pondIn: [['nova', 'Stop here! Your vitals are climbing \u2014 the water\'s healing you.', '']],
       /* (the pond's end: the ground shaking, the far ridge - lkp-game.js _rest) */
       offTrail: [['nova', 'Whoa... something big is out there. And the signal\'s coming from that way. Follow that path!', 'FOLLOW THE PATH']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
       /* Zubu rolling down the hill after them, in her sleep (lkp-roll.js). */
-      rollStart: [['nova', 'Uh-oh... Zubu rolled over in her sleep \u2014 and she\'s rolling down the hill! Run, crew! Run on the spot! Lean out of the way of anything rolling!', 'RUN!']],
+      rollStart: [['nova', 'Uh-oh... the giant rolled over in her sleep \u2014 and she\'s rolling down the hill! Run, crew! Run on the spot! Lean out of the way of anything rolling!', 'RUN!']],
       rollEnd: [['nova', 'She stopped... and she\'s still snoring! She slept through the whole thing. Ha! Okay crew, tiptoe on.', '']],
-      /* Mossy, the gentle giant, after the boss (lkp-ride.js). */
+      /* The gentle giant from the glade, carrying them off - named, at last, as they climb down (lkp-ride.js). */
       rideMeet: [['nova', 'Look who it is! The giant from the glade. The robots woke it up too. Run, crew, catch up!', 'CATCH UP!']],
       rideOn: [['nova', 'Everyone on? Sit down and rest, crew. You\'ve earned it.', 'SIT AND RELAX']],
       rideOff: [['nova', `What a ride! Say thank you, crew. I think we'll call it... ${GIANT}!`, `BYE, ${GIANT.toUpperCase()}!`]],
