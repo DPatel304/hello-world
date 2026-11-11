@@ -107,11 +107,12 @@ export function drawZubuWall(c, W, H, light, t){
   drawZubuAsleep(c, W, H, light, t, at);
 }
 /* Where her head is, in the wall: and its snore, drawn over the trees.
-   (Seen from further back: her eye, cheek and smile, the rest of her - her
-   head nearly two screens tall - going up off the screen.) */
-const WALL = { x: 0.95, y: 0.98, size: 1.8, shadow: false, snore: false };
+   (Five times what she was - her head three screens tall - but her eye
+   small for her size, as a great creature's is: a calm face, not a
+   cartoon one; the rest of her going up off the screen.) */
+const WALL = { x: 0.95, y: 0.98, size: 3.0, shadow: false, snore: false, eye: 0.4 };
 /* (where her big eye is on the screen, fractions) */
-const EYE = [0.24, 0.45];
+const EYE = [0.24, 0.42];
 export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * EYE[0] + H * WALL.size * 0.4, H * (EYE[1] + WALL.size * 0.2), H * 0.6); }
 /* Where her eyes are on screen (fractions): kept clear of trees. */
 export const WALL_EYES = { x0: 0.15, x1: 0.34, y0: 0.32, y1: 0.6 };
@@ -143,13 +144,13 @@ export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 
   /* its garden */
   garden(c, x0 - S * 0.95, y0 - S * 0.77, S * 0.6, S * 0.1, S * 0.9, t, -0.1);
   /* its eyes: shut fast asleep; one peeking when it stirs; open on red */
-  const big = [x0 - S * 0.4, y0 - S * 0.2], small = [x0 - S * 0.62, y0 - S * 0.42];
-  if (light === 'red'){ eye(c, big[0], big[1], S * 0.065, 0.6); eye(c, small[0], small[1], S * 0.035, 0.6); }
+  const big = [x0 - S * 0.4, y0 - S * 0.2], small = [x0 - S * 0.62, y0 - S * 0.42], E = S * (at.eye || 1);
+  if (light === 'red'){ eye(c, big[0], big[1], E * 0.065, 0.6); eye(c, small[0], small[1], E * 0.035, 0.6); }
   else if (light === 'yellow'){
-    shut(c, big[0], big[1], S * 0.07, S * 0.014);
-    if (Math.floor(t * 6) % 3){ c.save(); c.translate(small[0], small[1]); c.scale(1, 0.45); eye(c, 0, 0, S * 0.035, 0.6); c.restore(); }
-    else shut(c, small[0], small[1], S * 0.04, S * 0.01);
-  } else { shut(c, big[0], big[1], S * 0.07, S * 0.014); shut(c, small[0], small[1], S * 0.04, S * 0.01); }
+    shut(c, big[0], big[1], E * 0.07, E * 0.014);
+    if (Math.floor(t * 6) % 3){ c.save(); c.translate(small[0], small[1]); c.scale(1, 0.45); eye(c, 0, 0, E * 0.035, 0.6); c.restore(); }
+    else shut(c, small[0], small[1], E * 0.04, E * 0.01);
+  } else { shut(c, big[0], big[1], E * 0.07, E * 0.014); shut(c, small[0], small[1], E * 0.04, E * 0.01); }
   blush(c, x0 - S * 0.3, y0 - S * 0.06, S * 0.08);
   /* its smile - a little open 'o' on red, surprised */
   c.strokeStyle = ZUBU.line; c.lineWidth = S * 0.01; c.lineCap = 'round';
