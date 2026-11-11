@@ -1923,7 +1923,7 @@ class LastKnownPosition {
         const pop = Math.max(0, Math.min(1, (BURROW_POP + 0.06 - it.rel) / 0.08)) * Math.max(0, Math.min(1, (it.rel - 0.06) / 0.1));
         burrowPuff(c, p.x, p.y, H * 0.17 * p.k, this.t, pop, Math.min(0.6 * FOG, Math.max(0, it.rel) * 0.8 * FOG), PAL.world, it.n);
       } break;
-      case 'flutter': if (it.rel < 1.05 && (it.away || 0) < 1) flutterSwarm(c, p.x, p.y - H * 0.16 * p.k, H * 0.24 * p.k, this.t, Math.min(0.6 * FOG, Math.max(0, it.rel) * 0.8 * FOG), it.away || 0); break;
+      case 'flutter': if (it.rel < 1.05 && (it.away || 0) < 1) flutterSwarm(c, p.x, p.y - H * 0.2 * p.k, H * 0.38 * p.k, this.t, Math.min(0.6 * FOG, Math.max(0, it.rel) * 0.8 * FOG), it.away || 0); break;
       case 'longneck': if (it.rel < 1.3 && it.rel > -0.12){
         /* stepping slowly across, right to left, straddling the path - its legs either side of it */
         const lane = it.rel * 2.2, st = this.t / NECK_STRIDE;
