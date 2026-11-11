@@ -556,49 +556,67 @@ export function trumbler2(c, x, y, s, t, step, haze, L, turn = 0){
    ground, 0..1), k its depth scale. World-drawn: flat tones, lit on its
    left by the low sun, hazing with distance. */
 export function giantLeg(c, W, H, x, y, k, lift, t, L, haze = 0, n = 0){
-  const H_ = (a) => mixHex(a, L.haze, haze), w = H * 0.36 * k, fy = y - lift * H * 0.9 * k;
-  const dark = H_('#3d4a66'), hide = H_('#5d6f96'), lit = H_('#8ea3c8'), glowC = H_('#86f2dc'), claw = H_('#f2ead8');
+  const H_ = (a) => mixHex(a, L.haze, haze), w = H * 0.56 * k, fy = y - lift * H * 0.9 * k;
+  const dark = H_('#3b4762'), hide = H_('#56678c'), lit = H_('#8396bd'), crease = H_('#2c3550');
+  const cr = L.crystal || ['#c7b6ef', '#8f7cc4', '#5d4e8f'];
   c.save();
-  const top = -H * 0.3, ax = x + Math.sin(t * 0.3 + n) * w * 0.02;
-  /* the leg: thick and heavy, bulging at the ankle, up past the top of the screen */
-  const leg = () => {
-    c.beginPath();
-    c.moveTo(x - w * 0.5, fy - w * 0.2);
-    c.bezierCurveTo(x - w * 0.62, fy - w * 0.55, x - w * 0.4, fy - w * 0.9, ax - w * 0.44, fy - w * 1.4);
-    c.lineTo(ax - w * 0.56, top); c.lineTo(ax + w * 0.56, top); c.lineTo(ax + w * 0.44, fy - w * 1.4);
-    c.bezierCurveTo(x + w * 0.4, fy - w * 0.9, x + w * 0.62, fy - w * 0.55, x + w * 0.5, fy - w * 0.2);
-    c.closePath();
+  const top = -H * 0.35, rise = fy - top;
+  /* its outline: lumpy and heavy, flaring wider as it goes up - a living
+     thing, not a post (a: how far up, 0 the ankle, 1 off the top) */
+  const edge = (side, a) => {
+    const flare = 0.48 + 0.5 * a * a, lump = 0.04 * Math.sin(a * 11 + n * 2 + side) + 0.025 * Math.sin(a * 23 + n);
+    return x + side * w * (flare + lump) + Math.sin(t * 0.3 + n) * w * 0.02 * a;
   };
-  c.fillStyle = hide; leg(); c.fill();
-  c.save(); leg(); c.clip();
-  /* shaded on its right, lit down its left */
-  c.fillStyle = dark; c.fillRect(x + w * 0.12, top, w, fy - top + w);
-  c.fillStyle = lit; c.fillRect(x - w, top, w * 0.66, fy - top + w);
-  /* wrinkles round the ankle, plates further up */
-  c.strokeStyle = H_('#2f3a55'); c.lineWidth = Math.max(1, w * 0.02);
-  for (let j = 0; j < 20; j++){
-    const yy = fy - w * 0.3 - j * w * (j < 5 ? 0.12 : 0.22); if (yy < top) break;
-    c.beginPath(); c.moveTo(x - w * 0.7, yy); c.quadraticCurveTo(x, yy + w * (j < 5 ? 0.08 : 0.05), x + w * 0.7, yy); c.stroke();
+  const N = 24, outline = () => {
+    c.beginPath(); c.moveTo(x - w * 0.55, fy - w * 0.12);
+    for (let j = 0; j <= N; j++){ const a = j / N; c.lineTo(edge(-1, a), fy - w * 0.25 - a * rise); }
+    for (let j = N; j >= 0; j--){ const a = j / N; c.lineTo(edge(1, a), fy - w * 0.25 - a * rise); }
+    c.lineTo(x + w * 0.55, fy - w * 0.12); c.closePath();
+  };
+  c.fillStyle = hide; outline(); c.fill();
+  c.save(); outline(); c.clip();
+  /* shaded round its right, lit down its left */
+  c.fillStyle = dark; c.beginPath(); c.moveTo(x + w * 0.1, fy); for (let j = 0; j <= N; j++){ const a = j / N; c.lineTo(x + w * (0.1 + 0.3 * a), fy - w * 0.25 - a * rise); } c.lineTo(x + w * 3, top); c.lineTo(x + w * 3, fy); c.closePath(); c.fill();
+  c.fillStyle = lit; c.beginPath(); c.moveTo(x - w * 3, fy); c.lineTo(x - w * 3, top); for (let j = N; j >= 0; j--){ const a = j / N; c.lineTo(x - w * (0.32 + 0.35 * a), fy - w * 0.25 - a * rise); } c.closePath(); c.fill();
+  /* the hide: heavy creases round the ankle, uneven patches higher up */
+  c.strokeStyle = crease; c.lineWidth = Math.max(1, w * 0.018); c.lineCap = 'round';
+  for (let j = 0; j < 7; j++){ const yy = fy - w * (0.3 + j * 0.09), sp = w * (0.25 + 0.05 * hash(j + n * 5)); c.beginPath(); c.moveTo(x - sp + hash(j + n) * w * 0.1, yy); c.quadraticCurveTo(x, yy + w * 0.05, x + sp, yy - w * 0.01); c.stroke(); }
+  for (let j = 0; j < 10; j++){ const a = 0.15 + 0.85 * hash(j + n * 11 + 500), yy = fy - w * 0.25 - a * rise, xx = x + (hash(j + n * 11 + 501) - 0.5) * w * (0.8 + a); c.fillStyle = rgbaHex('#2c3550', 0.25); c.beginPath(); c.ellipse(xx, yy, w * (0.08 + 0.08 * hash(j + 502)), w * 0.05, hash(j + 503) - 0.5, 0, TAU); c.fill(); }
+  /* glowing lichen, in soft patches */
+  for (let j = 0; j < 8; j++){
+    const a = 0.04 + 0.35 * hash(j + n * 7 + 520), yy = fy - w * 0.3 - a * rise, xx = x + (hash(j + n * 7 + 521) - 0.6) * w * (0.7 + a * 0.6);
+    for (let q = 0; q < 6; q++){ c.fillStyle = rgbaHex('#86f2dc', (0.6 + 0.3 * Math.sin(t * 1.3 + j + q)) * (1 - haze)); c.beginPath(); c.arc(xx + (hash(q + j * 6 + 530) - 0.5) * w * 0.14, yy + (hash(q + j * 6 + 531) - 0.5) * w * 0.08, w * 0.022, 0, TAU); c.fill(); }
   }
-  /* glowing stripes down it */
-  c.fillStyle = glowC;
-  for (let j = 0; j < 12; j++){ const yy = fy - w * 0.8 - j * w * 0.35; if (yy < top) break; for (const d of [-0.2, 0.08]){ c.globalAlpha = 0.55 + 0.25 * Math.sin(t * 1.2 + j + n); c.beginPath(); c.ellipse(x + d * w, yy, w * 0.03, w * 0.07, 0, 0, TAU); c.fill(); } }
-  c.globalAlpha = 1;
   c.restore();
-  c.strokeStyle = rgbaHex(L.rim, 0.5 * (1 - haze)); c.lineWidth = Math.max(1, w * 0.025);
-  c.beginPath(); c.moveTo(x - w * 0.5, fy - w * 0.2); c.bezierCurveTo(x - w * 0.62, fy - w * 0.55, x - w * 0.4, fy - w * 0.9, ax - w * 0.44, fy - w * 1.4); c.lineTo(ax - w * 0.56, top); c.stroke();
-  /* moss and vines, hanging round above the ankle */
-  for (let j = 0; j < 11; j++){
-    const vx = x - w * 0.5 + j * w * 0.1, vy = fy - w * 0.95, len = w * (0.12 + 0.2 * hash(j + n * 9 + 400));
-    c.strokeStyle = H_(j % 2 ? '#5a9a6a' : '#7fbf7a'); c.lineWidth = Math.max(1, w * 0.03); c.lineCap = 'round';
-    c.beginPath(); c.moveTo(vx, vy); c.quadraticCurveTo(vx + Math.sin(t * 1.5 + j) * w * 0.03, vy + len * 0.6, vx + Math.sin(t * 1.5 + j + 1) * w * 0.05, vy + len); c.stroke();
+  /* the sun's rim down its left side */
+  c.strokeStyle = rgbaHex(L.rim, 0.5 * (1 - haze)); c.lineWidth = Math.max(1, w * 0.02);
+  c.beginPath(); for (let j = 0; j <= N; j++){ const a = j / N; const xx = edge(-1, a), yy = fy - w * 0.25 - a * rise; j ? c.lineTo(xx, yy) : c.moveTo(xx, yy); } c.stroke();
+  /* crystals growing out of the hide, in clusters - the planet's own */
+  for (let j = 0; j < 5; j++){
+    const a = 0.04 + 0.22 * hash(j + n * 3 + 540), side = j % 2 ? -1 : 1, bx = x + side * w * (0.18 + 0.2 * hash(j + n * 3 + 542)), by = fy - w * 0.35 - a * rise;
+    for (let q = 0; q < 4; q++){
+      const ang = side * (0.5 + 0.35 * q) - Math.PI / 2 + (hash(q + j * 4 + 550) - 0.5) * 0.4, len = w * (0.2 + 0.2 * hash(q + j * 4 + 551)), cw = len * 0.26;
+      const ex = bx + Math.cos(ang) * len, ey = by + Math.sin(ang) * len, nx = -Math.sin(ang) * cw, ny = Math.cos(ang) * cw;
+      c.fillStyle = H_(cr[q % 2 ? 1 : 0]); c.beginPath(); c.moveTo(bx + nx, by + ny); c.lineTo(ex, ey); c.lineTo(bx - nx, by - ny); c.closePath(); c.fill();
+      c.fillStyle = H_(cr[2]); c.beginPath(); c.moveTo(bx, by); c.lineTo(ex, ey); c.lineTo(bx - nx, by - ny); c.closePath(); c.fill();
+    }
   }
-  /* the foot: wide and heavy, splayed - three great toes, claws */
-  c.fillStyle = hide; c.beginPath(); c.ellipse(x, fy - w * 0.12, w * 0.68, w * 0.2, 0, 0, TAU); c.fill();
+  /* soft frond-gills down the back of the leg, swaying */
+  for (let j = 0; j < 6; j++){
+    const a = 0.05 + j * 0.06, gx = edge(1, a), gy = fy - w * 0.25 - a * rise, sw = Math.sin(t * 1.1 + j + n) * w * 0.04;
+    c.fillStyle = H_(j % 2 ? '#9b8fd6' : '#b9aee6'); c.beginPath(); c.moveTo(gx - w * 0.02, gy - w * 0.06); c.quadraticCurveTo(gx + w * 0.2 + sw, gy, gx + w * 0.1 + sw, gy + w * 0.2); c.quadraticCurveTo(gx + w * 0.02, gy + w * 0.08, gx - w * 0.02, gy - w * 0.06); c.fill();
+  }
+  /* the foot: wide and heavy, three great toes, pale claws */
+  c.fillStyle = dark; c.beginPath(); c.ellipse(x, fy - w * 0.12, w * 0.66, w * 0.19, 0, 0, TAU); c.fill();
   for (const d of [-1, 0, 1]){
-    const tx = x + d * w * 0.44, ty = fy - w * 0.02;
-    c.fillStyle = d < 0 ? lit : d > 0 ? dark : hide; c.beginPath(); c.ellipse(tx, ty, w * 0.24, w * 0.13, d * 0.2, 0, TAU); c.fill();
-    c.fillStyle = claw; c.beginPath(); c.moveTo(tx - w * 0.09 + d * w * 0.06, ty + w * 0.04); c.quadraticCurveTo(tx + d * w * 0.14, ty + w * 0.2, tx + w * 0.09 + d * w * 0.06, ty + w * 0.04); c.closePath(); c.fill();
+    const tx = x + d * w * 0.42, ty = fy - w * 0.03;
+    c.fillStyle = d < 0 ? lit : d > 0 ? dark : hide; c.beginPath(); c.ellipse(tx, ty, w * 0.22, w * 0.12, d * 0.2, 0, TAU); c.fill();
+    c.fillStyle = H_('#f2ead8'); c.beginPath(); c.moveTo(tx - w * 0.08 + d * w * 0.05, ty + w * 0.04); c.quadraticCurveTo(tx + d * w * 0.12, ty + w * 0.17, tx + w * 0.08 + d * w * 0.05, ty + w * 0.04); c.closePath(); c.fill();
+  }
+  /* spores shaken loose, drifting off it as it walks */
+  for (let j = 0; j < 10; j++){
+    const u = (t * 0.2 + hash(j + n * 13 + 560)) % 1, sx = x + (hash(j + n * 13 + 561) - 0.5) * w * 1.6 + Math.sin(u * 6 + j) * w * 0.1, sy = fy - w * 0.4 - (1 - u) * rise * 0.6;
+    c.fillStyle = rgbaHex('#e8fff4', 0.6 * Math.sin(u * Math.PI) * (1 - haze)); c.beginPath(); c.arc(sx, sy, w * 0.012, 0, TAU); c.fill();
   }
   c.restore();
 }
