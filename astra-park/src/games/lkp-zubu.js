@@ -101,21 +101,21 @@ export function drawZubuWall(c, W, H, light, t){
      the rest of her going up and away off the screen) */
   /* the rest of her, behind: her great side rising up behind the glade, right across, off the top */
   const breathe = Math.sin(t / SNORE * TAU) * H * 0.006;
-  form(c, [[-0.05 * W, 0.6 * H], [0.35 * W, 0.08 * H - breathe], [0.7 * W, -0.02 * H - breathe], [1.05 * W, -0.04 * H], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]], ZUBU.body, H, 0.4);
-  freckles(c, [[0.58, 0.22], [0.7, 0.15], [0.84, 0.12], [0.95, 0.2], [0.66, 0.34], [0.9, 0.36], [0.78, 0.44]].map(([u, v]) => [u * W, v * H]), H * 0.009);
+  form(c, [[-0.05 * W, 0.55 * H], [0.25 * W, 0.04 * H - breathe], [0.62 * W, 0.12 * H - breathe], [0.9 * W, 0.26 * H - breathe], [1.05 * W, 0.36 * H], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]], ZUBU.body, H, 0.4);
+  freckles(c, [[0.45, 0.14], [0.58, 0.16], [0.7, 0.2], [0.82, 0.27], [0.52, 0.28], [0.66, 0.32], [0.88, 0.38]].map(([u, v]) => [u * W, v * H]), H * 0.007);
   const at = { ...WALL, x: (W * EYE[0] + H * WALL.size * 0.4) / W, y: EYE[1] + WALL.size * 0.2 };
   drawZubuAsleep(c, W, H, light, t, at);
 }
 /* Where her head is, in the wall: and its snore, drawn over the trees.
-   (Five times what she was - her head three screens tall - but her eye
-   small for her size, as a great creature's is: a calm face, not a
-   cartoon one; the rest of her going up off the screen.) */
-const WALL = { x: 0.95, y: 0.98, size: 3.0, shadow: false, snore: false, eye: 0.4 };
+   (Seen from well back - so all of her head's in view, and her great side
+   behind - and everything else in the glade small against her: the
+   trees, the crew. Her eye small for her size, as a great creature's is.) */
+const WALL = { x: 0.95, y: 0.98, size: 1.4, shadow: false, snore: false, eye: 0.65 };
 /* (where her big eye is on the screen, fractions) */
-const EYE = [0.24, 0.42];
+const EYE = [0.345, 0.52];
 export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * EYE[0] + H * WALL.size * 0.4, H * (EYE[1] + WALL.size * 0.2), H * 0.6); }
 /* Where her eyes are on screen (fractions): kept clear of trees. */
-export const WALL_EYES = { x0: 0.15, x1: 0.34, y0: 0.32, y1: 0.6 };
+export const WALL_EYES = { x0: 0.29, x1: 0.4, y0: 0.44, y1: 0.6 };
 
 export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 0.44, shadow: true }){
   const S = H * at.size, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;

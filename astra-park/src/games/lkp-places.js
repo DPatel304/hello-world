@@ -423,28 +423,28 @@ export function worldGladeSide(c, W, H, red, t, L, light = 'green'){
   const top = H * 0.72, fg = c.createLinearGradient(0, top, 0, H);
   fg.addColorStop(0, mix(L.ground[0], L.haze, 0.15)); fg.addColorStop(1, L.ground[2]);
   c.fillStyle = fg; c.beginPath(); c.moveTo(0, top); for (let k = 0; k <= 12; k++) c.lineTo(W * k / 12, top + H * 0.01 * Math.sin(k * 2.1)); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
-  /* in front of her, tall and thick - she shows only in the gaps and over
-     the tops (you can tell how big she is, but not see her all) - except
-     round her eyes, always clear. Kept calm: just a few kinds - tall
-     umbrella trees and pines at the back, a great mossy mound with
-     boulders, round trees, low bushes in front. */
-  const W0 = WALL_EYES.x0 * W, W1 = WALL_EYES.x1 * W, clear = (x) => x > W0 - W * 0.05 && x < W1 + W * 0.05;
-  const plant = (u, y, sz, kind, hz, n) => { const x = W * (u + (hash(n + 7) - 0.5) * 0.012); if (!clear(x)) treeKind(c, x, y, H * sz * (0.85 + 0.3 * hash(n)), kind, L, hz, n); };
-  [0.01, 0.07, 0.41, 0.48, 0.56, 0.63, 0.71, 0.79, 0.87, 0.95].forEach((u, k) => plant(u, top - H * 0.005, 0.00102, k % 3 === 1 ? 'pine' : 'umbrella', 0.3, 40 + k));
-  /* the mound: a long grassy hump, mossy boulders on it */
-  const mx0 = W * 0.5, mx1 = W * 1.05, my = top + H * 0.06, mh = H * 0.24;
-  const mg = c.createLinearGradient(0, my - mh, 0, my); mg.addColorStop(0, mix(L.ground[0], '#cfe8b0', 0.25)); mg.addColorStop(1, L.ground[1]);
-  c.fillStyle = mg; c.beginPath(); c.moveTo(mx0, my); c.bezierCurveTo(mx0 + W * 0.08, my - mh * 1.05, mx1 - W * 0.22, my - mh * 1.1, mx1, my - mh * 0.75); c.lineTo(mx1, my); c.closePath(); c.fill();
-  c.strokeStyle = rgba(L.grass[1], 0.5); c.lineWidth = Math.max(1, H * 0.003); c.stroke();
-  for (const [u, v, r] of [[0.66, 0.2, 0.075], [0.6, 0.12, 0.05], [0.84, 0.21, 0.065]]){
-    const bx = W * u, by = my - H * v, br = H * r;
-    c.fillStyle = 'rgba(20,30,30,.25)'; c.beginPath(); c.ellipse(bx, by + br * 0.7, br * 1.1, br * 0.25, 0, 0, 6.2832); c.fill();
-    const bg = c.createRadialGradient(bx - br * 0.3, by - br * 0.4, br * 0.1, bx, by, br * 1.1); bg.addColorStop(0, '#b8b4c8'); bg.addColorStop(1, '#6e6a88');
-    c.fillStyle = bg; c.beginPath(); c.ellipse(bx, by, br * 1.15, br * 0.85, 0, 0, 6.2832); c.fill();
-    c.fillStyle = mix(L.grass[0], '#7ec06e', 0.4); c.beginPath(); c.ellipse(bx - br * 0.1, by - br * 0.6, br * 0.8, br * 0.3, -0.1, 0, 6.2832); c.fill();
+  /* in front of her: a great green hill, and woods - thick, and small
+     against her - so most of her's hidden: she shows over the tops and in
+     the gaps (you can tell how big she is, but not see her all) - except
+     round her eye, always clear. */
+  const W0 = WALL_EYES.x0 * W, W1 = WALL_EYES.x1 * W, Y1 = WALL_EYES.y1 * H, clear = (x, ytop) => x > W0 - W * 0.03 && x < W1 + W * 0.03 && ytop < Y1;
+  const plant = (u, y, sz, kind, hz, n) => { const x = W * (u + (hash(n + 7) - 0.5) * 0.012), s = H * sz * (0.85 + 0.3 * hash(n)); if (!clear(x, y - s * 640)) treeKind(c, x, y, s, kind, L, hz, n); };
+  /* the back woods: tall pines and umbrella trees, close-packed */
+  for (let k = 0; k < 30; k++) plant(k / 29, top - H * 0.02, 0.00062, k % 3 === 1 ? 'umbrella' : 'pine', 0.35, 40 + k);
+  /* the hill: a great green rise across the right, its crest high up her side, little trees along it */
+  const hy = top + H * 0.04, hg = c.createLinearGradient(0, H * 0.3, 0, hy); hg.addColorStop(0, mix(L.ground[0], '#cfe8b0', 0.3)); hg.addColorStop(1, L.ground[1]);
+  c.fillStyle = hg; c.beginPath(); c.moveTo(W * 0.42, hy); c.bezierCurveTo(W * 0.52, H * 0.34, W * 0.78, H * 0.26, W * 1.05, H * 0.36); c.lineTo(W * 1.05, hy); c.closePath(); c.fill();
+  c.strokeStyle = rgba(L.rim, 0.45); c.lineWidth = Math.max(1, H * 0.003); c.beginPath(); c.moveTo(W * 0.42, hy); c.bezierCurveTo(W * 0.52, H * 0.34, W * 0.78, H * 0.26, W * 1.05, H * 0.36); c.stroke();
+  for (let k = 0; k < 12; k++){ const u = 0.55 + k * 0.04, x = W * u, y = H * (0.31 + 0.03 * Math.pow((u - 0.8) / 0.25, 2)); treeKind(c, x, y + H * 0.01, H * 0.00028 * (0.8 + 0.4 * hash(k + 120)), k % 2 ? 'pine' : 'round', L, 0.3, 120 + k); }
+  /* mossy boulders on its slope */
+  for (const [u, v, r] of [[0.62, 0.56, 0.04], [0.76, 0.5, 0.05], [0.9, 0.54, 0.035]]){
+    const bx = W * u, by = H * v, br = H * r;
+    c.fillStyle = '#8f88a8'; c.beginPath(); c.ellipse(bx, by, br * 1.15, br * 0.8, 0, 0, 6.2832); c.fill();
+    c.fillStyle = mix(L.grass[0], '#7ec06e', 0.4); c.beginPath(); c.ellipse(bx - br * 0.1, by - br * 0.55, br * 0.8, br * 0.28, -0.1, 0, 6.2832); c.fill();
   }
-  [0.04, 0.38, 0.45].forEach((u, k) => plant(u, top + H * 0.03, 0.00085, 'round', 0.15, 60 + k));
-  [0.0, 0.1, 0.18, 0.26, 0.33, 0.42, 0.52, 0.62, 0.74, 0.86, 0.96].forEach((u, k) => { const x = W * u; treeKind(c, x, top + H * 0.065, H * 0.0007 * (0.85 + 0.3 * hash(80 + k)), 'bush', L, 0.05, 80 + k); });
+  /* nearer: round trees, then a row of low bushes along the path */
+  for (let k = 0; k < 14; k++) plant(k / 13, top + H * 0.03, 0.00048, 'round', 0.15, 60 + k);
+  for (let k = 0; k < 16; k++){ const x = W * (k / 15); treeKind(c, x, top + H * 0.065, H * 0.00045 * (0.85 + 0.3 * hash(80 + k)), 'bush', L, 0.05, 80 + k); }
   zubuWallSnore(c, W, H, light, t);
   /* the trodden path, across the bottom */
   c.fillStyle = rgba(L.path[0], 0.6);
