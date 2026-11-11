@@ -22,7 +22,7 @@ import { Scout } from './lkp-scout.js';
 import { Intro, START } from './lkp-intro.js';
 import { drawZubuFar } from './lkp-zubu.js';
 import { worldShip, worldWreck } from './lkp-places.js';
-import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, trumbler2, chimeblooms, jellycrawl } from './lkp-critters.js';
+import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, giantLeg, giantShadow, chimeblooms, jellycrawl } from './lkp-critters.js';
 import { worldLake, worldLakeSurface, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch, splash } from './lkp-crashsite.js';
 import { Depot } from './lkp-depot.js';
 import { Treasure } from './lkp-treasure.js';
@@ -106,7 +106,7 @@ export const AFTER = { fight: 3.5, trap: 3, treasure: 2.5, roll: 0.5 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 /* Whether a spot (lane, rel) is where the trumbler is - the herd keeps out of its way. */
-const nearTrumbler = (tb, lane, rel) => !!tb && ((lane - tb.lane) / 1.5) ** 2 + ((rel - tb.rel - 0.04) / 0.16) ** 2 < 1;
+const nearTrumbler = (tb, lane, rel) => !!tb && ((lane - tb.lane) / 1.9) ** 2 + ((rel - tb.rel - 0.03) / 0.24) ** 2 < 1;
 /* A line from the level's script, for the captain: [who, text, words] -> (text, words). */
 const line = (l) => [l[1], l[2] || ''];
 /* A rolling boulder: how wide (lanes, either side of its middle), and how
@@ -144,9 +144,9 @@ export const JELLIES = { n: 9, drift: 0.05 };
 export const HERD = { mass: 6, full: 1.8, call: 14, scatter: 3.2, end: 28, edge: -0.15, push: 1 };
 /* The first few, each its own: when it turns up, and where it trots along (lane, depth). */
 export const SCOUTS = [[0, 1.05, 0.04], [2, 1.35, 0.01], [2.3, 0.95, 0.12], [4, 1.2, 0.15], [4.2, 1.6, 0.06], [4.5, 1.0, -0.015]];
-export const CHARGE = 1.2;
-/* (the trumbler's slow walk in: how long from the bottom right to where the herd was) */
-const TRUMBLE_IN = 6;
+export const CHARGE = 3.6;
+/* (the giant's slow walk in: how long from the bottom right to where the herd was; a stride, seconds; its legs - lane, depth off its middle, and when in the stride each steps) */
+const TRUMBLE_IN = 9, STRIDE = 2.6, LEGS = [[-0.7, -0.07, 0], [0.7, -0.07, 0.5], [-0.7, 0.13, 0.25], [0.7, 0.13, 0.75]];
 /* (and when the first corridor's squeeze comes, seconds in: after all that) */
 const SQUEEZE_AT = 46;
 /* Something big, far off, while they rest - never seen: the woods on
@@ -745,7 +745,9 @@ class LastKnownPosition {
       /* the trumbler's call - and they're off */
       if (!h.called && h.t >= HERD.call){ h.called = true; this.trumpT = this.t; sfx.trumpet?.(); this.shake = Math.max(this.shake || 0, 0.2); }
       /* (its slow, heavy tread as it comes in) */
-      const tb = this.trumblerAt(); if (tb){ h.treadT = (h.treadT ?? 0) - dt; if (h.treadT <= 0){ h.treadT = Math.PI / 1.6; sfx.thud?.(0.5); } }
+      /* (each of its feet coming down: a deep thud, the ground jumping, dust) */
+      h.steps = h.steps || {};
+      for (const lg of this.giantLegs()) if (lg.lift === 0 && h.steps[lg.n] !== lg.step){ const first = h.steps[lg.n] == null; h.steps[lg.n] = lg.step; if (!first && lg.rel > -0.25){ sfx.thud?.(); sfx.farStep?.(1.2); this.shake = Math.min(1, (this.shake || 0) + 0.45); this.bits.push({ kind: 'dust', lane: lg.lane, d: this.z + lg.rel, age: 0, life: 1.6 }); } }
       if (h.called && h.t >= HERD.call + 0.3 && h.t < HERD.call + 1.2 && Math.random() < dt * 14) sfx.warble?.(Math.random());
       /* (no crystals out on the herd's side while it's there: over on the crew's) */
       if (h.t < HERD.call + HERD.scatter) for (const th of this.things){
@@ -907,16 +909,29 @@ class LastKnownPosition {
   /* The trumbler, charging: up from behind the camera, in behind the
      herd, bellowing, then on after them off to the right. Where it is
      (lane, rel), or null. */
-  trumblerAt(){
+  trumblerAt(T0 = null){
     const h = this.herd; if (!h) return null;
-    const T = h.t - (HERD.call - CHARGE); if (T <= 0) return null;
+    const T = T0 != null ? T0 : h.t - (HERD.call - CHARGE); if (T <= 0 && T0 == null) return null;
     /* slowly up from the bottom right, into where the herd was - they
        making way ahead of it - then on, slowly, away up the field */
-    const a = Math.min(1, T / TRUMBLE_IN), b = Math.max(0, T - TRUMBLE_IN), ea = 1 - (1 - a) * (1 - a);
-    const rel = -0.2 + 0.48 * ea + 0.06 * b, lane = 2.8 - 1.0 * ea + 0.05 * b;
-    if (rel > 1.1) return null;
-    return { rel, lane, turn: -0.6 * (1 - a), step: T * 1.6 };
+    const a = Math.max(0, Math.min(1, T / TRUMBLE_IN)), b = Math.max(0, T - TRUMBLE_IN), ea = 1 - (1 - a) * (1 - a);
+    const rel = -0.12 + 0.5 * ea + 0.05 * b, lane = 3.5 - 1.1 * ea + 0.05 * b;
+    if (rel > 1.3) return null;
+    return { rel, lane, T };
   }
+  /* The giant's legs, now: each foot planted where it came down, or
+     swinging up off the ground and on to its next place. */
+  giantLegs(){
+    const g = this.trumblerAt(); if (!g) return [];
+    return LEGS.map(([dl, dr, ph], n) => {
+      const st = g.T / STRIDE + ph, k = Math.floor(st), f = st - k, tp = (k - ph) * STRIDE;
+      const a = this.trumblerAt(tp) || g, b = this.trumblerAt(tp + STRIDE) || g;
+      if (f < 0.7) return { lane: a.lane + dl, rel: a.rel + dr, lift: 0, n, step: k };
+      const u = (f - 0.7) / 0.3, e = u * u * (3 - 2 * u);
+      return { lane: a.lane + (b.lane - a.lane) * e + dl, rel: a.rel + (b.rel - a.rel) * e + dr, lift: Math.sin(u * Math.PI), n, step: k };
+    });
+  }
+
 
 
   /* The herd's mass, now: how far it's shifted (dx lanes: coming in from
@@ -1507,7 +1522,7 @@ class LastKnownPosition {
     if (this.depot) this.depot.items(items);
     if (this.ride) this.ride.items(items);
     if (this.herd && this.herd.t >= HERD.mass) items.push({ kind: 'herdMass', rel: 0.66 });
-    const tb = this.trumblerAt(); if (tb) items.push({ kind: 'trumbler', rel: tb.rel, lane: tb.lane, tb });
+    const tb = this.trumblerAt(); if (tb){ items.push({ kind: 'giantShadow', rel: tb.rel + 0.3, lane: tb.lane, tb }); for (const lg of this.giantLegs()) items.push({ kind: 'giantLeg', rel: lg.rel, lane: lg.lane, lg }); }
     for (const f of this._flock()) items.push({ kind: 'herd1', rel: f.rel, lane: f.lane, f });
     /* (the opening can stand them somewhere else, walking: introCrew) */
     if (this.introCrew) for (const ic of this.introCrew){
@@ -1615,7 +1630,8 @@ class LastKnownPosition {
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
       case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter, this.trumblerAt()); break; }
       case 'skyjelly': skyJelly(c, W, H, it, this.t, PAL.world); break;
-      case 'trumbler': trumbler2(c, p.x, p.y, H * 0.5 * p.k, this.t, it.tb.step, Math.min(0.7, Math.max(0, it.rel) * 0.85), PAL.world, it.tb.turn); break;
+      case 'giantShadow': { const q = P(it.tb.lane, it.tb.rel + 0.03, W, H); giantShadow(c, W, H, q.x, q.y, q.k); break; }
+      case 'giantLeg': giantLeg(c, W, H, p.x, p.y, p.k, it.lg.lift, this.t, PAL.world, Math.min(0.7, Math.max(0, it.rel) * 0.85), it.lg.n); break;
       case 'herd1': if (it.rel > -0.12 && (it.f.a ?? 1) > 0.01 && !nearTrumbler(this.trumblerAt(), it.lane, it.rel)){
         c.save(); c.globalAlpha = it.f.a ?? 1;
         glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep, it.f.hop || 0);
@@ -1807,6 +1823,17 @@ class LastKnownPosition {
   _drawBits(c, W, H){
     for (const b of this.bits){
       const k = b.age / b.life;
+      /* (a giant's footfall: dust rolling out round its foot, on the ground where it came down) */
+      if (b.kind === 'dust'){
+        const p = P(b.lane, b.d - this.z, W, H); if (b.d - this.z < -0.12) continue;
+        c.save();
+        for (let j = 0; j < 9; j++){
+          const a = j / 9 * Math.PI * 2, r = H * 0.2 * p.k * (0.3 + 0.9 * k);
+          c.fillStyle = `rgba(216,207,192,${0.45 * (1 - k)})`; c.beginPath(); c.arc(p.x + Math.cos(a) * r, p.y - H * 0.02 * p.k - Math.abs(Math.sin(a)) * r * 0.25 - k * H * 0.05 * p.k, H * 0.05 * p.k * (0.6 + k), 0, 6.2832); c.fill();
+        }
+        c.restore();
+        continue;
+      }
       if (b.kind === 'spark'){
         c.fillStyle = `hsla(${b.hue},100%,70%,${1 - k})`;
         c.beginPath(); c.arc(b.x * W, b.y * H, H * 0.007 * (1 - k * 0.5), 0, 6.2832); c.fill();

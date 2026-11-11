@@ -346,7 +346,7 @@ export function herdMass(c, W, H, t, edge, dx, a = 1, scatter = 0, avoid = null)
       const lane0 = edge + n * 0.11 + (hash(id) - 0.5) * 0.12 + (r % 2) * 0.055;
       const lane = lane0 + dx * (1 + scatter * (0.6 * hash(id + 7) - 0.2));
       /* (keeping out of the trumbler's way) */
-      if (avoid && ((lane - avoid.lane) / 1.5) ** 2 + ((rel - avoid.rel - 0.04) / 0.16) ** 2 < 1) continue;
+      if (avoid && ((lane - avoid.lane) / 1.9) ** 2 + ((rel - avoid.rel - 0.03) / 0.24) ** 2 < 1) continue;
       const p = P(lane, rel, W, H);
       if (p.x < -60 || p.x > W + 80) continue;
       const s = H * 0.11 * p.k * (0.95 + 0.55 * hash(id + 1)), bob = Math.abs(Math.sin(t * 14 + id)) * s * 0.05;
@@ -545,5 +545,67 @@ export function trumbler2(c, x, y, s, t, step, haze, L, turn = 0){
   c.strokeStyle = rgbaHex(L.rim, 0.55 * (1 - haze)); c.lineWidth = 6 * u; c.beginPath(); c.ellipse(0, -170 * u, 200 * u, 125 * u, 0, Math.PI * 1.02, Math.PI * 1.4); c.stroke();
   /* a tuft of a tail */
   c.fillStyle = moss; circ0(c, Math.sin(t * 2) * 6 * u, -70 * u, 18 * u);
+  c.restore();
+}
+
+/* One leg of a giant so big all you see of it is its legs - dinosaur-ish,
+   but of this planet: a great column of plated, grey-blue hide coming down
+   from far above the top of the screen, glowing stripes running down it,
+   mossy vines hanging round the ankle, and a huge foot - three great toes,
+   pale claws with a glow to them. Its foot at (x, y) (lifted: up off the
+   ground, 0..1), k its depth scale. World-drawn: flat tones, lit on its
+   left by the low sun, hazing with distance. */
+export function giantLeg(c, W, H, x, y, k, lift, t, L, haze = 0, n = 0){
+  const H_ = (a) => mixHex(a, L.haze, haze), w = H * 0.36 * k, fy = y - lift * H * 0.9 * k;
+  const dark = H_('#3d4a66'), hide = H_('#5d6f96'), lit = H_('#8ea3c8'), glowC = H_('#86f2dc'), claw = H_('#f2ead8');
+  c.save();
+  const top = -H * 0.3, ax = x + Math.sin(t * 0.3 + n) * w * 0.02;
+  /* the leg: thick and heavy, bulging at the ankle, up past the top of the screen */
+  const leg = () => {
+    c.beginPath();
+    c.moveTo(x - w * 0.5, fy - w * 0.2);
+    c.bezierCurveTo(x - w * 0.62, fy - w * 0.55, x - w * 0.4, fy - w * 0.9, ax - w * 0.44, fy - w * 1.4);
+    c.lineTo(ax - w * 0.56, top); c.lineTo(ax + w * 0.56, top); c.lineTo(ax + w * 0.44, fy - w * 1.4);
+    c.bezierCurveTo(x + w * 0.4, fy - w * 0.9, x + w * 0.62, fy - w * 0.55, x + w * 0.5, fy - w * 0.2);
+    c.closePath();
+  };
+  c.fillStyle = hide; leg(); c.fill();
+  c.save(); leg(); c.clip();
+  /* shaded on its right, lit down its left */
+  c.fillStyle = dark; c.fillRect(x + w * 0.12, top, w, fy - top + w);
+  c.fillStyle = lit; c.fillRect(x - w, top, w * 0.66, fy - top + w);
+  /* wrinkles round the ankle, plates further up */
+  c.strokeStyle = H_('#2f3a55'); c.lineWidth = Math.max(1, w * 0.02);
+  for (let j = 0; j < 20; j++){
+    const yy = fy - w * 0.3 - j * w * (j < 5 ? 0.12 : 0.22); if (yy < top) break;
+    c.beginPath(); c.moveTo(x - w * 0.7, yy); c.quadraticCurveTo(x, yy + w * (j < 5 ? 0.08 : 0.05), x + w * 0.7, yy); c.stroke();
+  }
+  /* glowing stripes down it */
+  c.fillStyle = glowC;
+  for (let j = 0; j < 12; j++){ const yy = fy - w * 0.8 - j * w * 0.35; if (yy < top) break; for (const d of [-0.2, 0.08]){ c.globalAlpha = 0.55 + 0.25 * Math.sin(t * 1.2 + j + n); c.beginPath(); c.ellipse(x + d * w, yy, w * 0.03, w * 0.07, 0, 0, TAU); c.fill(); } }
+  c.globalAlpha = 1;
+  c.restore();
+  c.strokeStyle = rgbaHex(L.rim, 0.5 * (1 - haze)); c.lineWidth = Math.max(1, w * 0.025);
+  c.beginPath(); c.moveTo(x - w * 0.5, fy - w * 0.2); c.bezierCurveTo(x - w * 0.62, fy - w * 0.55, x - w * 0.4, fy - w * 0.9, ax - w * 0.44, fy - w * 1.4); c.lineTo(ax - w * 0.56, top); c.stroke();
+  /* moss and vines, hanging round above the ankle */
+  for (let j = 0; j < 11; j++){
+    const vx = x - w * 0.5 + j * w * 0.1, vy = fy - w * 0.95, len = w * (0.12 + 0.2 * hash(j + n * 9 + 400));
+    c.strokeStyle = H_(j % 2 ? '#5a9a6a' : '#7fbf7a'); c.lineWidth = Math.max(1, w * 0.03); c.lineCap = 'round';
+    c.beginPath(); c.moveTo(vx, vy); c.quadraticCurveTo(vx + Math.sin(t * 1.5 + j) * w * 0.03, vy + len * 0.6, vx + Math.sin(t * 1.5 + j + 1) * w * 0.05, vy + len); c.stroke();
+  }
+  /* the foot: wide and heavy, splayed - three great toes, claws */
+  c.fillStyle = hide; c.beginPath(); c.ellipse(x, fy - w * 0.12, w * 0.68, w * 0.2, 0, 0, TAU); c.fill();
+  for (const d of [-1, 0, 1]){
+    const tx = x + d * w * 0.44, ty = fy - w * 0.02;
+    c.fillStyle = d < 0 ? lit : d > 0 ? dark : hide; c.beginPath(); c.ellipse(tx, ty, w * 0.24, w * 0.13, d * 0.2, 0, TAU); c.fill();
+    c.fillStyle = claw; c.beginPath(); c.moveTo(tx - w * 0.09 + d * w * 0.06, ty + w * 0.04); c.quadraticCurveTo(tx + d * w * 0.14, ty + w * 0.2, tx + w * 0.09 + d * w * 0.06, ty + w * 0.04); c.closePath(); c.fill();
+  }
+  c.restore();
+}
+/* Its shadow on the ground, huge, under where it is (centre x, y; k). */
+export function giantShadow(c, W, H, x, y, k){
+  c.save(); c.fillStyle = 'rgba(20,15,45,.22)';
+  c.beginPath(); c.ellipse(x, y, H * 1.1 * k, H * 0.16 * k, 0, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(20,15,45,.12)'; c.beginPath(); c.ellipse(x, y, H * 1.5 * k, H * 0.22 * k, 0, 0, TAU); c.fill();
   c.restore();
 }
