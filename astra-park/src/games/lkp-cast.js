@@ -224,8 +224,7 @@ export function worldCrew(c, x, base, h, t, col, st, face, pose = null){
   c.restore();
 }
 
-/* A crew member seen from the front, running towards us (the sleepy
-   roll, lkp-roll.js): the same suit - the chest plate with its glowing
+/* A crew member seen from the front, running towards us: the same suit - the chest plate with its glowing
    badge, the belt, the trim at the joints - arms pumping, knees coming
    up at us, and the helmet's big visor with their face in it (face(x, y,
    r): their photo or their kid, as from behind). Same st as worldCrew. */

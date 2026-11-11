@@ -54,7 +54,7 @@ export const LEVELS = [
        the robots wake, and a friendly giant carries the crew away. After
        its 'end', the rest - the tutorial fight, a fork, a room, the big
        gorge and the Sweeper - kept for level 2: not played yet.) */
-    plan: ['corridor', 'corridor', 'sneak', 'roll', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
+    plan: ['corridor', 'corridor', 'sneak', 'wing', 'corridor', 'depot', 'ride', 'end', 'tutorial', 'corridor', 'cross', 'room', 'corridor', 'boss', 'end'],
     /* What happens in each corridor (lkp-game.js _layout): one event
        apiece - the path squeezing narrow then opening wide, a big jump
        over a ravine, a zip line - and the run of obstacles round it,
@@ -106,9 +106,9 @@ export const LEVELS = [
       /* (the pond's end: the ground shaking, the far ridge - lkp-game.js _rest) */
       offTrail: [['nova', 'Whoa... something big is out there. And the signal\'s coming from that way. Follow that path!', 'FOLLOW THE PATH']],
       pondWait: [['nova', 'Almost there \u2014 hold position.', '']],
-      /* Zubu rolling down the hill after them, in her sleep (lkp-roll.js). */
-      rollStart: [['nova', 'Uh-oh... the giant rolled over in her sleep \u2014 and she\'s rolling down the hill! Run, crew! Run on the spot! Lean out of the way of anything rolling!', 'RUN!']],
-      rollEnd: [['nova', 'She stopped... and she\'s still snoring! She slept through the whole thing. Ha! Okay crew, tiptoe on.', '']],
+      /* The hill past her that wasn't: her wing, lifting with them on it (lkp-wing.js). */
+      wingStart: [['nova', 'Whoa \u2014 the hill\'s moving! It\'s lifting! Run, crew \u2014 up to the top, and jump off!', 'RUN UP!']],
+      wingEnd: [['nova', 'That hill... was her WING. And she slept right through it. Okay, crew \u2014 tiptoe on.', '']],
       /* The gentle giant from the glade, carrying them off - named, at last, as they climb down (lkp-ride.js). */
       rideMeet: [['nova', 'Look who it is! The giant from the glade. The robots woke it up too. Run, crew, catch up!', 'CATCH UP!']],
       rideOn: [['nova', 'Everyone on? Sit down and rest, crew. You\'ve earned it.', 'SIT AND RELAX']],

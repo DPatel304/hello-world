@@ -10,7 +10,7 @@ import { ClapWatch, HugWatch } from '../tracking/gestures.js';
 import { drawGuide, stepGuide } from './lkp-guide.js';
 import { TeamJump } from './lkp-leap.js';
 import { Ride } from './lkp-ride.js';
-import { Roll } from './lkp-roll.js';
+import { Wing } from './lkp-wing.js';
 import { worldCrewFront } from './lkp-cast.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON } from './lkp-art.js';
@@ -103,7 +103,7 @@ export const FLY = 0.2, FLY_FIRST = 0.7, SHOW = 3, FLYING = 6;
 export const SCORE = { kill: 10, boss: 500 };
 /* A breather after each room's done, before the run goes on (seconds):
    time for "Room clear!" and a look round. */
-export const AFTER = { fight: 3.5, trap: 3, treasure: 2.5, roll: 0.5 };
+export const AFTER = { fight: 3.5, trap: 3, treasure: 2.5, wing: 0.5 };
 /* The tally at the end: each line's turn to count up, and how long. */
 const TALLY_STEP = 0.9, TALLY_COUNT = 0.7;
 /* Whether a spot (lane, rel) is where the trumbler is - the herd keeps out of its way. */
@@ -304,7 +304,7 @@ class LastKnownPosition {
     this.seg = { kind, t: 0 };
     /* (any rescue bubbles still up pop at the fork) */
     if (kind !== 'corridor') for (const i of this.here) if (this.crew[i].bubble) this._pop(i);
-    this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null; this.ride = null; this.roll = null;
+    this.fight = null; this.trap = null; this.boss = null; this.depot = null; this.treasure = null; this.ride = null; this.wing = null;
     /* (the calm start's only the first corridor's: set again there) */
     this.cozy = false; this.captain.stay = false; this.vista = null; this.herd = null;
     if (kind === 'corridor'){
@@ -339,10 +339,10 @@ class LastKnownPosition {
          green light (lkp-trap.js, outdoors) */
       this.trap = PLAYTEST ? new Lights(this, PLAYTEST * 2, { giant: true }) : new Lights(this, undefined, { giant: true });
       sfx.whoosh();
-    } else if (kind === 'roll'){
-      /* Zubu rolling down the hill after them in her sleep (lkp-roll.js) */
+    } else if (kind === 'wing'){
+      /* the hill past her that wasn't: her wing, lifting with them on it (lkp-wing.js) */
       this.things = [];
-      this.roll = PLAYTEST ? new Roll(this, story.on, PLAYTEST) : new Roll(this, story.on);
+      this.wing = PLAYTEST ? new Wing(this, story.on, PLAYTEST) : new Wing(this, story.on);
     } else if (kind === 'depot'){
       this.depot = new Depot(this);
       this.things = [];
@@ -709,7 +709,7 @@ class LastKnownPosition {
     }
     if (seg.kind === 'boss') want = 0;
     if (seg.kind === 'ride') want = this.ride ? this.ride.speed(SPEED) : SPEED;
-    if (seg.kind === 'roll') want = this.roll ? this.roll.speed(SPEED) : 0;
+    if (seg.kind === 'wing') want = this.wing ? this.wing.speed(SPEED) : 0;
     /* (running on up to the depot, slowing to a stop at it) */
     if (seg.kind === 'depot') want = this.depot ? this.depot.speed(SPEED) : 0;
     this.speed += (want - this.speed) * Math.min(1, dt * (this.rest || this.leap ? 10 : 4));
@@ -725,7 +725,7 @@ class LastKnownPosition {
     if (seg.kind === 'corridor'){ this._pass(before, W, H); if (seg.t >= seg.len && !this.zip && !this.leap && !this.rest) this._next(); }
     else if (seg.kind === 'cross') this._vote(dt);
     else if (this.ride){ this.ride.step(dt, W, H); if (this.ride.done) this._next(); }
-    else if (this.roll){ this.roll.step(dt, W, H); if (this.roll.done && this.roll.clearT > AFTER.roll) this._next(); }
+    else if (this.wing){ this.wing.step(dt, W, H); if (this.wing.done && this.wing.clearT > AFTER.wing) this._next(); }
     else if (this.boss){ this.boss.step(dt, W, H, jumped); if (this.boss.done && this.boss.clearT > 2.5) this._next(); }
     else if (this.fight){ this.fight.step(dt, W, H, jumped); if (this.fight.done && this.fight.clearT > AFTER.fight) this._next(); }
     else if (this.trap){ this.trap.step(dt, W, H); if (this.trap.done && this.trap.clearT > AFTER.trap) this._next(); }
@@ -1096,7 +1096,7 @@ class LastKnownPosition {
     if (this.fight) return this.fight.done ? 0.4 : 0.8;
     if (this.trap) return this.trap.done ? 0.35 : this.trap.light === 'green' ? 0.3 : 0;
     if (this.treasure) return 0.65;
-    if (this.roll) return this.roll.phase === 'run' ? 0.75 : 0.4;
+    if (this.wing) return this.wing.phase === 'climb' ? 0.75 : 0.4;
     if (this.depot) return 0.5;
     if (seg.kind === 'cross') return 0.25;
     return 0.35;
@@ -1538,13 +1538,13 @@ class LastKnownPosition {
       this._drawHud(c, W, H);
       return;
     }
-    /* The sleepy roll: its own view, looking back up the hill at them. */
-    if (this.roll){
+    /* The wing: its own view, side on, like the glade. */
+    if (this.wing){
       c.save();
-      this.roll.draw(c, W, H, (i, x, y, h) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, front: true, noBar: true, moment: !!(this.sneakFace && this.sneakFace.has(i)) }));
+      this.wing.draw(c, W, H, (i, x, y, h) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, noBar: true }));
       this._drawBits(c, W, H);
       c.restore();
-      this.roll.marks(c, W, H);
+      this.wing.marks(c, W, H);
       this._drawHud(c, W, H);
       return;
     }

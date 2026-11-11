@@ -202,10 +202,10 @@ test('level 1\'s sneak: past the friendly giant asleep in a glade - caught movin
   /* over the line: on to the next run */
   rn.along = 1; tr.light = 'green';
   for (let k = 0; k < (AFTER.trap + 1) / DT && inst.phase === 'sneak'; k++){ body(0, inst.t, 'march'); inst.step(DT, W, H); }
-  assert.equal(inst.phase, 'roll', 'and then she rolls down the hill after them');
+  assert.equal(inst.phase, 'wing', 'and then the hill past her lifts: her wing');
 });
 
-test('sneaking past Zubu: frozen on red, each player\'s face is quietly snapped - for their visor in the roll after', () => {
+test('sneaking past Zubu: frozen on red, each player\'s face is quietly snapped - for their visor after', () => {
   pose.mouse.active = false;
   pose.players.forEach((p, i) => { p.present = i < 2; });
   body(0); body(1);

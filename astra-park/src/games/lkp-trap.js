@@ -122,7 +122,7 @@ export class Lights {
       rn.marching = go;
       /* In the glade: frozen stock-still on red, trying not to wake her -
          a quiet picture of that face (no flash), for their visor when
-         she rolls down the hill after them (lkp-roll.js). */
+         the hill past her lifts - her wing (lkp-wing.js). */
       if (this.giant && this.light === 'red' && moving <= STILL && g.faces && g.faces.photo){
         g.sneakFace = g.sneakFace || new Set();
         if (!g.sneakFace.has(i) && g.faces.photo(i, true)) g.sneakFace.add(i);
