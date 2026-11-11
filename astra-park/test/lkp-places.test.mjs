@@ -29,7 +29,7 @@ test('all of level 1 is the one place, and the only jump is the big one', () => 
   const key = PAL.world.key, kinds = new Set(inst.things.map(t => t.kind));
   for (const n of [1, 2, 3]){ corridor(inst, n); inst.things.forEach(t => kinds.add(t.kind)); assert.equal(PAL.world.key, key); }
   assert.ok(!kinds.has('gap') && !kinds.has('ledge'), 'no little ditches');
-  for (const k of ['overlook', 'herd', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
+  for (const k of ['herd', 'ravine', 'roller']) assert.ok(kinds.has(k), k);
 });
 
 test('a herd of glimmerbacks going its own way: in from behind on the left, a few at first, building to a great many - quicker than the crew, on up the path ahead; nobody pushed about, nothing moved', () => {

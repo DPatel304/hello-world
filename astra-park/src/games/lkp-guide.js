@@ -43,6 +43,7 @@ export function guideMove(g){
     if (ride.phase === 'chase') return 'run';
     return null;
   }
+  if (g.summit) return g.summit.phase === 'climb' ? 'reach' : null;
   if (g.wing) return g.wing.phase === 'climb' ? 'run' : g.wing.phase === 'edge' ? 'hop' : null;
   if (g.rest) return g.rest.phase === 'heal' ? 'hug' : null;
   if (g.trap && !g.trap.done) return g.trap.light === 'green' ? 'run' : 'freeze';

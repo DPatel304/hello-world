@@ -227,7 +227,6 @@ test('the first corridor is a calm walk: Nova\'s story, a look up at the sky, cr
   const pond = first('pond');
   assert.ok(first('vista') < first('crystal'), 'the sky before the crystals');
   assert.ok(inst.things.some(th => th.kind === 'crystal' && th.fall), 'crystals falling from the jellies');
-  assert.ok(first('overlook') < first('crystal'), 'the lookout first, before any crystals');
   assert.ok(first('herd') < first('burrow'), 'the herd, then the creatures');
   for (const k of ['burrow', 'creek', 'chimes', 'flutter', 'longneck']) assert.ok(first(k) < pond, `${k} before the pond`);
   assert.ok(first('burrow') < first('creek') && first('creek') < first('flutter') && first('flutter') < first('longneck'));

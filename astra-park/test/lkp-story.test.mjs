@@ -27,13 +27,11 @@ test('the opening: eyes open on a hopshell, following it to the ship; answer Nov
   story.on = true; crew(2);
   const inst = game.create(2), intro = inst.scene;
   assert.equal(intro.kind, 'intro');
-  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['title', 'dark', 'wake', 'watch', 'notice', 'call', 'answer', 'vitals', 'out', 'rise', 'move', 'go']);
+  /* (no title card first: the title comes up over the world, at the summit) */
+  assert.deepEqual(INTRO_BEATS.map(b => b.id), ['dark', 'wake', 'watch', 'notice', 'call', 'answer', 'vitals', 'out', 'rise', 'move', 'go']);
   const z = inst.z;
-  /* the title card first - a film starting (the crash, before it, is out for now) */
-  assert.equal(intro.stage, 'title');
-  inst.draw(fake(), W, H);
-  run(inst, TITLE_CARD + 0.05);
   assert.equal(intro.stage, 'dark');
+  inst.draw(fake(), W, H);
   run(inst, DARK + 0.1);
   /* the eyes coming open by themselves - nothing asked */
   assert.equal(intro.stage, 'wake');
@@ -98,8 +96,8 @@ test('the opening: eyes open on a hopshell, following it to the ship; answer Nov
   for (let k = 0; k < 10 / DT && inst.scene; k++) inst.step(DT, W, H);
   assert.equal(inst.scene, null);
   assert.equal(inst.introCrew, null, 'in their places');
-  run(inst, 1);
-  assert.ok(inst.z > z, 'and off they go');
+  /* and off they go: up the mountain first (lkp-summit.test.mjs) */
+  assert.ok(inst.summit, 'up the mountain');
   story.on = false;
 });
 

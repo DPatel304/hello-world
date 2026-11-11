@@ -12,6 +12,7 @@ import { drawGuide, stepGuide } from './lkp-guide.js';
 import { TeamJump } from './lkp-leap.js';
 import { Ride } from './lkp-ride.js';
 import { Wing } from './lkp-wing.js';
+import { Summit } from './lkp-summit.js';
 import { worldCrewFront } from './lkp-cast.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
          drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON, FOG, PACE, setElev } from './lkp-art.js';
@@ -65,10 +66,10 @@ export const story = { on: true };
 /* For now, while the world's being built: the real game starts where the
    crew first set off running, the opening skipped (skipOpening: false to
    see it again). Only in the browser - the tests and the screenshot tool
-   always have the opening. startAt: 'overlook' - and straight on to the
-   last stretch of the walk up to the lookout, the moment being worked on
-   (null for the whole first corridor). */
-export const DEV = { skipOpening: !(typeof process !== 'undefined' && process.versions && process.versions.node) && typeof location !== 'undefined' && !/[?&]opening\b/.test(location.search), startAt: 'overlook' };
+   always have the opening. startAt: 'summit' - straight to the summit,
+   the moment being worked on (null: the summit as it comes, after the
+   opening). */
+export const DEV = { skipOpening: !(typeof process !== 'undefined' && process.versions && process.versions.node) && typeof location !== 'undefined' && !/[?&]opening\b/.test(location.search), startAt: 'summit' };
 /* The choosing screens, on or off. Off (for now, while they're
    reworked): a level up is more health for everyone, straight away; and
    at the depot everyone's handed a knife. */
@@ -511,10 +512,7 @@ class LastKnownPosition {
       /* her story, as they set off: why they're here, what they're after */
       this.level.lines.walk.forEach((_, k) => this.things.push({ d: atD(0.25 + k * 1.6), kind: 'say', line: k }));
       /* a slow jog to start, away from the crash - up onto the ridge, to the lookout */
-      this.jog = true;
-      this.things.push({ d: atD(OVERLOOK.at), kind: 'overlook' });
-      /* (the ridge's top kept clear of trees: open, all round) */
-      CLEARINGS.push({ lane: 0, d: atD(OVERLOOK.at) - 0.3, r: 99, depth: 0.9 });
+      /* (the lookout's been and gone: the summit, before all this - lkp-summit.js) */
       this.things.push({ d: atD(VISTA_AT), kind: 'vista' });
       /* ...a drift of sky jellies, out there whether anyone comes or not:
          off to the left of the path, high up, going their own slow way -
@@ -688,13 +686,8 @@ class LastKnownPosition {
       this.fromRun = false;
       for (const rn of this.crew) rn.hp = Math.round(rn.max * START);
       for (const i of this.here){ this.crew[i].played = true; this.crew[i].x = this._home(i); }
-      /* (for now, while it's being worked on: straight to the last stretch up to the lookout) */
-      const ov = this.things.find(t => t.kind === 'overlook');
-      if (ov && DEV.startAt === 'overlook'){
-        const z = ov.d - RUN - OVERLOOK.stop - 0.3;
-        for (const th of this.things) if (th.kind === 'say' && th.d - RUN <= z) th.said = true;
-        this.z = Math.max(this.z, z);
-      }
+      /* (for now, while it's being worked on: straight to the summit) */
+      if (DEV.startAt === 'summit') this._toSummit();
     }
     /* the pond's view: the camera easing up while they rest, back after */
     this.quake = Math.max(0, (this.quake || 0) - dt * 1.6);
@@ -719,7 +712,7 @@ class LastKnownPosition {
       this.scene.step(dt);
       /* (from the opening's radio straight into her window, already up - and
          staying up, and the music cozy, while she tells them where they are) */
-      if (this.scene.done){ if (this.scene.kind === 'intro'){ this.walkIn = 0; this.captain.show = 1; } this.scene = null; }
+      if (this.scene.done){ if (this.scene.kind === 'intro'){ this.walkIn = 0; this.captain.show = 1; this._toSummit(); } this.scene = null; }
       this._stepBits(dt);
       return;
     }
@@ -789,11 +782,12 @@ class LastKnownPosition {
       else if (this.leap) want = this.leap.speed(SPEED);
       else if (this.rest) want = 0;
       /* (the corridor waits for slow going: the walk at the start, too) */
-      if (this.zip || this.leap || this.rest || this.jog) seg.len += dt * (1 - this.speed / SPEED);
+      if (this.zip || this.leap || this.rest || this.jog || this.summit) seg.len += dt * (1 - this.speed / SPEED);
     }
     if (seg.kind === 'boss') want = 0;
     if (seg.kind === 'ride') want = this.ride ? this.ride.speed(SPEED) : SPEED;
     if (seg.kind === 'wing') want = this.wing ? this.wing.speed(SPEED) : 0;
+    if (this.summit) want = 0;
     /* (running on up to the depot, slowing to a stop at it) */
     if (seg.kind === 'depot') want = this.depot ? this.depot.speed(SPEED) : 0;
     this.speed += (want - this.speed) * Math.min(1, dt * (this.rest || this.leap ? 10 : 4));
@@ -885,6 +879,11 @@ class LastKnownPosition {
       if (th.kind === 'longneck' && rel < 1 && rel > -0.3){ const st = Math.floor(this.t / NECK_STRIDE * 2); if (th.st !== st){ th.st = st; sfx.farStep?.(0.25); } }
     }
     for (const th of this.things) if (th.kind === 'footprint' && th.wet && !th.splashed && Math.abs(th.d - this.z - RUN) < 0.03 && Math.abs(th.lane) < 0.3){ th.splashed = true; this.splashT = this.t; sfx.splash?.(); }
+    /* The summit: its own scene, at the start; the run waiting below it. */
+    if (this.summit){
+      this.summit.step(dt);
+      if (this.summit.done) this._fromSummit();
+    }
     /* The lookout: up on the ridge, stopping at its edge to take in the
        whole of the planet below; then on, picking up the pace. */
     if (this.jog && !this.overlook){
@@ -1062,6 +1061,18 @@ class LastKnownPosition {
     /* she's said it: off they go - the story's start over, the music
        back to the run's own */
     if ((r.ft > FAR_EASE + FAR_HOLD && (!talk || !cap.busy)) || r.ft > FAR_EASE + FAR_HOLD + 14){ r.phase = 'back'; r.bt = 0; }
+  }
+  /* The summit: up the mountain, at the very start of level 1 (lkp-summit.js). */
+  _toSummit(){
+    if (!(this.level.id === 'verdant' && this.step_ === 0 && this.seg.kind === 'corridor' && story.on)) return;
+    this.summit = new Summit(this, story.on); this.captain.stay = false; this.speed = 0;
+  }
+  /* ...and down the far side onto the trail: the crash site left far behind, the run beginning */
+  _fromSummit(){
+    this.summit = null; this.captain.stay = story.on;
+    const CRASHED = new Set(['ship', 'wreck', 'meadow', 'crawler', 'patch']);
+    this.things = this.things.filter(t => !CRASHED.has(t.kind) && !(t.kind === 'tree' && t.n >= 70 && t.n < 100) && !(t.kind === 'chimes' && !t.ring));
+    for (const i of this.here){ const rn = this.crew[i]; rn.pose = null; rn.look = 0; rn.played = true; }
   }
   /* How far the herd's pushing everyone over (0..1). */
   get herdPush(){
@@ -1383,7 +1394,7 @@ class LastKnownPosition {
     rn.heal = Math.max(0, (rn.heal || 0) - dt * 2.5);
     /* The running stride: how hard (0..1) and where in it - a footstep at
        each half. Walking in a trap room goes by how much they move. */
-    const run = this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
+    const run = this.summit ? (this.summit.phase === 'walk' ? 0.35 : 0) : this.trap ? (this.trap.light !== 'red' && !this.trap.done ? rn.marching || 0 : 0)
       : this.ride && this.ride.on(i) ? 0
       : this.fight || rn.bubble || (this.zip && this.zip.holding(i)) || (this.boss && !(this.boss.move && this.boss.move.t >= 0.8)) ? 0 : Math.min(1, this.speed / SPEED);
     rn.run = (rn.run || 0) + (run - (rn.run || 0)) * Math.min(1, dt * 6);
@@ -1680,6 +1691,13 @@ class LastKnownPosition {
     if (this.treasure){
       c.save(); this.treasure.view(c, W, H); this._drawBits(c, W, H); c.restore();
       this._drawHud(c, W, H);
+      return;
+    }
+    /* The summit: its own view - and nothing over it, just the world. */
+    if (this.summit){
+      c.save();
+      this.summit.draw(c, W, H, (i, x, y, h, st = {}) => this._drawCrew(c, i, W, H, { x, y, h, bob: 0, noBar: true, ...st }));
+      c.restore();
       return;
     }
     /* The wing: its own view, side on, like the glade. */

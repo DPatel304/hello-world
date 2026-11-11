@@ -661,10 +661,10 @@ export function flutterSwarm(c, x, y, s, t, haze, away = 0){
     const a = k * 2.399, ph = t * (2.2 + 0.3 * (k % 4)) + k, rx = s * (0.5 + 0.6 * ((k * 37) % 10) / 10);
     const fx = x + Math.cos(a + t * 0.6) * rx + Math.sin(ph) * s * 0.12, fy = y - s * 0.3 + Math.sin(a * 1.7 + t * 0.8) * s * 0.35 + Math.cos(ph * 1.3) * s * 0.08 - away * s * 3 * (0.6 + 0.4 * (k % 3));
     const w = s * 0.11 * (0.8 + 0.3 * (k % 2)), flap = Math.abs(Math.sin(t * 14 + k));
-    const col = mixHex(k % 3 ? '#fff2b0' : '#bff4ff', '#ffffff', 0.2);
+    const col = k % 3 ? '#ffe27a' : '#9ff0ff';
     c.globalAlpha = (1 - haze * 0.7) * (1 - away);
-    c.fillStyle = 'rgba(255,245,200,.25)'; circ0(c, fx, fy, w * 1.6);
-    c.fillStyle = mixHex(col, '#c8a8e8', 0.25);
+    c.fillStyle = 'rgba(255,240,170,.12)'; circ0(c, fx, fy, w * 1.1);
+    c.fillStyle = mixHex(col, '#7a5ab0', 0.35);
     for (const d of [-1, 1]){ c.beginPath(); c.ellipse(fx + d * w * 0.55, fy, w * 0.6, w * 0.4 * (0.3 + 0.7 * flap), d * 0.5, 0, TAU); c.fill(); }
     c.fillStyle = col; circ0(c, fx, fy, w * 0.22);
   }
