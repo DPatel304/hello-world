@@ -1131,8 +1131,9 @@ export function worldFarWoods(c, W, H, x, y, t, T, L){
   for (let r = ROWS - 1; r >= 0; r--){
     /* it: behind the row it's got to - a colossal dome, more haze than shape */
     if (r === Math.min(ROWS - 1, Math.floor(depth))){
-      const sw = W * 0.075 * (1 - lurch * 0.025), sh = H * 0.05 * (1 - lurch * 0.025), by = rowY(depth) - H * 0.006 - Math.sin(ph * Math.PI) * H * 0.0015;
-      c.fillStyle = mix(L.hillDark, L.haze, 0.55); c.globalAlpha = 0.6;
+      /* (five times what she was: a hazy mountain more than a shape) */
+      const sw = W * 0.075 * 5 * (1 - lurch * 0.025), sh = H * 0.05 * 4.5 * (1 - lurch * 0.025), by = rowY(depth) - H * 0.006 - Math.sin(ph * Math.PI) * H * 0.006;
+      c.fillStyle = mix(L.hillDark, L.haze, 0.62); c.globalAlpha = 0.55;
       c.beginPath(); c.ellipse(zx, by, sw, sh, 0, Math.PI, 0); c.fill(); c.globalAlpha = 1;
       c.fillStyle = rgba(L.haze, 0.35); c.beginPath(); c.ellipse(zx, by + sh * 0.1, sw * 1.1, sh * 0.45, 0, Math.PI, 0); c.fill();
     }

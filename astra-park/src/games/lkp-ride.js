@@ -34,7 +34,8 @@ export const START_GAP = 0.8, WALK = 0.7, CATCH_UP = 0.085, CATCH = 0.04, WAIT =
 export const BOARD = 2.6, RELAX = 22, RIDE_PACE = 0.75, OFF = 4;
 /* Its size (screen heights, at the crew's depth), and how high its back
    is (of its size) - where the riders sit. */
-export const SIZE = 0.62, BACK = 0.93;
+/* (vast: five times what she was - riding, the view's of her back: drawOnZubu) */
+export const SIZE = 3.1, BACK = 0.93;
 /* Just ahead of the crew, where it stands to carry them (depths). */
 const AHEAD = 0.02;
 /* Where they sit along its back (lanes from its middle), by how many. */
@@ -134,13 +135,7 @@ export class Ride {
         this.phase = 'relax'; this.pt = 0;
         pose.keepSitters = true;
         this._say('rideOn');
-        /* (and out there, as they ride: old friends - sky jellies drifting
-           by at their height, the glimmerbacks grazing off in a field, and
-           far away on the land's edge the great legs, striding along) */
-        const d0 = g.z + RUN + AHEAD;
-        for (let k = 0; k < 6; k++) g.things.push({ d: d0 + 0.9 + k * 0.35, kind: 'skyjelly', lane: (k % 2 ? 1 : -1) * (1.15 + 0.4 * (k % 3)), alt: 0.24 + 0.08 * (k % 2), vl: 0.03, vd: 0.006, size: 0.9, n: 40 + k });
-        for (let k = 0; k < 14; k++) g.things.push({ d: d0 + 1.6 + (k % 5) * 0.12, kind: 'grazer', lane: -1.7 - (k % 7) * 0.26 - Math.floor(k / 7) * 0.15, n: k });
-        g.things.push({ d: d0 + 3.0, kind: 'farGiant', lane: 3.0 });
+        /* (and out there, far below, as they ride: old friends - drawOnZubu) */
       }
     } else if (this.phase === 'relax'){
       this.d = g.z + RUN + AHEAD;
@@ -182,6 +177,9 @@ export class Ride {
     c.restore();
   }
 
+  /* Riding: the view's of her back (lkp-zubu.js drawOnZubu), the crew sat
+     in its moss - fading in as they're up, and out as they climb down. */
+  get onBack(){ return this.phase === 'relax' ? Math.min(1, this.pt / 0.8) : this.phase === 'off' ? Math.max(0, 1 - this.pt / 0.6) : 0; }
   /* Over the riders' legs: the moss along its back they're sat in. */
   drawTop(c, W, H){
     if (!(this.phase === 'relax' || this.phase === 'board' && this.pt > 1.2 || this.phase === 'off' && this.pt < 0.8)) return;

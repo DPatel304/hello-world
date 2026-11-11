@@ -20,7 +20,8 @@ import { Lights } from './lkp-trap.js';
 import { Warden } from './lkp-boss.js';
 import { Scout } from './lkp-scout.js';
 import { Intro, START } from './lkp-intro.js';
-import { drawZubuFar } from './lkp-zubu.js';
+import { RELAX as RIDE_RELAX } from './lkp-ride.js';
+import { drawZubuFar, drawOnZubu } from './lkp-zubu.js';
 import { worldShip, worldWreck } from './lkp-places.js';
 import { glowfins, glimmerback, skyJelly, DRIFT, herdMass, giantLeg, giantShadow, chimeblooms, jellycrawl } from './lkp-critters.js';
 import { worldLake, worldLakeSurface, worldLakeAhead, wading, healRipple, LAKE, worldMeadow, shipFire, pondBeauty, SITE, worldPatch, splash } from './lkp-crashsite.js';
@@ -1511,6 +1512,16 @@ class LastKnownPosition {
       this._drawHud(c, W, H);
     }
     else this._drawPlay(c, W, H);
+    /* riding her: so vast the view's of her back - the crew sat in its moss, the world far below */
+    const ob = this.ride ? this.ride.onBack : 0;
+    if (ob > 0 && PAL.world){
+      c.save(); c.globalAlpha = ob;
+      drawOnZubu(c, W, H, this.t, this.ride.pt / RIDE_RELAX, PAL.world);
+      const rs = this.ride.riders, n = rs.length;
+      rs.forEach((i, k) => this._drawCrew(c, i, W, H, { x: W / 2 + (k - (n - 1) / 2) * W * 0.06, y: H * 0.8, h: H * CREW_SIZE * 0.6, bob: Math.abs(Math.sin(this.t * 0.5)) * H * 0.004, pose: 'sit', noBar: true }));
+      c.restore();
+      this._drawHud(c, W, H);
+    }
     if (sc){ drawBossRising(c, W, H, sc.t); sc.draw(c, W, H); return; }
     /* (playing itself in the home screen's banner, demo: just the play) */
     if (this.demo) return;

@@ -96,18 +96,18 @@ export function snoreWord(t){ return (t % SNORE) < SNORE / 2 ? 'ZZZUUUU...' : 'B
    sleeping head on the left with its garden. (Trees and the meadow are
    drawn over her lower half, in front.) */
 export function drawZubuWall(c, W, H, light, t){
-  const breathe = Math.sin(t / SNORE * TAU) * H * 0.006;
-  const side = [[-0.05 * W, 0.5 * H], [0.31 * W, 0.26 * H - breathe], [0.7 * W, 0.12 * H - breathe], [1.05 * W, 0.1 * H - breathe], [1.05 * W, 0.8 * H], [-0.05 * W, 0.8 * H]];
-  form(c, side, ZUBU.body, H, 0.4);
-  /* freckles */
-  freckles(c, [[0.5, 0.25], [0.62, 0.2], [0.78, 0.17], [0.9, 0.22], [0.55, 0.36], [0.95, 0.38], [0.68, 0.45]].map(([u, v]) => [u * W, v * H]), H * 0.008);
-  drawZubuAsleep(c, W, H, light, t, WALL);
+  /* (so big now - five times what she was - that all there is of her is
+     one great sleeping eye and her cheek, filling the glade's left side,
+     the rest of her going up and away off the screen) */
+  const at = { ...WALL, x: (W * 0.27 + H * WALL.size * 0.4) / W };
+  drawZubuAsleep(c, W, H, light, t, at);
 }
-/* Where her head is, in the wall: and its snore, drawn over the trees. */
-const WALL = { x: 0.42, y: 0.68, size: 0.6, shadow: false, snore: false };
-export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * WALL.x, H * WALL.y, H * WALL.size); }
+/* Where her head is, in the wall: and its snore, drawn over the trees.
+   (Her big eye at a quarter across, a third down; she's over 3 screens tall.) */
+const WALL = { x: 0.95, y: 0.98, size: 3.4, shadow: false, snore: false };
+export function zubuWallSnore(c, W, H, light, t){ zubuSnore(c, H, light, t, W * 0.27 + H * WALL.size * 0.4, H * WALL.y, H * 0.6); }
 /* Where her eyes are on screen (fractions): kept clear of trees. */
-export const WALL_EYES = { x0: 0.13, x1: 0.34, y0: 0.34, y1: 0.64 };
+export const WALL_EYES = { x0: 0.14, x1: 0.4, y0: 0.14, y1: 0.58 };
 
 export function drawZubuAsleep(c, W, H, light, t, at = { x: 0.28, y: 0.6, size: 0.44, shadow: true }){
   const S = H * at.size, breathe = Math.sin(t / SNORE * TAU), stir = light === 'yellow' ? Math.sin(t * 26) * S * 0.006 : 0;
@@ -315,3 +315,77 @@ export function drawZubuBall(c, x, y, r, spin, t, squash = 0){
   c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.ellipse(-r * 0.35, -r * 0.55, r * 0.3, r * 0.14, -0.5, 0, TAU); c.fill();
   c.restore();
 }
+
+/* ---------- on her back ---------- */
+
+/* Riding on her, she's so vast the view's of her back, not of her: the
+   crew sat in the moss on its great curve, her wing-fins rising and
+   falling at the edges of the screen, and the world far below - the land
+   sliding slowly back, clouds drifting under her, sky jellies floating by
+   at their height, the glimmerbacks specks in a field, the great legs
+   tiny on the land's edge. t: time; u: how far through the ride (0..1);
+   L: the level's palette. The crew are drawn after, by the game. */
+export const ON_BACK = { y: 0.66 };
+export function drawOnZubu(c, W, H, t, u, L){
+  const hz = H * 0.5, ridge = H * ON_BACK.y;
+  c.save();
+  /* the sky, and the low sun */
+  const sk = c.createLinearGradient(0, 0, 0, hz); sk.addColorStop(0, L.sky[0]); sk.addColorStop(0.6, L.sky[1]); sk.addColorStop(1, L.sky[3]);
+  c.fillStyle = sk; c.fillRect(0, 0, W, hz + 2);
+  const sg = c.createRadialGradient(W * 0.18, hz * 0.55, 0, W * 0.18, hz * 0.55, H * 0.4); sg.addColorStop(0, 'rgba(255,240,220,.7)'); sg.addColorStop(1, 'rgba(255,240,220,0)'); c.fillStyle = sg; c.fillRect(0, 0, W, hz);
+  /* far below: the land, hazy - mountains on the edge, woods, sliding slowly back */
+  const lg = c.createLinearGradient(0, hz, 0, H); lg.addColorStop(0, mixH(L.ground[0], L.haze, 0.75)); lg.addColorStop(1, mixH(L.ground[1], L.haze, 0.45));
+  c.fillStyle = lg; c.fillRect(0, hz, W, H - hz);
+  c.fillStyle = mixH(L.hillDark, L.haze, 0.6); c.beginPath(); c.moveTo(0, hz);
+  for (let k = 0; k <= 12; k++) c.lineTo(W * k / 12, hz - H * (0.03 + 0.04 * Math.abs(Math.sin(k * 1.9)))); c.lineTo(W, hz); c.closePath(); c.fill();
+  const drift = (t * 0.012) % 1;
+  for (let k = 0; k < 60; k++){
+    const a = (k / 60 + drift) % 1, x = W * ((k * 0.618) % 1), y = hz + (H * 0.3) * Math.pow(a, 1.6) + H * 0.005, r = H * (0.004 + 0.012 * a);
+    c.fillStyle = mixH(L.tree[k % 2], L.haze, 0.7 - 0.4 * a); c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+  }
+  /* the glimmerbacks, specks grazing in a field down there */
+  for (let k = 0; k < 18; k++){ const x = W * (0.12 + 0.012 * (k % 6)) + Math.sin(t * 0.3 + k) * 2, y = hz + H * (0.06 + 0.006 * Math.floor(k / 6)); c.fillStyle = mixH('#6a5fc8', L.haze, 0.4); c.beginPath(); c.arc(x, y, H * 0.003, 0, TAU); c.fill(); }
+  /* the great legs, tiny on the land's edge, striding slowly */
+  { const gx = W * (0.82 - 0.05 * u), gy = hz + H * 0.004;
+    c.fillStyle = 'rgba(40,40,70,.25)'; c.beginPath(); c.ellipse(gx, gy + H * 0.004, H * 0.05, H * 0.006, 0, 0, TAU); c.fill();
+    c.strokeStyle = mixH('#3d4a66', L.haze, 0.55); c.lineWidth = H * 0.006; c.lineCap = 'round';
+    for (const [dx, ph] of [[-0.018, 0], [-0.006, 0.5], [0.008, 0.25], [0.02, 0.75]]){ const lift = Math.max(0, Math.sin((t / 2.8 + ph) * TAU)) * H * 0.006; c.beginPath(); c.moveTo(gx + dx * H * 2, gy - lift); c.lineTo(gx + dx * H * 2.2, gy - H * 0.09); c.stroke(); } }
+  /* clouds, drifting along under her, below the edge of her back */
+  for (let k = 0; k < 5; k++){
+    const a = ((t * 0.02 + k / 5) % 1), x = W * (-0.2 + 1.4 * ((k * 0.37 + a) % 1)), y = hz + H * (0.04 + 0.05 * (k % 3)), r = H * (0.05 + 0.03 * (k % 2));
+    c.fillStyle = 'rgba(251,242,255,.75)';
+    for (let j = 0; j < 4; j++){ c.beginPath(); c.arc(x + (j - 1.5) * r * 0.8, y - (j % 2) * r * 0.3, r * (0.7 + 0.2 * (j % 2)), 0, TAU); c.fill(); }
+  }
+  /* sky jellies, floating by at their height */
+  for (let k = 0; k < 4; k++){
+    const a = (t * 0.03 + k * 0.27) % 1, x = W * (k % 2 ? 1.1 - 1.3 * a : -0.1 + 1.3 * a), y = H * (0.18 + 0.08 * k) + Math.sin(t * 0.6 + k) * H * 0.01, sz = H * (0.035 + 0.015 * (k % 2));
+    c.fillStyle = mixH(['#d7a6d8', '#a9c4e8', '#c4b4ea'][k % 3], L.haze, 0.3); c.beginPath(); c.ellipse(x, y, sz, sz * 0.62, 0, Math.PI, TAU); c.fill();
+    c.strokeStyle = c.fillStyle; c.lineWidth = Math.max(1, sz * 0.06);
+    for (let j = 0; j < 4; j++){ c.beginPath(); c.moveTo(x + (j / 3 - 0.5) * sz, y); c.quadraticCurveTo(x + (j / 3 - 0.5) * sz + Math.sin(t * 1.2 + j) * sz * 0.2, y + sz * 0.6, x + (j / 3 - 0.5) * sz, y + sz * 1.1); c.stroke(); }
+  }
+  /* her wing-fins, vast, reaching out either side far beyond her back, slowly rising and falling */
+  const flap = Math.sin(t * 0.45), ry = ridge;
+  for (const f of [-1, 1]){
+    const root = [W / 2 + f * W * 0.3, ry + H * 0.16], tip = [W / 2 + f * W * 1.1, ry - H * (0.05 + 0.18 * flap)], trail = [W / 2 + f * W * 0.95, ry + H * (0.2 - 0.12 * flap)];
+    c.fillStyle = 'rgba(232,144,122,.85)'; c.beginPath(); c.moveTo(root[0], root[1] - H * 0.05);
+    c.quadraticCurveTo((root[0] + tip[0]) / 2, tip[1] - H * 0.04, tip[0], tip[1]); c.quadraticCurveTo(tip[0] - f * W * 0.05, (tip[1] + trail[1]) / 2, trail[0], trail[1]); c.quadraticCurveTo((root[0] + trail[0]) / 2, root[1] + H * 0.06, root[0], root[1] + H * 0.05); c.closePath(); c.fill();
+    /* its ribs, catching the light */
+    c.strokeStyle = 'rgba(255,242,226,.35)'; c.lineWidth = Math.max(1, H * 0.003);
+    for (let k = 1; k < 5; k++){ const v = k / 5; c.beginPath(); c.moveTo(root[0], root[1]); c.quadraticCurveTo(root[0] + (tip[0] - root[0]) * 0.5, root[1] + (tip[1] - root[1]) * v * 0.6, tip[0] + (trail[0] - tip[0]) * v, tip[1] + (trail[1] - tip[1]) * v); c.stroke(); }
+  }
+  /* her back: broad, curving away gently, off past both sides - so big it's the ground they sit on */
+  const sway = Math.sin(t * 0.5) * H * 0.008, back = () => { c.beginPath(); c.moveTo(-W * 0.3, H * 1.1); c.quadraticCurveTo(W * 0.05, ry + H * 0.03 + sway, W / 2, ry + sway); c.quadraticCurveTo(W * 0.95, ry + H * 0.03 + sway, W * 1.3, H * 1.1); c.closePath(); };
+  c.fillStyle = ZUBU.body; back(); c.fill();
+  c.strokeStyle = ZUBU.line; c.lineWidth = H * 0.004; c.stroke();
+  /* the moss garden over it - grass, flowers - right out to its edges, and her freckles showing through */
+  c.save(); back(); c.clip();
+  c.fillStyle = ZUBU.moss[1]; c.beginPath(); c.ellipse(W / 2, H * 1.25, W * 0.75, H * 0.55 - sway, 0, Math.PI, TAU); c.fill();
+  c.fillStyle = ZUBU.moss[0]; c.beginPath(); c.ellipse(W * 0.46, H * 1.25, W * 0.6, H * 0.5 - sway, 0, Math.PI, TAU); c.fill();
+  for (let k = 0; k < 70; k++){ const x = W * (0.02 + 0.96 * ((k * 0.618) % 1)), y = ry + sway + H * (0.03 + 0.3 * ((k * 0.382) % 1)), sz = 0.5 + (y - ry) / H * 2; c.strokeStyle = ZUBU.moss[2]; c.lineWidth = H * 0.002 * sz; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.sin(t * 1.5 + k) * H * 0.003 * sz, y - H * 0.012 * sz); c.stroke(); if (k % 5 === 0){ c.fillStyle = ['#ffc4d8', '#fff3d6', '#ffe39a', '#d8c8ff'][(k / 5) % 4]; c.beginPath(); c.arc(x, y - H * 0.012 * sz, H * 0.004 * sz, 0, TAU); c.fill(); } }
+  c.restore();
+  /* the wind, streaming past */
+  c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = Math.max(1, H * 0.002);
+  for (let k = 0; k < 8; k++){ const a = (t * 0.6 + k / 8) % 1, y = H * (0.1 + 0.08 * k), x0 = W * (1 - a * 1.4); c.globalAlpha = Math.sin(a * Math.PI) * 0.6; c.beginPath(); c.moveTo(x0, y); c.lineTo(x0 + W * 0.12, y); c.stroke(); }
+  c.restore();
+}
+const mixH = (a, b, k) => { const h = (x) => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16)), A = h(a), B = h(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * k)).join(',')})`; };

@@ -38,10 +38,12 @@ export const IN = 3, ROLL = 30, STOP = 6;
 /* How far up the hill she is to start with (distances), as close as she
    gets before the BOING, and where that bounces her back to; how far she
    can drop behind. */
-export const START = 2.2, NEAR = 0.7, BACK = 1.4, FAR = 3;
+/* (she's vast now - five times what she was - so it's all closer in: a
+   wall of her filling the top of the view as she rolls) */
+export const START = 1.5, NEAR = 0.4, BACK = 0.85, FAR = 1.9;
 /* How fast she gains on them (distances a second), and how fast running
    all-out pulls them away. */
-export const GAIN = 0.16, PULL = 0.3;
+export const GAIN = 0.1, PULL = 0.19;
 /* Things rolling down: every so often (seconds), and how wide each is
    (lanes either side of its middle). */
 const EVERY = [1.4, 2.4];
@@ -198,7 +200,7 @@ export class Roll {
   }
   /* where she is on the screen, and how big */
   _zubuAt(W, H){
-    const p = R(this.lane, this.dist, W, H), r = H * 0.85 * p.k;
+    const p = R(this.lane, this.dist, W, H), r = H * 0.85 * 5 * p.k;   /* (vast: a wall of her, rolling, filling the sky) */
     return { x: p.x, y: p.y - r * 0.92 - this.hop * H * 0.6 * p.k, r, k: p.k };
   }
 
