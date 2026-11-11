@@ -1871,7 +1871,7 @@ class LastKnownPosition {
     setBend(curve, corner, dir, sharp);
     /* and its rises and dips: along a corridor, out in the open - not
        where the view's its own (the pond's stop, the gorge, the zip line) */
-    const hills = seg.kind === 'corridor' && !this.boss && !this.rest && !this.leap && !this.zip && !this.jog ? 1 : 0;
+    const hills = seg.kind === 'corridor' && !this.boss && !this.rest && !this.leap && !this.zip && !this.jog && !this.summit ? 1 : 0;
     this.hillsNow = (this.hillsNow || 0) + (hills - (this.hillsNow || 0)) * 0.03;
     setElev(this.z, this.hillsNow);
   }

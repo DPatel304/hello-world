@@ -24,6 +24,8 @@ import { pose, L as LM } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { PAL } from './lkp-art.js';
 import { worldOverlook } from './lkp-world.js';
+import { worldShip } from './lkp-places.js';
+import { shipFire } from './lkp-crashsite.js';
 import { flutterSwarm } from './lkp-critters.js';
 import { banner, smooth } from './lkp-zip.js';
 import { TITLE } from './lkp-title.js';
@@ -112,6 +114,8 @@ export class Summit {
     const crest = lerp(H * 0.44, H * 0.62, walk);
     this._sky(c, W, H, crest, L, 1 - rise);
     this._hill(c, W, H, crest, L);
+    /* the ship, crashed and smoking, right beside them as they set off - left behind as they climb */
+    if (this.phase === 'walk'){ const u = this.pt / WALK, rel = lerp(0.55, -0.1, Math.min(1, u * 1.4)); if (rel > -0.08){ worldShip(c, W, H, rel, -2.3, t, 1.25); shipFire(c, W, H, rel, -2.3, t, 1.25); } }
     const bw = lerp(0.085, 0.28, walk), bh = lerp(0.095, 0.36, walk), b1 = { x: W * lerp(0.46, 0.37, walk), y: lerp(crest + H * 0.035, H * 0.9, walk), w: W * bw, h: H * bh }, b2 = { x: W * lerp(0.54, 0.64, walk), y: lerp(crest + H * 0.04, H * 0.92, walk), w: W * bw * 0.86, h: H * bh * 0.84 };
     this._boulder(c, b1.x, b1.y, b1.w, b1.h, 1); this._boulder(c, b2.x, b2.y, b2.w, b2.h, 5);
     if (this.phase === 'walk') flutterSwarm(c, W * 0.6, lerp(H * 0.62, H * 0.5, walk), H * 0.12, t, 0.1, 0);
