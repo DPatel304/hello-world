@@ -18,7 +18,7 @@
    The path bends (lkp-art.js BEND): gentle curves, and now and then a
    sharp turn - all automatic, nothing for the players to do. A turn swings
    the panorama round. */
-import { P, HORIZON, RUN, BEND } from './lkp-art.js';
+import { P, HORIZON, RUN, BEND, FOG } from './lkp-art.js';
 
 /* Little helpers. */
 const hex = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -214,7 +214,7 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   } else { c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, HY); }
   /* The ground. */
   const gg = c.createLinearGradient(0, HY, 0, H);
-  gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
+  gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45 * FOG)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
   c.fillStyle = gg; c.fillRect(-SKY.wide, HY + H * 0.005, W + SKY.wide * 2, H - HY + H * 0.1);
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
@@ -226,7 +226,7 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   if (!bare) trees(c, W, H, z, L);
   /* The far end fades into the haze. */
   const fh = c.createLinearGradient(0, HY - H * 0.07, 0, HY + H * 0.08);
-  fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75)); fh.addColorStop(1, rgba(L.haze, 0));
+  fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75 * FOG)); fh.addColorStop(1, rgba(L.haze, 0));
   c.fillStyle = fh; c.fillRect(-SKY.wide, HY - H * 0.07, W + SKY.wide * 2, H * 0.15);
   if (alarm > 0){ c.fillStyle = `rgba(255,60,60,${0.06 * alarm})`; c.fillRect(0, 0, W, H); }
 }
@@ -242,7 +242,7 @@ function hedges(c, W, H, z, L){
   }
   list.sort((a, b) => b.rel - a.rel);
   for (const b of list){
-    const p = P(b.lane, b.rel, W, H), r = H * (0.05 + hash(b.n + 700) * 0.03) * p.k, haze = Math.min(0.6, Math.max(0, b.rel) * 0.8);
+    const p = P(b.lane, b.rel, W, H), r = H * (0.05 + hash(b.n + 700) * 0.03) * p.k, haze = Math.min(0.6 * FOG, Math.max(0, b.rel) * 0.8 * FOG);
     c.fillStyle = 'rgba(20,15,45,.3)'; c.beginPath(); c.ellipse(p.x, p.y, r * 1.2, r * 0.25, 0, 0, 6.2832); c.fill();
     c.fillStyle = mix(L.tree[1], L.haze, haze); circ(c, p.x, p.y - r * 0.8, r);
     c.fillStyle = mix(L.tree[0], L.haze, haze); circ(c, p.x - r * 0.3, p.y - r * 1.05, r * 0.72);
@@ -396,7 +396,7 @@ function path(c, W, H, z, L){
   for (let i = 0; i <= N; i++){ const rel = -0.1 + 1.1 * Math.pow(i / N, 1.6), hw = roadHalf(z + rel); Ls.push(P(-hw, rel, W, H)); Rs.push(P(hw, rel, W, H)); }
   const HY = HORIZON * H;
   const pg = c.createLinearGradient(0, HY, 0, H);
-  pg.addColorStop(0, mix(L.path[0], L.haze, 0.4)); pg.addColorStop(1, L.path[1]);
+  pg.addColorStop(0, mix(L.path[0], L.haze, 0.4 * FOG)); pg.addColorStop(1, L.path[1]);
   c.fillStyle = pg; c.beginPath();
   Ls.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); for (let i = N; i >= 0; i--) c.lineTo(Rs[i].x, Rs[i].y);
   c.closePath(); c.fill();
@@ -431,7 +431,7 @@ function path(c, W, H, z, L){
       const q = P(side * (roadHalf(z + rel) + 0.02), rel, W, H), r = H * 0.012 * q.k + 0.5;
       if (hash(n * 2 + (side > 0 ? 1 : 0) + 4400) < 0.55){
         /* a clump of grass, leaning over the edge */
-        const h = H * 0.028 * q.k + 1, haze = Math.min(0.6, Math.max(0, rel) * 0.8);
+        const h = H * 0.028 * q.k + 1, haze = Math.min(0.6 * FOG, Math.max(0, rel) * 0.8 * FOG);
         c.fillStyle = mix(L.ground[1], L.haze, haze); c.beginPath(); c.ellipse(q.x - side * r * 0.6, q.y, r * 2.4, r * 0.7, 0, 0, 6.2832); c.fill();
         c.strokeStyle = mix(L.grass[0], L.haze, haze); c.lineWidth = Math.max(1, H * 0.003 * q.k);
         c.beginPath(); for (let j = -3; j <= 3; j++){ const bx = q.x - side * r * 0.4 + j * r * 0.55; c.moveTo(bx, q.y); c.quadraticCurveTo(bx - side * h * 0.2, q.y - h * 0.6, bx - side * h * (0.35 + 0.1 * (j & 1)), q.y - h * (0.7 + 0.3 * hash(n + j + 4410))); } c.stroke();
@@ -450,7 +450,7 @@ function path(c, W, H, z, L){
 function surface(c, W, H, z, L, sf){
   const r0 = Math.max(-0.12, sf.d0 - z), r1 = Math.min(1.02, sf.d1 - z); if (r1 <= r0) return;
   const quad = (a0, a1, b0, b1, col) => { const p = [P(a0, b0, W, H), P(a1, b0, W, H), P(a1, b1, W, H), P(a0, b1, W, H)]; c.fillStyle = col; c.beginPath(); p.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.closePath(); c.fill(); };
-  const fade = (rel) => surfaceAt(z + rel).k * (1 - Math.min(0.7, Math.max(0, rel) * 0.8));
+  const fade = (rel) => surfaceAt(z + rel).k * (1 - Math.min(0.7 * FOG, Math.max(0, rel) * 0.8 * FOG));
   const HW = 1.6;
   if (sf.kind === 'trampled'){
     /* off the trail, where something huge came through: the ground
@@ -515,7 +515,7 @@ function pathBits(c, W, H, z, L){
   for (let n = 0; n < 60; n++){
     const rel = along(n + 0.6, 1.0, 60, z); if (rel == null || surfaceAt(z + rel).kind !== 'dirt') continue;
     const side = hash(n + 5300) < 0.5 ? -1 : 1, lane = side * (0.6 + hash(n + 5301) * 0.45), q = P(lane, rel, W, H), k = q.k;
-    const haze = Math.min(0.7, Math.max(0, rel) * 0.9), kind = hash(n + 5302);
+    const haze = Math.min(0.7 * FOG, Math.max(0, rel) * 0.9 * FOG), kind = hash(n + 5302);
     if (kind < 0.4){
       /* a leaf */
       const l = H * 0.0075 * k + 1, a = hash(n + 5303) * 6.28;
@@ -654,7 +654,7 @@ export function worldFarRidge(c, W, H, t, u, L){
    stumps with splintered tops, trunks lying where they fell. */
 export function worldTrail(c, W, H, lane, rel, L){
   const p = P(lane, rel, W, H); if (p.x < -W * 0.6 || p.x > W * 1.6) return;
-  const haze = Math.min(0.6, Math.max(0, rel) * 0.8);
+  const haze = Math.min(0.6 * FOG, Math.max(0, rel) * 0.8 * FOG);
   /* the flattened swathe, running away from the path */
   const q0 = P(lane - Math.sign(lane) * 0.4, rel - 0.06, W, H), q1 = P(lane + Math.sign(lane) * 2.4, rel + 0.12, W, H);
   c.save();
@@ -719,7 +719,7 @@ function trees(c, W, H, z, L){
    woods). */
 export const SIGHT = { on: false, x0: 0, x1: 0 };
 export function tree(c, W, H, lane, rel, L, n = 0){
-  const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.85 + hash(n + 300) * 0.4), haze = Math.min(0.7, Math.max(0, rel) * 0.9);
+  const p = P(lane, rel, W, H), s = H * 0.0011 * p.k * (0.85 + hash(n + 300) * 0.4), haze = Math.min(0.7 * FOG, Math.max(0, rel) * 0.9 * FOG);
   if (SIGHT.on && rel > 0.25 && p.x > SIGHT.x0 && p.x < SIGHT.x1) return;
   if (p.x < -200 * s * 3 - SKY.wide || p.x > W + 200 * s * 3) return;
   cast(c, p.x, p.y, 26 * s, 380 * s);
@@ -1163,7 +1163,7 @@ export function worldFarWoods(c, W, H, x, y, t, T, L){
    round its rim - some with water lying in them, the sky in it. */
 export function footprint(c, W, H, lane, rel, t, L, wet = false, n = 0){
   if (!L) return;
-  const p = P(lane, rel, W, H), w = (P(lane + 0.7, rel, W, H).x - p.x), h = w * 0.32, haze = Math.min(0.6, Math.max(0, rel) * 0.8);
+  const p = P(lane, rel, W, H), w = (P(lane + 0.7, rel, W, H).x - p.x), h = w * 0.32, haze = Math.min(0.6 * FOG, Math.max(0, rel) * 0.8 * FOG);
   if (p.x < -w * 2 || p.x > W + w * 2) return;
   c.save();
   /* the pushed-up rim, then the hollow */

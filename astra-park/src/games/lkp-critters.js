@@ -13,7 +13,7 @@
                  swimming round the crew's boots, in and out of each other
 
    Both gentle: kid-sized wonder, never scary. */
-import { P } from './lkp-art.js';
+import { P, FOG } from './lkp-art.js';
 import { glow } from './lkp-world.js';
 
 const TAU = Math.PI * 2;
@@ -429,7 +429,7 @@ export function trumbler(c, x, y, s, t, call = 0, run = 1, haze = 0, L = null){
 export function skyJelly(c, W, H, th, t, L){
   if (!L || th.rel > 1.2) return;
   const p = P(th.lane, th.rel, W, H), s = H * 0.1 * p.k * (th.size || 1);
-  const haze = Math.min(0.75, Math.max(0, th.rel) * 0.85), a = Math.max(0, Math.min(1, (1.2 - th.rel) / 0.35));
+  const haze = Math.min(0.75 * FOG, Math.max(0, th.rel) * 0.85 * FOG), a = Math.max(0, Math.min(1, (1.2 - th.rel) / 0.35));
   if (a <= 0.01) return;
   const bob = Math.sin(t * 0.5 + th.n * 1.7) * s * 0.12, x = p.x, y = p.y - H * th.alt * p.k + bob;
   const base = ['#d7a6d8', '#a9c4e8', '#c4b4ea'][th.n % 3], col = (k, m = 0) => mixHex(mixHex(base, k > 0 ? '#ffffff' : '#3a3466', Math.abs(k)), L.haze, Math.min(1, haze + m));

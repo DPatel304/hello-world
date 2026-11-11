@@ -13,7 +13,7 @@ import { Ride } from './lkp-ride.js';
 import { Wing } from './lkp-wing.js';
 import { worldCrewFront } from './lkp-cast.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON } from './lkp-art.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON, FOG } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
 import { arms, armored, take, KNIFE } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
@@ -1731,10 +1731,10 @@ class LastKnownPosition {
       case 'crawler': if (!it.gone){ const q = P(it.lane, it.rel, W, H); jellycrawl(c, q.x, q.y, H * 0.32 * q.k, this.t, it.walk, it.fly); } break;
       case 'herdMass': { const m = this.herdMassAt(); herdMass(c, W, H, this.t, HERD.edge + 0.12, m.dx, m.a, m.scatter, this.trumblerAt()); break; }
       case 'skyjelly': skyJelly(c, W, H, it, this.t, PAL.world); break;
-      case 'grazer': if (it.rel < 1.1) glimmerback(c, p.x, p.y, H * 0.11 * p.k, this.t * 0.25 + it.n, 0, Math.min(0.7, Math.max(0, it.rel) * 0.7), 0); break;
+      case 'grazer': if (it.rel < 1.1) glimmerback(c, p.x, p.y, H * 0.11 * p.k, this.t * 0.25 + it.n, 0, Math.min(0.7 * FOG, Math.max(0, it.rel) * 0.7 * FOG), 0); break;
       /* far off on the land's edge: the great legs, striding slowly along */
       case 'farGiant': if (it.rel < 1.2){
-        const hz = Math.min(0.75, Math.max(0, it.rel) * 0.85), st = this.t / 2.8;
+        const hz = Math.min(0.75 * FOG, Math.max(0, it.rel) * 0.85 * FOG), st = this.t / 2.8;
         giantShadow(c, W, H, p.x, p.y, p.k);
         [[-0.6, 0], [0.6, 0.5], [-0.6, 0.25], [0.6, 0.75]].forEach(([dl, ph], n) => {
           const f = (st + ph) % 1, lift = f > 0.7 ? Math.sin((f - 0.7) / 0.3 * Math.PI) : 0, q = P(it.lane + dl + 0.15 * Math.floor(st + ph), it.rel + (n > 1 ? 0.06 : 0), W, H);
@@ -1742,7 +1742,7 @@ class LastKnownPosition {
         });
       } break;
       case 'giantShadow': { const q = P(it.tb.lane, it.tb.rel + 0.03, W, H); giantShadow(c, W, H, q.x, q.y, q.k); break; }
-      case 'giantLeg': giantLeg(c, W, H, p.x, p.y, p.k, it.lg.lift, this.t, PAL.world, Math.min(0.7, Math.max(0, it.rel) * 0.85), it.lg.n); break;
+      case 'giantLeg': giantLeg(c, W, H, p.x, p.y, p.k, it.lg.lift, this.t, PAL.world, Math.min(0.7 * FOG, Math.max(0, it.rel) * 0.85 * FOG), it.lg.n); break;
       case 'herd1': if (it.rel > -0.12 && (it.f.a ?? 1) > 0.01 && !nearTrumbler(this.trumblerAt(), it.lane, it.rel)){
         c.save(); c.globalAlpha = it.f.a ?? 1;
         glimmerback(c, p.x, p.y, H * 0.11 * p.k * (1 + 0.5 * it.f.deep), this.t + it.f.n * 0.37, it.f.side, it.f.deep, it.f.hop || 0);

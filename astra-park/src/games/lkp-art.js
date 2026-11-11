@@ -22,10 +22,14 @@ import { worldFork, worldDepot, worldPiece, worldSweeper, worldSweepBar } from '
 
 export const RUN = 0.03;              /* the crew's own depth */
 export const HORIZON = 0.38;          /* screen heights */
+/* How thick the haze over the far end of the path is (1: as it was - so
+   thick the way ahead was hard to make out; lower: clearer). */
+export const FOG = 0.4;
 const BOTTOM = 0.97;                  /* where the crew's feet are */
 const HALF = 0.36;                    /* half the floor's width at the crew, in screen widths */
 const WALL = 1.15;                    /* the walls, in lanes */
-const S = (z) => 1 / (1 + 6 * Math.max(-0.1, z));
+/* (the perspective: how fast things shrink with distance - less, so what's coming up ahead is bigger, sooner) */
+const S = (z) => 1 / (1 + 4.5 * Math.max(-0.1, z));
 
 /* The path's bends, for the look only (lanes, and so the play, don't
    change): `curve` bends it gently left (-) or right (+) into the
