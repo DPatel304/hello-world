@@ -14,7 +14,7 @@
 import { pose } from '../tracking/pose.js';
 import { sfx } from '../audio/sound.js';
 import { CrankWatch } from '../tracking/gestures.js';
-import { P, drawDepot } from './lkp-art.js';
+import { P, drawDepot, PACE } from './lkp-art.js';
 
 /* Powering up: everyone rolling their arms this long fills it; it fills
    by itself AUTO seconds in. Then the surge, SURGE seconds. */
@@ -28,7 +28,7 @@ export const ARRIVE = 3, STIR = 3.6;
 export const PIECE = 0.22;
 /* Where the shed stands once they're there; and how much further off it
    first shows, far up the path in the haze, as they run on up to it. */
-export const SHED = 0.75, APPROACH = 1.5;
+export const SHED = 0.75, APPROACH = 1.5 * PACE;
 /* (fading in out of the haze, its first FADE of the way) */
 const FADE = 0.25;
 

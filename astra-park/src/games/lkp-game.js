@@ -13,7 +13,7 @@ import { Ride } from './lkp-ride.js';
 import { Wing } from './lkp-wing.js';
 import { worldCrewFront } from './lkp-cast.js';
 import { P, RUN, DOORS, setBend, drawCorridor, drawGloom, drawBlocker, drawBeam, drawGap, drawCrystal, drawFountain,
-         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON, FOG } from './lkp-art.js';
+         drawDoors, drawCrown, sign, drawCrew, drawHealth, drawRustbot, drawBeast, drawPulse, drawZzz, setPalette, PAL, HORIZON, FOG, PACE, setElev } from './lkp-art.js';
 import { Fight, BUDDY } from './lkp-combat.js';
 import { arms, armored, take, KNIFE } from './lkp-weapons.js';
 import { Lights } from './lkp-trap.js';
@@ -57,7 +57,7 @@ const BOSSES = { scout: Scout, warden: Warden };
    trap room - red light, green light (lkp-trap.js); and treasure, only
    ever behind the ? door, a crystal grab (lkp-treasure.js). */
 
-export const SPEED = 0.21;                       /* corridor depths a second */
+export const SPEED = 0.21 * PACE;                /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
    play itself). */
 export const story = { on: true };
@@ -482,7 +482,7 @@ class LastKnownPosition {
          lessons, each lesson in a quiet of its own. */
       /* (walking at first - WALK_IN - so these are placed by distance:
          at a walk they come slowly, as she talks; then faster and faster) */
-      const atD = (dist) => this.z + RUN + dist;
+      const atD = (dist) => this.z + RUN + dist * PACE;
       /* her story first - where they are, what's wrong, what to do - with
          nothing on the path at all (each waits for the one before) */
       /* (her story's told in the opening now, on the radio: lkp-intro.js answer) */
@@ -1698,6 +1698,11 @@ class LastKnownPosition {
       }
     }
     setBend(curve, corner, dir, sharp);
+    /* and its rises and dips: along a corridor, out in the open - not
+       where the view's its own (the pond's stop, the gorge, the zip line) */
+    const hills = seg.kind === 'corridor' && !this.boss && !this.rest && !this.leap && !this.zip ? 1 : 0;
+    this.hillsNow = (this.hillsNow || 0) + (hills - (this.hillsNow || 0)) * 0.03;
+    setElev(this.z, this.hillsNow);
   }
 
   _drawItem(c, it, W, H){

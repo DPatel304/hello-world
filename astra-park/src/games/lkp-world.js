@@ -18,7 +18,7 @@
    The path bends (lkp-art.js BEND): gentle curves, and now and then a
    sharp turn - all automatic, nothing for the players to do. A turn swings
    the panorama round. */
-import { P, HORIZON, RUN, BEND, FOG } from './lkp-art.js';
+import { P, HORIZON, RUN, BEND, FOG, groundTop } from './lkp-art.js';
 
 /* Little helpers. */
 const hex = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -213,9 +213,11 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
     }
   } else { c.fillStyle = L.sky[1]; c.fillRect(0, 0, W, HY); }
   /* The ground. */
-  const gg = c.createLinearGradient(0, HY, 0, H);
+  /* (its far edge: the horizon - higher with a rise ahead, lower with a dip) */
+  const GY = Math.min(H * (HORIZON + 0.06), groundTop() * H);
+  const gg = c.createLinearGradient(0, GY, 0, H);
   gg.addColorStop(0, mix(L.ground[0], L.haze, 0.45 * FOG)); gg.addColorStop(0.3, L.ground[1]); gg.addColorStop(1, L.ground[2]);
-  c.fillStyle = gg; c.fillRect(-SKY.wide, HY + H * 0.005, W + SKY.wide * 2, H - HY + H * 0.1);
+  c.fillStyle = gg; c.fillRect(-SKY.wide, GY + H * 0.005, W + SKY.wide * 2, H - GY + H * 0.1);
   /* Grass, rocks, flowers, mushrooms: placed along the way, sliding past. */
   groundBits(c, W, H, z, L);
   /* Anything far off, on the land's far edge. */
@@ -225,9 +227,9 @@ export function drawWorld(c, W, H, z, t, alarm, L, bare = false, above = SKY.abo
   /* Trees and glowing plants along both sides. */
   if (!bare) trees(c, W, H, z, L);
   /* The far end fades into the haze. */
-  const fh = c.createLinearGradient(0, HY - H * 0.07, 0, HY + H * 0.08);
+  const fh = c.createLinearGradient(0, GY - H * 0.07, 0, GY + H * 0.08);
   fh.addColorStop(0, rgba(L.haze, 0)); fh.addColorStop(0.45, rgba(L.haze, 0.75 * FOG)); fh.addColorStop(1, rgba(L.haze, 0));
-  c.fillStyle = fh; c.fillRect(-SKY.wide, HY - H * 0.07, W + SKY.wide * 2, H * 0.15);
+  c.fillStyle = fh; c.fillRect(-SKY.wide, GY - H * 0.07, W + SKY.wide * 2, H * 0.15);
   if (alarm > 0){ c.fillStyle = `rgba(255,60,60,${0.06 * alarm})`; c.fillRect(0, 0, W, H); }
 }
 

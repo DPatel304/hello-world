@@ -118,7 +118,7 @@ test('the zip line counts them in without stopping; hands up in time, on the cab
   /* 2 first, then 0; 1 not yet */
   up(2); for (let k = 0; k < 10; k++) inst.step(DT, W, H);
   up(0); for (let k = 0; k < 10; k++) inst.step(DT, W, H);
-  assert.ok(inst.z > z + 0.1, 'still running');
+  assert.ok(inst.z > z + SPEED * 0.5, 'still running');
   assert.deepEqual(inst.zip.ready, [2, 0]);
   inst.draw(fake(), W, H);
   for (let k = 0; k < 4000 && inst.zip.phase === 'ready'; k++) inst.step(DT, W, H);
@@ -290,7 +290,7 @@ test('the giant: up they climb, and sit and relax on its back - no steering, the
   for (let k = 0; k < 6 / DT; k++) inst.step(DT, W, H);
   assert.equal(inst.ride.lane, lane, 'leaning does nothing');
   assert.ok(inst.crystals > c0, 'crystals drifting into their hands');
-  assert.ok(inst.speed > 0.1, 'carried along');
+  assert.ok(inst.speed > SPEED * 0.4, 'carried along');
   inst.draw(fake(), W, H);
 });
 

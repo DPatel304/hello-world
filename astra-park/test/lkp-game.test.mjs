@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import game, { HOP_RISE, LATE_HOP, UNDUCK, SPEED, MAX_HP, HURT, SAFE, SPRING_SECS, SPRING_HEAL, SPRING_LEN, VOTE, CORRIDOR, MYSTERY, DOOR_KINDS, ZOOM_IN, story } from '../src/games/lkp-game.js';
 /* The play itself, without the captain's scenes. */
 story.on = false;
-import { RUN, DOORS } from '../src/games/lkp-art.js';
+import { RUN, DOORS, PACE } from '../src/games/lkp-art.js';
 import { pose, L } from '../src/tracking/pose.js';
 
 const W = 1920, H = 1080, DT = 1 / 60;
@@ -144,7 +144,7 @@ function atDoors(doors, kinds = ['combat', 'traps']){
   run(inst, 0.1);
   assert.equal(inst.phase, 'cross');
   inst.seg.kinds = kinds;
-  run(inst, 3.5);
+  run(inst, 3.5 / PACE);
   return inst;
 }
 
@@ -154,7 +154,7 @@ test('the crew stop at two doors and vote with their feet: most wins', () => {
   assert.ok(Math.abs(inst.z - z) < 0.01, 'stopped at the doors');
   run(inst, VOTE + 0.5);
   assert.equal(inst.doors[0], 0, 'two for the left door');
-  run(inst, 3);
+  run(inst, 3 / PACE);
   assert.equal(inst.rooms[0], 'combat', 'through the fight door');
 });
 

@@ -25,6 +25,11 @@ export const HORIZON = 0.38;          /* screen heights */
 /* How thick the haze over the far end of the path is (1: as it was - so
    thick the way ahead was hard to make out; lower: clearer). */
 export const FOG = 0.4;
+/* How fast they run along the path, against how it was first made (0.5:
+   half as fast - an easier pace to keep up with, more time to see
+   what's coming). Things placed by distance scale with it, so they come
+   up at the same moments as before. */
+export const PACE = 0.5;
 const BOTTOM = 0.97;                  /* where the crew's feet are */
 const HALF = 0.36;                    /* half the floor's width at the crew, in screen widths */
 const WALL = 1.15;                    /* the walls, in lanes */
@@ -44,10 +49,46 @@ const bendAt = (rel) => {
   return b;
 };
 
+/* The ground's rises and dips, for the look only (like the bends): the
+   path ahead climbing a gentle hill, or dipping down into a hollow and
+   up again. A height for every depth along the level (world d), seen
+   from where the crew are; how much of it shows (amp) eased by the game
+   (none in the places with their own views). Set each frame (setElev):
+   a table of how far up (-) or down each depth ahead is drawn - never so
+   much that a rise hides what's beyond it. */
+export const ELEV = { amp: 0, z: 0, tab: null };
+/* how high the ground is at world depth d (corridor depths): long slow
+   swells, and smaller ones on them */
+export const ground = (d) => 0.5 * Math.sin(d * 0.75 + 0.6) + 0.22 * Math.sin(d * 1.9 + 2.1);
+const ELEV_N = 48, ELEV_A = 0.9, ELEV_LO = -0.1, ELEV_HI = 1.3;
+const flatY = (rel) => HORIZON + (BOTTOM - HORIZON) * (S(rel) - S(1)) / (S(RUN) - S(1));
+export function setElev(z, amp){
+  ELEV.z = z; ELEV.amp = amp;
+  if (amp <= 0.001){ ELEV.tab = null; return; }
+  const tab = new Float32Array(ELEV_N + 1), h0 = ground(z + RUN);
+  let last = Infinity;
+  for (let i = 0; i <= ELEV_N; i++){
+    const rel = ELEV_LO + (ELEV_HI - ELEV_LO) * i / ELEV_N, base = flatY(rel);
+    /* (a height ahead, seen in perspective: smaller the further off) */
+    let y = base - (ground(z + rel) - h0) * ELEV_A * amp * S(rel) / S(RUN) * Math.min(1, Math.max(0, (rel - RUN) / 0.25));
+    /* (never so steep it hides the path beyond the top) */
+    if (y > last - 0.0015) y = last - 0.0015;
+    last = y; tab[i] = y - base;
+  }
+  ELEV.tab = tab;
+}
+const elevAt = (rel) => {
+  const tab = ELEV.tab; if (!tab) return 0;
+  const u = (Math.min(ELEV_HI, Math.max(ELEV_LO, rel)) - ELEV_LO) / (ELEV_HI - ELEV_LO) * ELEV_N, i = Math.min(ELEV_N - 1, Math.floor(u)), f = u - i;
+  return tab[i] + (tab[i + 1] - tab[i]) * f;
+};
+/* where the far edge of the ground is on the screen (screen heights): the horizon, lifted by a rise ahead or dropped by a dip */
+export function groundTop(){ return HORIZON + elevAt(1.0); }
+
 export function P(lane, rel, W, H){
   if (BEND.curve || BEND.corner != null) lane += bendAt(rel);
   const k = S(rel) / S(RUN);
-  const y = HORIZON + (BOTTOM - HORIZON) * (S(rel) - S(1)) / (S(RUN) - S(1));
+  const y = flatY(rel) + elevAt(rel);
   return { x: W * (0.5 + lane * HALF * k), y: y * H, k };
 }
 

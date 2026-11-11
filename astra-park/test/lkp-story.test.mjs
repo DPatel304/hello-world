@@ -4,7 +4,7 @@ import game, { story } from '../src/games/lkp-game.js';
 import { Captain, Scene, script, NAMES } from '../src/games/lkp-captain.js';
 import { INTRO_BEATS, CRASH_SHOT, TITLE_CARD, DARK, WAKE, WATCH, NOTICE, OUT_TIME, RING_FIRST, SAID, WIGGLE, PLAY, GO, MOVE_MAX, RING_MAX, RISE_MAX, START } from '../src/games/lkp-intro.js';
 import { RUN } from '../src/games/lkp-art.js';
-import { REST_MAX } from '../src/games/lkp-game.js';
+import { REST_MAX, SPEED } from '../src/games/lkp-game.js';
 import { lineTime } from '../src/audio/voice.js';
 import { pose } from '../src/tracking/pose.js';
 
@@ -141,7 +141,7 @@ test('the first corridor: Nova tells the story between her tips, and the healing
   assert.ok(said.includes(inst.level.lines.offTrail[0][1]), 'off the trail');
   assert.ok(!inst.captain.stay && inst.mood > -1, 'and the calm start over');
   run(inst, 1);
-  assert.ok(inst.z > z + 0.1, 'and on they go');
+  assert.ok(inst.z > z + SPEED * 0.5, 'and on they go');
   story.on = false;
 });
 
