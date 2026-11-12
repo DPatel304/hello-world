@@ -55,6 +55,13 @@ const MENU = [
   { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', soon: true },
   { id: 'make', name: 'Make a game', icon: '\u{1F58C}\u{FE0F}', soon: true }
 ];
+/* Seconds a first pick of Exit waits for the second. */
+const EXIT_SURE = 4;
+/* The Windows app's own window, when the game is running inside it. */
+function appWindow(){
+  const w = typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.window;
+  return w && w.getCurrentWindow ? w.getCurrentWindow() : null;
+}
 /* What was picked last visit. */
 let lastFocus = 0;
 const HOVER_FOCUS = 0.05;      /* seconds of a hand on a tile to pick it (the cursor's already sticky) */
@@ -170,6 +177,20 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
         if (m.id === 'settings') settings(onRecalibrate);
       });
       card.appendChild(b);
+    }
+    /* In the Windows app, a way out. Picked once it asks; picked again
+       (within a few seconds) it closes - so a hand resting there by
+       accident doesn't end the evening. */
+    const app = appWindow();
+    if (app){
+      let sure = 0;
+      const ex = onPick(button(`<span class="pi">\u{1F44B}</span><span class="pn">Exit</span>`, 'popitem exit'), () => {
+        if (performance.now() - sure < EXIT_SURE * 1000){ sfx.back(); app.close(); return; }
+        sure = performance.now(); sfx.select();
+        ex.querySelector('.pn').textContent = 'Exit? Pick again';
+        setTimeout(() => { if (ex.isConnected) ex.querySelector('.pn').textContent = 'Exit'; }, EXIT_SURE * 1000);
+      });
+      card.appendChild(ex);
     }
     card.appendChild(onPick(button('Close', 'popitem close'), () => { sfx.back(); shut(); }));
     open.appendChild(card);
@@ -331,10 +352,30 @@ function settings(onRecalibrate){
     });
   }
 
+  /* In the Windows app: a window, or Big Picture (full screen, for the
+     TV). Kept for next time. In a browser, the browser's own full screen. */
+  const display = typeof window !== 'undefined' && window.orlisDisplay;
+  if (display){
+    s.appendChild(h('p', 'lede', 'Display'));
+    const pick = h('div', 'row');
+    const modes = [['window', 'Window'], ['bigpicture', 'Big Picture']];
+    const mark = () => modes.forEach(([m], i) => pick.children[i].classList.toggle('chosen', display.mode === m));
+    for (const [m, name] of modes){
+      pick.appendChild(onPick(button(name, 'mode'), async () => {
+        if (display.mode === m) return;
+        sfx.select();
+        try { await display.set(m); } catch (e) {}
+        mark();
+      }));
+    }
+    mark();
+    s.appendChild(pick);
+  }
+
   const row2 = h('div', 'row');
   row2.append(
     onPick(button('Re-calibrate'), () => { s.remove(); onRecalibrate(); }),
-    onPick(button('Fullscreen'), () => toggleFullscreen()),
+    ...(display ? [] : [onPick(button('Fullscreen'), () => toggleFullscreen())]),
     onPick(button('Reset scores'), (e) => {
       scores.reset();
       e.currentTarget.querySelector('.lbl').textContent = 'Scores cleared';

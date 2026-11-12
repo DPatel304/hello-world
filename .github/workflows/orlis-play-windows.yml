@@ -1,14 +1,22 @@
-# Builds the Orlis Play Windows app and publishes it as a GitHub release.
+# Builds the Orlis Play Windows app, in two channels.
 #
-# Every push that changes the game or the app makes a new version
-# (0.1.<run number>). Installed copies find it on their next start and update
-# themselves, and the installer is always at one address that never changes:
-#   https://github.com/dpatel304/hello-world/releases/latest/download/Orlis-Play-Setup.exe
+#   Orlis Play Beta - every push that changes the game or the app. For trying
+#     things out: its own app beside the normal one, with its own icon and
+#     saves, and it updates itself to each new build.
+#       https://github.com/dpatel304/hello-world/releases/download/beta/Orlis-Play-Beta-Setup.exe
+#
+#   Orlis Play - only when released: run this workflow by hand (Actions >
+#     Orlis Play for Windows > Run workflow) with channel "release". Everyone
+#     with the normal app gets it on their next start.
+#       https://github.com/dpatel304/hello-world/releases/latest/download/Orlis-Play-Setup.exe
+#
+# Versions are 0.1.<run number> in both, so a release is always newer than
+# the beta it came from.
 #
 # Updates are signed. Add the private signing key as the repository secret
 # TAURI_SIGNING_PRIVATE_KEY (Settings > Secrets and variables > Actions).
-# Until it's there, the installer still builds, but installed copies can't
-# update themselves from it.
+# Until it's there, installers still build, but installed copies can't
+# update themselves from them.
 name: Orlis Play for Windows
 
 on:
@@ -23,6 +31,12 @@ on:
       - 'astra-park/fetch-assets.mjs'
       - '.github/workflows/orlis-play-windows.yml'
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'beta (try it out) or release (everyone with Orlis Play gets it)'
+        type: choice
+        options: [beta, release]
+        default: beta
 
 permissions:
   contents: write
@@ -39,6 +53,7 @@ jobs:
         working-directory: astra-park
     env:
       VERSION: 0.1.${{ github.run_number }}
+      CHANNEL: ${{ inputs.channel || 'beta' }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
     steps:
@@ -62,17 +77,44 @@ jobs:
       - name: Build the game files the app carries
         run: npm run client:web
 
-      - name: Version, and signed updates if the key is there
+      - name: The channel's name, version and update address
         shell: bash
         run: |
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "{\"version\":\"$VERSION\"}" > client/release.json
-          else
+          signed=true
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            signed=false
             echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: building without self-updates."
-            echo "{\"version\":\"$VERSION\",\"bundle\":{\"createUpdaterArtifacts\":false}}" > client/release.json
           fi
+          if [ "$CHANNEL" = "release" ]; then
+            echo "{\"version\":\"$VERSION\",\"bundle\":{\"createUpdaterArtifacts\":$signed}}" > client/release.json
+            echo "TAG=orlis-play-v$VERSION" >> $GITHUB_ENV
+            echo "TITLE=Orlis Play $VERSION" >> $GITHUB_ENV
+            echo "PRERELEASE=false" >> $GITHUB_ENV
+            echo "SETUP=Orlis-Play-Setup.exe" >> $GITHUB_ENV
+          else
+            cat > client/release.json <<JSON
+          {"version":"$VERSION","productName":"Orlis Play Beta","identifier":"com.orlisplay.client.beta",
+           "bundle":{"createUpdaterArtifacts":$signed},
+           "plugins":{"updater":{"endpoints":["https://github.com/dpatel304/hello-world/releases/download/beta/latest.json"]}}}
+          JSON
+            echo "TAG=beta" >> $GITHUB_ENV
+            echo "TITLE=Orlis Play Beta" >> $GITHUB_ENV
+            echo "PRERELEASE=true" >> $GITHUB_ENV
+            echo "SETUP=Orlis-Play-Beta-Setup.exe" >> $GITHUB_ENV
+          fi
+          cat client/release.json
 
-      - name: Build the app and publish the release
+      # The beta is one release that's refilled each time: its update file
+      # always describes the newest beta, at the same address.
+      - name: Clear the last beta
+        if: env.CHANNEL != 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete beta --yes --cleanup-tag 2>/dev/null || true
+
+      - name: Build the app and publish it
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,12 +122,12 @@ jobs:
           projectPath: astra-park
           tauriScript: npx tauri
           args: --config client/release.json
-          tagName: orlis-play-v${{ env.VERSION }}
-          releaseName: Orlis Play ${{ env.VERSION }}
-          releaseBody: Orlis Play for Windows, version ${{ env.VERSION }}. Download Orlis-Play-Setup.exe below and double-click it.
+          tagName: ${{ env.TAG }}
+          releaseName: ${{ env.TITLE }}
+          releaseBody: ${{ env.TITLE }} for Windows, version ${{ env.VERSION }}. Download ${{ env.SETUP }} below and double-click it.
           releaseCommitish: ${{ github.sha }}
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ env.PRERELEASE }}
           includeUpdaterJson: true
 
       - name: The installer under the name that never changes
@@ -94,5 +136,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           exe=$(ls client/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
-          cp "$exe" Orlis-Play-Setup.exe
-          gh release upload "orlis-play-v$VERSION" Orlis-Play-Setup.exe --clobber
+          cp "$exe" "$SETUP"
+          gh release upload "$TAG" "$SETUP" --clobber

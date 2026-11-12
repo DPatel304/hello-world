@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the game's page may ask the app for: going in and out of full screen.",
+  "description": "What the game's page may ask the app for: closing (the menu's Exit).",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-set-fullscreen",
-    "core:window:allow-is-fullscreen"
+    "core:window:allow-close"
   ]
 }

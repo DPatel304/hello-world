@@ -3,18 +3,27 @@
 //! On every start it: checks for a newer version of the app (a few seconds
 //! at most; offline, it just opens) and installs it if there is one; lists
 //! the songs in the family's "Orlis Play" music folder for the game to play;
-//! opens the game full screen; and lets the game use the camera without a
+//! opens the game in the display mode last chosen (a window, or Big Picture:
+//! full screen, for the TV); and lets the game use the camera without a
 //! question - this window only ever shows Orlis Play's own pages, and the
 //! video never leaves the machine.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{path::Path, time::Duration};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::UpdaterExt;
 
 /// Song files the game can play.
 const SONGS: &[&str] = &["mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "flac", "webm"];
+
+/// The display mode a new install starts in: "window" while the games are
+/// being made and tried out; "bigpicture" (full screen, for the TV) once
+/// Orlis Play is released. Settings > Display changes it, and it's kept.
+const DEFAULT_MODE: &str = "window";
+const MODES: &[&str] = &["window", "bigpicture"];
+/// The window, in window mode.
+const WINDOW_SIZE: (f64, f64) = (1280.0, 720.0);
 
 /// How long the update check may hold up the start.
 const UPDATE_WAIT: Duration = Duration::from_secs(4);
@@ -22,6 +31,7 @@ const UPDATE_WAIT: Duration = Duration::from_secs(4);
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![set_display_mode])
         .setup(|app| {
             let app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -62,17 +72,20 @@ async fn update(app: &AppHandle) -> bool {
 
 /// The game's window.
 fn open(app: &AppHandle) -> tauri::Result<()> {
+    let mode = display_mode(app);
     let script = format!(
-        "window.ASTRA_MUSIC = {};\nwindow.ORLIS_LOCAL = true;\n{}",
+        "window.ASTRA_MUSIC = {};\nwindow.ORLIS_LOCAL = true;\nwindow.ORLIS_DISPLAY = {};\n{}",
         serde_json::to_string(&songs(app)).unwrap_or_else(|_| "[]".into()),
-        FULLSCREEN_KEY
+        serde_json::to_string(&mode).unwrap_or_else(|_| "\"window\"".into()),
+        DISPLAY_SCRIPT
     );
+    let title = app.config().product_name.clone().unwrap_or_else(|| "Orlis Play".into());
     let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("Orlis Play")
-        .inner_size(1280.0, 720.0)
+        .title(&title)
+        .inner_size(WINDOW_SIZE.0, WINDOW_SIZE.1)
         .min_inner_size(640.0, 360.0)
         .center()
-        .fullscreen(true)
+        .fullscreen(mode == "bigpicture")
         .initialization_script(&script)
         // Sound may start before anyone clicks (the intro's chime, the
         // music), plus the engine's usual defaults, which this replaces.
@@ -85,13 +98,58 @@ fn open(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// F11: in and out of full screen, like any Windows game.
-const FULLSCREEN_KEY: &str = r#"
-addEventListener('keydown', async (e) => {
+/// Where the chosen display mode is kept, in the app's own settings folder.
+fn display_file(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("display.json"))
+}
+
+/// The display mode last chosen, or the default for a new install.
+fn display_mode(app: &AppHandle) -> String {
+    display_file(app)
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v.get("mode").and_then(|m| m.as_str()).map(String::from))
+        .filter(|m| MODES.contains(&m.as_str()))
+        .unwrap_or_else(|| DEFAULT_MODE.into())
+}
+
+/// Settings > Display (and F11): switch to a mode, now, and keep it.
+#[tauri::command]
+fn set_display_mode(app: AppHandle, mode: String) -> Result<String, String> {
+    if !MODES.contains(&mode.as_str()) {
+        return Err(format!("no such display mode: {mode}"));
+    }
+    if let Some(f) = display_file(&app) {
+        if let Some(dir) = f.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&f, serde_json::json!({ "mode": mode }).to_string());
+    }
+    if let Some(w) = app.get_webview_window("main") {
+        let big = mode == "bigpicture";
+        w.set_fullscreen(big).map_err(|e| e.to_string())?;
+        if !big {
+            let _ = w.set_size(LogicalSize::new(WINDOW_SIZE.0, WINDOW_SIZE.1));
+            let _ = w.center();
+        }
+    }
+    Ok(mode)
+}
+
+/// The display mode, for the game's Settings screen; and F11, which switches
+/// between the two like full screen in any Windows game.
+const DISPLAY_SCRIPT: &str = r#"
+window.orlisDisplay = {
+  get mode(){ return window.ORLIS_DISPLAY; },
+  async set(mode){
+    window.ORLIS_DISPLAY = await window.__TAURI__.core.invoke('set_display_mode', { mode });
+    return window.ORLIS_DISPLAY;
+  }
+};
+addEventListener('keydown', (e) => {
   if (e.key !== 'F11') return;
   e.preventDefault();
-  const w = window.__TAURI__ && window.__TAURI__.window && window.__TAURI__.window.getCurrentWindow();
-  if (w) await w.setFullscreen(!(await w.isFullscreen()));
+  window.orlisDisplay.set(window.ORLIS_DISPLAY === 'bigpicture' ? 'window' : 'bigpicture');
 }, true);
 "#;
 

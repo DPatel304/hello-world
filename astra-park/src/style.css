@@ -649,3 +649,6 @@ body.remote .btn.popitem.kfocus{ box-shadow:inset 0 0 0 .4vh #6d5efc; }
 /* one row of icons now: a taller banner, for the trailer */
 .hero{ height:47vh; }
 .shelves{ top:60.5vh; }
+
+/* Settings > Display: the mode in use, marked like the camera in use */
+.btn.mode.chosen{ border-color:var(--good); box-shadow:0 0 0 .4vh rgba(22,163,74,.25), 0 .6vh 1.8vh rgba(30,40,90,.12); }
