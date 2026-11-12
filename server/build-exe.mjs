@@ -30,7 +30,8 @@ if (win){
   /* The copy still carries Node's signature, which stamping would break. */
   try { execFileSync('signtool', ['remove', '/s', exe], { stdio: 'inherit' }); } catch { console.warn('(signtool not found: the exe stays as-is)'); }
 }
-const postject = join('node_modules', '.bin', win ? 'postject.cmd' : 'postject');
-execFileSync(postject, [exe, 'NODE_SEA_BLOB', join(out, 'sea.blob'), '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'], { stdio: 'inherit', shell: win });
+/* (postject run by Node directly - through a Windows shell, the space in
+   "Orlis Server.exe" split the name in two) */
+execFileSync(process.execPath, [join('node_modules', 'postject', 'dist', 'cli.js'), exe, 'NODE_SEA_BLOB', join(out, 'sea.blob'), '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'], { stdio: 'inherit' });
 if (!win) chmodSync(exe, 0o755);
 console.log(`built ${exe}`);
