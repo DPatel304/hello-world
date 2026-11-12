@@ -1,0 +1,110 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#f3f4f7}canvas{display:block}</style></head><body><canvas id="c" width="1920" height="2160"></canvas><script>
+const TAU=Math.PI*2;
+const FACES={ top:['#e9fbff','#f3e8ff'], left:['#5eead4','#60a5fa'], right:['#60a5fa','#c084fc'] };
+const PC=['#3da9ff','#ff8a3d','#3fcf7f','#c46bff'];
+const SYS='"Segoe UI Variable Display","Segoe UI","SF Pro Display",-apple-system,Inter,system-ui,sans-serif';
+function glow(c, x, y, r, col, a = 1){
+  if (r <= 0 || a <= 0) return;
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, col); g.addColorStop(1, 'rgba(243,244,247,0)');
+  c.save(); c.globalAlpha = a; c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); c.restore();
+}
+const grad = (c, x0, y0, x1, y1, cols) => { const g = c.createLinearGradient(x0, y0, x1, y1); cols.forEach((col, i) => g.addColorStop(i / (cols.length - 1), col)); return g; };
+const poly = (c, pts) => { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); };
+
+/* The cube, seen corner-on, s an edge: its glow and shadow, the three faces,
+   a shine on top - and its face on the right side (eyes: open 0..1, winkR,
+   smile). */
+function cube(c, x, y, s, eyes = null){
+  const k = Math.cos(Math.PI / 6) * s;
+  const T = [x, y - s], R = [x + k, y - s / 2], L = [x - k, y - s / 2], C = [x, y], B = [x, y + s], BR = [x + k, y + s / 2], BL = [x - k, y + s / 2];
+  c.save(); c.fillStyle = 'rgba(30,30,60,.12)'; c.filter = `blur(${Math.max(2, s * 0.1)}px)`;
+  c.beginPath(); c.ellipse(x, y + s * 1.12, s * 0.95, s * 0.2, 0, 0, TAU); c.fill(); c.restore();
+  glow(c, x, y, s * 2.6, 'rgba(192,132,252,.5)', 0.7);
+  poly(c, [L, C, B, BL]); c.fillStyle = grad(c, x - s, y - s / 2, x, y + s, FACES.left); c.fill();
+  poly(c, [C, R, BR, B]); c.fillStyle = grad(c, x, y - s / 2, x + s, y + s, FACES.right); c.fill();
+  poly(c, [L, T, R, C]); c.fillStyle = grad(c, x - s, y - s, x + s, y, FACES.top); c.fill();
+  c.save(); poly(c, [L, T, R, C]); c.clip(); c.fillStyle = 'rgba(255,255,255,.35)';
+  c.beginPath(); c.ellipse(x - s * 0.2, y - s * 0.62, s * 0.5, s * 0.16, -0.5, 0, TAU); c.fill(); c.restore();
+  if (!eyes) return;
+  c.save(); c.transform(R[0] - C[0], R[1] - C[1], B[0] - C[0], B[1] - C[1], C[0], C[1]);
+  const ink = '#1e1b4b';
+  for (const [ex, shut] of [[0.32, false], [0.68, eyes.winkR]]){
+    c.fillStyle = ink;
+    if (shut){ c.fillRect(ex - 0.08, 0.4, 0.16, 0.035); continue; }
+    c.beginPath(); c.ellipse(ex, 0.4, 0.06, 0.09 * eyes.open, 0, 0, TAU); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.9)'; c.beginPath(); c.ellipse(ex - 0.018, 0.37, 0.018, 0.024 * eyes.open, 0, 0, TAU); c.fill();
+  }
+  if (eyes.smile){ c.strokeStyle = ink; c.lineWidth = 0.035; c.lineCap = 'round'; c.beginPath(); c.arc(0.5, 0.52, 0.14, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke(); }
+  c.restore();
+}
+
+
+const c=document.getElementById('c');const x=c.getContext('2d');
+function word(c,cx,y,size,dark,align='center'){
+  c.save();c.textBaseline='alphabetic';
+  c.font=`700 ${size}px ${SYS}`;const a='Orlis',b=' Play';
+  c.font=`700 ${size}px ${SYS}`;const wa=c.measureText(a).width;
+  c.font=`400 ${size}px ${SYS}`;const wb=c.measureText(b).width;
+  let x0=align==='center'?cx-(wa+wb)/2:cx;
+  c.font=`700 ${size}px ${SYS}`;c.fillStyle=dark?'#ffffff':'#111';c.fillText(a,x0,y);
+  c.font=`400 ${size}px ${SYS}`;const g=c.createLinearGradient(x0+wa,0,x0+wa+wb,0);
+  g.addColorStop(0,'#2bb6c9');g.addColorStop(.5,'#5b8cf5');g.addColorStop(1,'#a66bf5');
+  c.fillStyle=g;c.fillText(b,x0+wa,y);c.restore();return wa+wb;
+}
+function tag(c,cx,y,size,dark,align='center'){
+  c.save();c.font=`500 ${size}px ${SYS}`;c.fillStyle=dark?'rgba(255,255,255,.7)':'#5b5f6e';
+  c.textAlign=align;c.textBaseline='alphabetic';
+  if('letterSpacing' in c) c.letterSpacing=(size*0.18)+'px';
+  c.fillText('PLAY AS ONE',cx,y);c.restore();
+}
+function dots(c,cx,y,r,gap){PC.forEach((col,k)=>{c.fillStyle=col;c.beginPath();c.arc(cx+(k-1.5)*gap,y,r,0,TAU);c.fill();});}
+function label(t,X,Y){x.save();x.font=`600 22px ${SYS}`;x.fillStyle='#8a8ea0';x.fillText(t,X,Y);x.restore();}
+const eyes={open:1,winkR:false,smile:true};
+// ---- hero: intro end frame
+x.fillStyle='#f3f4f7';x.fillRect(0,0,1920,2160);
+glow(x,960,440,620,'rgba(147,197,253,.5)',1);
+cube(x,960,440,185,{open:1,winkR:true,smile:true});
+dots(x,960,700,10,48);
+word(x,960,840,108,false);
+tag(x,960,920,34,false);
+label('1 — The end of the intro (same cube, same lights, same wink — new name + tagline)',60,1040);
+x.fillStyle='#e3e5ec';x.fillRect(0,1070,1920,2);
+// ---- bottom row panels
+function card(X,Y,W,H,bg){x.save();x.shadowColor='rgba(30,40,90,.14)';x.shadowBlur=40;x.shadowOffsetY=12;x.fillStyle=bg;x.beginPath();x.roundRect(X,Y,W,H,36);x.fill();x.restore();}
+// 2 home bar lockup
+card(60,1120,880,300,'#ffffff');
+cube(x,180,1270,58,null);
+x.textAlign='left';word(x,260,1292,72,false,'left');
+tag(x,264,1350,22,false,'left');
+label('2 — Home screen / website header',60,1460);
+// 3 dark lockup
+card(980,1120,880,300,'#15132b');
+glow(x,1100,1270,200,'rgba(192,132,252,.35)',1);
+cube(x,1100,1270,58,null);
+word(x,1180,1292,72,true,'left');
+tag(x,1184,1350,22,true,'left');
+label('3 — On dark (trailers, store pages)',980,1460);
+// 4 app icon
+function icon(X,Y,S){x.save();x.shadowColor='rgba(30,40,90,.25)';x.shadowBlur=40;x.shadowOffsetY=14;
+ const g=x.createLinearGradient(X,Y,X+S,Y+S);g.addColorStop(0,'#ffffff');g.addColorStop(1,'#eef0fb');x.fillStyle=g;x.beginPath();x.roundRect(X,Y,S,S,S*0.22);x.fill();x.restore();
+ x.save();x.beginPath();x.roundRect(X,Y,S,S,S*0.22);x.clip();cube(x,X+S/2,Y+S*0.47,S*0.27,{open:1,winkR:false,smile:true});
+ PC.forEach((col,k)=>{x.fillStyle=col;x.beginPath();x.arc(X+S/2+(k-1.5)*S*0.09,Y+S*0.86,S*0.022,0,TAU);x.fill();});x.restore();}
+icon(80,1530,300);icon(420,1610,140);icon(600,1650,64);
+label('4 — App icon (desktop, taskbar)',60,1900);
+// 5 storyboard
+const sb=[[0,'lights arrive'],[1,'swirl'],[2,'merge'],[3,'Orlis Play']];
+sb.forEach(([k,t],i)=>{const X=820+i*265,Y=1530,W=245,H=150;
+ x.save();x.fillStyle='#f8f9fb';x.strokeStyle='#e3e5ec';x.lineWidth=2;x.beginPath();x.roundRect(X,Y,W,H,16);x.fill();x.stroke();x.clip();
+ const cx=X+W/2,cy=Y+H*0.45;
+ if(k===0){[[0.18,0.22],[0.82,0.22],[0.2,0.78],[0.8,0.78]].forEach(([fx,fy],j)=>{glow(x,X+W*fx,Y+H*fy,22,PC[j],.6);glow(x,X+W*fx,Y+H*fy,6,'#fff',1);});}
+ if(k===1){PC.forEach((col,j)=>{for(let n=8;n>=0;n--){const a=j*TAU/4+n*0.12, r=34+n*2;glow(x,cx+Math.cos(a)*r*1.3,cy+Math.sin(a)*r*0.7,n?10:18,col,n?0.25:0.6);}glow(x,cx+Math.cos(j*TAU/4)*34*1.3,cy+Math.sin(j*TAU/4)*34*.7,5,'#fff',1);});}
+ if(k===2){glow(x,cx,cy,90,'#ffffff',1);cube(x,cx,cy,30,null);}
+ if(k===3){cube(x,cx,cy-10,24,{open:1,winkR:true,smile:true});dots(x,cx,cy+28,2.5,10);x.save();x.textAlign='left';word(x,cx,cy+56,22,false);x.restore();tag(x,cx,cy+72,8,false);}
+ x.restore();x.save();x.font=`500 18px ${SYS}`;x.fillStyle='#5b5f6e';x.textAlign='center';x.fillText(`${i+1}. ${t}`,cx,Y+H+28);x.restore();
+});
+label('5 — The intro, unchanged: four players\u2019 lights become one (= Play as one)',820,1760);
+// footer
+x.save();x.font=`700 30px ${SYS}`;x.fillStyle='#16161d';x.fillText('Orlis Play — logo mockup',60,2060);x.font=`400 22px ${SYS}`;x.fillStyle='#8a8ea0';x.fillText('Kept from MoveCube: cube mascot, wink, four player dots, soft paper background, the light-merge intro. New: wordmark (Orlis bold + Play in the cube\u2019s gradient) and the tagline.',60,2100);x.restore();
+</script></body></html>
