@@ -63,13 +63,13 @@ export const SPEED = 0.21 * PACE;                /* corridor depths a second */
 /* The story - the captain's scenes - on or off (off in the tests of the
    play itself). */
 export const story = { on: true };
-/* For now, while the world's being built: the real game starts where the
-   crew first set off running, the opening skipped (skipOpening: false to
-   see it again). Only in the browser - the tests and the screenshot tool
-   always have the opening. startAt: 'summit' - straight to the summit,
-   the moment being worked on (null: the summit as it comes, after the
-   opening). */
-export const DEV = { skipOpening: !(typeof process !== 'undefined' && process.versions && process.versions.node) && typeof location !== 'undefined' && !/[?&]opening\b/.test(location.search), startAt: 'summit' };
+/* While the world's being built: ?dev on the address starts the real game
+   where the moment being worked on is (startAt: 'summit' - straight to the
+   summit), the opening skipped (add ?opening to see it anyway). Without it,
+   the game plays as players get it: the whole opening, then the summit as
+   it comes. The tests and the screenshot tool always have the opening. */
+const DEV_URL = typeof location !== 'undefined' && /[?&]dev\b/.test(location.search);
+export const DEV = { skipOpening: DEV_URL && !/[?&]opening\b/.test(location.search), startAt: DEV_URL ? 'summit' : null };
 /* The choosing screens, on or off. Off (for now, while they're
    reworked): a level up is more health for everyone, straight away; and
    at the depot everyone's handed a knife. */

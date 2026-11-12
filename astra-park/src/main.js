@@ -295,10 +295,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ---------- boot ---------- */
-/* While a game's being worked on, launching goes straight into it - no
-   boot show, no home screen - so each try starts at its beginning. null
-   for the usual way in (and ?home on the address goes that way anyway). */
-const START_IN = 'last-known-position';
+/* Launching goes the usual way in: the boot show, then the home screen.
+   While a game's being worked on, ?dev on the address goes straight into
+   it instead - no boot show, no home screen - so each try starts at the
+   moment being worked on. */
+const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : null;
 
 /* The boot show plays while the camera starts; the front door opens when
    both are done. */
