@@ -31,7 +31,7 @@ const UPDATE_WAIT: Duration = Duration::from_secs(4);
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![set_display_mode])
+        .invoke_handler(tauri::generate_handler![set_display_mode, check_update, install_update])
         .setup(|app| {
             let app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -74,10 +74,12 @@ async fn update(app: &AppHandle) -> bool {
 fn open(app: &AppHandle) -> tauri::Result<()> {
     let mode = display_mode(app);
     let script = format!(
-        "window.ASTRA_MUSIC = {};\nwindow.ORLIS_LOCAL = true;\nwindow.ORLIS_DISPLAY = {};\n{}",
+        "window.ASTRA_MUSIC = {};\nwindow.ORLIS_LOCAL = true;\nwindow.ORLIS_DISPLAY = {};\nwindow.ORLIS_VERSION = {};\n{}\n{}",
         serde_json::to_string(&songs(app)).unwrap_or_else(|_| "[]".into()),
         serde_json::to_string(&mode).unwrap_or_else(|_| "\"window\"".into()),
-        DISPLAY_SCRIPT
+        serde_json::to_string(&app.package_info().version.to_string()).unwrap_or_else(|_| "\"\"".into()),
+        DISPLAY_SCRIPT,
+        UPDATE_SCRIPT
     );
     let title = app.config().product_name.clone().unwrap_or_else(|| "Orlis Play".into());
     let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
@@ -135,6 +137,38 @@ fn set_display_mode(app: AppHandle, mode: String) -> Result<String, String> {
     }
     Ok(mode)
 }
+
+/// Settings > Check for updates: is there a newer version than this one?
+/// (An error - offline, or no update file published yet - says so, rather
+/// than claiming it's up to date.)
+#[tauri::command]
+async fn check_update(app: AppHandle) -> Result<serde_json::Value, String> {
+    let current = app.package_info().version.to_string();
+    let found = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    Ok(match found {
+        Some(u) => serde_json::json!({ "available": true, "version": u.version, "current": current }),
+        None => serde_json::json!({ "available": false, "current": current }),
+    })
+}
+
+/// Settings > Update: download the newer version, install it, and restart
+/// on it.
+#[tauri::command]
+async fn install_update(app: AppHandle) -> Result<(), String> {
+    let found = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    let Some(u) = found else { return Err("already up to date".into()) };
+    u.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+    app.restart();
+}
+
+/// For the game's Settings screen: the version, and checking for updates.
+const UPDATE_SCRIPT: &str = r#"
+window.orlisApp = {
+  version: window.ORLIS_VERSION,
+  checkUpdate: () => window.__TAURI__.core.invoke('check_update'),
+  installUpdate: () => window.__TAURI__.core.invoke('install_update')
+};
+"#;
 
 /// The display mode, for the game's Settings screen; and F11, which switches
 /// between the two like full screen in any Windows game.

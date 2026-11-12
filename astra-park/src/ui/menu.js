@@ -53,7 +53,7 @@ export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']
 const MENU = [
   { id: 'settings', name: 'Settings', icon: '\u{2699}\u{FE0F}' },
   { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', soon: true },
-  { id: 'make', name: 'Make a game', icon: '\u{1F58C}\u{FE0F}', soon: true }
+  { id: 'make', name: 'Create', icon: '\u{1F58C}\u{FE0F}', soon: true }
 ];
 /* Seconds a first pick of Exit waits for the second. */
 const EXIT_SURE = 4;
@@ -370,6 +370,36 @@ function settings(onRecalibrate){
     }
     mark();
     s.appendChild(pick);
+  }
+
+  /* In the Windows app: which version this is, and a way to get a newer
+     one now rather than at the next start. */
+  const appInfo = typeof window !== 'undefined' && window.orlisApp;
+  if (appInfo){
+    s.appendChild(h('p', 'lede', `Version ${appInfo.version}`));
+    let next = null, busy = false;
+    const up = onPick(button('Check for updates', 'update'), async () => {
+      if (busy) return;
+      const say = (t) => { up.querySelector('.lbl').textContent = t; };
+      busy = true; sfx.select();
+      try {
+        if (next){
+          say(`Updating to ${next}…`);
+          await appInfo.installUpdate();          /* the app restarts on the new one */
+        } else {
+          say('Checking…');
+          const r = await appInfo.checkUpdate();
+          if (r.available){ next = r.version; say(`Update to ${next}`); }
+          else say(`Up to date`);
+        }
+      } catch (e){
+        next = null;
+        say(`Couldn't check - try again later`);
+      }
+      busy = false;
+    });
+    const urow = h('div', 'row'); urow.appendChild(up);
+    s.appendChild(urow);
   }
 
   const row2 = h('div', 'row');

@@ -26,10 +26,17 @@ test('the game window is the one the permissions are written for', () => {
 test('display modes: a window or Big Picture, kept, with a default for new installs', () => {
   assert.match(main, /const DEFAULT_MODE: &str = "(window|bigpicture)";/);
   assert.ok(main.includes('const MODES: &[&str] = &["window", "bigpicture"]'));
-  assert.ok(main.includes('generate_handler![set_display_mode]') && main.includes('display.json'));
+  assert.ok(main.includes('generate_handler![set_display_mode') && main.includes('display.json'));
   assert.ok(main.includes(".fullscreen(mode == \"bigpicture\")"), 'opens in the mode chosen');
   const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
   assert.ok(menu.includes("window.orlisDisplay") && menu.includes("'Big Picture'"), 'Settings offers both');
+});
+
+test('Settings can check for an update and install it now', () => {
+  assert.ok(main.includes('generate_handler![set_display_mode, check_update, install_update]'));
+  assert.ok(main.includes('window.ORLIS_VERSION') && main.includes('window.orlisApp'));
+  const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
+  assert.ok(menu.includes("'Check for updates'") && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
 });
 
 test('the music folder is the only place on disk the game can read', () => {
