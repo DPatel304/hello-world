@@ -4,7 +4,6 @@ import { button, onPick, cursor } from './cursor.js';
 import { screen, h, clearUI } from './screens.js';
 import { audio, sfx, ambience } from '../audio/sound.js';
 import { pose, MAX_PLAYERS } from '../tracking/pose.js';
-import { PlayerBar } from './playerbar.js';
 import { poster } from './posters.js';
 import { MARK, PAPER } from './boot.js';
 import { account, AVATARS } from './account.js';
@@ -83,15 +82,13 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   if (who && onWho){
     brand.appendChild(onPick(button(`<span class="av">${AVATARS[who.avatar] || AVATARS.cube}</span><span class="nm">${who.name.replace(/[&<>]/g, '')}</span>`, 'whochip'), () => { sfx.select(); onWho(); }));
   }
-  const players = h('div', 'tvplayers');
   const clock = h('span', 'clock', ''), cam = h('span', 'camdot', '');
   const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => openMenu());
-  const sys = h('div', 'tvsys'); sys.append(players, cam, clock, burger);
+  const sys = h('div', 'tvsys'); sys.append(cam, clock, burger);
   top.append(brand, sys);
   s.appendChild(top);
   if (pose.mouse.active && pose.reason !== 'debug') s.appendChild(h('div', 'warnstrip', '⚠ No camera — the mouse is playing'));
 
-  const bar = new PlayerBar();
   const items = [];
   for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: iconOf(g).cols[0], icon: iconOf(g), name: g.name, blurb: BLURB[g.id] || '', paint: poster(g), trailer: undefined });
 
@@ -126,6 +123,7 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
     card.insertBefore(pic, card.firstChild);
     card.querySelector('.lbl').textContent = it.name;
     onPick(card, () => choose(n));
+    card.addEventListener('mouseenter', () => { if (!going && !open) move(n); });
     card.addEventListener('remotefocus', () => move(n));
     rows[it.rowAt].row.appendChild(card);
     return { card, pic, paint: it.paint, hot: 0, it, still: false };
@@ -185,6 +183,32 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
       });
       card.appendChild(b);
     }
+    /* In the Windows app: a newer version, now (picked once it checks,
+       picked again it installs and restarts on it); and signing out. */
+    const appInfo = typeof window !== 'undefined' && window.orlisApp;
+    if (appInfo){
+      card.appendChild(h('div', 'popline'));
+      let next = null, busy = false;
+      const up = onPick(button(`<span class="pi">\u{1F504}</span><span class="pn">Check for updates</span>`, 'popitem update'), async () => {
+        if (busy) return;
+        const say = (t) => { up.querySelector('.pn').textContent = t; };
+        busy = true; sfx.select();
+        try {
+          if (next){ say(`Updating to ${next}…`); await appInfo.installUpdate(); }
+          else {
+            say('Checking…');
+            const r = await appInfo.checkUpdate();
+            if (r.available){ next = r.version; say(`Update to ${next}`); }
+            else say('Up to date');
+          }
+        } catch (e){ next = null; say('Couldn\'t check - try later'); }
+        busy = false;
+      });
+      card.appendChild(up);
+    }
+    if (account.signedIn){
+      card.appendChild(onPick(button(`<span class="pi">\u{1F6AA}</span><span class="pn">Sign out</span>`, 'popitem'), () => { sfx.back(); account.signOut(); location.reload(); }));
+    }
     /* In the Windows app, a way out. Picked once it asks; picked again
        (within a few seconds) it closes - so a hand resting there by
        accident doesn't end the evening. */
@@ -200,6 +224,9 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
       card.appendChild(ex);
     }
     card.appendChild(onPick(button('Close', 'popitem close'), () => { sfx.back(); shut(); }));
+    /* small print: the version, and who's signed in */
+    const bits = [appInfo ? `Version ${appInfo.version}` : '', account.signedIn ? account.state.account.email : ''].filter(Boolean);
+    if (bits.length) card.appendChild(h('div', 'popfoot', bits.join(' \u00B7 ').replace(/[&<>]/g, '')));
     open.appendChild(card);
     /* a tap anywhere else closes it too */
     open.addEventListener('pointerdown', (e) => { if (e.target === open){ sfx.back(); shut(); } });
@@ -208,11 +235,9 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   ambience.start();
 
   return {
-    bar,
     get focus(){ return focus; },
     tick(dt){
       t += dt; tick += dt;
-      bar.step(dt);
       /* arriving: each tile flies out from the middle of the screen, where the cube was */
       if (!flown){
         flown = true;
@@ -262,8 +287,6 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
       const it = items[focus];
       if (it.trailer) paint(heroPic, (c, w, hh) => cover(c, w, hh, it.trailer), t, 1);
       else paint(heroPic, it.paint, t);
-      const r = players.getBoundingClientRect();
-      if (r.width) bar.draw(c, r.left + r.width / 2, r.top + r.height / 2, r.height * 0.42, 'rgba(40,44,70,.5)');
       if (going){ c.fillStyle = `rgba(13,11,26,${Math.min(1, going.t / LAUNCH)})`; c.fillRect(0, 0, W, H); }
     }
   };
@@ -317,129 +340,82 @@ function overlay(){
 export { settings as openSettings };
 
 function settings(onRecalibrate){
-  const s = overlay();
-  s.append(h('h2', '', 'Settings'));
+  const s = overlay(); s.classList.add('setscreen');
+  const card = h('div', 'setcard');
+  const close = () => { sfx.back?.(); s.remove(); };
+  const head = h('div', 'sethead');
+  head.append(h('h2', '', 'Settings'), onPick(button('✕', 'setclose'), close));
+  card.appendChild(head);
+  /* one setting a row: its name on the left, its control on the right */
+  const row = (name, ...ctl) => {
+    const r = h('div', 'setrow');
+    const c = h('div', 'setctl'); c.append(...ctl);
+    r.append(h('span', 'setname', name), c);
+    card.appendChild(r);
+    return c;
+  };
+  const small = (label, fn, cls = '') => onPick(button(label, 'setbtn ' + cls), fn);
 
-  const lab = h('label', 'slider', '<span>Volume</span>');
+  /* sound */
   const sl = document.createElement('input');
-  sl.type = 'range'; sl.min = 0; sl.max = 1; sl.step = 0.05; sl.value = audio.volume;
+  sl.type = 'range'; sl.min = 0; sl.max = 1; sl.step = 0.05; sl.value = audio.volume; sl.className = 'setslider';
   sl.addEventListener('input', () => audio.setVolume(+sl.value));
-  lab.appendChild(sl);
-  s.appendChild(lab);
-
-  const row = h('div', 'row');
-  const mute = onPick(button(audio.muted ? 'Unmute' : 'Mute'), () => {
+  const mute = small(audio.muted ? 'Unmute' : 'Mute', () => {
     const m = audio.toggleMute();
     mute.querySelector('.lbl').textContent = m ? 'Unmute' : 'Mute';
   });
-  /* Volume by hand needs buttons, not a slider: you cannot drag with a dwell
-     cursor, so quieter and louder are the controls that actually work from
-     across a room. */
-  const down = onPick(button('Quieter'), () => { audio.setVolume(audio.volume - 0.1); sl.value = audio.volume; });
-  const up   = onPick(button('Louder'),  () => { audio.setVolume(audio.volume + 0.1); sl.value = audio.volume; });
-  row.append(down, up, mute);
-  s.appendChild(row);
+  row('Volume', sl, mute);
 
-  /* Only worth showing when there is a choice to make. */
-  if (pose.usingCamera){
-    pose.cameras().then(list => {
-      if (list.length < 2) return;
-      s.insertBefore(h('p', 'lede', 'Camera'), row2);
-      const pick = h('div', 'row');
-      list.forEach(cam => {
-        const b = onPick(button(cam.label.slice(0, 34)), async () => {
-          b.querySelector('.lbl').textContent = 'Switching…';
-          try { await pose.use(cam.id); onRecalibrate(); }
-          catch (e){ b.querySelector('.lbl').textContent = 'Could not open that one'; }
-        });
-        if (cam.id === pose.activeId) b.style.borderColor = 'var(--good)';
-        pick.appendChild(b);
-      });
-      s.insertBefore(pick, row2);
-    });
-  }
-
-  /* In the Windows app: a window, or Big Picture (full screen, for the
-     TV). Kept for next time. In a browser, the browser's own full screen. */
+  /* the screen: in the Windows app, a window or Big Picture (full screen,
+     for the TV), kept for next time; in a browser, its own full screen */
   const display = typeof window !== 'undefined' && window.orlisDisplay;
   if (display){
-    s.appendChild(h('p', 'lede', 'Display'));
-    const pick = h('div', 'row');
+    const seg = h('div', 'seg');
     const modes = [['window', 'Window'], ['bigpicture', 'Big Picture']];
-    const mark = () => modes.forEach(([m], i) => pick.children[i].classList.toggle('chosen', display.mode === m));
+    const mark = () => modes.forEach(([m], i) => seg.children[i].classList.toggle('chosen', display.mode === m));
     for (const [m, name] of modes){
-      pick.appendChild(onPick(button(name, 'mode'), async () => {
+      seg.appendChild(small(name, async () => {
         if (display.mode === m) return;
         sfx.select();
         try { await display.set(m); } catch (e) {}
         mark();
-      }));
+      }, 'mode'));
     }
     mark();
-    s.appendChild(pick);
-  }
+    row('Display', seg);
+  } else row('Display', small('Full screen', () => toggleFullscreen()));
 
-  /* In the Windows app: the account - who's signed in, signing out, and
-     for the owner, invites for family and friends to join. */
-  if (account.signedIn){
-    const a = account.state.account, srv = account.state.server;
-    s.appendChild(h('p', 'lede', `Signed in as ${a.email.replace(/[&<>]/g, '')}${a.role === 'player' ? '' : ` (${a.role})`} on "${(srv?.name || '').replace(/[&<>]/g, '')}"`));
-    const arow = h('div', 'row');
-    const shown = h('p', 'lede invitecode', '');
-    if (a.role === 'owner'){
-      for (const [role, label] of [['player', 'Invite a player'], ['creator', 'Invite a creator']]){
-        arow.appendChild(onPick(button(label), async () => {
-          sfx.select();
-          try { const r = await account.call('POST', '/api/invites', { role }); shown.textContent = `Invite code: ${r.code}  (${role}, works once)`; }
-          catch (e){ shown.textContent = e.message; }
-        }));
-      }
-    }
-    arow.appendChild(onPick(button('Sign out'), () => { account.signOut(); location.reload(); }));
-    s.append(arow, shown);
-  }
-
-  /* In the Windows app: which version this is, and a way to get a newer
-     one now rather than at the next start. */
-  const appInfo = typeof window !== 'undefined' && window.orlisApp;
-  if (appInfo){
-    s.appendChild(h('p', 'lede', `Version ${appInfo.version}`));
-    let next = null, busy = false;
-    const up = onPick(button('Check for updates', 'update'), async () => {
-      if (busy) return;
-      const say = (t) => { up.querySelector('.lbl').textContent = t; };
-      busy = true; sfx.select();
-      try {
-        if (next){
-          say(`Updating to ${next}…`);
-          await appInfo.installUpdate();          /* the app restarts on the new one */
-        } else {
-          say('Checking…');
-          const r = await appInfo.checkUpdate();
-          if (r.available){ next = r.version; say(`Update to ${next}`); }
-          else say(`Up to date`);
-        }
-      } catch (e){
-        next = null;
-        say(`Couldn't check - try again later`);
-      }
-      busy = false;
+  /* the camera: which one (when there's a choice), and finding everyone again */
+  const camCtl = row('Camera', small('Re-calibrate', () => { s.remove(); onRecalibrate(); }));
+  if (pose.usingCamera){
+    pose.cameras().then(list => {
+      if (list.length < 2) return;
+      const seg = h('div', 'seg');
+      list.forEach(cam => {
+        const b = small(cam.label.slice(0, 24), async () => {
+          b.querySelector('.lbl').textContent = 'Switching…';
+          try { await pose.use(cam.id); onRecalibrate(); }
+          catch (e){ b.querySelector('.lbl').textContent = 'Couldn\'t open it'; }
+        }, 'mode');
+        b.classList.toggle('chosen', cam.id === pose.activeId);
+        seg.appendChild(b);
+      });
+      camCtl.prepend(seg);
     });
-    const urow = h('div', 'row'); urow.appendChild(up);
-    s.appendChild(urow);
   }
 
-  const row2 = h('div', 'row');
-  row2.append(
-    onPick(button('Re-calibrate'), () => { s.remove(); onRecalibrate(); }),
-    ...(display ? [] : [onPick(button('Fullscreen'), () => toggleFullscreen())]),
-    onPick(button('Reset scores'), (e) => {
-      scores.reset();
-      e.currentTarget.querySelector('.lbl').textContent = 'Scores cleared';
-    })
-  );
-  s.appendChild(row2);
-  s.appendChild(onPick(button('Close', 'close'), () => s.remove()));
+  /* scores: cleared only on a second pick */
+  let sure = 0;
+  const reset = small('Reset', () => {
+    if (performance.now() - sure > 4000){ sure = performance.now(); reset.querySelector('.lbl').textContent = 'Sure? Pick again'; return; }
+    scores.reset(); sure = 0;
+    reset.querySelector('.lbl').textContent = 'Cleared';
+  }, 'danger');
+  row('Scores', reset);
+
+  s.appendChild(card);
+  /* a click outside the card closes it */
+  s.addEventListener('pointerdown', (e) => { if (e.target === s) close(); });
 }
 
 export function toggleFullscreen(){

@@ -32,11 +32,11 @@ test('display modes: a window or Big Picture, kept, with a default for new insta
   assert.ok(menu.includes("window.orlisDisplay") && menu.includes("'Big Picture'"), 'Settings offers both');
 });
 
-test('Settings can check for an update and install it now', () => {
+test('the corner menu can check for an update and install it now', () => {
   assert.ok(main.includes('generate_handler![set_display_mode, check_update, install_update'));
   assert.ok(main.includes('window.ORLIS_VERSION') && main.includes('window.orlisApp'));
   const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
-  assert.ok(menu.includes("'Check for updates'") && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
+  assert.ok(menu.includes('Check for updates</span>') && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
 });
 
 test('the music folder is the only place on disk the game can read', () => {

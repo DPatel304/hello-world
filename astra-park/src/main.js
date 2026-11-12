@@ -38,6 +38,9 @@ function go(next, build){
   mode = next;
   clearUI();
   cursor.reset();
+  /* For now the home screen (and signing in) is the mouse's and the
+     keyboard's: hands don't point there. The games still play by moving. */
+  cursor.enabled = !(next === 'menu' || next === 'who');
   scene = build ? build() : null;
 }
 

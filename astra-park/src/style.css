@@ -687,3 +687,28 @@ body.remote .btn.popitem.kfocus{ box-shadow:inset 0 0 0 .4vh #6d5efc; }
 .btn.whochip .lbl{ display:flex; align-items:center; gap:.4em; }
 .btn.whochip .av{ font-size:1.3em; line-height:1; }
 .invitecode{ font-variant-numeric:tabular-nums; font-weight:700; color:#16161d; min-height:1.2em; }
+
+/* ---------- Settings: one clean card ----------
+   A row per setting - its name on the left, its control on the right. */
+.screen.dim.setscreen{ background:rgba(236,238,244,.45); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); }
+.setcard{
+  width:min(92vw, 40em); padding:2.2vh 2.6vh 1.2vh; border-radius:2.8vh; background:#fff; color:#16161d;
+  box-shadow:0 2.4vh 6vh rgba(30,40,90,.18), 0 0 0 1px rgba(20,24,50,.05);
+  font-size:clamp(14px, 2.3vh, 26px); text-align:left; animation:popin .22s cubic-bezier(.2,.8,.25,1) both;
+}
+.sethead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:1vh; }
+.sethead h2{ margin:0; font-size:1.5em; }
+.btn.setclose{ width:2.2em; height:2.2em; padding:0; border:none; box-shadow:none; background:#f1f2f6; font-size:.9em; display:inline-flex; align-items:center; justify-content:center; }
+.setrow{ display:flex; align-items:center; justify-content:space-between; gap:1.2em; padding:1.5vh 0; border-top:1px solid #eef0f4; }
+.setname{ font-weight:600; color:#24242e; }
+.setctl{ display:flex; align-items:center; gap:.6em; flex-wrap:wrap; justify-content:flex-end; }
+.setslider{ width:min(30vw, 12em); accent-color:#6d5efc; }
+.btn.setbtn{ padding:.45em 1em; font-size:.85em; font-weight:600; border:1px solid #e3e5ec; box-shadow:none; background:#fff; }
+.btn.setbtn.hot, .btn.setbtn:hover{ background:#f5f6fa; transform:none; border-color:#d5d8e2; }
+.btn.setbtn.danger{ color:#be123c; }
+.seg{ display:inline-flex; padding:.25em; gap:.25em; border-radius:999px; background:#f1f2f6; }
+.seg .btn.setbtn{ border:none; background:transparent; }
+.seg .btn.setbtn.chosen{ background:#fff; box-shadow:0 .2em .6em rgba(30,40,90,.12); color:#16161d; }
+/* the corner menu: a divider, and its small print */
+.popline{ height:1px; background:#eef0f4; margin:.4vh 1vh; }
+.popfoot{ padding:.6vh 1.6vh .4vh; font-size:1.5vh; color:#8a8ea0; text-align:center; }
