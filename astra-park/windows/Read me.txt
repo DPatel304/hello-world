@@ -1,29 +1,29 @@
-MOVECUBE for Windows
-====================
+ORLIS PLAY for Windows
+======================
 
 INSTALL (once)
 1. Unzip this whole folder anywhere - Downloads is fine. Setup copies the
    game into a place of its own, so you can delete this folder afterwards.
-2. Double-click "Set up MoveCube".
+2. Double-click "Set up Orlis Play".
    If Windows says "Windows protected your PC", click "More info", then
    "Run anyway". It says that about anything downloaded that isn't from a
    big publisher.
-3. A "MoveCube" icon appears on your desktop and in the Start menu.
+3. A "Orlis Play" icon appears on your desktop and in the Start menu.
    That's the last time you need to install anything: see UPDATES below.
 
-ALREADY HAD ASTRA PARK?
-MoveCube is the same game with a new name. Running setup replaces the old
-"Astra Park" icons with MoveCube ones, and moves your "Astra Park" music
-folder over to "MoveCube", songs and all. Scores and settings carry over.
+ALREADY HAD IT UNDER AN OLDER NAME?
+Orlis Play is the same game with a new name. Nothing to do: the next time
+the old icon starts it, the icons and the music folder are renamed to
+"Orlis Play", songs and all. Scores and settings carry over.
 
 MUSIC
-Setup puts a "MoveCube Music" folder shortcut on your desktop. Drop any
+Setup puts a "Orlis Play Music" folder shortcut on your desktop. Drop any
 songs in it - MP3, M4A, WAV, FLAC or OGG - and the game plays them,
 shuffled, the next time it starts. Remove a song by deleting it. With no
 songs there, the game plays its own built-in music.
 
 PLAY
-- Double-click "MoveCube". It opens full screen, ready to go: no camera
+- Double-click "Orlis Play". It opens full screen, ready to go: no camera
   question, and the music starts by itself.
 - The laptop needs to be online when the game starts, because it downloads
   the body-tracking model.
@@ -44,12 +44,12 @@ it already has. To see what happened on the last start, open
 Scores and settings are kept across updates.
 
 REMOVE
-Delete the "MoveCube" icon from the desktop and the Start menu, then paste
+Delete the "Orlis Play" icon from the desktop and the Start menu, then paste
 %LOCALAPPDATA%\AstraPark into the File Explorer address bar and delete that
 folder.
 
 IF YOU SEE A YELLOW BAR
 "You are using an unsupported command-line flag: --use-fake-ui-for-media-stream"
 That flag is what skips the camera question, and it only applies to the
-MoveCube window. The launcher now hides the bar; if it ever shows, click
+Orlis Play window. The launcher now hides the bar; if it ever shows, click
 the X to close it.

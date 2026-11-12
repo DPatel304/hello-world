@@ -494,13 +494,14 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 @keyframes fadein{ from{ opacity:0 } }
 
 
-/* ---------- MoveCube: the boot and the home screen ----------
+/* ---------- Orlis Play: the boot and the home screen ----------
    Light and clean, like a TV box: soft paper, white cards, one colour at a
    time. Sized against the screen's height, for reading from the sofa. */
 .screen.boot .bootwait{ color:#5b5f6e; font-family:var(--sys); bottom:12vh; }
 .screen.tvhome{ padding:0; display:block; text-align:left; color:#16161d; font-family:var(--sys); }
 .tvtop{ position:absolute; top:3vh; left:4vw; right:4vw; height:6vh; display:flex; align-items:center; justify-content:space-between; }
 .tvtop .brand{ display:flex; align-items:center; gap:.45em; font-size:3.4vh; font-weight:600; letter-spacing:-.01em; }
+.tvtop .brand .play{ font-style:normal; font-weight:400; background:linear-gradient(90deg,#2bb6c9,#5b8cf5,#a66bf5); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .tvtop .mark{ width:1.25em; height:1.25em; display:inline-flex; }
 .tvtop .mark svg{ width:100%; height:100%; }
 .tvsys{ display:flex; align-items:center; gap:1.4vw; font-size:3.2vh; font-weight:500; font-variant-numeric:tabular-nums; }
@@ -561,7 +562,7 @@ input[type=range]{width:min(50vw,420px);height:2.2vh;}
 /* the remote's highlight, on every other button */
 body.remote .btn.kfocus:not(.tvtile):not(.play){ outline:.5vh solid #fff; outline-offset:.5vh; transform:scale(1.05); }
 
-/* ---------- MoveCube: everything else, in the same light style ----------
+/* ---------- Orlis Play: everything else, in the same light style ----------
    Windows (settings, help, family, pause, "step back in", the camera check)
    are frosted glass over whatever's behind; buttons are white pills with
    dark type; the end of a round fades up to paper at the bottom. */

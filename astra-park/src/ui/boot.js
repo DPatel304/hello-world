@@ -1,8 +1,8 @@
-/* The console turning on: MoveCube's intro, about four seconds, the same
+/* The console turning on: Orlis Play's intro, about four seconds, the same
    every time. Four little lights - one in each player's colour - drift in
    from the corners on soft grey, swirl round each other and merge into the
    cube (the kalimba plays its do-mi-sol as they join), the name comes up
-   under it, and the cube winks. Then it breaks apart into tiles, and the
+   under it, then "Play as one" - four lights, one cube - and the cube winks. Then it breaks apart into tiles, and the
    home screen's game tiles fly out from where it was (menu.js: arrive).
 
    The Easter egg: a player who waves while the lights are swirling sends
@@ -114,7 +114,9 @@ function drawBoot(c, W, H, t, idle, loops){
     const wa = eo(seg(t, NAME, NAME + 0.5)) * fade;
     if (wa > 0){
       c.save(); c.globalAlpha = wa; c.fillStyle = '#111'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.font = `600 ${Math.round(96 * u)}px ${SYS}`; c.fillText('MoveCube', cx, cy + s * 1.9 + 20 * u * (1 - wa)); c.restore();
+      wordmark(c, cx, cy + s * 1.9 + 20 * u * (1 - wa), 96 * u); c.restore();
+      const ta = eo(seg(t, NAME + 0.35, NAME + 0.85)) * fade;
+      if (ta > 0) tagline(c, cx, cy + s * 1.9 + 78 * u + 10 * u * (1 - ta), 30 * u, ta);
     }
   }
   /* the break: a flash, and pieces flying out (the home screen's tiles take over) */
@@ -164,6 +166,27 @@ export function cube(c, x, y, s, eyes = null){
   }
   if (eyes.smile){ c.strokeStyle = ink; c.lineWidth = 0.035; c.lineCap = 'round'; c.beginPath(); c.arc(0.5, 0.52, 0.14, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke(); }
   c.restore();
+}
+
+/* The name: "Orlis" in bold ink, "Play" lighter in the cube's own colours,
+   centred on x with its baseline on y. */
+export const NAME_A = 'Orlis', NAME_B = 'Play', TAGLINE = 'Play as one';
+export function wordmark(c, x, y, size){
+  c.save(); c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.font = `700 ${Math.round(size)}px ${SYS}`; const wa = c.measureText(NAME_A + ' ').width;
+  c.font = `400 ${Math.round(size)}px ${SYS}`; const wb = c.measureText(NAME_B).width;
+  const x0 = x - (wa + wb) / 2;
+  c.font = `700 ${Math.round(size)}px ${SYS}`; c.fillStyle = '#111'; c.fillText(NAME_A, x0, y);
+  c.font = `400 ${Math.round(size)}px ${SYS}`;
+  c.fillStyle = grad(c, x0 + wa, 0, x0 + wa + wb, 0, ['#2bb6c9', '#5b8cf5', '#a66bf5']);
+  c.fillText(NAME_B, x0 + wa, y); c.restore();
+}
+/* "PLAY AS ONE", small and spaced out, under the name. */
+export function tagline(c, x, y, size, a = 1){
+  c.save(); c.globalAlpha = a; c.fillStyle = '#5b5f6e'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = `500 ${Math.round(size)}px ${SYS}`;
+  if ('letterSpacing' in c) c.letterSpacing = `${(size * 0.18).toFixed(1)}px`;
+  c.fillText(TAGLINE.toUpperCase(), x, y); c.restore();
 }
 
 /* The cube as a little picture, for the home screen's corner: an SVG. */

@@ -10,7 +10,7 @@ import { MARK, PAPER } from './boot.js';
 import { remote } from './remote.js';
 import { trailer } from './trailer.js';
 
-/* Home: MoveCube's front room, the way a TV box does it. Along the top, the
+/* Home: Orlis Play's front room, the way a TV box does it. Along the top, the
    name, who's here (a bubble each, with their face), whether the camera's
    working, and the time. Under it a big banner for the game you're on - its
    living picture, its name, a line about it, how many can play, and Play.
@@ -68,7 +68,7 @@ export function menu({ onPlay, onRecalibrate, arrive = false }){
 
   /* the top bar */
   const top = h('div', 'tvtop');
-  const brand = h('div', 'brand', `<span class="mark">${MARK}</span><span>MoveCube</span>`);
+  const brand = h('div', 'brand', `<span class="mark">${MARK}</span><span>Orlis <i class="play">Play</i></span>`);
   const players = h('div', 'tvplayers');
   const clock = h('span', 'clock', ''), cam = h('span', 'camdot', '');
   const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => openMenu());

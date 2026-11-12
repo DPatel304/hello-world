@@ -1,4 +1,4 @@
-# Starts MoveCube. The desktop shortcut runs this rather than the browser
+# Starts Orlis Play. The desktop shortcut runs this rather than the browser
 # directly, so that every launch first picks up the newest build from GitHub
 # and then opens the game full screen.
 #
@@ -48,7 +48,7 @@ function Update-Game {
     # and has no progress bar, which makes 5.1 downloads crawl.
     $client = New-Object System.Net.Http.HttpClient
     $client.Timeout = [TimeSpan]::FromSeconds(5)
-    $client.DefaultRequestHeaders.UserAgent.ParseAdd('MoveCube-launcher')
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('OrlisPlay-launcher')
     $client.DefaultRequestHeaders.Accept.ParseAdd('application/vnd.github.raw')
 
     # The API serves a push within a minute; the raw address can lag five,
@@ -66,8 +66,8 @@ function Update-Game {
             # game: an error page or a cut-off download stays out.
             $text = [Text.Encoding]::UTF8.GetString($bytes)
             # (Its page title is still 'Astra Park' from before the name changed;
-            # 'MoveCube' is accepted too, for when it does.)
-            if ($bytes.Length -lt 50000 -or -not ($text.Contains('<title>Astra Park</title>') -or $text.Contains('<title>MoveCube</title>'))) { continue }
+            # 'Orlis Play' is accepted too, for when it does.)
+            if ($bytes.Length -lt 50000 -or -not ($text.Contains('<title>Astra Park</title>') -or $text.Contains('<title>Orlis Play</title>'))) { continue }
             [IO.File]::WriteAllBytes($tmp, $bytes)
             if ((Test-Path -LiteralPath $game) -and
                 (Get-FileHash -LiteralPath $tmp).Hash -eq (Get-FileHash -LiteralPath $game).Hash) {
@@ -93,7 +93,7 @@ function Update-Launcher {
     Add-Type -AssemblyName System.Net.Http
     $client = New-Object System.Net.Http.HttpClient
     $client.Timeout = [TimeSpan]::FromSeconds(5)
-    $client.DefaultRequestHeaders.UserAgent.ParseAdd('MoveCube-launcher')
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('OrlisPlay-launcher')
     $client.DefaultRequestHeaders.Accept.ParseAdd('application/vnd.github.raw')
     $me = $PSCommandPath
     if (-not $me) { $me = Join-Path $here 'launch.ps1' }
@@ -117,10 +117,47 @@ function Update-Launcher {
 }
 try { $result = "$result; $(Update-Launcher)" } catch { $result = "$result; launcher update skipped" }
 
-# The soundtrack: every song in the family's "MoveCube" music folder,
+# A laptop set up under an earlier name moves over by itself: its music
+# folder, icon file and shortcuts become Orlis Play ones, with no need to run
+# setup again. (Each step only runs if the old thing is there, so after the
+# first time this does nothing.)
+function Move-OldName {
+    $name = 'Orlis Play'
+    $myMusic = [Environment]::GetFolderPath('MyMusic')
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    $music = Join-Path $myMusic $name
+    $ico = Join-Path $here 'orlis-play.ico'
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($was in @('MoveCube', 'Astra Park')) {
+        $oldIco = Join-Path $here (($was -replace ' ', '-').ToLower() + '.ico')
+        if (-not (Test-Path -LiteralPath $ico) -and (Test-Path -LiteralPath $oldIco)) { Move-Item -LiteralPath $oldIco -Destination $ico }
+        $oldMusic = Join-Path $myMusic $was
+        if ((Test-Path -LiteralPath $oldMusic) -and -not (Test-Path -LiteralPath $music)) { Move-Item -LiteralPath $oldMusic -Destination $music }
+        foreach ($dir in @($desktop, [Environment]::GetFolderPath('Programs'))) {
+            $old = Join-Path $dir "$was.lnk"
+            if (-not (Test-Path -LiteralPath $old)) { continue }
+            $o = $shell.CreateShortcut($old)
+            $n = $shell.CreateShortcut((Join-Path $dir "$name.lnk"))
+            $n.TargetPath = $o.TargetPath; $n.Arguments = $o.Arguments; $n.WorkingDirectory = $o.WorkingDirectory
+            $n.WindowStyle = 7; $n.Description = $name
+            if (Test-Path -LiteralPath $ico) { $n.IconLocation = "$ico,0" } else { $n.IconLocation = $o.IconLocation }
+            $n.Save()
+            Remove-Item -LiteralPath $old -Force
+        }
+        $oldLink = Join-Path $desktop "$was Music.lnk"
+        if (Test-Path -LiteralPath $oldLink) {
+            Remove-Item -LiteralPath $oldLink -Force
+            $link = $shell.CreateShortcut((Join-Path $desktop "$name Music.lnk"))
+            $link.TargetPath = $music; $link.Description = "Songs for $name"; $link.Save()
+        }
+    }
+}
+try { Move-OldName } catch { $result = "$result; rename skipped" }
+
+# The soundtrack: every song in the family's "Orlis Play" music folder,
 # listed into playlist.js beside the game, which reads it as it starts.
 # Re-listed on every launch, so adding or removing a song is all it takes.
-$musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'MoveCube'
+$musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'Orlis Play'
 if (-not (Test-Path -LiteralPath $musicDir)) { $musicDir = Join-Path ([Environment]::GetFolderPath('MyMusic')) 'Astra Park' }
 $songs = @()
 if (Test-Path -LiteralPath $musicDir) {

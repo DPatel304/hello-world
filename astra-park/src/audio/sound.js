@@ -605,7 +605,7 @@ export const sfx = {
   learnt(){ [0, 4, 7, 12, 16].forEach((st, i) => blip({ freq: 523 * Math.pow(2, st / 12), dur: 0.3, type: 'sine', gain: 0.16, delay: i * 0.07 })); },
   /* The console turning on: a kalimba - do, mi, sol, do - plucked as the
      four lights join into the cube; the same every time, so it becomes the
-     sound of MoveCube. */
+     sound of Orlis Play. */
   boot(){ const t = ctx().currentTime; [72, 76, 79].forEach((m, i) => kalimba(m, t + i * 0.13, 0.3)); kalimba(84, t + 0.39, 0.22, 2.5); },
   /* The cube's wink: one little high note. */
   wink(){ kalimba(88, ctx().currentTime, 0.12); },

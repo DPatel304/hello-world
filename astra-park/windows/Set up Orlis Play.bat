@@ -1,5 +1,5 @@
 @echo off
-rem Double-click this once. It installs MoveCube and puts its icon on the
+rem Double-click this once. It installs Orlis Play and puts its icon on the
 rem desktop and in the Start menu. Run it again to install a newer version.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
 if errorlevel 1 (
@@ -9,5 +9,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo.
-echo All set. Double-click "MoveCube" on your desktop to play.
+echo All set. Double-click "Orlis Play" on your desktop to play.
 pause

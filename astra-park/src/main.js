@@ -303,7 +303,7 @@ const START_IN = 'last-known-position';
 /* The boot show plays while the camera starts; the front door opens when
    both are done. */
 (async function boot(){
-  document.title = 'MoveCube';
+  document.title = 'Orlis Play';
   const params = new URLSearchParams(location.search), debug = params.has('debug');
   const straight = START_IN && !params.has('home') ? byId(START_IN) : null;
   audio.resume();
