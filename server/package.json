@@ -1,0 +1,16 @@
+{
+  "name": "orlis-server",
+  "version": "0.1.0",
+  "description": "The Orlis Play server: accounts, kid profiles, and (next) the store.",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "pg": "^8.16.0"
+  }
+}
