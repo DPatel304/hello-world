@@ -1,0 +1,52 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Orlis Play",
+  "version": "0.1.0",
+  "identifier": "com.orlisplay.client",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$AUDIO/Orlis Play/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "Orlis Play",
+    "copyright": "Orlis Play",
+    "category": "Game",
+    "shortDescription": "Movement games for the whole family",
+    "longDescription": "Orlis Play: movement games for the whole family. Play as one. No controller needed - just you and a camera.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUzRTVCRDAwRkE1Qjg3RjYKUldUMmgxdjZBTDNsNDBLU2pUVlBEQnc1WmU2dlBWU2F4T1JleElvb0xGVElVVjhra2czU3pYT3oK",
+      "endpoints": [
+        "https://github.com/dpatel304/hello-world/releases/latest/download/latest.json"
+      ],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}

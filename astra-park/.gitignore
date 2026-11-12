@@ -3,3 +3,7 @@ dist/
 public/wasm/
 public/models/
 test/.clips/
+client/dist/
+client/src-tauri/target/
+client/src-tauri/gen/
+client/release.json

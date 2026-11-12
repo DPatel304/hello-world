@@ -186,7 +186,9 @@ export const pose = {
        Opened straight off the filesystem there is nothing to probe: a fetch of
        a sibling file from a file:// page is refused by CORS, which logs an
        error and tells us nothing. Skip to the CDN. */
-    const local = location.protocol === 'file:' ? false
+    /* (The Windows app always carries them, and says so.) */
+    const local = typeof window !== 'undefined' && window.ORLIS_LOCAL ? true
+      : location.protocol === 'file:' ? false
       : await fetch('/wasm/vision_wasm_internal.js', { method:'HEAD' })
               .then(r => r.ok).catch(() => false);
     const wasmDir = local ? '/wasm'

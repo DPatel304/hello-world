@@ -9,7 +9,9 @@
     "offline": "node fetch-assets.mjs",
     "single": "node build-single.mjs",
     "test": "node --import ./test/harness/register.mjs --test 'test/**/*.test.mjs'",
-    "windows": "node build-single.mjs && node windows/package.mjs"
+    "windows": "node build-single.mjs && node windows/package.mjs",
+    "client:web": "node client/build-web.mjs",
+    "client": "node client/build-web.mjs && tauri build"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +23,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "esbuild": "^0.28.2"
   }
 }

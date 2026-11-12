@@ -1,0 +1,98 @@
+# Builds the Orlis Play Windows app and publishes it as a GitHub release.
+#
+# Every push that changes the game or the app makes a new version
+# (0.1.<run number>). Installed copies find it on their next start and update
+# themselves, and the installer is always at one address that never changes:
+#   https://github.com/dpatel304/hello-world/releases/latest/download/Orlis-Play-Setup.exe
+#
+# Updates are signed. Add the private signing key as the repository secret
+# TAURI_SIGNING_PRIVATE_KEY (Settings > Secrets and variables > Actions).
+# Until it's there, the installer still builds, but installed copies can't
+# update themselves from it.
+name: Orlis Play for Windows
+
+on:
+  push:
+    branches: [claude/mgs-parody-level-wb4agd]
+    paths:
+      - 'astra-park/src/**'
+      - 'astra-park/client/**'
+      - 'astra-park/index.html'
+      - 'astra-park/package.json'
+      - 'astra-park/package-lock.json'
+      - 'astra-park/fetch-assets.mjs'
+      - '.github/workflows/orlis-play-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: orlis-play-windows
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: astra-park
+    env:
+      VERSION: 0.1.${{ github.run_number }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: astra-park/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: astra-park/client/src-tauri -> target
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the game files the app carries
+        run: npm run client:web
+
+      - name: Version, and signed updates if the key is there
+        shell: bash
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "{\"version\":\"$VERSION\"}" > client/release.json
+          else
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: building without self-updates."
+            echo "{\"version\":\"$VERSION\",\"bundle\":{\"createUpdaterArtifacts\":false}}" > client/release.json
+          fi
+
+      - name: Build the app and publish the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: astra-park
+          tauriScript: npx tauri
+          args: --config client/release.json
+          tagName: orlis-play-v${{ env.VERSION }}
+          releaseName: Orlis Play ${{ env.VERSION }}
+          releaseBody: Orlis Play for Windows, version ${{ env.VERSION }}. Download Orlis-Play-Setup.exe below and double-click it.
+          releaseCommitish: ${{ github.sha }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+
+      - name: The installer under the name that never changes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          exe=$(ls client/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          cp "$exe" Orlis-Play-Setup.exe
+          gh release upload "orlis-play-v$VERSION" Orlis-Play-Setup.exe --clobber
