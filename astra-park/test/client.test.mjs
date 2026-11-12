@@ -81,3 +81,11 @@ test('an update found at start-up shows "Updating - back in a moment" while it i
   assert.ok(read('build-web.mjs').includes("'client/updating.html'"), 'carried into the app');
   assert.equal(conf.plugins.updater.windows.installMode, 'quiet', 'no installer window on top of it');
 });
+
+test('one version people see (client/VERSION), with the build number behind it', () => {
+  const shown = readFileSync(new URL('../client/VERSION', import.meta.url), 'utf8').trim();
+  assert.match(shown, /^\d+\.\d+$/, 'like 0.1 or 1.0');
+  const wf = readFileSync(new URL('../../.github/workflows/orlis-play-windows.yml', import.meta.url), 'utf8');
+  assert.ok(wf.includes('VERSION="$SHOWN.$BUILD"') && wf.includes('BUILD: ${{ github.run_number }}'), 'each build is newer than the last');
+  assert.ok(main.includes('Beta \\u00B7 build') && main.includes('nameOf'), 'labelled "0.1 Beta · build 27" in the app');
+});

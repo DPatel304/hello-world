@@ -10,8 +10,11 @@
 #     with the normal app gets it on their next start.
 #       https://github.com/dpatel304/hello-world/releases/latest/download/Orlis-Play-Setup.exe
 #
-# Versions are 0.1.<run number> in both, so a release is always newer than
-# the beta it came from.
+# Versions: astra-park/client/VERSION holds the one people see - 0.1 until
+# a milestone, then 0.2 ... and 1.0 at launch - and only changes by hand.
+# Each build adds its build number (this workflow's run number) behind it,
+# 0.1.<build>, so every build is newer than the last for the updater. In the
+# app: "0.1 Beta - build 27" on the beta, "0.1" on the release.
 #
 # Updates are signed. Add the private signing key as the repository secret
 # TAURI_SIGNING_PRIVATE_KEY (Settings > Secrets and variables > Actions).
@@ -52,7 +55,7 @@ jobs:
       run:
         working-directory: astra-park
     env:
-      VERSION: 0.1.${{ github.run_number }}
+      BUILD: ${{ github.run_number }}
       CHANNEL: ${{ inputs.channel || 'beta' }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
@@ -80,6 +83,11 @@ jobs:
       - name: The channel's name, version and update address
         shell: bash
         run: |
+          SHOWN=$(tr -d ' \r\n' < client/VERSION)
+          if ! [[ "$SHOWN" =~ ^[0-9]+\.[0-9]+$ ]]; then echo "::error::client/VERSION should be like 0.1 or 1.0, not '$SHOWN'"; exit 1; fi
+          VERSION="$SHOWN.$BUILD"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "SHOWN=$SHOWN" >> $GITHUB_ENV
           signed=true
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
             signed=false
@@ -88,7 +96,8 @@ jobs:
           if [ "$CHANNEL" = "release" ]; then
             echo "{\"version\":\"$VERSION\",\"bundle\":{\"createUpdaterArtifacts\":$signed}}" > client/release.json
             echo "TAG=orlis-play-v$VERSION" >> $GITHUB_ENV
-            echo "TITLE=Orlis Play $VERSION" >> $GITHUB_ENV
+            echo "TITLE=Orlis Play $SHOWN" >> $GITHUB_ENV
+            echo "LABEL=$SHOWN (build $BUILD)" >> $GITHUB_ENV
             echo "PRERELEASE=false" >> $GITHUB_ENV
             echo "SETUP=Orlis-Play-Setup.exe" >> $GITHUB_ENV
           else
@@ -99,6 +108,7 @@ jobs:
           JSON
             echo "TAG=beta" >> $GITHUB_ENV
             echo "TITLE=Orlis Play Beta" >> $GITHUB_ENV
+            echo "LABEL=$SHOWN Beta, build $BUILD" >> $GITHUB_ENV
             echo "PRERELEASE=true" >> $GITHUB_ENV
             echo "SETUP=Orlis-Play-Beta-Setup.exe" >> $GITHUB_ENV
           fi
@@ -124,7 +134,7 @@ jobs:
           args: --config client/release.json
           tagName: ${{ env.TAG }}
           releaseName: ${{ env.TITLE }}
-          releaseBody: ${{ env.TITLE }} for Windows, version ${{ env.VERSION }}. Download ${{ env.SETUP }} below and double-click it.
+          releaseBody: Orlis Play ${{ env.LABEL }}, for Windows. Download ${{ env.SETUP }} below and double-click it.
           releaseCommitish: ${{ github.sha }}
           releaseDraft: false
           prerelease: ${{ env.PRERELEASE }}

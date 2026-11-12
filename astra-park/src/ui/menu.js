@@ -194,11 +194,11 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
         const say = (t) => { up.querySelector('.pn').textContent = t; };
         busy = true; sfx.select();
         try {
-          if (next){ say(`Updating to ${next}…`); await appInfo.installUpdate(); }
+          if (next){ say('Updating…'); await appInfo.installUpdate(); }
           else {
             say('Checking…');
             const r = await appInfo.checkUpdate();
-            if (r.available){ next = r.version; say(`Update to ${next}`); }
+            if (r.available){ next = r.version; say(`Update to ${appInfo.nameOf ? appInfo.nameOf(next) : next}`); }
             else say('Up to date');
           }
         } catch (e){ next = null; say('Couldn\'t check - try later'); }
@@ -225,7 +225,7 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
     }
     card.appendChild(onPick(button('Close', 'popitem close'), () => { sfx.back(); shut(); }));
     /* small print: the version, and who's signed in */
-    const bits = [appInfo ? `Version ${appInfo.version}` : '', account.signedIn ? account.state.account.email : ''].filter(Boolean);
+    const bits = [appInfo ? `Orlis Play ${appInfo.label ? appInfo.label() : appInfo.version}` : '', account.signedIn ? account.state.account.email : ''].filter(Boolean);
     if (bits.length) card.appendChild(h('div', 'popfoot', bits.join(' \u00B7 ').replace(/[&<>]/g, '')));
     open.appendChild(card);
     /* a tap anywhere else closes it too */

@@ -105,10 +105,11 @@ async fn update(app: &AppHandle) -> bool {
 fn open(app: &AppHandle) -> tauri::Result<()> {
     let mode = display_mode(app);
     let script = format!(
-        "window.ASTRA_MUSIC = {};\nwindow.ORLIS_LOCAL = true;\nwindow.ORLIS_DISPLAY = {};\nwindow.ORLIS_VERSION = {};\n{}\n{}",
+        "window.ASTRA_MUSIC = {};\nwindow.ORLIS_LOCAL = true;\nwindow.ORLIS_DISPLAY = {};\nwindow.ORLIS_VERSION = {};\nwindow.ORLIS_PRODUCT = {};\n{}\n{}",
         serde_json::to_string(&songs(app)).unwrap_or_else(|_| "[]".into()),
         serde_json::to_string(&mode).unwrap_or_else(|_| "\"window\"".into()),
         serde_json::to_string(&app.package_info().version.to_string()).unwrap_or_else(|_| "\"\"".into()),
+        serde_json::to_string(&app.config().product_name.clone().unwrap_or_default()).unwrap_or_else(|_| "\"\"".into()),
         DISPLAY_SCRIPT,
         UPDATE_SCRIPT
     );
@@ -245,9 +246,19 @@ async fn find_servers() -> Vec<serde_json::Value> {
 }
 
 /// For the game's Settings screen: the version, and checking for updates.
+/// The version as people see it: "0.1 Beta - build 27" on the beta, "0.1" on
+/// the release (client/VERSION, then the build number the updater uses).
 const UPDATE_SCRIPT: &str = r#"
+(() => {
+  const [a, b, build] = String(window.ORLIS_VERSION || '').split('.');
+  const beta = /beta/i.test(document.title + ' ' + (window.ORLIS_PRODUCT || ''));
+  window.ORLIS_LABEL = { shown: `${a}.${b}`, build, beta };
+})();
 window.orlisApp = {
   version: window.ORLIS_VERSION,
+  label: () => window.ORLIS_LABEL.beta ? `${window.ORLIS_LABEL.shown} Beta \u00B7 build ${window.ORLIS_LABEL.build}` : window.ORLIS_LABEL.shown,
+  /* how a newer one is named on the button: a build on the beta, a version on the release */
+  nameOf: (v) => { const [x, y, n] = String(v).split('.'); return window.ORLIS_LABEL.beta ? `build ${n}` : `${x}.${y}`; },
   checkUpdate: () => window.__TAURI__.core.invoke('check_update'),
   installUpdate: () => window.__TAURI__.core.invoke('install_update')
 };
