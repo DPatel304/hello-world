@@ -1,7 +1,8 @@
 import { pose } from './tracking/pose.js';
 import { cursor } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
-import { remote } from './ui/remote.js';
+import { remote, typing } from './ui/remote.js';
+import { account, welcome } from './ui/account.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -49,7 +50,15 @@ function toMenu(arrive = false){
   voice.hush();
   if (mode === 'results' || mode === 'play' || mode === 'outro') sfx.back();
   pose.keepSitters = false;
-  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, arrive }));
+  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, onWho: () => toWho(false), arrive }));
+}
+
+/* The Windows app's way in: find the server and sign in (once), then pick
+   who's playing (each time). The profiles are brought up to date quietly,
+   if the server's in reach. */
+function toWho(arrive){
+  account.refresh();
+  go('who', () => welcome(() => toMenu(arrive)));
 }
 
 function toCalibration(){
@@ -273,6 +282,7 @@ function drawPerf(dt){
   c.restore();
 }
 addEventListener('keydown', (e) => {
+  if (typing(e)) return;
   if (e.key === 'f' || e.key === 'F') toggleFullscreen();
   if (e.key === 'k' || e.key === 'K') showSkeleton = !showSkeleton;
   if (e.key === 'p' || e.key === 'P') showPerf = !showPerf;
@@ -325,5 +335,7 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
   /* Straight into the game being worked on; or from the intro to the home
      screen, its tiles flying out of the cube. */
   if (straight) toGame(straight);
+  /* In the Windows app: signed in, and who's playing, first. */
+  else if (account.needed) toWho(true);
   else toMenu(true);
 })();

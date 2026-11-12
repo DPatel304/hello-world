@@ -652,3 +652,38 @@ body.remote .btn.popitem.kfocus{ box-shadow:inset 0 0 0 .4vh #6d5efc; }
 
 /* Settings > Display: the mode in use, marked like the camera in use */
 .btn.mode.chosen{ border-color:var(--good); box-shadow:0 0 0 .4vh rgba(22,163,74,.25), 0 .6vh 1.8vh rgba(30,40,90,.12); }
+
+/* ---------- the Windows app's account screens ----------
+   Finding the server, signing in or joining, and "Who's playing?" */
+.screen.account{ gap:2.2vh; }
+.screen.account h2{ margin:0; }
+.acctform{ display:flex; flex-direction:column; align-items:stretch; gap:1.6vh; width:min(86vw, 34em); font-size:clamp(14px, 2.4vh, 28px); }
+.acctform label.field{ display:flex; flex-direction:column; gap:.4em; text-align:left; font-weight:600; color:#24242e; }
+.acctform label.field span{ font-size:.8em; color:#5b5f6e; font-weight:500; }
+.acctform input[type=text], .acctform input[type=email], .acctform input[type=password]{
+  font:inherit; padding:.6em .8em; border-radius:1em; border:2px solid rgba(20,24,50,.12);
+  background:#fff; color:#16161d; outline:none;
+}
+.acctform input:focus{ border-color:#6d5efc; box-shadow:0 0 0 .3em rgba(109,94,252,.18); }
+.acctform label.check{ display:flex; align-items:center; gap:.7em; text-align:left; color:#24242e; font-weight:500; }
+.acctform label.check input{ width:1.3em; height:1.3em; accent-color:#6d5efc; }
+.acctform .btn.go{ margin-top:.6vh; background:#6d5efc; color:#fff; border:none; font-size:1.1em; }
+.acctform .btn.go.busy{ opacity:.6; }
+.formmsg{ min-height:1.4em; }
+.formmsg.bad{ color:var(--bad); }
+.btn.link{ background:transparent; border:none; box-shadow:none; color:#4a3fe0; font-weight:600; }
+.btn.wide{ min-width:min(70vw, 22em); }
+.whotiles{ display:flex; flex-wrap:wrap; justify-content:center; gap:2.4vw; max-width:90vw; }
+.btn.who{ width:clamp(120px, 16vh, 220px); padding:2vh 1vh; border-radius:3vh; }
+.btn.who .lbl{ display:flex; flex-direction:column; align-items:center; gap:1vh; }
+.btn.who .av{ font-size:clamp(44px, 8vh, 110px); line-height:1; }
+.btn.who .nm{ font-size:clamp(14px, 2.6vh, 30px); font-weight:700; letter-spacing:normal; }
+.btn.who.add .av{ color:#8a8ea0; font-weight:300; }
+.avatars{ display:grid; grid-template-columns:repeat(6, 1fr); gap:1vh; }
+.btn.av{ font-size:clamp(24px, 4.4vh, 56px); padding:.5vh; border-radius:1.6vh; }
+.btn.av.chosen{ border-color:var(--good); box-shadow:0 0 0 .4vh rgba(22,163,74,.25); }
+/* the home screen's "who's playing" chip, beside the name */
+.btn.whochip{ margin-left:1.2vw; padding:.3em .9em .3em .5em; font-size:.62em; font-weight:600; }
+.btn.whochip .lbl{ display:flex; align-items:center; gap:.4em; }
+.btn.whochip .av{ font-size:1.3em; line-height:1; }
+.invitecode{ font-variant-numeric:tabular-nums; font-weight:700; color:#16161d; min-height:1.2em; }

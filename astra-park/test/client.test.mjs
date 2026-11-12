@@ -33,7 +33,7 @@ test('display modes: a window or Big Picture, kept, with a default for new insta
 });
 
 test('Settings can check for an update and install it now', () => {
-  assert.ok(main.includes('generate_handler![set_display_mode, check_update, install_update]'));
+  assert.ok(main.includes('generate_handler![set_display_mode, check_update, install_update'));
   assert.ok(main.includes('window.ORLIS_VERSION') && main.includes('window.orlisApp'));
   const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
   assert.ok(menu.includes("'Check for updates'") && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
@@ -62,4 +62,14 @@ test('the camera is allowed without a prompt, and the game uses the files it car
   assert.ok(main.includes('window.ORLIS_LOCAL = true'));
   const pose = readFileSync(new URL('../src/tracking/pose.js', import.meta.url), 'utf8');
   assert.ok(pose.includes('window.ORLIS_LOCAL'), 'pose.js takes the hint');
+});
+
+test('the app finds Orlis Server on the Wi-Fi on the port the server listens on', () => {
+  assert.ok(main.includes('find_servers]') || main.includes('find_servers'), 'the command is registered');
+  const port = main.match(/const DISCOVERY_PORT: u16 = (\d+);/)[1];
+  const server = readFileSync(new URL('../../server/src/discovery.js', import.meta.url), 'utf8');
+  assert.equal(server.match(/DISCOVERY_PORT = (\d+)/)[1], port, 'the same discovery port');
+  assert.ok(server.includes("HELLO = 'orlis?'") && main.includes('b"orlis?"'), 'and the same question');
+  const web = readFileSync(new URL('../../server/src/app.js', import.meta.url), 'utf8').match(/PORT = (\d+)/)[1];
+  assert.ok(main.includes(`unwrap_or(${web})`) && readFileSync(new URL('../src/ui/account.js', import.meta.url), 'utf8').includes(`:${web}`), 'and the same web port');
 });

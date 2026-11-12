@@ -65,6 +65,8 @@ export const remote = {
   },
 
   key(e){
+    /* typing in a box (an email, a password): the keys are the box's */
+    if (typing(e)) return false;
     const dir = DIRS[e.key];
     if (dir || OK.has(e.key)){
       const layer = this.layer();
@@ -111,3 +113,12 @@ export const remote = {
     addEventListener('pointermove', () => document.body.classList.remove('remote'));
   }
 };
+
+/* Whether a key went to a text box being typed in. */
+export function typing(e){
+  const t = e && e.target;
+  if (!t || !t.tagName) return false;
+  if (t.isContentEditable) return true;
+  if (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT') return true;
+  return t.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'submit', 'range'].includes((t.type || 'text').toLowerCase());
+}

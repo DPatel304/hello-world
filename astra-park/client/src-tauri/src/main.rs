@@ -31,7 +31,7 @@ const UPDATE_WAIT: Duration = Duration::from_secs(4);
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![set_display_mode, check_update, install_update])
+        .invoke_handler(tauri::generate_handler![set_display_mode, check_update, install_update, find_servers])
         .setup(|app| {
             let app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -159,6 +159,58 @@ async fn install_update(app: AppHandle) -> Result<(), String> {
     let Some(u) = found else { return Err("already up to date".into()) };
     u.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
     app.restart();
+}
+
+/// Where Orlis Server listens for "is there an Orlis server here?" on the
+/// home Wi-Fi (server/src/discovery.js).
+const DISCOVERY_PORT: u16 = 47870;
+
+/// Orlis servers on this Wi-Fi: call out "orlis?" to the whole network (and
+/// to this PC itself, in case the server is running right here), and collect
+/// the answers for a moment. A broadcast never leaves the home network.
+#[tauri::command]
+async fn find_servers() -> Vec<serde_json::Value> {
+    tauri::async_runtime::spawn_blocking(|| {
+        use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
+        use std::time::Instant;
+        let mut found: Vec<serde_json::Value> = Vec::new();
+        let Ok(sock) = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)) else { return found };
+        let _ = sock.set_broadcast(true);
+        let _ = sock.set_read_timeout(Some(Duration::from_millis(150)));
+        let targets = [
+            SocketAddrV4::new(Ipv4Addr::BROADCAST, DISCOVERY_PORT),
+            SocketAddrV4::new(Ipv4Addr::LOCALHOST, DISCOVERY_PORT),
+        ];
+        let started = Instant::now();
+        let mut sent = 0;
+        let mut buf = [0u8; 2048];
+        while started.elapsed() < Duration::from_millis(1500) {
+            // (called out three times, in case one goes astray)
+            if sent < 3 && started.elapsed() >= Duration::from_millis(400 * sent) {
+                for t in targets {
+                    let _ = sock.send_to(b"orlis?", t);
+                }
+                sent += 1;
+            }
+            let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };
+            let Ok(v) = serde_json::from_slice::<serde_json::Value>(&buf[..n]) else { continue };
+            if v.get("app").and_then(|a| a.as_str()) != Some("orlis") {
+                continue;
+            }
+            let port = v.get("port").and_then(|p| p.as_u64()).unwrap_or(47871);
+            // (the server on this PC answers from its own address too: one is enough)
+            let host = if from.ip().is_loopback() { "localhost".to_string() } else { from.ip().to_string() };
+            let url = format!("http://{host}:{port}");
+            let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("Orlis server").to_string();
+            if found.iter().any(|f| f["name"] == name.as_str()) {
+                continue;
+            }
+            found.push(serde_json::json!({ "url": url, "name": name }));
+        }
+        found
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// For the game's Settings screen: the version, and checking for updates.

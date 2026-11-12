@@ -7,6 +7,7 @@ import { pose, MAX_PLAYERS } from '../tracking/pose.js';
 import { PlayerBar } from './playerbar.js';
 import { poster } from './posters.js';
 import { MARK, PAPER } from './boot.js';
+import { account, AVATARS } from './account.js';
 import { remote } from './remote.js';
 import { trailer } from './trailer.js';
 
@@ -69,13 +70,19 @@ const LAUNCH = 0.5;            /* seconds of going in */
 const POINT_AGAIN = 0.04;      /* how far (of the screen) a hand moves to take over from the remote */
 const FLY = 0.7, FLY_STAGGER = 0.05;   /* arriving: each tile's flight, one after another */
 
-export function menu({ onPlay, onRecalibrate, arrive = false }){
+export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   clearUI();
   const s = screen('tvhome' + (arrive ? ' arrive' : ''));
 
   /* the top bar */
   const top = h('div', 'tvtop');
   const brand = h('div', 'brand', `<span class="mark">${MARK}</span><span>Orlis <i class="play">Play</i></span>`);
+  /* who's playing (in the Windows app): their picture and name, and picking
+     it goes back to "Who's playing?" */
+  const who = account.current;
+  if (who && onWho){
+    brand.appendChild(onPick(button(`<span class="av">${AVATARS[who.avatar] || AVATARS.cube}</span><span class="nm">${who.name.replace(/[&<>]/g, '')}</span>`, 'whochip'), () => { sfx.select(); onWho(); }));
+  }
   const players = h('div', 'tvplayers');
   const clock = h('span', 'clock', ''), cam = h('span', 'camdot', '');
   const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => openMenu());
@@ -370,6 +377,26 @@ function settings(onRecalibrate){
     }
     mark();
     s.appendChild(pick);
+  }
+
+  /* In the Windows app: the account - who's signed in, signing out, and
+     for the owner, invites for family and friends to join. */
+  if (account.signedIn){
+    const a = account.state.account, srv = account.state.server;
+    s.appendChild(h('p', 'lede', `Signed in as ${a.email.replace(/[&<>]/g, '')}${a.role === 'player' ? '' : ` (${a.role})`} on "${(srv?.name || '').replace(/[&<>]/g, '')}"`));
+    const arow = h('div', 'row');
+    const shown = h('p', 'lede invitecode', '');
+    if (a.role === 'owner'){
+      for (const [role, label] of [['player', 'Invite a player'], ['creator', 'Invite a creator']]){
+        arow.appendChild(onPick(button(label), async () => {
+          sfx.select();
+          try { const r = await account.call('POST', '/api/invites', { role }); shown.textContent = `Invite code: ${r.code}  (${role}, works once)`; }
+          catch (e){ shown.textContent = e.message; }
+        }));
+      }
+    }
+    arow.appendChild(onPick(button('Sign out'), () => { account.signOut(); location.reload(); }));
+    s.append(arow, shown);
   }
 
   /* In the Windows app: which version this is, and a way to get a newer
