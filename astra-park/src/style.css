@@ -712,3 +712,95 @@ body.remote .btn.popitem.kfocus{ box-shadow:inset 0 0 0 .4vh #6d5efc; }
 /* the corner menu: a divider, and its small print */
 .popline{ height:1px; background:#eef0f4; margin:.4vh 1vh; }
 .popfoot{ padding:.6vh 1.6vh .4vh; font-size:1.5vh; color:#8a8ea0; text-align:center; }
+
+/* ---------- the Windows app's title bar (Window mode) ---------- */
+.titlebar{
+  position:fixed; top:0; left:0; right:0; height:34px; z-index:50; display:flex; align-items:center; gap:8px;
+  padding-left:12px; background:rgba(243,244,247,.86); -webkit-backdrop-filter:blur(16px) saturate(1.4); backdrop-filter:blur(16px) saturate(1.4);
+  border-bottom:1px solid rgba(20,24,50,.06); font-family:var(--sys); font-size:13px; color:#16161d; user-select:none;
+  transition:transform .25s ease, opacity .25s ease;
+}
+.titlebar .tbmark{ width:16px; height:16px; display:inline-flex; }
+.titlebar .tbmark svg{ width:100%; height:100%; }
+.titlebar .tbname{ font-weight:600; }
+.titlebar .tbname i{ font-style:normal; font-weight:400; background:linear-gradient(90deg,#2bb6c9,#5b8cf5,#a66bf5); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.titlebar .tbspace{ flex:1; align-self:stretch; }
+.titlebar .tbbtn{ width:46px; height:34px; border:none; background:transparent; display:inline-flex; align-items:center; justify-content:center; cursor:default; color:inherit; }
+.titlebar .tbbtn svg{ width:10px; height:10px; fill:none; stroke:currentColor; stroke-width:1.1; }
+.titlebar .tbbtn:hover{ background:rgba(20,24,50,.07); }
+.titlebar .tbbtn.close:hover{ background:#e81123; color:#fff; }
+/* in a game it tucks away, and peeks back when the mouse comes to the top */
+.titlebar.tucked{ transform:translateY(-100%); opacity:0; }
+.titlebar.tucked.peek{ transform:none; opacity:1; }
+/* the screens sit below it */
+body.titled #ui > .screen{ top:34px; }
+
+/* ---------- smooth screen changes ----------
+   Each screen and window fades in rather than snapping. */
+#ui > .screen{ animation:screenin .28s ease both; }
+#ui > .screen.boot{ animation:none; }
+@keyframes screenin{ from{ opacity:0 } }
+
+/* ---------- friendlier game tiles ----------
+   The name always, how many can play under it, and a soft lift with the
+   game's own glow when it's the one picked. */
+.btn.tvtile .lbl{ display:flex; flex-direction:column; align-items:center; gap:.25vh; }
+.btn.tvtile .tn{ font-size:2.3vh; font-weight:600; color:#1b1b25; }
+.btn.tvtile .tvsub{ font-size:1.6vh; font-weight:500; color:#8a8ea0; letter-spacing:normal; }
+.btn.tvtile .icon{ transition:transform .3s cubic-bezier(.2,.9,.3,1.2), box-shadow .3s ease; }
+.btn.tvtile.focus .icon{
+  transform:translateY(-1.2vh) scale(1.1);
+  box-shadow:0 0 0 .45vh #fff, 0 0 0 .9vh var(--accent), 0 2.6vh 5vh color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.btn.tvtile.focus .tn{ font-weight:700; }
+
+/* ---------- Store and Create: coming soon ---------- */
+.setcard.soonpage{ text-align:center; padding:4vh 4vh 3vh; width:min(90vw, 30em); }
+.soonicon{ font-size:9vh; line-height:1; margin-bottom:1.6vh; }
+.soontag{ display:inline-block; font-size:.75em; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#6d5efc; background:#efedff; border-radius:999px; padding:.3em .9em; margin-bottom:1vh; }
+.soonpage h2{ margin:.2em 0; font-size:1.8em; }
+.soonline{ margin:0 0 1.2vh; font-weight:600; color:#24242e; }
+.soonabout{ margin:0 auto 2.4vh; max-width:26em; color:#5b5f6e; line-height:1.45; }
+.btn.setbtn.soonok{ padding:.6em 2.4em; background:#6d5efc; color:#fff; border:none; }
+
+/* ---------- the dark theme ----------
+   The home screen, its menus, Settings and signing in; the games keep
+   their own look. */
+body.dark{ background:#11121c; color:#e9eaf2; }
+body.dark .tvtop .brand, body.dark .tvsys, body.dark .clock{ color:#e9eaf2; }
+body.dark .btn.burger .bars i{ background:#e9eaf2; }
+body.dark .btn{ background:#1e2030; color:#e9eaf2; border-color:rgba(255,255,255,.08); box-shadow:0 .6vh 1.8vh rgba(0,0,0,.35); }
+body.dark .btn.tvtile{ background:transparent; box-shadow:none; }
+body.dark .btn.tvtile .tn{ color:#e9eaf2; }
+body.dark .btn.tvtile .tvsub{ color:#8d91a8; }
+body.dark .btn.tvtile.focus .icon{ box-shadow:0 0 0 .45vh #11121c, 0 0 0 .9vh var(--accent), 0 2.6vh 5vh color-mix(in srgb, var(--accent) 45%, transparent); }
+body.dark .screen.dim, body.dark .screen.dim.setscreen, body.dark .screen.dim.popmenu{ background:rgba(10,11,18,.55); color:#e9eaf2; }
+body.dark h1, body.dark h2{ color:#f2f3f8; }
+body.dark .lede{ color:#a3a7bd; }
+body.dark .popcard, body.dark .setcard{ background:#1a1c2a; box-shadow:0 2vh 5vh rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.06); color:#e9eaf2; }
+body.dark .btn.popitem{ background:transparent; box-shadow:none; color:#e9eaf2; }
+body.dark .btn.popitem.hot, body.dark .btn.popitem:hover{ background:#262939; }
+body.dark .btn.popitem .soon{ background:#e9eaf2; color:#16161d; }
+body.dark .popline, body.dark .setrow{ border-color:#262939; }
+body.dark .popline{ background:#262939; }
+body.dark .setname, body.dark .soonline{ color:#e9eaf2; }
+body.dark .soonabout{ color:#a3a7bd; }
+body.dark .soontag{ background:#2a2550; color:#b9b0ff; }
+body.dark .btn.setbtn{ background:#1a1c2a; border-color:#303347; }
+body.dark .btn.setbtn:hover, body.dark .btn.setbtn.hot{ background:#262939; }
+body.dark .btn.setclose{ background:#262939; }
+body.dark .seg{ background:#262939; }
+body.dark .seg .btn.setbtn{ background:transparent; }
+body.dark .seg .btn.setbtn.chosen{ background:#3a3d55; color:#fff; }
+body.dark .btn.setbtn.danger{ color:#fb7185; }
+body.dark .btn.setbtn.soonok{ background:#6d5efc; color:#fff; }
+body.dark .acctform label.field, body.dark .acctform label.check{ color:#e9eaf2; }
+body.dark .acctform label.field span{ color:#a3a7bd; }
+body.dark .acctform input[type=text], body.dark .acctform input[type=email], body.dark .acctform input[type=password]{ background:#1a1c2a; color:#e9eaf2; border-color:#303347; }
+body.dark .acctform .btn.go{ background:#6d5efc; color:#fff; }
+body.dark .btn.link{ background:transparent; box-shadow:none; color:#b9b0ff; }
+body.dark .titlebar{ background:rgba(17,18,28,.86); color:#e9eaf2; border-bottom-color:rgba(255,255,255,.06); }
+body.dark .titlebar .tbbtn:hover{ background:rgba(255,255,255,.08); }
+body.dark .buildstamp{ color:#8d91a8; }
+/* (the banner's Play stays bright on the dark banner, in either theme) */
+body.dark .btn.play{ background:#fff; color:#15132b; border:none; }

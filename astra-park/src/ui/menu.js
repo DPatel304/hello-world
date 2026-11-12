@@ -7,6 +7,7 @@ import { pose, MAX_PLAYERS } from '../tracking/pose.js';
 import { poster } from './posters.js';
 import { MARK, PAPER } from './boot.js';
 import { account, AVATARS } from './account.js';
+import { theme, setTheme, DARK_PAPER } from './theme.js';
 import { remote } from './remote.js';
 import { trailer } from './trailer.js';
 
@@ -52,9 +53,24 @@ export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']
 /* What's in the corner menu. */
 const MENU = [
   { id: 'settings', name: 'Settings', icon: '\u{2699}\u{FE0F}' },
-  { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', soon: true },
-  { id: 'make', name: 'Create', icon: '\u{1F58C}\u{FE0F}', soon: true }
+  { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', soon: true,
+    line: 'New games to download',
+    about: 'Browse new movement games, download the ones you like, and they keep themselves up to date. Games your friends make can appear here too.' },
+  { id: 'make', name: 'Create', icon: '\u{1F58C}\u{FE0F}', soon: true,
+    line: 'Make your own games',
+    about: 'Build your own movement games from ready-made parts - obstacles, gems, creatures - then play them by moving. Up to five, saved on this PC.' }
 ];
+
+/* Store and Create, until they're here: what's coming, nicely. */
+function comingSoon(m){
+  const s = overlay(); s.classList.add('setscreen');
+  const card = h('div', 'setcard soonpage');
+  card.append(h('div', 'soonicon', m.icon), h('div', 'soontag', 'Coming soon'), h('h2', '', m.name), h('p', 'soonline', m.line), h('p', 'soonabout', m.about));
+  const close = () => { sfx.back?.(); s.remove(); };
+  card.appendChild(onPick(button('OK', 'setbtn soonok'), close));
+  s.appendChild(card);
+  s.addEventListener('pointerdown', (e) => { if (e.target === s) close(); });
+}
 /* Seconds a first pick of Exit waits for the second. */
 const EXIT_SURE = 4;
 /* The Windows app's own window, when the game is running inside it. */
@@ -62,8 +78,11 @@ function appWindow(){
   const w = typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.window;
   return w && w.getCurrentWindow ? w.getCurrentWindow() : null;
 }
-/* What was picked last visit. */
-let lastFocus = 0;
+/* What was picked last - kept between launches, by game. */
+const LAST = 'orlis.lastGame';
+let lastFocus = null;
+const remembered = () => { try { return localStorage.getItem(LAST); } catch { return null; } };
+const remember = (id) => { try { localStorage.setItem(LAST, id); } catch {} };
 const HOVER_FOCUS = 0.05;      /* seconds of a hand on a tile to pick it (the cursor's already sticky) */
 const LAUNCH = 0.5;            /* seconds of going in */
 const POINT_AGAIN = 0.04;      /* how far (of the screen) a hand moves to take over from the remote */
@@ -121,7 +140,8 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
     const pic = h('div', 'icon', `<svg viewBox="0 0 100 100" aria-hidden="true">${GLYPHS[it.icon.glyph]}</svg>`);
     pic.style.setProperty('--c1', it.icon.cols[0]); pic.style.setProperty('--c2', it.icon.cols[1]);
     card.insertBefore(pic, card.firstChild);
-    card.querySelector('.lbl').textContent = it.name;
+    card.querySelector('.lbl').innerHTML = `<span class="tn"></span><span class="tvsub">${howMany(it.g)}</span>`;
+    card.querySelector('.tn').textContent = it.name;
     onPick(card, () => choose(n));
     card.addEventListener('mouseenter', () => { if (!going && !open) move(n); });
     card.addEventListener('remotefocus', () => move(n));
@@ -131,6 +151,7 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
 
   let scrollY = 0;
+  if (lastFocus === null) lastFocus = Math.max(0, items.findIndex(it => it.g.id === remembered()));
   let focus = Math.min(lastFocus, items.length - 1), t = 0, going = null, open = null, tick = 0, flown = !arrive;
   /* After the remote's used, pointing takes over again only once a hand (or
      the mouse) actually moves - not because the rows slid under one that's
@@ -158,7 +179,7 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   function move(to){
     to = Math.max(0, Math.min(items.length - 1, to));
     if (to === focus) return;
-    focus = to; lastFocus = to; sfx.nav(); ambience.lift(); show();
+    focus = to; lastFocus = to; remember(items[to].g.id); sfx.nav(); ambience.lift(); show();
   }
   /* A pick goes straight in. */
   function choose(n){
@@ -177,8 +198,8 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
     const shut = () => { if (!open) return; open.remove(); open = null; };
     for (const m of MENU){
       const b = onPick(button(`<span class="pi">${m.icon}</span><span class="pn">${m.name}</span>${m.soon ? '<span class="soon">Soon</span>' : ''}`, 'popitem'), () => {
-        if (m.soon){ sfx.boing(0.7); b.classList.remove('nope'); void b.offsetWidth; b.classList.add('nope'); return; }
         sfx.select(); shut();
+        if (m.soon) return comingSoon(m);
         if (m.id === 'settings') settings(onRecalibrate);
       });
       card.appendChild(b);
@@ -280,9 +301,10 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
     },
     draw(c, W, H){
       /* the room: soft paper, washed with the picked game's colour */
-      c.fillStyle = PAPER; c.fillRect(0, 0, W, H);
-      wash(c, W * 0.15, 0, H * 0.9, '#ccfbf1', 0.6);
-      wash(c, W * 0.9, H, H * 1.0, items[focus].accent, 0.18);
+      const dark = theme() === 'dark';
+      c.fillStyle = dark ? DARK_PAPER : PAPER; c.fillRect(0, 0, W, H);
+      wash(c, W * 0.15, 0, H * 0.9, dark ? '#134e4a' : '#ccfbf1', dark ? 0.45 : 0.6);
+      wash(c, W * 0.9, H, H * 1.0, items[focus].accent, dark ? 0.22 : 0.18);
       /* the banner's living picture; the tiles' still ones */
       const it = items[focus];
       if (it.trailer) paint(heroPic, (c, w, hh) => cover(c, w, hh, it.trailer), t, 1);
@@ -384,6 +406,14 @@ function settings(onRecalibrate){
     mark();
     row('Display', seg);
   } else row('Display', small('Full screen', () => toggleFullscreen()));
+
+  /* light or dark (for evenings on the TV), kept for next time */
+  const tseg = h('div', 'seg');
+  const themes = [['light', 'Light'], ['dark', 'Dark']];
+  const tmark = () => themes.forEach(([t], i) => tseg.children[i].classList.toggle('chosen', theme() === t));
+  for (const [t, name] of themes) tseg.appendChild(small(name, () => { sfx.select(); setTheme(t); tmark(); }, 'mode'));
+  tmark();
+  row('Theme', tseg);
 
   /* the camera: which one (when there's a choice), and finding everyone again */
   const camCtl = row('Camera', small('Re-calibrate', () => { s.remove(); onRecalibrate(); }));

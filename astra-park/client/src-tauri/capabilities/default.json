@@ -1,10 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the game's page may ask the app for: closing (the menu's Exit).",
+  "description": "What the game's page may ask the app for: its own title bar (moving, minimising, maximising, closing) and the menu's Exit.",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-close"
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-start-dragging"
   ]
 }

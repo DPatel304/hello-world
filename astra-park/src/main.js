@@ -1,8 +1,10 @@
 import { pose } from './tracking/pose.js';
-import { cursor } from './ui/cursor.js';
+import { cursor, inFront } from './ui/cursor.js';
 import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
 import { remote, typing } from './ui/remote.js';
 import { account, welcome } from './ui/account.js';
+import { installTitlebar, titlebarPlaying } from './ui/titlebar.js';
+import { theme, applyTheme, DARK_PAPER } from './ui/theme.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -41,6 +43,7 @@ function go(next, build){
   /* For now the home screen (and signing in) is the mouse's and the
      keyboard's: hands don't point there. The games still play by moving. */
   cursor.enabled = !(next === 'menu' || next === 'who');
+  titlebarPlaying(next === 'play' || next === 'outro');
   scene = build ? build() : null;
 }
 
@@ -201,14 +204,32 @@ function pill(c, x, y, w, h, align, edge = null){
 
 /* ---------- loop ---------- */
 let last = 0;
+/* Keeping the laptop cool. The body tracking is the heaviest thing here,
+   so it only runs where hands do something - not on the home screen or
+   while signing in, which are the mouse's and keyboard's. Those screens draw
+   30 times a second rather than 60. And with another window in front, almost
+   nothing runs: a few frames a second, no tracking, no sound - and a game in
+   progress pauses, to carry on when someone's back. */
+const CALM = new Set(['menu', 'who']);
+const HOME_GAP = 1000 / 30 - 2, AWAY_GAP = 250;
+let lastFrame = 0, wasAway = false;
 function tick(now){
+  const away = !inFront();
+  if (away !== wasAway){
+    wasAway = away;
+    audio.away(away);
+    if (away && mode === 'play' && !lost) openPause();
+  }
+  const gap = away ? AWAY_GAP : CALM.has(mode) ? HOME_GAP : 0;
+  if (gap && now - lastFrame < gap){ requestAnimationFrame(tick); return; }
+  lastFrame = now;
   const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
   last = now;
 
-  pose.update(now, dt);
+  if (!away && !CALM.has(mode)) pose.update(now, dt);
 
   /* paper, under the menus; dark under a game while it loads */
-  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' ? '#0d0b1a' : '#f3f4f7';
+  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' ? '#0d0b1a' : theme() === 'dark' ? DARK_PAPER : '#f3f4f7';
   c.fillRect(0, 0, W, H);
 
   if (mode === 'play' && inst && !paused && !lost){
@@ -318,6 +339,8 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
    both are done. */
 (async function boot(){
   document.title = 'Orlis Play';
+  applyTheme();
+  installTitlebar();
   const params = new URLSearchParams(location.search), debug = params.has('debug');
   const straight = START_IN && !params.has('home') ? byId(START_IN) : null;
   audio.resume();

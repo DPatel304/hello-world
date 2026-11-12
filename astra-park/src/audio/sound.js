@@ -1034,7 +1034,13 @@ export const audio = {
   get muted(){ return state.muted; },
   setVolume(v){ state.vol = Math.max(0, Math.min(1, v)); if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); },
   toggleMute(){ state.muted = !state.muted; if (master) master.gain.value = state.muted ? 0 : state.vol; songs.setVolume(state.vol, state.muted); save(); return state.muted; },
-  resume(){ ctx(); }
+  resume(){ ctx(); },
+  /* Another window in front: everything goes quiet (and the sound engine
+     rests); back in front, it carries on where it was. */
+  away(on){
+    if (AC){ try { on ? AC.suspend() : AC.resume(); } catch (e) {} }
+    songs.setVolume(on ? 0 : state.vol, state.muted);
+  }
 };
 
 /* Quietly: whatever runs inside makes no sound - for the home screen's

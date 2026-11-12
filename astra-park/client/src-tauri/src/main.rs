@@ -120,6 +120,10 @@ fn open(app: &AppHandle) -> tauri::Result<()> {
         .min_inner_size(640.0, 360.0)
         .center()
         .fullscreen(mode == "bigpicture")
+        // Orlis Play's own title bar (src/ui/titlebar.js) instead of
+        // Windows' one; the shadow keeps the edges for resizing.
+        .decorations(false)
+        .shadow(true)
         .initialization_script(&script)
         // Sound may start before anyone clicks (the intro's chime, the
         // music), plus the engine's usual defaults, which this replaces.
@@ -271,6 +275,7 @@ window.orlisDisplay = {
   get mode(){ return window.ORLIS_DISPLAY; },
   async set(mode){
     window.ORLIS_DISPLAY = await window.__TAURI__.core.invoke('set_display_mode', { mode });
+    window.dispatchEvent(new Event('orlisdisplay'));
     return window.ORLIS_DISPLAY;
   }
 };
