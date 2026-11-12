@@ -1,4 +1,4 @@
-/* The console turning on: Orlis Play's intro, about four seconds, the same
+/* The console turning on: Orlis Play's intro, about six seconds, the same
    every time. Four little lights - one in each player's colour - drift in
    from the corners on soft grey, swirl round each other and merge into the
    cube (the kalimba plays its do-mi-sol as they join), the name comes up
@@ -18,7 +18,8 @@ import { screen, h, clearUI } from './screens.js';
 
 /* Seconds: the lights arrive, swirl, merge; the name; the wink; where it
    waits for the camera; the break; the end. */
-export const ARRIVE = 0.8, MERGE = 2.2, NAME = 2.6, WINK = 3.5, HOLD = 3.95, BREAK = 4.0, BOOT = 4.3;
+/* (After the wink, two seconds more of the name and "Play as one" before it breaks.) */
+export const ARRIVE = 0.8, MERGE = 2.2, NAME = 2.6, WINK = 3.5, HOLD = 5.95, BREAK = 6.0, BOOT = 6.3;
 /* The look: the room, and the cube's three faces. */
 export const PAPER = '#f3f4f7';
 export const FACES = { top: ['#e9fbff', '#f3e8ff'], left: ['#5eead4', '#60a5fa'], right: ['#60a5fa', '#c084fc'] };
