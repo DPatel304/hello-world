@@ -59,12 +59,43 @@ async fn update(app: &AppHandle) -> bool {
     let Ok(Some(found)) = tokio::time::timeout(UPDATE_WAIT, check).await else {
         return false;
     };
-    match found.download_and_install(|_, _| {}, || {}).await {
+    // While it installs: a small window - the cube, "Updating - back in a
+    // moment", and how far along (client/updating.html).
+    let splash = WebviewWindowBuilder::new(app, "updating", WebviewUrl::App("updating.html".into()))
+        .title("Orlis Play")
+        .inner_size(460.0, 300.0)
+        .resizable(false)
+        .maximizable(false)
+        .decorations(false)
+        .center()
+        .build()
+        .ok();
+    let mut got: u64 = 0;
+    let show = |k: f64| {
+        if let Some(w) = &splash {
+            let _ = w.eval(&format!("window.progress && progress({k:.3})"));
+        }
+    };
+    match found
+        .download_and_install(
+            |chunk, total| {
+                got += chunk as u64;
+                if let Some(t) = total.filter(|t| *t > 0) {
+                    show(got as f64 / t as f64);
+                }
+            },
+            || show(1.0),
+        )
+        .await
+    {
         Ok(()) => {
             app.restart();
         }
         Err(e) => {
             eprintln!("update failed, opening this version: {e}");
+            if let Some(w) = &splash {
+                let _ = w.close();
+            }
             false
         }
     }

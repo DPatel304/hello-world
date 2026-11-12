@@ -4,7 +4,7 @@
    Run from astra-park/: node client/build-web.mjs (npm run client:web). */
 import { build } from 'vite';
 import { execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, copyFileSync } from 'node:fs';
 
 /* The tracking files, fetched once into public/ (git-ignored). */
 if (!existsSync('public/wasm/vision_wasm_internal.js') || !existsSync('public/models/pose_landmarker_lite.task')){
@@ -20,7 +20,9 @@ await build({
   define: { __BUILD__: JSON.stringify(stamp) },
   build: { outDir: 'client/dist', emptyOutDir: true, target: 'es2020', chunkSizeWarningLimit: 4000 }
 });
-for (const f of ['index.html', 'wasm/vision_wasm_internal.js', 'models/pose_landmarker_lite.task']){
+/* the window shown while an update installs */
+copyFileSync('client/updating.html', 'client/dist/updating.html');
+for (const f of ['index.html', 'updating.html', 'wasm/vision_wasm_internal.js', 'models/pose_landmarker_lite.task']){
   if (!existsSync(`client/dist/${f}`)) throw new Error(`client/dist/${f} is missing`);
 }
 console.log('client/dist  ' + stamp);

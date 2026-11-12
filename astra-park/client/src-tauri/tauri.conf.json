@@ -46,7 +46,7 @@
       "endpoints": [
         "https://github.com/dpatel304/hello-world/releases/latest/download/latest.json"
       ],
-      "windows": { "installMode": "passive" }
+      "windows": { "installMode": "quiet" }
     }
   }
 }
