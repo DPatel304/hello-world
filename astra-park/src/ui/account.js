@@ -88,7 +88,7 @@ async function hello(url){
    One overlay at a time, swapped in place: finding the server, then signing
    in or joining (or, on a brand-new server, setting up as the owner), then
    "Who's playing?". done() once a profile's picked. */
-export function welcome(done){
+export function welcome(done, { auto = true } = {}){
   clearUI();
   const s = screen('dim account');
   const show = (...nodes) => { s.innerHTML = ''; s.append(...nodes); };
@@ -201,8 +201,13 @@ export function welcome(done){
       onPick(button('Already have an account? Sign in', 'link'), () => { sfx.select(); signIn(sv); }));
   }
 
-  /* 3: who's playing */
+  /* 3: who's playing - straight past it when there's only one profile to
+     pick (on the way in; asked for from the home screen, it always shows,
+     so there's a way to add a kid) */
   function who(){
+    const list = account.state.profiles || [];
+    if (auto && list.length === 1){ account.set({ current: list[0].id }); return done(list[0]); }
+    auto = false;
     const tiles = h('div', 'whotiles');
     for (const p of account.state.profiles || []){
       tiles.appendChild(onPick(button(`<span class="av">${AVATARS[p.avatar] || AVATARS.cube}</span><span class="nm">${esc(p.name)}</span>`, 'who'), () => {

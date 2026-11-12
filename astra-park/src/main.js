@@ -58,7 +58,7 @@ function toMenu(arrive = false){
    if the server's in reach. */
 function toWho(arrive){
   account.refresh();
-  go('who', () => welcome(() => toMenu(arrive)));
+  go('who', () => welcome(() => toMenu(arrive), { auto: arrive }));
 }
 
 function toCalibration(){
