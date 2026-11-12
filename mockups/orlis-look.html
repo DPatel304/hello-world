@@ -1,0 +1,271 @@
+<!doctype html>
+<!-- The Orlis look: one style for every game, in both views. A mockup,
+     drawn on one canvas; rendered to orlis-look.png. -->
+<html><head><meta charset="utf-8">
+<style>
+@font-face{ font-family:Fredoka; src:url(../astra-park/src/fonts/fredoka.woff2) format('woff2'); }
+@font-face{ font-family:InterT; font-weight:400; src:url(../astra-park/src/fonts/inter-title-400.woff2) format('woff2'); }
+@font-face{ font-family:InterT; font-weight:600; src:url(../astra-park/src/fonts/inter-title-600.woff2) format('woff2'); }
+body{ margin:0; background:#f3f4f7; } canvas{ display:block; }
+</style></head><body><canvas id="c" width="1920" height="2720"></canvas>
+<script>
+(async () => {
+await Promise.all(['600 40px Fredoka', '400 20px InterT', '600 20px InterT'].map(f => document.fonts.load(f)));
+const c = document.getElementById('c').getContext('2d');
+const TAU = Math.PI * 2;
+const P = ['#3da9ff', '#ff8a3d', '#3fcf7f', '#c46bff'];          // player colours
+const INK = '#16161d', SOFT = '#5b5f6e', FAINT = '#8a8ea0';
+const HEAD = 'Fredoka, InterT, sans-serif', BODY = 'InterT, sans-serif';
+
+/* ---------- small drawing helpers ---------- */
+const rr = (x, y, w, h, r) => { c.beginPath(); c.roundRect(x, y, w, h, r); };
+function shadow(blur = 18, y = 6, a = .16){ c.shadowColor = `rgba(30,40,90,${a})`; c.shadowBlur = blur; c.shadowOffsetY = y; }
+function noShadow(){ c.shadowColor = 'transparent'; c.shadowBlur = 0; c.shadowOffsetY = 0; }
+function text(t, x, y, size, { font = BODY, weight = 600, color = INK, align = 'left', base = 'middle', spacing = 0 } = {}){
+  c.font = `${weight} ${size}px ${font}`; c.fillStyle = color; c.textAlign = align; c.textBaseline = base;
+  if ('letterSpacing' in c) c.letterSpacing = spacing + 'px';
+  c.fillText(t, x, y); if ('letterSpacing' in c) c.letterSpacing = '0px';
+}
+const grad = (x0, y0, x1, y1, stops) => { const g = c.createLinearGradient(x0, y0, x1, y1); stops.forEach((s, i) => g.addColorStop(i / (stops.length - 1), s)); return g; };
+function glow(x, y, r, col, a = 1){ const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col); g.addColorStop(1, 'rgba(255,255,255,0)'); c.save(); c.globalAlpha = a; c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); c.restore(); }
+function label(t, x, y){ text(t, x, y, 22, { weight: 600, color: FAINT, base: 'top' }); }
+function heading(t, x, y, sub){ text(t, x, y, 38, { font: HEAD, weight: 600, base: 'top' }); if (sub) text(sub, x, y + 50, 22, { weight: 400, color: SOFT, base: 'top' }); }
+
+/* ---------- the HUD pieces (the same in every game) ---------- */
+/* a glass pill: white, rounded, soft shadow; a dot or icon, then the value */
+function pill(x, y, value, { dot, icon, color = INK, h = 56, w } = {}){
+  c.font = `600 ${h * .56}px ${HEAD}`;
+  const tw = c.measureText(value).width, lead = dot || icon ? h * .72 : 0;
+  w = w || tw + lead + h * .72;
+  c.save(); shadow(16, 5, .18); c.fillStyle = 'rgba(255,255,255,.92)'; rr(x, y, w, h, h / 2); c.fill(); c.restore();
+  if (dot){ c.fillStyle = dot; c.beginPath(); c.arc(x + h * .52, y + h / 2, h * .2, 0, TAU); c.fill(); }
+  if (icon) text(icon, x + h * .52, y + h / 2 + 1, h * .46, { align: 'center' });
+  text(value, x + lead + h * .36, y + h / 2 + 2, h * .56, { font: HEAD, color });
+  return w;
+}
+/* a toast: a short word, big, in the middle */
+function toast(x, y, word, { color = '#6d5efc', size = 64 } = {}){
+  c.font = `600 ${size}px ${HEAD}`; const w = c.measureText(word).width + size * 1.1, h = size * 1.45;
+  c.save(); shadow(26, 8, .2); c.fillStyle = '#fff'; rr(x - w / 2, y - h / 2, w, h, h / 2); c.fill(); c.restore();
+  text(word, x, y + 3, size, { font: HEAD, color, align: 'center' });
+}
+/* the message card: who's talking (a round picture), their name, the line */
+function message(x, y, w, name, line, col, who = 'nova'){
+  const h = 112;
+  c.save(); shadow(22, 7, .2); c.fillStyle = 'rgba(255,255,255,.94)'; rr(x, y, w, h, 28); c.fill(); c.restore();
+  const cx = x + 56, cy = y + h / 2;
+  c.fillStyle = grad(cx - 36, cy - 36, cx + 36, cy + 36, [col, '#6d5efc']); c.beginPath(); c.arc(cx, cy, 36, 0, TAU); c.fill();
+  if (who === 'nova'){
+    // Nova: a friendly little drone face
+    c.fillStyle = '#fff'; rr(cx - 22, cy - 13, 44, 26, 13); c.fill();
+    c.fillStyle = '#1e1b4b'; c.beginPath(); c.arc(cx - 9, cy, 5, 0, TAU); c.arc(cx + 9, cy, 5, 0, TAU); c.fill();
+  } else {
+    // a game's own host: here, a balloon
+    c.fillStyle = '#fff'; c.beginPath(); c.ellipse(cx, cy - 4, 15, 19, 0, 0, TAU); c.fill();
+    c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.moveTo(cx, cy + 15); c.quadraticCurveTo(cx + 6, cy + 22, cx - 2, cy + 28); c.stroke();
+  }
+  text(name, x + 108, y + 36, 24, { font: HEAD, weight: 600, color: col });
+  text(line, x + 108, y + 74, 23, { weight: 400, color: INK });
+}
+
+/* ---------- the move cards ---------- */
+/* a rounded stick figure in a pose; poses are joint angles, all simple */
+function figure(x, y, s, pose, col = '#fff'){
+  c.save(); c.translate(x, y); c.strokeStyle = col; c.fillStyle = col; c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = s * .13;
+  const P = pose;
+  c.beginPath(); c.arc(P.head[0] * s, P.head[1] * s, s * .17, 0, TAU); c.fill();
+  const line = (pts) => { c.beginPath(); pts.forEach(([a, b], i) => i ? c.lineTo(a * s, b * s) : c.moveTo(a * s, b * s)); c.stroke(); };
+  line([P.neck, P.hip]);
+  for (const arm of P.arms) line([P.neck, ...arm]);
+  for (const leg of P.legs) line([P.hip, ...leg]);
+  c.restore();
+}
+const POSES = {
+  jump:  { head: [0, -.95], neck: [0, -.72], hip: [0, -.1], arms: [[[-.38, -1.05]], [[.38, -1.05]]], legs: [[[-.22, .2], [-.12, .45]], [[.22, .2], [.12, .45]]] },
+  duck:  { head: [.08, -.35], neck: [.04, -.16], hip: [-.1, .2], arms: [[[.3, .05], [.36, .28]], [[-.15, .05], [-.05, .3]]], legs: [[[.15, .3], [-.05, .55]], [[-.35, .38], [-.3, .58]]] },
+  left:  { head: [-.3, -.85], neck: [-.2, -.62], hip: [0, -.05], arms: [[[-.55, -.5]], [[.18, -.45]]], legs: [[[-.15, .5]], [[.2, .5]]] },
+  right: { head: [.3, -.85], neck: [.2, -.62], hip: [0, -.05], arms: [[[.55, -.5]], [[-.18, -.45]]], legs: [[[-.2, .5]], [[.15, .5]]] },
+  reach: { head: [0, -.82], neck: [0, -.6], hip: [0, 0], arms: [[[.12, -1.0], [.18, -1.3]], [[-.32, -.35]]], legs: [[[-.17, .5]], [[.17, .5]]] },
+  ear:   { head: [0, -.82], neck: [0, -.6], hip: [0, 0], arms: [[[.3, -.6], [.16, -.84]], [[-.3, -.25]]], legs: [[[-.17, .5]], [[.17, .5]]] },
+  wave:  { head: [0, -.82], neck: [0, -.6], hip: [0, 0], arms: [[[.38, -.85], [.5, -1.15]], [[-.3, -.25]]], legs: [[[-.17, .5]], [[.17, .5]]] },
+  pause: { head: [0, -.82], neck: [0, -.6], hip: [0, 0], arms: [[[.3, -.95], [.18, -1.25]], [[-.3, -.95], [-.18, -1.25]]], legs: [[[-.17, .5]], [[.17, .5]]] }
+};
+function moveCard(x, y, w, pose, name, col1, col2){
+  const h = w * 1.22;
+  c.save(); shadow(20, 7, .2); c.fillStyle = grad(x, y, x + w, y + h, [col1, col2]); rr(x, y, w, h, w * .2); c.fill(); c.restore();
+  c.save(); c.globalAlpha = .18; c.fillStyle = '#fff'; c.beginPath(); c.ellipse(x + w * .3, y + h * .12, w * .45, h * .2, -.4, 0, TAU); c.fill(); c.restore();
+  figure(x + w / 2, y + h * .58, w * .36, POSES[pose]);
+  text(name, x + w / 2, y + h * .87, w * .13, { font: HEAD, weight: 600, color: '#fff', align: 'center' });
+}
+
+/* ---------- the world pieces (shared by every game) ---------- */
+function cloud(x, y, s, col = '#fff', a = 1){
+  c.save(); c.globalAlpha = a; c.fillStyle = col;
+  c.beginPath(); c.ellipse(x, y, s * 1.1, s * .38, 0, 0, TAU); c.arc(x - s * .4, y - s * .2, s * .36, 0, TAU); c.arc(x + s * .15, y - s * .35, s * .46, 0, TAU); c.arc(x + s * .6, y - s * .12, s * .3, 0, TAU); c.fill();
+  c.globalAlpha = a * .12; c.fillStyle = '#5b7bb5'; c.beginPath(); c.ellipse(x, y + s * .12, s * 1.05, s * .22, 0, 0, Math.PI); c.fill(); c.restore();
+}
+function roundTree(x, y, s, a = '#7cc47a', b = '#5aa865'){
+  c.fillStyle = '#9b7a63'; rr(x - s * .07, y - s * .5, s * .14, s * .5, s * .05); c.fill();
+  c.fillStyle = b; c.beginPath(); c.arc(x, y - s * .82, s * .42, 0, TAU); c.fill();
+  c.fillStyle = a; c.beginPath(); c.arc(x - s * .08, y - s * .9, s * .34, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.arc(x - s * .18, y - s * 1.02, s * .12, 0, TAU); c.fill();
+}
+function pine(x, y, s, a = '#4f9b8f', b = '#3d7f75'){
+  c.fillStyle = '#8a6d5b'; c.fillRect(x - s * .05, y - s * .25, s * .1, s * .25);
+  for (let i = 0; i < 3; i++){ const yy = y - s * (.25 + i * .32), ww = s * (.5 - i * .1);
+    c.fillStyle = i % 2 ? a : b; c.beginPath(); c.moveTo(x - ww, yy); c.lineTo(x + ww, yy); c.lineTo(x, yy - s * .55); c.closePath(); c.fill(); }
+}
+function grass(x, y, s, col = '#5fae6e'){
+  c.strokeStyle = col; c.lineWidth = s * .12; c.lineCap = 'round';
+  for (const [dx, h, k] of [[-.25, .7, -.3], [0, 1, .05], [.25, .75, .35]]){ c.beginPath(); c.moveTo(x + dx * s, y); c.quadraticCurveTo(x + dx * s, y - h * s * .6, x + (dx + k) * s, y - h * s); c.stroke(); }
+}
+function sun(x, y, s, face = true){
+  glow(x, y, s * 2.6, 'rgba(255,236,170,.9)', .8);
+  c.fillStyle = grad(x - s, y - s, x + s, y + s, ['#fff3c4', '#ffd36e']); c.beginPath(); c.arc(x, y, s, 0, TAU); c.fill();
+  if (face){ c.fillStyle = '#9a6a32'; c.beginPath(); c.arc(x - s * .3, y - s * .1, s * .09, 0, TAU); c.arc(x + s * .3, y - s * .1, s * .09, 0, TAU); c.fill();
+    c.strokeStyle = '#9a6a32'; c.lineWidth = s * .08; c.lineCap = 'round'; c.beginPath(); c.arc(x, y + s * .05, s * .32, .2 * Math.PI, .8 * Math.PI); c.stroke(); }
+}
+function crystal(x, y, s, col = '#8ef0e6', deep = '#5cc8d6'){
+  glow(x, y - s * .5, s * 1.4, 'rgba(140,240,230,.6)', .7);
+  c.fillStyle = deep; c.beginPath(); c.moveTo(x, y - s * 1.1); c.lineTo(x + s * .42, y - s * .45); c.lineTo(x, y); c.lineTo(x - s * .42, y - s * .45); c.closePath(); c.fill();
+  c.fillStyle = col; c.beginPath(); c.moveTo(x, y - s * 1.1); c.lineTo(x + s * .42, y - s * .45); c.lineTo(x, y - s * .35); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.moveTo(x - s * .1, y - s * .85); c.lineTo(x - s * .26, y - s * .48); c.lineTo(x - s * .1, y - s * .5); c.closePath(); c.fill();
+}
+function mushroom(x, y, s){
+  c.fillStyle = '#f3e7d6'; rr(x - s * .14, y - s * .5, s * .28, s * .5, s * .1); c.fill();
+  c.fillStyle = grad(x - s * .5, y - s, x + s * .5, y - s * .5, ['#ff9aa8', '#e5677d']); c.beginPath(); c.ellipse(x, y - s * .55, s * .5, s * .32, 0, Math.PI, 0); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.arc(x - s * .2, y - s * .7, s * .07, 0, TAU); c.arc(x + s * .14, y - s * .75, s * .06, 0, TAU); c.fill();
+}
+function balloon(x, y, s, col){
+  c.strokeStyle = 'rgba(60,60,80,.45)'; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y + s * .95); c.quadraticCurveTo(x + s * .2, y + s * 1.5, x - s * .1, y + s * 2.1); c.stroke();
+  c.fillStyle = grad(x - s, y - s, x + s, y + s, [col, shade(col)]); c.beginPath(); c.ellipse(x, y, s * .78, s * .95, 0, 0, TAU); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(x - s * .3, y - s * .35, s * .14, s * .24, -.5, 0, TAU); c.fill();
+}
+const shade = (hex) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.round(v * .78); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
+function hills(x, y, w, h, layers){
+  layers.forEach(([col, yy, amp, ph]) => {
+    c.fillStyle = col; c.beginPath(); c.moveTo(x, y + h);
+    for (let i = 0; i <= 40; i++){ const t = i / 40; c.lineTo(x + t * w, y + h * yy - Math.sin(t * Math.PI * 2 + ph) * amp - Math.sin(t * 9 + ph) * amp * .25); }
+    c.lineTo(x + w, y + h); c.closePath(); c.fill();
+  });
+}
+/* the hand ring (first person): a glowing ring in the player's colour */
+function hand(x, y, col){ glow(x, y, 70, col, .35); c.lineWidth = 9; c.strokeStyle = col; c.beginPath(); c.arc(x, y, 30, 0, TAU); c.stroke(); c.fillStyle = 'rgba(255,255,255,.9)'; c.beginPath(); c.arc(x, y, 19, 0, TAU); c.fill(); }
+/* a crew member (third person): a simple suited figure, with their marker */
+function crew(x, y, s, col, name){
+  c.fillStyle = 'rgba(20,30,60,.18)'; c.beginPath(); c.ellipse(x, y, s * .5, s * .12, 0, 0, TAU); c.fill();
+  c.fillStyle = '#eef1f8'; rr(x - s * .32, y - s * 1.25, s * .64, s * .78, s * .28); c.fill();                 // body
+  c.fillStyle = col; rr(x - s * .32, y - s * .82, s * .64, s * .14, s * .05); c.fill();                       // their colour band
+  c.fillStyle = '#dfe4ef'; rr(x - s * .3, y - s * .52, s * .22, s * .52, s * .1); c.fill(); rr(x + s * .08, y - s * .52, s * .22, s * .52, s * .1); c.fill();
+  c.fillStyle = '#f3f5fb'; c.beginPath(); c.arc(x, y - s * 1.45, s * .36, 0, TAU); c.fill();                  // helmet
+  c.fillStyle = grad(x - s * .25, y - s * 1.6, x + s * .25, y - s * 1.3, ['#2a3a6b', '#4b6fd1']); rr(x - s * .25, y - s * 1.58, s * .5, s * .28, s * .14); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(x - s * .1, y - s * 1.5, s * .08, s * .04, -.4, 0, TAU); c.fill();
+  // the marker: a small coloured pill with their name, and a point down
+  c.font = `600 ${s * .3}px ${HEAD}`; const w = c.measureText(name).width + s * .5, my = y - s * 2.25;
+  c.save(); shadow(10, 3, .2); c.fillStyle = col; rr(x - w / 2, my - s * .22, w, s * .44, s * .22); c.fill(); c.restore();
+  c.fillStyle = col; c.beginPath(); c.moveTo(x - s * .1, my + s * .2); c.lineTo(x + s * .1, my + s * .2); c.lineTo(x, my + s * .34); c.closePath(); c.fill();
+  text(name, x, my + 2, s * .3, { font: HEAD, color: '#fff', align: 'center' });
+}
+
+/* ================= the sheet ================= */
+c.fillStyle = '#f3f4f7'; c.fillRect(0, 0, 1920, 2720);
+text('The Orlis look', 80, 70, 64, { font: HEAD, weight: 600, base: 'top' });
+text('One style and one set of on-screen pieces for every game — in either view. Each game keeps its own world and mood.', 80, 150, 26, { weight: 400, color: SOFT, base: 'top' });
+
+/* ---- 1. the two views ---- */
+const VW = 860, VH = 484, VY = 230;
+function frame(x, y, draw){
+  c.save(); shadow(30, 12, .22); c.fillStyle = '#fff'; rr(x, y, VW, VH, 26); c.fill(); c.restore();
+  c.save(); rr(x, y, VW, VH, 26); c.clip(); c.translate(x, y); draw(); c.restore();
+}
+/* first person: Pop Party */
+frame(80, VY, () => {
+  c.fillStyle = grad(0, 0, 0, VH, ['#5fb4ff', '#a9dcff', '#e6f5ff']); c.fillRect(0, 0, VW, VH);
+  sun(130, 120, 44);
+  cloud(330, 100, 70); cloud(640, 70, 55); cloud(760, 170, 45, '#fff', .9);
+  hills(0, 0, VW, VH, [['#c7e3c1', .7, 18, 0], ['#9fd19a', .8, 16, 2], ['#7cc47a', .9, 12, 4]]);
+  roundTree(90, VH * .78, 70); roundTree(760, VH * .8, 60); pine(680, VH * .72, 70); roundTree(520, VH * .74, 40, '#a6d8a2', '#8cc88a');
+  for (let i = 0; i < 16; i++) grass(30 + i * 55, VH - 14 - (i % 3) * 6, 22);
+  balloon(300, 230, 46, '#ff6b8a'); balloon(470, 160, 40, '#6d8bff'); balloon(610, 260, 44, '#ffb347'); balloon(200, 330, 34, '#7ed6a0');
+  hand(470, 175, P[0]); hand(620, 300, P[1]);
+  toast(470, 126, 'Pop! +1', { color: P[0], size: 34 });
+  pill(22, 22, '12', { dot: P[0], h: 50 }); pill(VW - 22 - 100, 22, '9', { dot: P[1], h: 50, w: 100 });
+  pill(VW / 2 - 60, 22, '2:51', { h: 50, w: 120 });
+});
+label('First-person view  ·  Pop Party: your hands are the rings', 80, VY + VH + 18);
+
+/* third person: Last Known Position */
+frame(980, VY, () => {
+  c.fillStyle = grad(0, 0, 0, VH, ['#8f86d8', '#c7b7ea', '#f2dcef']); c.fillRect(0, 0, VW, VH);
+  glow(640, 110, 170, 'rgba(255,240,220,.8)', .7);
+  c.fillStyle = 'rgba(120,150,210,.55)'; c.beginPath(); c.arc(170, 90, 46, 0, TAU); c.fill();              // the planet
+  c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 4; c.beginPath(); c.ellipse(170, 90, 74, 16, -.3, 0, TAU); c.stroke();
+  cloud(420, 120, 60, '#fff', .85); cloud(720, 200, 46, '#fff', .7);
+  hills(0, 0, VW, VH, [['#b5a9df', .55, 26, 1], ['#8fbfa8', .66, 16, 3]]);
+  // the path, in perspective
+  c.fillStyle = '#7fc39a'; c.fillRect(0, VH * .6, VW, VH * .4);
+  c.fillStyle = grad(0, VH * .6, 0, VH, ['#c9b8a6', '#e2cfb9']); c.beginPath(); c.moveTo(VW * .44, VH * .6); c.lineTo(VW * .56, VH * .6); c.lineTo(VW * .86, VH); c.lineTo(VW * .14, VH); c.closePath(); c.fill();
+  pine(150, VH * .64, 90); roundTree(90, VH * .78, 80); pine(720, VH * .63, 80); roundTree(780, VH * .8, 70); mushroom(640, VH * .8, 46); mushroom(230, VH * .9, 36);
+  crystal(430, VH * .7, 26); crystal(470, VH * .64, 18); crystal(390, VH * .64, 16);
+  for (let i = 0; i < 10; i++) grass(20 + i * 30, VH - 20 - (i % 2) * 10, 20, '#5aa86f');
+  crew(345, VH * .93, 74, P[0], 'Deep'); crew(520, VH * .9, 70, P[1], 'Ollie');
+  pill(22, 22, '24', { icon: '💎', h: 50 });
+  message(VW - 22 - 430, 22, 430, 'Nova', 'Follow the river to the signal!', '#4f9be8');
+  moveCard(VW - 22 - 110, VH - 22 - 134, 110, 'jump', 'Jump', '#6d5efc', '#a66bf5');
+});
+label('Third-person view  ·  Last Known Position: a marker in your colour', 980, VY + VH + 18);
+
+/* ---- 2. the on-screen pieces ---- */
+let y2 = VY + VH + 90;
+heading('The same on-screen pieces in every game', 80, y2, 'Rounded "glass" pills and cards, Fredoka for numbers and short words, Inter for sentences. Only the accent colour changes per game.');
+y2 += 120;
+let x2 = 80;
+x2 += pill(x2, y2, '12', { dot: P[0] }) + 18; x2 += pill(x2, y2, '9', { dot: P[1] }) + 18; x2 += pill(x2, y2, '7', { dot: P[2] }) + 18; x2 += pill(x2, y2, '4', { dot: P[3] }) + 36;
+x2 += pill(x2, y2, '2:51') + 18; x2 += pill(x2, y2, '24', { icon: '💎' }) + 18; x2 += pill(x2, y2, '♥♥♥', { color: '#e5677d' }) + 18;
+label('score (one per player)  ·  timer  ·  gems  ·  lives', 80, y2 + 74);
+const ty = y2 + 190;
+toast(300, ty, 'Get ready!', { color: '#6d5efc' }); toast(720, ty, 'Nice!', { color: '#3fcf7f' }); toast(1110, ty, 'Step back in', { color: P[1] });
+toast(1500, ty, '3', { color: '#6d5efc', size: 80 });
+label('messages: get ready  ·  well done  ·  step back in  ·  countdown', 80, ty + 70);
+message(80, ty + 130, 720, 'Nova', 'Oh no… your Star Core is gone! Let’s find it.', '#4f9be8');
+message(840, ty + 130, 600, 'Pop Party', 'Golden balloon! Pop it for 5!', '#ff8a3d', 'balloon');
+label('message card: any game can talk to the players  (Nova here, a game host there)', 80, ty + 262);
+
+/* ---- 3. the move cards ---- */
+let y3 = ty + 330;
+heading('Move cards', 80, y3, 'One set of moves, drawn the same, with the same words, in every game — kids learn them once.');
+y3 += 120;
+const MOVES = [['jump', 'Jump'], ['duck', 'Duck'], ['left', 'Lean left'], ['right', 'Lean right'], ['reach', 'Reach up'], ['ear', 'Hand to ear'], ['wave', 'Wave'], ['pause', 'Pause']];
+const MC = [['#6d5efc', '#a66bf5'], ['#2bb6c9', '#5b8cf5'], ['#3fcf7f', '#2bb6c9'], ['#3fcf7f', '#2bb6c9'], ['#ff8a3d', '#ff6b8a'], ['#5b8cf5', '#6d5efc'], ['#ffb347', '#ff8a3d'], ['#8a8ea0', '#5b5f6e']];
+MOVES.forEach(([p, n], i) => moveCard(80 + i * 222, y3, 180, p, n, MC[i][0], MC[i][1]));
+
+/* ---- 4. the world pieces ---- */
+let y4 = y3 + 300;
+heading('World pieces', 80, y4, 'Shared clouds, trees, grass, sky, sun, crystals and creatures-to-come — so every game looks like the same universe.');
+y4 += 120;
+c.save(); shadow(24, 8, .14); c.fillStyle = '#fff'; rr(80, y4, 1760, 300, 26); c.fill(); c.restore();
+c.save(); rr(80, y4, 1760, 300, 26); c.clip();
+c.fillStyle = grad(0, y4, 0, y4 + 300, ['#eaf5ff', '#ffffff']); c.fillRect(80, y4, 1760, 300);
+const gy = y4 + 250;
+cloud(220, y4 + 120, 70); sun(440, y4 + 120, 48); roundTree(620, gy, 120); pine(780, gy, 130); grass(910, gy, 40); grass(960, gy, 30);
+crystal(1080, gy, 70); mushroom(1220, gy, 90); balloon(1380, y4 + 120, 50, '#ff6b8a'); balloon(1480, y4 + 100, 44, '#6d8bff');
+hills(1560, y4, 280, 300, [['#c7e3c1', .7, 14, 0], ['#9fd19a', .82, 12, 2], ['#7cc47a', .92, 8, 4]]);
+c.restore();
+['cloud', 'sun', 'round tree', 'pine', 'grass', 'crystal', 'mushroom', 'balloons', 'hills'].forEach((n, i) => label(n, [180, 405, 575, 750, 895, 1045, 1170, 1380, 1650][i], y4 + 314));
+
+/* ---- 5. colours and type ---- */
+let y5 = y4 + 400;
+heading('Colours and type', 80, y5);
+y5 += 80;
+const SW = [['#3da9ff', 'Player 1'], ['#ff8a3d', 'Player 2'], ['#3fcf7f', 'Player 3'], ['#c46bff', 'Player 4'], ['#6d5efc', 'Orlis violet'], ['#2bb6c9', 'Teal'], ['#16161d', 'Ink'], ['#f3f4f7', 'Paper']];
+SW.forEach(([col, n], i) => {
+  const x = 80 + i * 150;
+  c.save(); shadow(12, 4, .14); c.fillStyle = col; rr(x, y5, 120, 120, 26); c.fill(); c.restore();
+  text(n, x + 60, y5 + 146, 20, { weight: 600, color: SOFT, align: 'center' });
+});
+text('Fredoka', 1340, y5 + 30, 56, { font: HEAD, weight: 600 });
+text('numbers, short words: 12  2:51  Nice!', 1340, y5 + 82, 22, { weight: 400, color: SOFT });
+text('Inter', 1340, y5 + 140, 44, { weight: 600 });
+text('sentences: "Follow the river to the signal!"', 1340, y5 + 186, 22, { weight: 400, color: SOFT });
+})();
+</script></body></html>
