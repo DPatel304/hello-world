@@ -2,7 +2,7 @@
    every time. Four little lights - one in each player's colour - drift in
    from the corners on soft grey, swirl round each other and merge into the
    cube (the kalimba plays its do-mi-sol as they join), the name comes up
-   under it, then "Play as one" - four lights, one cube - and the cube winks. Then it breaks apart into tiles, and the
+   under it, then "Get up. Get together." - four lights, one cube - and the cube winks. Then it breaks apart into tiles, and the
    home screen's game tiles fly out from where it was (menu.js: arrive).
 
    The Easter egg: a player who waves while the lights are swirling sends
@@ -18,7 +18,7 @@ import { screen, h, clearUI } from './screens.js';
 
 /* Seconds: the lights arrive, swirl, merge; the name; the wink; where it
    waits for the camera; the break; the end. */
-/* (After the wink, two seconds more of the name and "Play as one" before it breaks.) */
+/* (After the wink, two seconds more of the name and the tagline before it breaks.) */
 export const ARRIVE = 0.8, MERGE = 2.2, NAME = 2.6, WINK = 3.5, HOLD = 5.95, BREAK = 6.0, BOOT = 6.3;
 /* The look: the room, and the cube's three faces. */
 export const PAPER = '#f3f4f7';
@@ -171,7 +171,7 @@ export function cube(c, x, y, s, eyes = null){
 
 /* The name: "Orlis" in bold ink, "Play" lighter in the cube's own colours,
    centred on x with its baseline on y. */
-export const NAME_A = 'Orlis', NAME_B = 'Play', TAGLINE = 'Play as one';
+export const NAME_A = 'Orlis', NAME_B = 'Play', TAGLINE = 'Get up. Get together.';
 export function wordmark(c, x, y, size){
   c.save(); c.textAlign = 'left'; c.textBaseline = 'middle';
   c.font = `700 ${Math.round(size)}px ${SYS}`; const wa = c.measureText(NAME_A + ' ').width;
@@ -182,7 +182,7 @@ export function wordmark(c, x, y, size){
   c.fillStyle = grad(c, x0 + wa, 0, x0 + wa + wb, 0, ['#2bb6c9', '#5b8cf5', '#a66bf5']);
   c.fillText(NAME_B, x0 + wa, y); c.restore();
 }
-/* "PLAY AS ONE", small and spaced out, under the name. */
+/* "GET UP. GET TOGETHER.", small and spaced out, under the name. */
 export function tagline(c, x, y, size, a = 1){
   c.save(); c.globalAlpha = a; c.fillStyle = '#5b5f6e'; c.textAlign = 'center'; c.textBaseline = 'middle';
   c.font = `500 ${Math.round(size)}px ${SYS}`;

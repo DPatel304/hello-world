@@ -57,7 +57,7 @@ function tag(c,cx,y,size,dark,align='center'){
   c.save();c.font=`500 ${size}px ${SYS}`;c.fillStyle=dark?'rgba(255,255,255,.7)':'#5b5f6e';
   c.textAlign=align;c.textBaseline='alphabetic';
   if('letterSpacing' in c) c.letterSpacing=(size*0.18)+'px';
-  c.fillText('PLAY AS ONE',cx,y);c.restore();
+  c.fillText('GET UP. GET TOGETHER.',cx,y);c.restore();
 }
 function dots(c,cx,y,r,gap){PC.forEach((col,k)=>{c.fillStyle=col;c.beginPath();c.arc(cx+(k-1.5)*gap,y,r,0,TAU);c.fill();});}
 function label(t,X,Y){x.save();x.font=`600 22px ${SYS}`;x.fillStyle='#8a8ea0';x.fillText(t,X,Y);x.restore();}
@@ -104,7 +104,7 @@ sb.forEach(([k,t],i)=>{const X=820+i*265,Y=1530,W=245,H=150;
  if(k===3){cube(x,cx,cy-10,24,{open:1,winkR:true,smile:true});dots(x,cx,cy+28,2.5,10);x.save();x.textAlign='left';word(x,cx,cy+56,22,false);x.restore();tag(x,cx,cy+72,8,false);}
  x.restore();x.save();x.font=`500 18px ${SYS}`;x.fillStyle='#5b5f6e';x.textAlign='center';x.fillText(`${i+1}. ${t}`,cx,Y+H+28);x.restore();
 });
-label('5 — The intro, unchanged: four players\u2019 lights become one (= Play as one)',820,1760);
+label('5 — The intro, unchanged: four players\u2019 lights come together',820,1760);
 // footer
 x.save();x.font=`700 30px ${SYS}`;x.fillStyle='#16161d';x.fillText('Orlis Play — logo mockup',60,2060);x.font=`400 22px ${SYS}`;x.fillStyle='#8a8ea0';x.fillText('Kept from the current intro: cube mascot, wink, four player dots, soft paper background, the light-merge intro. New: wordmark (Orlis bold + Play in the cube\u2019s gradient) and the tagline.',60,2100);x.restore();
 </script></body></html>
