@@ -25,6 +25,13 @@ const WAVE_GONE = 0.6;      /* seconds without a turn and the wave's over */
    too. The hand has to leave and come back, or wait this out. */
 const COOLDOWN = 0.75;
 
+/* Whether the game is the window in use (always, where that can't be told). */
+export function inFront(){
+  if (typeof document === 'undefined') return true;
+  if (document.hidden) return false;
+  return typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+}
+
 export const cursor = {
   rings: [],
   enabled: true,
@@ -46,6 +53,12 @@ export const cursor = {
   update(dt, root){
     this.rings.length = 0;
     if (!this.enabled){ this._clearFills(); return; }
+    /* Another window in front: the camera still sees the hands - typing,
+       reaching for the mouse - and those can look like a wave. So nothing
+       is picked while the game isn't the window in use, and coming back to
+       it, the hands wait a moment first (they may be mid-swing). */
+    if (!inFront()){ this._away = true; this._clearFills(); for (const s of this._state){ s.el = null; s.t = 0; s.cand = null; s.turns = 0; } return; }
+    if (this._away){ this._away = false; this.hold(COOLDOWN); }
     const seen = new Set();
 
     for (let i = 0; i < pose.players.length; i++){

@@ -232,3 +232,29 @@ test('a hand wobbling on the edge between two buttons does not flick between the
   assert.ok(b.classList.contains('hot'));
   pose.mouse.active = true;
 });
+
+/* The family's report: with another window in front, the camera still sees
+   hands typing and reaching for the mouse, and those looked like a wave over
+   whatever tile was under them - a game would start on its own. */
+test('nothing is picked while another window is in front, nor the moment it comes back', () => {
+  const ui = setup(); camera();
+  const b = place(button('Last Known Position'), 500, 300, 280, 160);
+  ui.appendChild(b);
+  let picks = 0;
+  onPick(b, () => picks++);
+  const c = centreOf(b);
+  const had = document.hasFocus;
+  document.hasFocus = () => false;
+  try {
+    point(ui, c.x, c.y, 1); wave(ui, c.x, c.y); wave(ui, c.x, c.y);
+    assert.equal(picks, 0, 'waving while the game is behind another window does nothing');
+    document.hasFocus = () => true;
+    wave(ui, c.x, c.y, 2);
+    assert.equal(picks, 0, 'nor straight away on coming back: the hand may be mid-swing');
+    point(ui, c.x, c.y, 1); wave(ui, c.x, c.y);
+    assert.equal(picks, 1, 'then a wave picks as usual');
+  } finally {
+    if (had) document.hasFocus = had; else delete document.hasFocus;
+    pose.mouse.active = true;
+  }
+});
