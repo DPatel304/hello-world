@@ -1,0 +1,38 @@
+# Orlis Server
+
+The Orlis Play server for one home: accounts, kids' profiles, invites, and
+(next) the store. It runs on a laptop and answers **only devices on the same
+home Wi-Fi** - it is not on the internet.
+
+## On the laptop (Windows 11)
+
+1. Download **Orlis-Server.exe**:
+   https://github.com/dpatel304/hello-world/releases/download/server/Orlis-Server.exe
+2. Make a folder for it, such as `Documents\Orlis Server`, and put it there.
+   Its data goes in an `Orlis Server data` folder beside it.
+3. Double-click it. A window opens saying it's running - leave it open.
+4. If Windows Firewall asks, tick **Private networks** only (not Public).
+   Your home Wi-Fi should be set to Private: Settings > Network & internet >
+   Wi-Fi > your network > Private network.
+5. The first account made becomes the **owner** (you). After that, joining
+   needs an invite code from the owner.
+
+**Back up** by copying the `Orlis Server data` folder (with the server closed).
+
+## How it stays private
+
+- It listens on the home network only; the router keeps the internet out, and
+  nothing is forwarded to it.
+- Orlis Play finds it with a Wi-Fi broadcast, which never leaves the home.
+- Passwords are kept as scrypt hashes, sign-in tokens as hashes too.
+- Accounts are for parents and guardians (18+). Kids are profiles: a first
+  name and an avatar, nothing else.
+
+## For development
+
+    npm install
+    npm test                 # the tests, against a real server
+    npm start                # run it from the code (data in ./data)
+    node build-exe.mjs       # build the single program file into dist/
+
+Ports: 47871 (the app talks to it here), 47870 UDP (Wi-Fi discovery).

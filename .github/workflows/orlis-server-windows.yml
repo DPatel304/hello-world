@@ -1,0 +1,73 @@
+# Builds Orlis Server.exe - the home server, for the laptop - and puts it on
+# a release that's refilled each time, at an address that never changes:
+#   https://github.com/dpatel304/hello-world/releases/download/server/Orlis-Server.exe
+#
+# Runs when the server's code changes, or by hand (Actions > Orlis Server for
+# Windows > Run workflow).
+name: Orlis Server for Windows
+
+on:
+  push:
+    branches: [claude/mgs-parody-level-wb4agd]
+    paths:
+      - 'server/**'
+      - '.github/workflows/orlis-server-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: orlis-server-windows
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build Orlis Server.exe
+        run: node build-exe.mjs
+
+      # The exe itself, started for real: it has to answer before it ships.
+      - name: Check it runs
+        shell: pwsh
+        run: |
+          $env:ORLIS_DATA = Join-Path $env:RUNNER_TEMP 'orlis-check'
+          $p = Start-Process -FilePath 'dist\Orlis Server.exe' -PassThru -WindowStyle Hidden
+          $hello = $null
+          for ($i = 0; $i -lt 20 -and -not $hello; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { $hello = Invoke-RestMethod http://localhost:47871/api/hello } catch { }
+          }
+          Stop-Process -Id $p.Id -Force
+          if (-not $hello -or $hello.app -ne 'orlis') { throw 'Orlis Server.exe did not answer' }
+          Write-Host "answered: $($hello | ConvertTo-Json -Compress)"
+
+      - name: Publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp "dist/Orlis Server.exe" Orlis-Server.exe
+          gh release delete server --yes --cleanup-tag 2>/dev/null || true
+          gh release create server Orlis-Server.exe \
+            --target "${{ github.sha }}" --prerelease \
+            --title "Orlis Server" \
+            --notes "The Orlis home server, for the laptop. Download Orlis-Server.exe, put it in a folder of its own (its data goes beside it), and double-click it. If Windows asks, allow it on Private networks only."
