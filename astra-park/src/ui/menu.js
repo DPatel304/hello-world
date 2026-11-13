@@ -46,7 +46,13 @@ const GLYPHS = {
   note: '<ellipse cx="38" cy="72" rx="12" ry="9" transform="rotate(-20 38 72)" fill="#fff"/><path d="M47 70V20l26 8v12l-20-6v36" fill="#fff"/>',
   tower: '<path d="M30 30h8v-8h8v8h8v-8h8v8h8v14H30z" fill="#fff"/><path d="M34 44h32v36H34z" fill="#fff"/><path d="M45 80V64a5 5 0 0 1 10 0v16z" fill="#000" opacity=".15"/>'
 };
-const iconOf = (g) => ICONS[g.id] || { cols: [g.accent, g.accent], glyph: 'balloon' };
+/* A game's icon: its own, or the one its Store entry gave it (a picture
+   drawn in simple shapes - anything that could run code is turned away). */
+const safeSvg = (svg) => typeof svg === 'string' && svg.length < 4000 && !/<\s*script|\bon\w+\s*=|javascript:|<\s*foreign|href/i.test(svg) ? svg : null;
+export const iconOf = (g) => ICONS[g.id]
+  || (g.store && g.store.icon && { cols: g.store.icon.cols.length === 2 ? g.store.icon.cols : [g.accent, g.accent], glyph: 'balloon', svg: safeSvg(g.store.icon.glyph) })
+  || { cols: [g.accent, g.accent], glyph: 'balloon' };
+export { GLYPHS };
 
 /* Games kept off the home screen for now (still there, just not shown). */
 export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']);
@@ -88,7 +94,7 @@ const LAUNCH = 0.5;            /* seconds of going in */
 const POINT_AGAIN = 0.04;      /* how far (of the screen) a hand moves to take over from the remote */
 const FLY = 0.7, FLY_STAGGER = 0.05;   /* arriving: each tile's flight, one after another */
 
-export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
+export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
   clearUI();
   const s = screen('tvhome' + (arrive ? ' arrive' : ''));
 
@@ -109,7 +115,7 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   if (pose.mouse.active && pose.reason !== 'debug') s.appendChild(h('div', 'warnstrip', '⚠ No camera — the mouse is playing'));
 
   const items = [];
-  for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: iconOf(g).cols[0], icon: iconOf(g), name: g.name, blurb: BLURB[g.id] || '', paint: poster(g), trailer: undefined });
+  for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: iconOf(g).cols[0], icon: iconOf(g), name: g.name, blurb: BLURB[g.id] || (g.store && g.store.blurb) || '', paint: poster(g), trailer: undefined });
 
   /* the banner */
   const hero = h('div', 'hero');
@@ -137,7 +143,7 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
   const cards = items.map((it, n) => {
     const card = button('', 'tvtile');
     card.style.setProperty('--accent', it.accent);
-    const pic = h('div', 'icon', `<svg viewBox="0 0 100 100" aria-hidden="true">${GLYPHS[it.icon.glyph]}</svg>`);
+    const pic = h('div', 'icon', `<svg viewBox="0 0 100 100" aria-hidden="true">${it.icon.svg || GLYPHS[it.icon.glyph]}</svg>`);
     pic.style.setProperty('--c1', it.icon.cols[0]); pic.style.setProperty('--c2', it.icon.cols[1]);
     card.insertBefore(pic, card.firstChild);
     card.querySelector('.lbl').innerHTML = `<span class="tn"></span><span class="tvsub">${howMany(it.g)}</span>`;
@@ -197,8 +203,9 @@ export function menu({ onPlay, onRecalibrate, onWho, arrive = false }){
     const card = h('div', 'popcard');
     const shut = () => { if (!open) return; open.remove(); open = null; };
     for (const m of MENU){
-      const b = onPick(button(`<span class="pi">${m.icon}</span><span class="pn">${m.name}</span>${m.soon ? '<span class="soon">Soon</span>' : ''}`, 'popitem'), () => {
+      const b = onPick(button(`<span class="pi">${m.icon}</span><span class="pn">${m.name}</span>${m.soon && !(m.id === 'store' && onStore) ? '<span class="soon">Soon</span>' : ''}`, 'popitem'), () => {
         sfx.select(); shut();
+        if (m.id === 'store' && onStore) return onStore();
         if (m.soon) return comingSoon(m);
         if (m.id === 'settings') settings(onRecalibrate);
       });

@@ -804,3 +804,24 @@ body.dark .titlebar .tbbtn:hover{ background:rgba(255,255,255,.08); }
 body.dark .buildstamp{ color:#8d91a8; }
 /* (the banner's Play stays bright on the dark banner, in either theme) */
 body.dark .btn.play{ background:#fff; color:#15132b; border:none; }
+
+/* ---------- the Store ---------- */
+.setcard.storecard{ width:min(94vw, 46em); }
+.storelist{ display:flex; flex-direction:column; }
+.storemsg{ margin:2.4vh 0; color:#5b5f6e; text-align:center; }
+.storerow{ display:flex; align-items:center; gap:1.1em; padding:1.6vh 0; border-top:1px solid #eef0f4; }
+.storeicon{ flex:none; width:4.2em; height:4.2em; border-radius:23%; background:linear-gradient(135deg, var(--c1), var(--c2)); display:flex; align-items:center; justify-content:center; box-shadow:0 .5em 1.2em color-mix(in srgb, var(--c1) 35%, transparent); }
+.storeicon svg{ width:58%; height:58%; }
+.storeinfo{ flex:1; min-width:0; }
+.storeinfo .sname{ font-weight:700; font-size:1.1em; }
+.storeinfo .sblurb{ color:#5b5f6e; margin:.15em 0; }
+.storeinfo .smeta{ color:#8a8ea0; font-size:.8em; }
+.storeact{ flex:none; display:flex; align-items:center; gap:.5em; }
+.btn.setbtn.sget, .btn.setbtn.splay{ background:#6d5efc; color:#fff; border:none; padding:.55em 1.4em; }
+.btn.setbtn.sremove{ color:#8a8ea0; }
+.sbar{ width:8em; height:.5em; border-radius:99px; background:#e3e5ec; overflow:hidden; }
+.sbar i{ display:block; height:100%; width:2%; background:linear-gradient(90deg,#2bb6c9,#5b8cf5,#a66bf5); transition:width .2s ease; }
+.serr{ color:#be123c; font-size:.8em; max-width:14em; }
+body.dark .storerow{ border-color:#262939; }
+body.dark .storeinfo .sblurb, body.dark .storemsg{ color:#a3a7bd; }
+body.dark .sbar{ background:#262939; }

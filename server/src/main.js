@@ -5,6 +5,9 @@
 import './quiet.js';
 import { dirname, join } from 'node:path';
 import { networkInterfaces } from 'node:os';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import * as sea from 'node:sea';
 import { start, VERSION } from './app.js';
 
 const exeDir = dirname(process.execPath);
@@ -14,9 +17,22 @@ const dataDir = process.env.ORLIS_DATA || (runningAsExe ? join(exeDir, 'Orlis Se
 const lan = Object.values(networkInterfaces()).flat()
   .filter(n => n && n.family === 'IPv4' && !n.internal).map(n => n.address);
 
+/* The games this server comes with: inside the exe (see build-exe.mjs), or,
+   run from the code, the ones built into server/starter/. */
+function starters(){
+  try {
+    if (sea.isSea()){
+      const names = JSON.parse(Buffer.from(sea.getAsset('starters.json')).toString('utf8'));
+      return names.map(name => ({ name, data: Buffer.from(sea.getAsset(`starter/${name}`)) }));
+    }
+    const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'starter');
+    return readdirSync(dir).filter(f => f.endsWith('.orlis')).map(name => ({ name, data: readFileSync(join(dir, name)) }));
+  } catch { return []; }
+}
+
 async function main(){
   try {
-    const s = await start({ dataDir, name: process.env.ORLIS_NAME });
+    const s = await start({ dataDir, name: process.env.ORLIS_NAME, starters: starters() });
     const line = '-'.repeat(60);
     console.log(`${line}
   Orlis Server ${VERSION} is running: "${s.info.name}"
@@ -27,6 +43,9 @@ async function main(){
 
   Only devices on this home network can reach it - it is not on
   the internet. If Windows asks, allow it on PRIVATE networks only.
+
+  Games in the Store: ${s.store.games().map(g => g.name).join(', ') || 'none yet'}
+  (add a game by putting its .orlis file in ${s.store.dir})
 
   Data: ${dataDir}
   To stop it, close this window.

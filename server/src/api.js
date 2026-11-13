@@ -27,7 +27,7 @@ export const LIMITS = {
 export const AVATARS = ['cube', 'rocket', 'star', 'moon', 'balloon', 'fish', 'dino', 'cat', 'dog', 'owl', 'bee', 'leaf'];
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 
-export function api(db, info){
+export function api(db, info, extra = () => []){
   const q = (sql) => db.prepare(sql);
   const tries = new Map();      /* email -> { n, until } */
 
@@ -86,6 +86,7 @@ export function api(db, info){
   const accounts = () => q('SELECT COUNT(*) AS n FROM accounts').get().n;
 
   return [
+    ...extra(who),
     /* The app's "is this an Orlis server, and does it need setting up?" */
     ['GET', '/api/hello', () => ({ app: 'orlis', name: info.name, version: info.version, setup: accounts() === 0 })],
 

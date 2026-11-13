@@ -8,7 +8,7 @@
    carry; copy this Node program and stamp the blob into the copy. */
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync, chmodSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const win = process.platform === 'win32';
@@ -18,12 +18,22 @@ mkdirSync(out, { recursive: true });
 
 await build({
   entryPoints: ['src/main.js'], bundle: true, platform: 'node', target: 'node22',
-  format: 'cjs', outfile: join(out, 'orlis-server.cjs'), logLevel: 'warning'
+  format: 'cjs', outfile: join(out, 'orlis-server.cjs'), logLevel: 'warning',
+  /* (import.meta.url is only used run from the code, never in the exe) */
+  define: { 'import.meta.url': '"file:///orlis-server.cjs"' }
 });
+/* the starter games (built by astra-park/kit/build-orlis.mjs into
+   starter/), carried inside the exe */
+const starters = existsSync('starter') ? readdirSync('starter').filter(f => f.endsWith('.orlis')) : [];
+if (!starters.length) console.warn('(no starter games in starter/ - the Store will start empty)');
+writeFileSync(join(out, 'starters.json'), JSON.stringify(starters));
+const assets = { 'starters.json': join(out, 'starters.json') };
+for (const f of starters) assets[`starter/${f}`] = join('starter', f);
 writeFileSync(join(out, 'sea-config.json'), JSON.stringify({
   main: join(out, 'orlis-server.cjs'), output: join(out, 'sea.blob'),
-  disableExperimentalSEAWarning: true, useCodeCache: false
+  disableExperimentalSEAWarning: true, useCodeCache: false, assets
 }));
+console.log(`starter games: ${starters.join(', ') || 'none'}`);
 execFileSync(process.execPath, ['--experimental-sea-config', join(out, 'sea-config.json')], { stdio: 'inherit' });
 copyFileSync(process.execPath, exe);
 if (win){

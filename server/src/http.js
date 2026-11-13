@@ -8,6 +8,11 @@ export class Fail extends Error {
 
 const MAX_BODY = 64 * 1024;
 
+/* A reply that's a file rather than JSON. */
+export class Raw {
+  constructor(data, name, type = 'application/octet-stream'){ this.data = data; this.name = name; this.type = type; }
+}
+
 /* routes: [method, '/api/thing/:id', handler(req) -> body | [status, body]] */
 export function makeServer(routes){
   const table = routes.map(([method, path, fn]) => {
@@ -37,6 +42,12 @@ export function makeServer(routes){
     } catch (e){
       if (e instanceof Fail){ status = e.status; body = { error: e.code, message: e.message }; }
       else { console.error(e); status = 500; body = { error: 'server', message: 'Something went wrong on the server.' }; }
+    }
+    /* a file, sent as it is (a game download) */
+    if (body instanceof Raw){
+      res.writeHead(status, { 'Content-Type': body.type, 'Content-Length': body.data.length, 'Content-Disposition': `attachment; filename="${body.name}"` });
+      res.end(body.data);
+      return;
     }
     const text = JSON.stringify(body ?? {});
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(text) });

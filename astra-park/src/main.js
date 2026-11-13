@@ -5,6 +5,9 @@ import { remote, typing } from './ui/remote.js';
 import { account, welcome } from './ui/account.js';
 import { installTitlebar, titlebarPlaying } from './ui/titlebar.js';
 import { theme, applyTheme, DARK_PAPER } from './ui/theme.js';
+import { installKit } from './kit.js';
+import { library } from './ui/library.js';
+import { openStore } from './ui/store.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -56,7 +59,8 @@ function toMenu(arrive = false){
   voice.hush();
   if (mode === 'results' || mode === 'play' || mode === 'outro') sfx.back();
   pose.keepSitters = false;
-  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, onWho: () => toWho(false), arrive }));
+  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, onWho: () => toWho(false),
+    onStore: account.needed ? () => openStore({ onChange: () => toMenu(false), onPlay: toGame }) : null, arrive }));
 }
 
 /* The Windows app's way in: find the server and sign in (once), then pick
@@ -340,6 +344,9 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
 (async function boot(){
   document.title = 'Orlis Play';
   applyTheme();
+  /* the Game Kit for downloaded games, and the ones already downloaded */
+  installKit();
+  const libraryReady = account.needed ? library.load() : Promise.resolve();
   installTitlebar();
   const params = new URLSearchParams(location.search), debug = params.has('debug');
   const straight = START_IN && !params.has('home') ? byId(START_IN) : null;
@@ -358,6 +365,7 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
     const wait = () => { if (show.done && ready) res(); else setTimeout(wait, 50); };
     wait();
   });
+  await libraryReady;
   /* Straight into the game being worked on; or from the intro to the home
      screen, its tiles flying out of the cube. */
   if (straight) toGame(straight);

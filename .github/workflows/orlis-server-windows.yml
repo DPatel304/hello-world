@@ -11,6 +11,9 @@ on:
     branches: [claude/mgs-parody-level-wb4agd]
     paths:
       - 'server/**'
+      - 'astra-park/kit/**'
+      - 'astra-park/src/games/pop-party*.js'
+      - 'astra-park/src/games/common.js'
       - '.github/workflows/orlis-server-windows.yml'
   workflow_dispatch:
 
@@ -34,10 +37,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: |
+            server/package-lock.json
+            astra-park/package-lock.json
 
       - name: Install
         run: npm ci
+
+      # The games the server comes with: Pop Party, as a .orlis file.
+      - name: Build the starter games
+        working-directory: astra-park
+        run: |
+          npm ci
+          node kit/build-orlis.mjs
 
       - name: Test
         run: npm test
@@ -58,6 +70,7 @@ jobs:
           }
           Stop-Process -Id $p.Id -Force
           if (-not $hello -or $hello.app -ne 'orlis') { throw 'Orlis Server.exe did not answer' }
+          if (-not (Test-Path (Join-Path $env:ORLIS_DATA 'games\pop-party.orlis'))) { throw 'Pop Party is not in the Store' }
           Write-Host "answered: $($hello | ConvertTo-Json -Compress)"
 
       - name: Publish
@@ -66,8 +79,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cp "dist/Orlis Server.exe" Orlis-Server.exe
+          cp starter/pop-party.orlis Pop-Party.orlis
           gh release delete server --yes --cleanup-tag 2>/dev/null || true
-          gh release create server Orlis-Server.exe \
+          gh release create server Orlis-Server.exe Pop-Party.orlis \
             --target "${{ github.sha }}" --prerelease \
             --title "Orlis Server" \
             --notes "The Orlis home server, for the laptop. Download Orlis-Server.exe, put it in a folder of its own (its data goes beside it), and double-click it. If Windows asks, allow it on Private networks only."

@@ -17,6 +17,15 @@ home Wi-Fi** - it is not on the internet.
 5. The first account made becomes the **owner** (you). After that, joining
    needs an invite code from the owner.
 
+## The Store
+
+The games in the Store are the `.orlis` files in `Orlis Server data\games`.
+The server comes with **Pop Party** and puts it there the first time it runs.
+To add a game, put its `.orlis` file in that folder; to take one out of the
+Store, delete its file (it won't be put back). A newer version of a game
+replaces the older one. Orlis Play's Store lists them; downloading one puts it
+on that PC's home screen, playable with the server off.
+
 **Back up** by copying the `Orlis Server data` folder (with the server closed).
 
 ## How it stays private
