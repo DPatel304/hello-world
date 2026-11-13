@@ -18,7 +18,11 @@ else {
   if ($js.Length -gt 1000000) { $problems.Add('game.js is very big - keep it under a megabyte.') }
   $seen = @{}
   foreach ($f in $forbidden) {
-    if ($js.Contains($f[0]) -and -not $seen.ContainsKey($f[1])) { $seen[$f[1]] = 1; $problems.Add("game.js uses $($f[0].TrimEnd('(')), which reaches for $($f[1]). Games can't - take it out.") }
+    if ($js.Contains($f[0]) -and -not $seen.ContainsKey($f[1])) {
+      # (joined with + : Windows PowerShell 5 misreads quotes inside "$(...)")
+      $seen[$f[1]] = 1; $w = $f[0].TrimEnd('(')
+      $problems.Add('game.js uses ' + $w + ', which reaches for ' + $f[1] + '. Games can''t - take it out.')
+    }
   }
   if ($js -notmatch 'Orlis\.run\(') { $problems.Add('game.js must end with Orlis.run({ ... }).') }
   if ($js -match '(?m)^\s*(import|export)\s') { $problems.Add('game.js is one plain script: no import or export - everything comes from Orlis.') }
