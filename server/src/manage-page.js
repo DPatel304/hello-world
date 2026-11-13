@@ -6,7 +6,8 @@
 
    One page, nothing loaded from anywhere: its look and its code are below.
    It asks the server's usual routes, with the key the cube opened it with
-   (in the address after #, which never leaves the laptop). */
+   (in the address, which never leaves the laptop - and is taken out of
+   sight as the page opens). */
 export function managePage(){
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -55,7 +56,7 @@ button.danger{ color:var(--bad); }
 (function(){
   /* the key: from the address the cube opened (then out of sight) */
   var key = '';
-  try { var m = /k=([0-9a-f]+)/.exec(location.hash); if (m){ key = m[1]; sessionStorage.setItem('k', key); history.replaceState(null, '', location.pathname); } else key = sessionStorage.getItem('k') || ''; } catch (e) {}
+  try { var m = /[?#&]k=([0-9a-f]+)/.exec(location.search + location.hash); if (m){ key = m[1]; sessionStorage.setItem('k', key); history.replaceState(null, '', location.pathname); } else key = sessionStorage.getItem('k') || ''; } catch (e) {}
   var main = document.getElementById('main'), tab = 'overview';
   function esc(t){ return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
   function when(iso){ var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); }

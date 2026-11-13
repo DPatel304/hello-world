@@ -72,7 +72,7 @@ export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PO
   first.unref?.(); every.unref?.();
   return {
     port: at, info, db, discovery: udp, store: shop, backups: safe, restored, manageKey,
-    manageUrl: `http://127.0.0.1:${at}/manage#k=${manageKey}`,
+    manageUrl: `http://127.0.0.1:${at}/manage?k=${manageKey}`,
     close: () => new Promise((ok) => { clearTimeout(first); clearInterval(every); udp?.close(); web.close(() => { db.close(); ok(); }); web.closeAllConnections?.(); })
   };
 }

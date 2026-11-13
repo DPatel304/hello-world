@@ -57,10 +57,9 @@ test('after an update, it starts the new exe and closes; a restore restarts the 
   assert.ok(w.toTray.includes('exit')); assert.equal(w.exited, 0);
 });
 
-test('started as the new version, it says so, and tells the server', async () => {
+test('started as the new version, it tells the server', async () => {
   const w = world(); supervise({ ...w.opts, afterUpdate: true }); await wait(30);
   assert.deepEqual(w.spawned[1], [w.opts.exe, [WORKER, AFTER_UPDATE]]);
-  assert.ok(w.toTray.some(l => l.startsWith('say Orlis Server updated')));
 });
 
 test('Quit from the icon stops the server and closes everything', async () => {
@@ -90,13 +89,11 @@ test('Manage opens the management page on this laptop, with its key', async () =
   writeFileSync(join(w.opts.dataDir, 'manage.key'), 'abc123');
   supervise(w.opts); await wait(30);
   w.tray.stdout.write('manage\n'); await wait(20);
-  assert.deepEqual(w.spawned.at(-1), ['explorer.exe', ['http://127.0.0.1:47871/manage#k=abc123']]);
+  assert.deepEqual(w.spawned.at(-1), ['rundll32.exe', ['url.dll,FileProtocolHandler', 'http://127.0.0.1:47871/manage?k=abc123']]);
 });
 
-test('where it is, said only the first time it ever runs', async () => {
+test('it starts quietly: no note as it starts, or after an update', async () => {
   const w = world(); supervise(w.opts); await wait(30);
-  assert.ok(w.toTray.some(l => l.startsWith('say Orlis Server is running')));
-  const again = world(); again.opts.dataDir = w.opts.dataDir;
-  supervise(again.opts); await wait(30);
-  assert.ok(!again.toTray.some(l => l.startsWith('say ')), 'not the second time');
+  const u = world(); supervise({ ...u.opts, afterUpdate: true }); await wait(30);
+  assert.ok(!w.toTray.some(l => l.startsWith('say ')) && !u.toTray.some(l => l.startsWith('say ')));
 });

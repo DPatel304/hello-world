@@ -121,7 +121,9 @@ export function supervise({ exe, dataDir, version, afterUpdate = false, spawn = 
     let key = '';
     try { key = readFileSync(join(dataDir, 'manage.key'), 'utf8').trim(); } catch {}
     if (!key){ tell("say Orlis Server is starting|Try Manage again in a moment."); return; }
-    open('explorer.exe', [`http://127.0.0.1:${port}/manage#k=${key}`]);
+    /* (Windows' own "open this link in the browser" - Explorer would take
+       an address for a folder) */
+    open('rundll32.exe', ['url.dll,FileProtocolHandler', `http://127.0.0.1:${port}/manage?k=${key}`]);
   }
 
   /* the server */
@@ -184,13 +186,8 @@ export function supervise({ exe, dataDir, version, afterUpdate = false, spawn = 
     log(`-- Orlis Server ${version} starting --`);
     startTray();
     tell('status Orlis Server ' + version + ' - running');
-    /* where it is - said the first time it ever runs, not every time */
-    const told = join(dataDir, '.shown-where');
-    if (afterUpdate) tell(`say Orlis Server updated|Now version ${version}.`);
-    else if (!existsSync(told)){
-      tell("say Orlis Server is running|It's here by the clock. Double-click the cube to manage it; right-click for more.");
-      try { appendFileSync(told, ''); } catch {}
-    }
+    /* (quietly: no note as it starts, or after an update - only when
+       something needs saying: already running, or it keeps stopping) */
     startWorker();
   }
   begin();

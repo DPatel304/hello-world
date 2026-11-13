@@ -104,7 +104,7 @@ test("the management page: this laptop only, and the owner's routes only with it
     const inv = await as(s.manageKey, '/api/invites', 'POST', { household: 'new' });
     assert.equal(inv.household, 'new');
     assert.equal((await as(s.manageKey, '/api/store')).games.length, 1);
-    assert.match(s.manageUrl, new RegExp(`/manage#k=${s.manageKey}$`));
+    assert.match(s.manageUrl, new RegExp(`/manage\\?k=${s.manageKey}$`));
     assert.ok(isLocal('127.0.0.1') && isLocal('::1') && isLocal('::ffff:127.0.0.1'));
     assert.ok(!isLocal('192.168.1.20') && !isLocal('::ffff:192.168.1.20'), 'never from another device on the Wi-Fi');
   } finally { await s.close(); }
