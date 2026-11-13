@@ -1,0 +1,8 @@
+[
+  ["fetch(", "the internet"], ["XMLHttpRequest", "the internet"], ["WebSocket", "the internet"], ["EventSource", "the internet"],
+  ["sendBeacon", "the internet"], ["RTCPeerConnection", "the internet"], ["importScripts", "other code"], ["import(", "other code"],
+  ["eval(", "code made up as it runs"], ["new Function", "code made up as it runs"], ["document.cookie", "the app's storage"],
+  ["localStorage", "the app's storage"], ["sessionStorage", "the app's storage"], ["indexedDB", "the app's storage"],
+  ["window.parent", "other windows"], ["window.top", "other windows"], ["top.location", "other windows"], ["window.open", "other windows"],
+  ["opener", "other windows"], ["navigator.", "the computer's details"], ["Worker(", "other code"]
+]
