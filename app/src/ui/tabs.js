@@ -9,15 +9,20 @@ import { button, onPick } from './cursor.js';
 import { screen, h } from './screens.js';
 import { sfx } from '../audio/sound.js';
 import { pose } from '../tracking/pose.js';
-import { MARK } from './boot.js';
+import { mark } from './boot.js';
 import { account, AVATARS } from './account.js';
 import { openSettings } from './menu.js';
 
 export const TABS = [['home', 'Home'], ['store', 'Store'], ['create', 'Create']];
 
+/* The tab you were on last: going to another, its highlight slides over
+   and the page comes in from that side - the bar itself stays put. */
+let lastTab = null;
+
 export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false } = {}){
   const top = h('div', 'tvtop');
-  const brand = h('div', 'brand', `<span class="mark">${MARK}</span><span>Orlis <i class="play">Play</i></span>`);
+  const from = lastTab; lastTab = page;
+  const brand = h('div', 'brand', `<span class="mark">${mark()}</span><span>Orlis <i class="play">Play</i></span>`);
   /* who's playing (in the Windows app): their picture and name, and picking
      it goes back to "Who's playing?" */
   const who = account.current;
@@ -38,6 +43,24 @@ export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false }
   });
   const sys = h('div', 'tvsys'); sys.append(cam, clock, burger);
   top.append(brand, tabs, sys);
+
+  /* the highlight, one pill under the tabs, sliding from the last one */
+  const at = TABS.findIndex(([id]) => id === page), was = TABS.findIndex(([id]) => id === from);
+  if (at >= 0){
+    const pill = h('i', 'tvpill', '');
+    tabs.prepend(pill); tabs.classList.add('pilled');
+    const place = (i) => { const el = tabs.children[i + 1]; pill.style.left = el.offsetLeft + 'px'; pill.style.width = el.offsetWidth + 'px'; };
+    requestAnimationFrame(() => {
+      if (!top.isConnected) return;
+      const s = top.parentElement;
+      if (was >= 0 && was !== at){
+        place(was); pill.getBoundingClientRect();
+        pill.classList.add('slide');
+        s && s.classList.add('tabin', was < at ? 'fromright' : 'fromleft');
+      }
+      place(at);
+    });
+  }
 
   let since = 1;
   return {

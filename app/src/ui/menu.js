@@ -53,6 +53,25 @@ export const iconOf = (g) => ICONS[g.id]
   || { cols: [g.accent, g.accent], glyph: 'balloon' };
 export { GLYPHS };
 
+/* A game's look - in the Store, and on Home: its icon, and its art - the icon's colours,
+   big and soft, with its picture - for anywhere it isn't playing itself. */
+export function looks(g){
+  const ic = iconOf({ id: g.id, accent: (g.icon && g.icon.cols && g.icon.cols[0]) || '#6d5efc', store: { icon: g.icon || { cols: [] } } });
+  const glyph = ic.svg || GLYPHS[ic.glyph] || GLYPHS.balloon;
+  const icon = (cls = 'sicon') => {
+    const d = h('div', cls, `<svg viewBox="0 0 100 100" aria-hidden="true">${glyph}</svg>`);
+    d.style.setProperty('--c1', ic.cols[0]); d.style.setProperty('--c2', ic.cols[1] || ic.cols[0]);
+    return d;
+  };
+  const art = (cls = 'sart') => {
+    const d = h('div', cls, `<svg class="g" viewBox="0 0 100 100" aria-hidden="true">${glyph}</svg>`);
+    d.style.setProperty('--c1', ic.cols[0]); d.style.setProperty('--c2', ic.cols[1] || ic.cols[0]);
+    return d;
+  };
+  return { icon, art, accent: ic.cols[0] };
+}
+
+
 /* Games kept off the home screen for now (still there, just not shown). */
 export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']);
 /* What was picked last - kept between launches, by game. */
@@ -74,7 +93,7 @@ export const CREATE_SOON = {
 /* nav: { home(), store(), create() } - the tabs in the top bar. */
 export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false }){
   clearUI();
-  const s = screen('tvhome' + (arrive ? ' arrive' : ''));
+  const s = screen('tvhome homepage onhero' + (arrive ? ' arrive' : ''));
 
   /* the top bar, with the tabs */
   const bar = topBar('home', nav, { onWho, onRecalibrate, isBusy: () => !!going });
@@ -84,13 +103,15 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
   const items = [];
   for (const g of GAMES) if (!HIDDEN.has(g.id)) items.push({ kind: 'game', g, shelf: 'games', accent: iconOf(g).cols[0], icon: iconOf(g), name: g.name, blurb: BLURB[g.id] || (g.store && g.store.blurb) || '', paint: poster(g), trailer: undefined });
 
-  /* the banner */
-  const hero = h('div', 'hero');
-  const heroPic = document.createElement('canvas'); heroPic.className = 'heropic';
-  const hname = h('div', 'hname'), hblurb = h('div', 'hblurb'), hmoves = h('div', 'hmoves');
-  const play = onPick(button('<span class="tri"></span>Play', 'play'), () => choose(focus));
-  const htext = h('div', 'herotext'); htext.append(hname, hblurb, hmoves, play);
-  hero.append(heroPic, h('div', 'heroshade'), htext);
+  /* the banner: the game you're on, playing itself, right across the top -
+     the same banner as the Store's and Create's */
+  const hero = h('section', 'shero');
+  const heroPic = document.createElement('canvas'); heroPic.className = 'sheropic shown';
+  const hname = h('h1', ''), hblurb = h('p', ''), hmoves = h('div', 'schips');
+  const play = onPick(button('<span class="tri"></span>Play', 'sbtn play'), () => choose(focus));
+  const btns = h('div', 'sbtns'); btns.appendChild(play);
+  const htext = h('div', 'shtext'); htext.append(h('div', 'skicker', 'Ready to play'), hname, hblurb, hmoves, btns);
+  hero.append(heroPic, h('div', 'shshade'), htext);
   s.appendChild(hero);
 
   /* the rows */
@@ -102,19 +123,22 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
     if (!list.length) continue;
     const sec = h('section', 'shelf');
     const row = h('div', 'shelfrow');
-    sec.append(row);
+    sec.append(h('h3', '', 'Your games'), row);
     wrap.appendChild(sec);
     rows.push({ sec, row, ns: list.map(({ n }) => n) });
     for (const { it, n } of list) items[n].rowAt = rows.length - 1;
   }
   const cards = items.map((it, n) => {
-    const card = button('', 'tvtile');
+    /* the same card as the Store's: the game's art, then its icon and name */
+    const card = button('', 'slock');
     card.style.setProperty('--accent', it.accent);
-    const pic = h('div', 'icon', `<svg viewBox="0 0 100 100" aria-hidden="true">${it.icon.svg || GLYPHS[it.icon.glyph]}</svg>`);
-    pic.style.setProperty('--c1', it.icon.cols[0]); pic.style.setProperty('--c2', it.icon.cols[1]);
+    const L = looks({ id: it.g.id, icon: it.g.store && it.g.store.icon });
+    const pic = L.art('sthumb');
+    const meta = h('div', 'smeta');
+    meta.append(L.icon('sicon'), h('div', 'stxt', `<div class="nm"></div><div class="sub">${howMany(it.g)}</div>`));
+    meta.querySelector('.nm').textContent = it.name;
     card.insertBefore(pic, card.firstChild);
-    card.querySelector('.lbl').innerHTML = `<span class="tn"></span><span class="tvsub">${howMany(it.g)}</span>`;
-    card.querySelector('.tn').textContent = it.name;
+    card.querySelector('.lbl').replaceWith(meta);
     onPick(card, () => choose(n));
     card.addEventListener('mouseenter', () => { if (!going && !bar.menuOpen) move(n); });
     card.addEventListener('remotefocus', () => move(n));
@@ -123,9 +147,9 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
   });
   /* the way to more: the Store, at the end of the row */
   if (nav.store && rows.length){
-    const more = button('', 'tvtile addtile');
-    more.insertBefore(h('div', 'icon', '<span class="plus">+</span>'), more.firstChild);
-    more.querySelector('.lbl').innerHTML = '<span class="tn">Get more games</span><span class="tvsub">Opens the Store</span>';
+    const more = button('', 'slock addtile');
+    more.insertBefore(h('div', 'sthumb', '<span class="plus">+</span>'), more.firstChild);
+    more.querySelector('.lbl').replaceWith(h('div', 'smeta', '<div class="stxt"><div class="nm">Get more games</div><div class="sub">Opens the Store</div></div>'));
     onPick(more, () => { if (going) return; sfx.select(); nav.store(); });
     rows[0].row.appendChild(more);
   }
@@ -145,7 +169,7 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
     remote.mark(cards[focus].card);
     hero.style.setProperty('--accent', it.accent);
     hname.textContent = it.name; hblurb.textContent = it.blurb;
-    hmoves.innerHTML = `<span class="mv who">${howMany(it.g)}</span>`;
+    hmoves.innerHTML = `<span class="schip">${howMany(it.g)}</span>`;
     /* keep the row in view, and the tile along it */
     const r = rows[it.rowAt];
     /* (up only as far as it takes to see the whole row - with everything on
@@ -212,10 +236,8 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
       }
     },
     draw(c, W, H){
-      /* the room: soft paper, washed with the picked game's colour */
+      /* the room: plain paper, like the Store's and Create's */
       c.fillStyle = PAPER; c.fillRect(0, 0, W, H);
-      wash(c, W * 0.15, 0, H * 0.9, '#ccfbf1', 0.6);
-      wash(c, W * 0.9, H, H * 1.0, items[focus].accent, 0.18);
       /* the banner's living picture; the tiles' still ones */
       const it = items[focus];
       if (it.trailer) paint(heroPic, (c, w, hh) => cover(c, w, hh, it.trailer), t, 1);
@@ -229,12 +251,6 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
 export function howMany(g){
   const lo = g.minPlayers || 1, hi = g.maxPlayers || MAX_PLAYERS;
   return lo === hi ? `${hi} player${hi > 1 ? 's' : ''}` : `${lo}\u2013${hi} players`;
-}
-
-function wash(c, x, y, r, col, a){
-  const g = c.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, col); g.addColorStop(1, 'rgba(243,244,247,0)');
-  c.save(); c.globalAlpha = a; c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); c.restore();
 }
 
 /* The trailer plays at TV shape, TW x TH, and the banner shows the part of

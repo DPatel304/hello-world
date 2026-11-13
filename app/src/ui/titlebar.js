@@ -5,7 +5,7 @@
    is playing it tucks away, and comes back when the mouse goes to the top.
 
    Only in the Windows app; opened any other way there's no bar. */
-import { MARK } from './boot.js';
+import { mark } from './boot.js';
 
 const HEIGHT = 34;            /* px */
 let bar = null, playing = false;
@@ -18,7 +18,7 @@ export function installTitlebar(){
   bar.className = 'titlebar';
   bar.setAttribute('data-tauri-drag-region', '');
   bar.innerHTML = `
-    <span class="tbmark" data-tauri-drag-region>${MARK}</span>
+    <span class="tbmark" data-tauri-drag-region>${mark()}</span>
     <span class="tbname" data-tauri-drag-region>Orlis <i>Play</i></span>
     <span class="tbspace" data-tauri-drag-region></span>
     <button class="tbbtn" data-act="min" title="Minimise" aria-label="Minimise"><svg viewBox="0 0 10 10"><path d="M1 5h8"/></svg></button>

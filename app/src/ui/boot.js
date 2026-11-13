@@ -191,8 +191,11 @@ export function tagline(c, x, y, size, a = 1){
 }
 
 /* The cube as a little picture, for the home screen's corner: an SVG. */
-export const MARK = `<svg viewBox="-1 -1.1 2 2.2" aria-hidden="true"><defs>
-<linearGradient id="mcT" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${FACES.top[0]}"/><stop offset="1" stop-color="${FACES.top[1]}"/></linearGradient>
-<linearGradient id="mcL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${FACES.left[0]}"/><stop offset="1" stop-color="${FACES.left[1]}"/></linearGradient>
-<linearGradient id="mcR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${FACES.right[0]}"/><stop offset="1" stop-color="${FACES.right[1]}"/></linearGradient></defs>
-<path d="M-.866 -.5 L0 0 L0 1 L-.866 .5Z" fill="url(#mcL)"/><path d="M0 0 L.866 -.5 L.866 .5 L0 1Z" fill="url(#mcR)"/><path d="M-.866 -.5 L0 -1 L.866 -.5 L0 0Z" fill="url(#mcT)"/></svg>`;
+/* (each copy its own colour names: two on a page sharing one name, and the
+   browser can paint a face from the copy that's hidden - or not at all) */
+let marks = 0;
+export const mark = () => { const n = ++marks; return `<svg viewBox="-1 -1.1 2 2.2" aria-hidden="true"><defs>
+<linearGradient id="mcT${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${FACES.top[0]}"/><stop offset="1" stop-color="${FACES.top[1]}"/></linearGradient>
+<linearGradient id="mcL${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${FACES.left[0]}"/><stop offset="1" stop-color="${FACES.left[1]}"/></linearGradient>
+<linearGradient id="mcR${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${FACES.right[0]}"/><stop offset="1" stop-color="${FACES.right[1]}"/></linearGradient></defs>
+<path d="M-.866 -.5 L0 0 L0 1 L-.866 .5Z" fill="url(#mcL${n})"/><path d="M0 0 L.866 -.5 L.866 .5 L0 1Z" fill="url(#mcR${n})"/><path d="M-.866 -.5 L0 -1 L.866 -.5 L0 0Z" fill="url(#mcT${n})"/></svg>`; };

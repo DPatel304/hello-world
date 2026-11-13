@@ -61,7 +61,10 @@ function go(next, build){
      keyboard's: hands don't point there. The games still play by moving. */
   cursor.enabled = !HOMEY.has(next);
   titlebarPlaying(next === 'play' || next === 'outro');
-  scene = build ? build() : null;
+  /* (a page can move straight on while it's being made - "Who's playing?"
+     with one profile goes on to Home - and then the newer page is the one) */
+  const made = build ? build() : null;
+  if (mode === next) scene = made;
 }
 
 /* The menus are quiet: music belongs to playing, so it starts when a game is

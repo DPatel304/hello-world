@@ -18,7 +18,7 @@ import { screen, h, clearUI } from './screens.js';
 import { sfx } from '../audio/sound.js';
 import { account } from './account.js';
 import { library } from './library.js';
-import { iconOf, GLYPHS, cover, paint } from './menu.js';
+import { looks, cover, paint } from './menu.js';
 import { trailer } from './trailer.js';
 import { topBar } from './tabs.js';
 import { byId } from '../games/index.js';
@@ -31,6 +31,8 @@ export const newer = (a, b) => { const x = String(a).split('.').map(Number), y =
 const FEATURED = 5;          /* games the banner turns through */
 const TURN = 9;              /* seconds on each */
 const FEW = 4;               /* fewer games than this: the banner and one row */
+/* The Store as it was last seen, by whoever's signed in. */
+let seen = null, seenBy = null;
 
 /* Words for a game's details. */
 const players = (g) => { const [lo, hi] = g.players || [1, 4]; return lo === hi ? `${hi} player${hi > 1 ? 's' : ''}` : `${lo}–${hi} players`; };
@@ -67,24 +69,6 @@ const MOVE_PICS = {
   together: '<svg viewBox="0 0 80 80" aria-hidden="true"><g fill="#fff"><circle cx="26" cy="22" r="8"/><circle cx="54" cy="22" r="8"/><rect x="18" y="34" width="16" height="30" rx="7"/><rect x="46" y="34" width="16" height="30" rx="7"/></g></svg>'
 };
 
-/* A game's look in the Store: its icon, and its art - the icon's colours,
-   big and soft, with its picture - for anywhere it isn't playing itself. */
-function looks(g){
-  const ic = iconOf({ id: g.id, accent: (g.icon && g.icon.cols && g.icon.cols[0]) || '#6d5efc', store: { icon: g.icon || { cols: [] } } });
-  const glyph = ic.svg || GLYPHS[ic.glyph] || GLYPHS.balloon;
-  const icon = (cls = 'sicon') => {
-    const d = h('div', cls, `<svg viewBox="0 0 100 100" aria-hidden="true">${glyph}</svg>`);
-    d.style.setProperty('--c1', ic.cols[0]); d.style.setProperty('--c2', ic.cols[1] || ic.cols[0]);
-    return d;
-  };
-  const art = (cls = 'sart') => {
-    const d = h('div', cls, `<svg class="g" viewBox="0 0 100 100" aria-hidden="true">${glyph}</svg>`);
-    d.style.setProperty('--c1', ic.cols[0]); d.style.setProperty('--c2', ic.cols[1] || ic.cols[0]);
-    return d;
-  };
-  return { icon, art, accent: ic.cols[0] };
-}
-
 export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onRecalibrate }){
   clearUI();
   const s = screen('tvhome storepage');
@@ -95,7 +79,8 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
   const scroll = h('div', 'sscroll');
   s.appendChild(scroll);
   scroll.addEventListener('scroll', () => s.classList.toggle('scrolled', scroll.scrollTop > 40), { passive: true });
-  const say = (t) => { scroll.innerHTML = ''; scroll.appendChild(h('div', 'smsg', `<p>${esc(t)}</p>`)); };
+  /* (a message instead of the banner: the top bar's on paper then) */
+  const say = (t) => { s.classList.remove('onhero'); scroll.innerHTML = ''; scroll.appendChild(h('div', 'smsg', `<p>${esc(t)}</p>`)); };
 
   /* Each game's trailer, once asked for: installed games play their own;
      the others are fetched, checked and played in the sandbox, not kept. */
@@ -185,6 +170,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
     });
     Object.assign(heroBits, { hero, art, pic, text, dots });
     scroll.appendChild(hero);
+    s.classList.add('onhero');
     showFeat();
 
     /* the rows */
@@ -276,7 +262,13 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
   async function load(){
     if (!account.needed){ say('The Store is in the Orlis Play app for Windows.'); return; }
     if (!account.signedIn){ say('Sign in to see the Store.'); return; }
-    say('Looking in the Store…');
+    const by = account.state && account.state.token;
+    if (by !== seenBy){ seen = null; seenBy = by; }
+    /* what it showed last time, straight away (so going to the Store is as
+       quick as going Home); then what's there now, if it's changed */
+    if (seen){ ({ games, waiting } = seen); build(); }
+    else say('Looking in the Store…');
+    let was = seen && JSON.stringify(seen);
     try {
       games = (await account.call('GET', '/api/store')).games || [];
       /* the owner: games creators have sent, to try before saying OK */
@@ -288,8 +280,10 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
         } catch { waiting = []; }
       }
     }
-    catch (e){ say(e.status === 0 ? 'Can’t reach your Orlis server right now. Is it running, and is this PC on the home Wi-Fi?' : e.message); return; }
-    build();
+    catch (e){ if (!seen) say(e.status === 0 ? 'Can’t reach your Orlis server right now. Is it running, and is this PC on the home Wi-Fi?' : e.message); return; }
+    seen = { games, waiting };
+    if (left || JSON.stringify(seen) === was) return;
+    if (was) redraw(); else build();
   }
   load();
 

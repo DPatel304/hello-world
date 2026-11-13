@@ -12,4 +12,4 @@ export function moveOldNames(store){
     }
   } catch (e){}
 }
-if (typeof localStorage !== 'undefined') moveOldNames(localStorage);
+try { moveOldNames(localStorage); } catch (e){}   /* (sandboxed game frames have none) */

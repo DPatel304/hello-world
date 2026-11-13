@@ -799,16 +799,19 @@ body.titled #ui > .screen{ top:34px; }
 .btn.tvtile.addtile .tn{ color:#5b5f6e; }
 
 /* ---------- the Store (ui/store.js) ---------- */
-.storepage .sscroll{ position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
-.storepage .sscroll::-webkit-scrollbar{ display:none; }
+.tvhome .sscroll{ position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+.tvhome .sscroll::-webkit-scrollbar{ display:none; }
 /* the top bar sits on the banner's art (white), then on paper once scrolled */
-.storepage .tvtop::before{ content:""; position:absolute; left:-4vw; right:-4vw; top:-3vh; bottom:-1.5vh; z-index:-1; opacity:0; transition:opacity .25s;
+/* (the top bar, the same on Home, the Store and Create: on the banner's art
+   it's white, and once the page scrolls up under it, it sits on paper) */
+.tvhome .tvtop::before{ content:""; position:absolute; left:-4vw; right:-4vw; top:-3vh; bottom:-1.5vh; z-index:-1; opacity:0; transition:opacity .25s;
   background:rgba(243,244,247,.82); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); box-shadow:0 .3vh 1.6vh rgba(20,24,50,.08); }
-.storepage:not(.scrolled) .tvtop .brand, .storepage:not(.scrolled) .tvsys, .storepage.paged .tvtop .brand, .storepage.paged .tvsys{ color:#fff; text-shadow:0 .2vh 1vh rgba(0,0,0,.35); }
-.storepage:not(.scrolled) .tvtabs, .storepage.paged .tvtabs{ background:rgba(20,20,34,.35); }
-.storepage:not(.scrolled) .tvtab, .storepage.paged .tvtab{ color:#eef0f6; }
-.storepage:not(.scrolled) .tvtab.on, .storepage.paged .tvtab.on{ color:#16161d; }
-.storepage.scrolled:not(.paged) .tvtop::before{ opacity:1; }
+.onhero:not(.scrolled) .tvtop .brand, .onhero:not(.scrolled) .tvsys, .storepage.paged .tvtop .brand, .storepage.paged .tvsys{ color:#fff; text-shadow:0 .2vh 1vh rgba(0,0,0,.35); }
+.onhero:not(.scrolled) .tvtabs, .storepage.paged .tvtabs{ background:rgba(20,20,34,.35); }
+.onhero:not(.scrolled) .tvtab, .storepage.paged .tvtab{ color:#eef0f6; }
+.onhero:not(.scrolled) .tvtab.on, .storepage.paged .tvtab.on{ color:#16161d; }
+.onhero:not(.scrolled) .btn.whochip{ background:rgba(255,255,255,.92); }
+.tvhome.scrolled:not(.paged) .tvtop::before{ opacity:1; }
 
 /* a game's art where it isn't playing itself: its icon's colours, big and soft */
 .sart, .sheroart, .spageart, .sthumb{ background:
@@ -860,9 +863,9 @@ body.titled #ui > .screen{ top:34px; }
 .btn.slock{ flex:none; width:22vw; padding:0; border:none; background:transparent; box-shadow:none; border-radius:0; overflow:visible; display:flex; flex-direction:column; gap:1.4vh; color:#16161d; text-align:left; font-family:inherit; }
 .btn.slock .fill{ display:none; }
 .sthumb{ position:relative; width:100%; aspect-ratio:16/9; border-radius:2.2vh; overflow:hidden; box-shadow:0 1vh 2.6vh rgba(20,24,50,.16); transition:transform .25s ease, box-shadow .25s ease; }
-.btn.slock:hover{ transform:none; }
-.btn.slock:hover .sthumb{ transform:translateY(-.8vh) scale(1.05); box-shadow:0 0 0 .5vh #fff, 0 2.6vh 5vh rgba(20,24,50,.3); }
-.btn.slock:hover .sthumb::after{ content:""; position:absolute; inset:0; background:linear-gradient(115deg, rgba(255,255,255,.35) 0, rgba(255,255,255,0) 40%); }
+.btn.slock:hover, .btn.slock.hot{ transform:none; }
+.btn.slock:hover .sthumb, .btn.slock.focus .sthumb{ transform:translateY(-.8vh) scale(1.05); box-shadow:0 0 0 .5vh #fff, 0 2.6vh 5vh rgba(20,24,50,.3); }
+.btn.slock:hover .sthumb::after, .btn.slock.focus .sthumb::after{ content:""; position:absolute; inset:0; background:linear-gradient(115deg, rgba(255,255,255,.35) 0, rgba(255,255,255,0) 40%); }
 .sbadge{ position:absolute; top:1.3vh; left:1.3vh; padding:.5vh 1.2vh; border-radius:999px; font-size:1.6vh; font-weight:800; letter-spacing:.03em; background:#fff; color:#16161d; }
 .sbadge.got{ background:#16a34a; color:#fff; }
 .sbadge.upd{ background:#6d5efc; color:#fff; }
@@ -904,8 +907,7 @@ body.titled #ui > .screen{ top:34px; }
 .smv .t{ font-size:2.3vh; font-weight:700; }
 .smv .s{ font-size:1.7vh; opacity:.75; }
 
-/* Create, for now */
-.createmid{ position:absolute; inset:12vh 0 0 0; display:flex; align-items:center; justify-content:center; }
+
 
 /* ---------- Family (ui/family.js) ---------- */
 .familypage .fbody{ position:absolute; inset:12vh 0 0 0; overflow-y:auto; scrollbar-width:none; padding:2vh 6vw 6vh; }
@@ -940,13 +942,14 @@ body.titled #ui > .screen{ top:34px; }
 .ferr{ margin:1.4vh 0 0; color:#be123c; font-size:.9em; }
 .fmsg{ font-size:2.4vh; color:#5b5f6e; max-width:60vw; }
 
-/* ---------- Create, for creators (ui/create.js) ---------- */
-.createpage .cbody{ position:absolute; inset:12vh 0 0 0; overflow-y:auto; scrollbar-width:none; padding:2vh 6vw 6vh; }
-.chead h1{ margin:0; font-size:6vh; letter-spacing:-.02em; }
-.chead p{ margin:.8vh 0 3vh; color:#5b5f6e; font-size:2.2vh; max-width:60vw; }
-.crow{ display:flex; gap:1.2vh; }
-.crow .btn.setbtn{ font-size:2.2vh; padding:.6em 1.4em; }
-.csaid{ color:#5b5f6e; font-size:2vh; margin:1.6vh 0 0; }
+/* ---------- Create (ui/create.js): the Store's banner and rows ---------- */
+.createpage .cbody{ padding-bottom:8vh; }
+.createpage .srow + .srow{ margin-top:4vh; }
+.createpage .srow h3{ margin-bottom:2vh; }
+.shtext .csaid{ position:absolute; top:100%; left:0; width:48vw; margin:2vh 0 0; font-size:2.2vh; opacity:.9; }
+.shtext .csaid:empty{ display:none; }
+.cabout{ max-width:60vw; font-size:2.6vh; line-height:1.45; color:#3b3e4d; margin:0; }
+.cempty{ color:#8a8ea0; font-size:2.2vh; margin:0; }
 .clist{ display:flex; flex-direction:column; gap:1.2vh; max-width:60em; }
 .citem{ display:flex; align-items:center; justify-content:space-between; gap:2vh; background:#fff; border-radius:2vh; padding:1.6vh 2.4vh; box-shadow:0 .6vh 2vh rgba(20,24,50,.07); font-size:2.1vh; }
 .citem small{ display:block; color:#8a8ea0; font-size:.85em; margin-top:.3em; }
@@ -955,3 +958,32 @@ body.titled #ui > .screen{ top:34px; }
 .cstate{ font-size:.85em; font-weight:700; color:#5b5f6e; white-space:nowrap; }
 .cstate.ok{ color:#15803d; } .cstate.no{ color:#be123c; }
 .sbadge.wait{ background:#f59e0b; color:#fff; }
+
+/* ---------- Home (ui/menu.js): the Store's banner and cards ---------- */
+.homepage .shero{ position:absolute; top:0; left:0; right:0; }
+.homepage .sheropic.shown{ opacity:1; }
+.homepage .shelves{ top:59vh; }
+.homepage .shelfwrap{ padding-top:0; }
+.homepage .shelf h3{ margin:0; }
+.homepage .shelfrow{ padding:2.6vh 0 3vh; }
+.homepage .btn.slock.launch .sthumb{ animation:tvpulse .5s ease both; }
+.homepage .btn.slock.fly{ animation:tilefly .7s cubic-bezier(.2,.8,.25,1) both; }
+.homepage.arrive .shero{ animation:fadein .7s .2s ease both; }
+/* the last card: more games, in the Store */
+.btn.slock.addtile .sthumb{ background:rgba(20,24,50,.04); border:.4vh dashed rgba(20,24,50,.18); box-shadow:none; display:flex; align-items:center; justify-content:center; }
+.btn.slock.addtile .plus{ font-size:9vh; font-weight:300; color:#9aa0b8; line-height:1; }
+.btn.slock.addtile:hover .sthumb{ border-color:#6d5efc; background:rgba(109,94,252,.06); box-shadow:none; }
+.btn.slock.addtile:hover .plus{ color:#6d5efc; }
+.btn.slock.addtile .nm{ color:#5b5f6e; }
+
+/* ---------- going between the tabs ----------
+   The top bar stays where it is; its highlight slides to the new tab, and
+   the page comes in from that side. */
+.tvtabs{ isolation:isolate; }
+.tvpill{ position:absolute; top:.6vh; bottom:.6vh; left:0; width:0; z-index:-1; border-radius:999px; background:#fff; box-shadow:0 .3vh 1.2vh rgba(20,24,50,.14); }
+.tvpill.slide{ transition:left .38s cubic-bezier(.3,.9,.3,1), width .38s cubic-bezier(.3,.9,.3,1); }
+.tvtabs.pilled .tvtab.on{ background:transparent; box-shadow:none; }
+.tabin > :not(.tvtop){ animation:tabin .42s cubic-bezier(.2,.8,.25,1) both; }
+.tabin.fromleft > :not(.tvtop){ --from:-3vw; }
+.tabin.fromright > :not(.tvtop){ --from:3vw; }
+@keyframes tabin{ from{ opacity:0; transform:translateX(var(--from, 0)) } to{ opacity:1; transform:none } }
