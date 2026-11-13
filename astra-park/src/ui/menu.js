@@ -201,7 +201,9 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
     sfx.select();
     open = overlay(); open.classList.add('popmenu');
     const card = h('div', 'popcard');
-    const shut = () => { if (!open) return; open.remove(); open = null; };
+    const esc = (e) => { if (e.key === 'Escape'){ e.preventDefault(); sfx.back(); shut(); } };
+    const shut = () => { if (!open) return; open.remove(); open = null; removeEventListener('keydown', esc, true); };
+    addEventListener('keydown', esc, true);
     for (const m of MENU){
       const b = onPick(button(`<span class="pi">${m.icon}</span><span class="pn">${m.name}</span>${m.soon && !(m.id === 'store' && onStore) ? '<span class="soon">Soon</span>' : ''}`, 'popitem'), () => {
         sfx.select(); shut();
@@ -251,12 +253,11 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
       });
       card.appendChild(ex);
     }
-    card.appendChild(onPick(button('Close', 'popitem close'), () => { sfx.back(); shut(); }));
     /* small print: the version, and who's signed in */
     const bits = [appInfo ? `Orlis Play ${appInfo.label ? appInfo.label() : appInfo.version}` : '', account.signedIn ? account.state.account.email : ''].filter(Boolean);
     if (bits.length) card.appendChild(h('div', 'popfoot', bits.join(' \u00B7 ').replace(/[&<>]/g, '')));
     open.appendChild(card);
-    /* a tap anywhere else closes it too */
+    /* a click anywhere outside it closes it (and Escape) */
     open.addEventListener('pointerdown', (e) => { if (e.target === open){ sfx.back(); shut(); } });
   }
   show();
