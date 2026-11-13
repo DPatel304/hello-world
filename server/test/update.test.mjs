@@ -23,7 +23,7 @@ function keypair(){
 }
 
 test("the server trusts Orlis Play's own update key, and nothing else", () => {
-  const conf = JSON.parse(readFileSync(new URL('../../astra-park/client/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+  const conf = JSON.parse(readFileSync(new URL('../../app/client/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
   assert.equal(PUBKEY, conf.plugins.updater.pubkey);
   const k = keypair(), other = keypair();
   const file = randomBytes(5000), sig = k.signFile(file);

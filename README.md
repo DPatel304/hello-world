@@ -3,8 +3,8 @@
 *Get up. Get together.* Movement games for the whole family, played with a
 webcam: you move, the game sees you.
 
-- `astra-park/` - the games and the Orlis Play app (Windows, in
-  `astra-park/client/`)
+- `app/` - the games and the Orlis Play app (Windows, in
+  `app/client/`)
 - `server/` - Orlis Server: accounts, kids' profiles and the Store, for one
   home's Wi-Fi
 - `.github/workflows/` - builds the app (Beta and Release) and the server

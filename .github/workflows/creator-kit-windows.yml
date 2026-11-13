@@ -2,16 +2,16 @@ name: Creator kit on Windows
 
 # The creator kit's guard and checks are PowerShell scripts that Claude Code
 # runs on creators' Windows PCs: this runs them for real on Windows, with the
-# JSON Claude Code sends (astra-park/kit/creator/test-hooks.mjs).
+# JSON Claude Code sends (app/kit/creator/test-hooks.mjs).
 
 on:
   push:
     branches: [main]
     paths:
-      - 'astra-park/kit/creator/**'
-      - 'astra-park/src/ui/creator-kit*.js'
-      - 'astra-park/kit/build-creator.mjs'
-      - 'astra-park/test/creator-kit.test.mjs'
+      - 'app/kit/creator/**'
+      - 'app/src/ui/creator-kit*.js'
+      - 'app/kit/build-creator.mjs'
+      - 'app/test/creator-kit.test.mjs'
       - '.github/workflows/creator-kit-windows.yml'
   workflow_dispatch:
 
@@ -20,14 +20,14 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: astra-park
+        working-directory: app
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: astra-park/package-lock.json
+          cache-dependency-path: app/package-lock.json
       - name: Install
         run: npm ci
       - name: The kit in the app is up to date

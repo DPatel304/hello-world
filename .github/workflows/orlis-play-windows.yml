@@ -10,7 +10,7 @@
 #     with the normal app gets it on their next start.
 #       https://github.com/dpatel304/orlis-play/releases/latest/download/Orlis-Play-Setup.exe
 #
-# Versions: astra-park/client/VERSION holds the one people see - 0.1 until
+# Versions: app/client/VERSION holds the one people see - 0.1 until
 # a milestone, then 0.2 ... and 1.0 at launch - and only changes by hand.
 # Each build adds its build number (this workflow's run number) behind it,
 # 0.1.<build>, so every build is newer than the last for the updater. In the
@@ -26,12 +26,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'astra-park/src/**'
-      - 'astra-park/client/**'
-      - 'astra-park/index.html'
-      - 'astra-park/package.json'
-      - 'astra-park/package-lock.json'
-      - 'astra-park/fetch-assets.mjs'
+      - 'app/src/**'
+      - 'app/client/**'
+      - 'app/index.html'
+      - 'app/package.json'
+      - 'app/package-lock.json'
+      - 'app/fetch-assets.mjs'
       - '.github/workflows/orlis-play-windows.yml'
   workflow_dispatch:
     inputs:
@@ -53,7 +53,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        working-directory: astra-park
+        working-directory: app
     env:
       BUILD: ${{ github.run_number }}
       CHANNEL: ${{ inputs.channel || 'beta' }}
@@ -66,13 +66,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: astra-park/package-lock.json
+          cache-dependency-path: app/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: astra-park/client/src-tauri -> target
+          workspaces: app/client/src-tauri -> target
 
       - name: Install
         run: npm ci
@@ -121,7 +121,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: astra-park
+          projectPath: app
           tauriScript: npx tauri
           args: --config client/release.json
           tagName: ${{ env.TAG }}

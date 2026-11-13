@@ -24,7 +24,7 @@ await build({
     /* the version it reports, and updates itself from (the build sets it) */
     __ORLIS_SERVER_VERSION__: JSON.stringify(process.env.ORLIS_SERVER_VERSION || '0.1.0') }
 });
-/* the starter games (built by astra-park/kit/build-orlis.mjs into
+/* the starter games (built by app/kit/build-orlis.mjs into
    starter/), carried inside the exe */
 const starters = existsSync('starter') ? readdirSync('starter').filter(f => f.endsWith('.orlis')) : [];
 if (!starters.length) console.warn('(no starter games in starter/ - the Store will start empty)');

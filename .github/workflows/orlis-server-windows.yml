@@ -11,9 +11,9 @@ on:
     branches: [main]
     paths:
       - 'server/**'
-      - 'astra-park/kit/**'
-      - 'astra-park/src/games/pop-party*.js'
-      - 'astra-park/src/games/common.js'
+      - 'app/kit/**'
+      - 'app/src/games/pop-party*.js'
+      - 'app/src/games/common.js'
       - '.github/workflows/orlis-server-windows.yml'
   workflow_dispatch:
 
@@ -45,14 +45,14 @@ jobs:
           cache: npm
           cache-dependency-path: |
             server/package-lock.json
-            astra-park/package-lock.json
+            app/package-lock.json
 
       - name: Install
         run: npm ci
 
       # The games the server comes with: Pop Party, as a .orlis file.
       - name: Build the starter games
-        working-directory: astra-park
+        working-directory: app
         run: |
           npm ci
           node kit/build-orlis.mjs
@@ -110,7 +110,7 @@ jobs:
             echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: this server won't be offered as an update."
             exit 0
           fi
-          (cd ../astra-park && npx tauri signer sign "../server/Orlis-Server-$ORLIS_SERVER_VERSION.exe")
+          (cd ../app && npx tauri signer sign "../server/Orlis-Server-$ORLIS_SERVER_VERSION.exe")
           test -f "Orlis-Server-$ORLIS_SERVER_VERSION.exe.sig"
 
       - name: Publish

@@ -7,7 +7,7 @@
 
    This is the reading and writing, in Node - used by the server (to list and
    hand out games) and by the build that makes .orlis files. The app reads
-   them with its own small reader (astra-park/src/ui/orlis-file.js). */
+   them with its own small reader (app/src/ui/orlis-file.js). */
 import { deflateRawSync, inflateRawSync, crc32 } from 'node:zlib';
 import { createHash } from 'node:crypto';
 

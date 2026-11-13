@@ -3,7 +3,7 @@ import { readFile, mkdir, rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { CLIPS } from './clips.mjs';
-const root = new URL('../astra-park/', import.meta.url).pathname;
+const root = new URL('../app/', import.meta.url).pathname;
 const { chromium } = createRequire(join(root, 'package.json'))('playwright');
 const here = new URL('.', import.meta.url).pathname, FPS = 30, FADE = 0.25;
 const TYPES = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.woff2': 'font/woff2', '.png': 'image/png' };
