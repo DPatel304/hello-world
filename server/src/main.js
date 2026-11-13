@@ -75,6 +75,8 @@ async function main(){
   Games in the Store: ${s.store.games().map(g => g.name).join(', ') || 'none yet'}
   (add a game by putting its .orlis file in ${s.store.dir})
 
+  ${supervised ? 'Manage it: double-click the Orlis cube.' : `Manage it (on this laptop): ${s.manageUrl}`}
+
   Data: ${dataDir}
   ${supervised ? '' : 'To stop it, close this window.'}${selfUpdates ? `
   It keeps itself up to date: a newer version installs itself

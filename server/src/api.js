@@ -18,7 +18,7 @@
 
    A device stays signed in until someone signs out on it, so a family can
    play at home with no server in reach. */
-import { Fail } from './http.js';
+import { Fail, isLocal } from './http.js';
 import { now } from './db.js';
 import { hashPassword, checkPassword, burnTime, newToken, hashToken, newId, newInviteCode, tidyInvite } from './secure.js';
 
@@ -33,7 +33,7 @@ export const LIMITS = {
 export const AVATARS = ['cube', 'rocket', 'star', 'moon', 'balloon', 'fish', 'dino', 'cat', 'dog', 'owl', 'bee', 'leaf'];
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 
-export function api(db, info, extra = () => []){
+export function api(db, info, extra = () => [], manageKey = null){
   const q = (sql) => db.prepare(sql);
   const tries = new Map();      /* email -> { n, until } */
 
@@ -46,11 +46,22 @@ export function api(db, info, extra = () => []){
     q('UPDATE sessions SET last_seen = ? WHERE token_hash = ?').run(now(), s.token_hash);
     return s;
   }
-  const owner = (headers) => {
+  /* The owner: signed in as the owner, or - on the server's own laptop -
+     the management page, with the key the cube opens it with (manage). */
+  const owner = (headers, ip) => {
+    if (headers['x-orlis-manage'] !== undefined){
+      if (!manageKey || !isLocal(ip) || headers['x-orlis-manage'] !== manageKey) throw new Fail(403, 'not_owner', 'Open this from the Orlis cube by the clock, on the server\'s laptop.');
+      const o = q("SELECT * FROM accounts WHERE role = 'owner' ORDER BY created_at LIMIT 1").get();
+      if (!o) throw new Fail(409, 'not_set_up', 'Set up Orlis Play first: the first account made becomes the owner.');
+      return o;
+    }
     const a = who(headers);
     if (a.role !== 'owner') throw new Fail(403, 'not_owner', 'Only the owner can do that.');
     return a;
   };
+
+  /* whoever's asking: signed in, or the management page (as the owner) */
+  const asker = (headers, ip) => headers['x-orlis-manage'] !== undefined ? owner(headers, ip) : who(headers);
 
   /* ---------- checking what's sent ---------- */
   const text = (v) => (typeof v === 'string' ? v : '').trim();
@@ -202,8 +213,8 @@ export function api(db, info, extra = () => []){
     /* Invites: the owner's to start a new family (household: 'new'), and
        any parent's to bring another grown-up into their own ('mine'). Only
        the owner makes someone a creator. */
-    ['POST', '/api/invites', ({ headers, body }) => {
-      const a = who(headers);
+    ['POST', '/api/invites', ({ headers, body, ip }) => {
+      const a = asker(headers, ip);
       const isOwner = a.role === 'owner';
       const fresh = body.household === 'new';
       if (fresh && !isOwner) throw new Fail(403, 'not_owner', 'Only the owner can invite a new family.');
@@ -215,8 +226,8 @@ export function api(db, info, extra = () => []){
       q('INSERT INTO invites (code, role, created_by, created_at, household_id) VALUES (?, ?, ?, ?, ?)').run(code, role, a.id, now(), home);
       return [201, { code, role, household: fresh ? 'new' : 'mine' }];
     }],
-    ['GET', '/api/invites', ({ headers }) => {
-      const a = who(headers);
+    ['GET', '/api/invites', ({ headers, ip }) => {
+      const a = asker(headers, ip);
       const all = a.role === 'owner';
       const rows = q(`SELECT i.code, i.role, i.created_at AS createdAt, i.used_at AS usedAt, u.email AS usedBy, h.name AS family, i.household_id AS householdId,
           CASE WHEN i.household_id IS NULL THEN 'new' ELSE 'join' END AS kind
@@ -224,8 +235,8 @@ export function api(db, info, extra = () => []){
         WHERE ${all ? '1' : 'i.created_by = ?'} ORDER BY i.created_at DESC`).all(...(all ? [] : [a.id]));
       return { invites: rows.map(r => ({ ...r })) };
     }],
-    ['DELETE', '/api/invites/:code', ({ headers, params }) => {
-      const a = who(headers);
+    ['DELETE', '/api/invites/:code', ({ headers, params, ip }) => {
+      const a = asker(headers, ip);
       const r = a.role === 'owner'
         ? q('DELETE FROM invites WHERE code = ? AND used_by IS NULL').run(tidyInvite(params.code))
         : q('DELETE FROM invites WHERE code = ? AND used_by IS NULL AND created_by = ?').run(tidyInvite(params.code), a.id);
@@ -236,8 +247,8 @@ export function api(db, info, extra = () => []){
     /* ---------- the owner's ---------- */
     /* every family on this server: its name, its grown-ups and how many
        profiles (not the kids' names - the owner doesn't need them) */
-    ['GET', '/api/households', ({ headers }) => {
-      owner(headers);
+    ['GET', '/api/households', ({ headers, ip }) => {
+      owner(headers, ip);
       const hs = q('SELECT id, name, created_at AS createdAt FROM households ORDER BY created_at').all().map(h => ({ ...h }));
       for (const h of hs){
         h.accounts = q('SELECT id, email, role, created_at AS createdAt FROM accounts WHERE household_id = ? ORDER BY created_at').all(h.id).map(r => ({ ...r }));
@@ -245,12 +256,12 @@ export function api(db, info, extra = () => []){
       }
       return { households: hs.filter(h => h.accounts.length) };
     }],
-    ['GET', '/api/accounts', ({ headers }) => {
-      owner(headers);
+    ['GET', '/api/accounts', ({ headers, ip }) => {
+      owner(headers, ip);
       return { accounts: q('SELECT id, email, role, created_at AS createdAt, (SELECT COUNT(*) FROM profiles p WHERE p.account_id = a.id) AS profiles FROM accounts a ORDER BY created_at').all().map(r => ({ ...r })) };
     }],
-    ['POST', '/api/accounts/:id/role', ({ headers, params, body }) => {
-      const me = owner(headers);
+    ['POST', '/api/accounts/:id/role', ({ headers, params, body, ip }) => {
+      const me = owner(headers, ip);
       if (params.id === me.id) throw new Fail(400, 'self', 'The owner stays the owner.');
       if (!['creator', 'player'].includes(body.role)) throw new Fail(400, 'bad_role', 'Roles are creator or player.');
       const r = q('UPDATE accounts SET role = ? WHERE id = ?').run(body.role, params.id);

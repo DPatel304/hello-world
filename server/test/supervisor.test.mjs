@@ -81,6 +81,14 @@ test('the icon script carries the Orlis cube and the menu', () => {
   const png = Buffer.from(ICON, 'base64');
   assert.equal(png.subarray(1, 4).toString(), 'PNG');
   const ps = trayScript();
-  for (const w of ['Show the log', 'Open the data folder', 'Restart', 'Quit Orlis Server', 'ORLIS_TRAY_TEST', 'NotifyIcon']) assert.ok(ps.includes(w), w);
+  for (const w of ['Manage Orlis Server', 'Show the log', 'Open the data folder', 'Restart', 'Quit Orlis Server', 'ORLIS_TRAY_TEST', 'NotifyIcon']) assert.ok(ps.includes(w), w);
   assert.ok(ps.includes(ICON));
+});
+
+test('Manage opens the management page on this laptop, with its key', async () => {
+  const w = world(); const { writeFileSync } = await import('node:fs');
+  writeFileSync(join(w.opts.dataDir, 'manage.key'), 'abc123');
+  supervise(w.opts); await wait(30);
+  w.tray.stdout.write('manage\n'); await wait(20);
+  assert.deepEqual(w.spawned.at(-1), ['explorer.exe', ['http://127.0.0.1:47871/manage#k=abc123']]);
 });

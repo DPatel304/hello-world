@@ -85,3 +85,27 @@ test("the owner's routes are the owner's; a game can be taken out of the Store",
     assert.ok(!existsSync(join(dir, 'games', 'pop-party.orlis')));
   } finally { await s.close(); }
 });
+
+test("the management page: this laptop only, and the owner's routes only with its key", async () => {
+  const { isLocal } = await import('../src/http.js');
+  const dir = fresh(), { s, call } = await server(dir);
+  try {
+    const base = `http://127.0.0.1:${s.port}`;
+    const page = await fetch(base + '/manage');
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get('content-type'), /text\/html/);
+    assert.match(page.headers.get('content-security-policy'), /default-src 'none'/);
+    assert.match(await page.text(), /Orlis <i>Server<\/i>/);
+    const as = async (key, path, method = 'GET', body) => { const r = await fetch(base + path, { method, headers: { 'X-Orlis-Manage': key, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, ...(await r.json()) }; };
+    assert.equal((await as(s.manageKey, '/api/server')).status, 409, 'not set up yet: no owner');
+    await call('POST', '/api/signup', { email: 'p@example.com', password: 'correct horse', name: 'Sam', adult: true });
+    assert.equal((await as(s.manageKey, '/api/households')).households.length, 1);
+    assert.equal((await as('wrong', '/api/households')).status, 403);
+    const inv = await as(s.manageKey, '/api/invites', 'POST', { household: 'new' });
+    assert.equal(inv.household, 'new');
+    assert.equal((await as(s.manageKey, '/api/store')).games.length, 1);
+    assert.match(s.manageUrl, new RegExp(`/manage#k=${s.manageKey}$`));
+    assert.ok(isLocal('127.0.0.1') && isLocal('::1') && isLocal('::ffff:127.0.0.1'));
+    assert.ok(!isLocal('192.168.1.20') && !isLocal('::ffff:192.168.1.20'), 'never from another device on the Wi-Fi');
+  } finally { await s.close(); }
+});

@@ -3,7 +3,8 @@
    data folder, Restart and Quit.
 
    When Orlis Server.exe is double-clicked, this part starts first. It
-   puts the icon by the clock, and runs the server itself as a second copy
+   puts the icon by the clock (double-click it, or right-click > Manage Orlis
+   Server, for the management page - manage-page.js), and runs the server itself as a second copy
    of the exe (--worker), its words going to "server.log" in the data
    folder. If the server ever stops by itself, this starts it again (a
    few seconds later; after five stops in ten minutes it gives up and says
@@ -14,7 +15,7 @@
    there's nothing extra to install. It doesn't start with Windows: it runs
    when it's double-clicked, until it's told to quit. */
 import { spawn as spawnChild } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, renameSync, statSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AFTER_UPDATE, UPDATED } from './update.js';
 
@@ -48,13 +49,16 @@ $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $title = $menu.Items.Add('Orlis Server')
 $title.Enabled = $false
 [void]$menu.Items.Add('-')
+$manage = $menu.Items.Add('Manage Orlis Server')
+$manage.Font = New-Object System.Drawing.Font($manage.Font, [System.Drawing.FontStyle]::Bold)
+$manage.add_Click({ Send 'manage' })
 $menu.Items.Add('Show the log').add_Click({ Send 'log' })
 $menu.Items.Add('Open the data folder').add_Click({ Send 'folder' })
 $menu.Items.Add('Restart').add_Click({ Send 'restart' })
 [void]$menu.Items.Add('-')
 $menu.Items.Add('Quit Orlis Server').add_Click({ Send 'quit' })
 $ni.ContextMenuStrip = $menu
-$ni.add_DoubleClick({ $ni.ShowBalloonTip(4000, 'Orlis Server', $title.Text, 'Info') })
+$ni.add_DoubleClick({ Send 'manage' })
 if ($env:ORLIS_TRAY_TEST) { $ni.Dispose(); 'tray ok'; exit 0 }
 $ni.Visible = $true
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
@@ -104,10 +108,20 @@ export function supervise({ exe, dataDir, version, afterUpdate = false, spawn = 
   }
   const open = (cmd, args) => { try { spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref?.(); } catch {} };
   function picked(what){
-    if (what === 'log') open('notepad.exe', [logFile]);
+    if (what === 'manage') manage();
+    else if (what === 'log') open('notepad.exe', [logFile]);
     else if (what === 'folder') open('explorer.exe', [dataDir]);
     else if (what === 'restart'){ log('-- restarting (asked from the icon) --'); restarting = true; stopWorker(); }
     else if (what === 'quit'){ log('-- quitting (asked from the icon) --'); quitting = true; stopWorker(); if (!worker) finish(0); }
+  }
+
+  /* the management page, in the browser, with its key (it's only ever
+     opened from here, on this laptop) */
+  function manage(){
+    let key = '';
+    try { key = readFileSync(join(dataDir, 'manage.key'), 'utf8').trim(); } catch {}
+    if (!key){ tell("say Orlis Server is starting|Try Manage again in a moment."); return; }
+    open('explorer.exe', [`http://127.0.0.1:${port}/manage#k=${key}`]);
   }
 
   /* the server */
@@ -172,7 +186,7 @@ export function supervise({ exe, dataDir, version, afterUpdate = false, spawn = 
     tell('status Orlis Server ' + version + ' - running');
     tell(afterUpdate
       ? `say Orlis Server updated|Now version ${version}. It's still by the clock.`
-      : "say Orlis Server is running|It's here by the clock. Right-click the cube for the log, Restart or Quit.");
+      : "say Orlis Server is running|It's here by the clock. Double-click the cube to manage it; right-click for more.");
     startWorker();
   }
   begin();

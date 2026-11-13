@@ -8,6 +8,13 @@ export class Fail extends Error {
 
 const MAX_BODY = 64 * 1024;
 
+/* A reply that's a web page (the server's own management page). */
+export class Page {
+  constructor(html){ this.html = html; }
+}
+/* Is this request from this very machine? */
+export const isLocal = (ip) => ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+
 /* A reply that's a file rather than JSON. */
 export class Raw {
   constructor(data, name, type = 'application/octet-stream'){ this.data = data; this.name = name; this.type = type; }
@@ -47,6 +54,12 @@ export function makeServer(routes){
     } catch (e){
       if (e instanceof Fail){ status = e.status; body = { error: e.code, message: e.message }; }
       else { console.error(e); status = 500; body = { error: 'server', message: 'Something went wrong on the server.' }; }
+    }
+    /* a page: only ever its own, with nothing from anywhere else */
+    if (body instanceof Page){
+      res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:", 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' });
+      res.end(body.html);
+      return;
     }
     /* a file, sent as it is (a game download) */
     if (body instanceof Raw){

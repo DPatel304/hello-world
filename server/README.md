@@ -11,8 +11,10 @@ home Wi-Fi** - it is not on the internet.
 2. Make a folder for it, such as `Documents\Orlis Server`, and put it there.
    Its data goes in an `Orlis Server data` folder beside it.
 3. Double-click it. It runs quietly: the Orlis cube appears by the clock
-   (the system tray - it may be under the ^ arrow). Right-click the cube to
-   see the log, open the data folder, restart it, or quit. It doesn't start
+   (the system tray - it may be under the ^ arrow). **Double-click the cube
+   to manage the server** (every family, who's a creator, the Store's
+   games, backups - in the browser, on this laptop only). Right-click it for
+   the log, the data folder, Restart and Quit. It doesn't start
    with Windows; double-click it again after the laptop restarts.
 4. If Windows Firewall asks, tick **Private networks** only (not Public).
    Your home Wi-Fi should be set to Private: Settings > Network & internet >
@@ -38,9 +40,9 @@ The server backs up the family's things into `Orlis Server data\backups`:
 - **Not in them:** what each PC keeps for itself - its downloaded games,
   scores and settings.
 - **When:** once a day at a quiet moment (a week of them is kept), before
-  every update, and whenever the owner picks **Back up now** on the Family
-  page in Orlis Play (corner menu > Family).
-- **Restoring:** on the Family page, pick a backup's **Restore** (twice). The
+  every update, and whenever you pick **Back up now** on the management page
+  (double-click the cube > Backups).
+- **Restoring:** on the management page, pick a backup's **Restore** (twice). The
   server restarts with the data as it was then; what it had a moment before
   is kept as one more backup, so a restore can be undone.
 
