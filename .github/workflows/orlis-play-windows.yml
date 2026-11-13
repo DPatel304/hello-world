@@ -24,7 +24,7 @@ name: Orlis Play for Windows
 
 on:
   push:
-    branches: [claude/mgs-parody-level-wb4agd]
+    branches: [main]
     paths:
       - 'astra-park/src/**'
       - 'astra-park/client/**'

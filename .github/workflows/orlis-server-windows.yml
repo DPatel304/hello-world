@@ -8,7 +8,7 @@ name: Orlis Server for Windows
 
 on:
   push:
-    branches: [claude/mgs-parody-level-wb4agd]
+    branches: [main]
     paths:
       - 'server/**'
       - 'astra-park/kit/**'
