@@ -123,4 +123,4 @@ jobs:
           # older servers' update copies, no longer pointed at
           gh release view server --json assets -q '.assets[].name' | grep -E '^Orlis-Server-[0-9.]+\.exe$' | grep -vx "$UPD" | while read -r old; do
             gh release delete-asset server "$old" --yes || true
-          done
+          done || true   # (none to clear is fine)
