@@ -1,4 +1,14 @@
-# hello-world
-Hello world repository
+# Orlis Play
 
-This is my first git hub repository!
+*Get up. Get together.* Movement games for the whole family, played with a
+webcam: you move, the game sees you.
+
+- `astra-park/` - the games and the Orlis Play app (Windows, in
+  `astra-park/client/`)
+- `server/` - Orlis Server: accounts, kids' profiles and the Store, for one
+  home's Wi-Fi
+- `.github/workflows/` - builds the app (Beta and Release) and the server
+
+Downloads:
+- Orlis Play Beta: https://github.com/dpatel304/orlis-play/releases/download/beta/Orlis-Play-Beta-Setup.exe
+- Orlis Server: https://github.com/dpatel304/orlis-play/releases/download/server/Orlis-Server.exe

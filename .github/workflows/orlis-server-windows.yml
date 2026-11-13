@@ -1,6 +1,6 @@
 # Builds Orlis Server.exe - the home server, for the laptop - and puts it on
 # a release that's refilled each time, at an address that never changes:
-#   https://github.com/dpatel304/hello-world/releases/download/server/Orlis-Server.exe
+#   https://github.com/dpatel304/orlis-play/releases/download/server/Orlis-Server.exe
 #
 # Runs when the server's code changes, or by hand (Actions > Orlis Server for
 # Windows > Run workflow).

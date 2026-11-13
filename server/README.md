@@ -7,7 +7,7 @@ home Wi-Fi** - it is not on the internet.
 ## On the laptop (Windows 11)
 
 1. Download **Orlis-Server.exe**:
-   https://github.com/dpatel304/hello-world/releases/download/server/Orlis-Server.exe
+   https://github.com/dpatel304/orlis-play/releases/download/server/Orlis-Server.exe
 2. Make a folder for it, such as `Documents\Orlis Server`, and put it there.
    Its data goes in an `Orlis Server data` folder beside it.
 3. Double-click it. A window opens saying it's running - leave it open.

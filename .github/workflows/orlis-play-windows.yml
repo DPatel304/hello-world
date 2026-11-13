@@ -3,12 +3,12 @@
 #   Orlis Play Beta - every push that changes the game or the app. For trying
 #     things out: its own app beside the normal one, with its own icon and
 #     saves, and it updates itself to each new build.
-#       https://github.com/dpatel304/hello-world/releases/download/beta/Orlis-Play-Beta-Setup.exe
+#       https://github.com/dpatel304/orlis-play/releases/download/beta/Orlis-Play-Beta-Setup.exe
 #
 #   Orlis Play - only when released: run this workflow by hand (Actions >
 #     Orlis Play for Windows > Run workflow) with channel "release". Everyone
 #     with the normal app gets it on their next start.
-#       https://github.com/dpatel304/hello-world/releases/latest/download/Orlis-Play-Setup.exe
+#       https://github.com/dpatel304/orlis-play/releases/latest/download/Orlis-Play-Setup.exe
 #
 # Versions: astra-park/client/VERSION holds the one people see - 0.1 until
 # a milestone, then 0.2 ... and 1.0 at launch - and only changes by hand.
@@ -104,7 +104,7 @@ jobs:
             cat > client/release.json <<JSON
           {"version":"$VERSION","productName":"Orlis Play Beta","identifier":"com.orlisplay.client.beta",
            "bundle":{"createUpdaterArtifacts":$signed},
-           "plugins":{"updater":{"endpoints":["https://github.com/dpatel304/hello-world/releases/download/beta/latest.json"]}}}
+           "plugins":{"updater":{"endpoints":["https://github.com/dpatel304/orlis-play/releases/download/beta/latest.json"]}}}
           JSON
             echo "TAG=beta" >> $GITHUB_ENV
             echo "TITLE=Orlis Play Beta" >> $GITHUB_ENV
