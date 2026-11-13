@@ -86,8 +86,18 @@ export function manifestOf(files){
     format: m.format, id: m.id, name: m.name.trim(), version: m.version, kit: m.kit || 1,
     blurb: String(m.blurb || '').slice(0, 140), players: m.players || [1, 4],
     icon: m.icon && typeof m.icon === 'object' ? { cols: (m.icon.cols || []).slice(0, 2), glyph: String(m.icon.glyph || '').slice(0, 4000) } : null,
-    by: String(m.by || '').slice(0, 60)
+    by: String(m.by || '').slice(0, 60),
+    /* for the Store's game page and rows (all optional) */
+    about: String(m.about || '').slice(0, 600),
+    uses: USES.includes(m.uses) ? m.uses : '',
+    ages: Number.isInteger(m.ages) && m.ages >= 2 && m.ages <= 18 ? m.ages : null,
+    tags: Array.isArray(m.tags) ? m.tags.filter(t => typeof t === 'string').map(t => t.slice(0, 20)).slice(0, 6) : [],
+    howto: Array.isArray(m.howto) ? m.howto.filter(x => x && MOVES.includes(x.move)).slice(0, 5)
+      .map(x => ({ move: x.move, title: String(x.title || '').slice(0, 24), line: String(x.line || '').slice(0, 60) })) : []
   };
 }
+/* what a game is played with, and the moves its page can picture */
+export const USES = ['hands', 'body'];
+export const MOVES = ['reach', 'jump', 'duck', 'squat', 'wave', 'run', 'dance', 'together'];
 
 export const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');

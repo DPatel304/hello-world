@@ -5,11 +5,10 @@ import { screen, h, clearUI } from './screens.js';
 import { audio, sfx, ambience } from '../audio/sound.js';
 import { pose, MAX_PLAYERS } from '../tracking/pose.js';
 import { poster } from './posters.js';
-import { MARK, PAPER } from './boot.js';
-import { account, AVATARS } from './account.js';
-import { theme, setTheme, DARK_PAPER } from './theme.js';
+import { PAPER } from './boot.js';
 import { remote } from './remote.js';
 import { trailer } from './trailer.js';
+import { topBar } from './tabs.js';
 
 /* Home: Orlis Play's front room, the way a TV box does it. Along the top, the
    name, who's here (a bubble each, with their face), whether the camera's
@@ -56,34 +55,6 @@ export { GLYPHS };
 
 /* Games kept off the home screen for now (still there, just not shown). */
 export const HIDDEN = new Set(['uncle-bs-boat', 'dance-party', 'castle-defense']);
-/* What's in the corner menu. */
-const MENU = [
-  { id: 'settings', name: 'Settings', icon: '\u{2699}\u{FE0F}' },
-  { id: 'store', name: 'Store', icon: '\u{1F6CD}\u{FE0F}', soon: true,
-    line: 'New games to download',
-    about: 'Browse new movement games, download the ones you like, and they keep themselves up to date. Games your friends make can appear here too.' },
-  { id: 'make', name: 'Create', icon: '\u{1F58C}\u{FE0F}', soon: true,
-    line: 'Make your own games',
-    about: 'Build your own movement games from ready-made parts - obstacles, gems, creatures - then play them by moving. Up to five, saved on this PC.' }
-];
-
-/* Store and Create, until they're here: what's coming, nicely. */
-function comingSoon(m){
-  const s = overlay(); s.classList.add('setscreen');
-  const card = h('div', 'setcard soonpage');
-  card.append(h('div', 'soonicon', m.icon), h('div', 'soontag', 'Coming soon'), h('h2', '', m.name), h('p', 'soonline', m.line), h('p', 'soonabout', m.about));
-  const close = () => { sfx.back?.(); s.remove(); };
-  card.appendChild(onPick(button('OK', 'setbtn soonok'), close));
-  s.appendChild(card);
-  s.addEventListener('pointerdown', (e) => { if (e.target === s) close(); });
-}
-/* Seconds a first pick of Exit waits for the second. */
-const EXIT_SURE = 4;
-/* The Windows app's own window, when the game is running inside it. */
-function appWindow(){
-  const w = typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.window;
-  return w && w.getCurrentWindow ? w.getCurrentWindow() : null;
-}
 /* What was picked last - kept between launches, by game. */
 const LAST = 'orlis.lastGame';
 let lastFocus = null;
@@ -94,24 +65,20 @@ const LAUNCH = 0.5;            /* seconds of going in */
 const POINT_AGAIN = 0.04;      /* how far (of the screen) a hand moves to take over from the remote */
 const FLY = 0.7, FLY_STAGGER = 0.05;   /* arriving: each tile's flight, one after another */
 
-export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
+/* What Create is, until it's here. */
+export const CREATE_SOON = {
+  icon: '\u{1F58C}\u{FE0F}', name: 'Create', line: 'Make your own games',
+  about: 'Build your own movement games, then play them by moving. Share the ones you like with the family through the Store.'
+};
+
+/* nav: { home(), store(), create() } - the tabs in the top bar. */
+export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false }){
   clearUI();
   const s = screen('tvhome' + (arrive ? ' arrive' : ''));
 
-  /* the top bar */
-  const top = h('div', 'tvtop');
-  const brand = h('div', 'brand', `<span class="mark">${MARK}</span><span>Orlis <i class="play">Play</i></span>`);
-  /* who's playing (in the Windows app): their picture and name, and picking
-     it goes back to "Who's playing?" */
-  const who = account.current;
-  if (who && onWho){
-    brand.appendChild(onPick(button(`<span class="av">${AVATARS[who.avatar] || AVATARS.cube}</span><span class="nm">${who.name.replace(/[&<>]/g, '')}</span>`, 'whochip'), () => { sfx.select(); onWho(); }));
-  }
-  const clock = h('span', 'clock', ''), cam = h('span', 'camdot', '');
-  const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => openMenu());
-  const sys = h('div', 'tvsys'); sys.append(cam, clock, burger);
-  top.append(brand, sys);
-  s.appendChild(top);
+  /* the top bar, with the tabs */
+  const bar = topBar('home', nav, { onWho, onRecalibrate, isBusy: () => !!going });
+  s.appendChild(bar.el);
   if (pose.mouse.active && pose.reason !== 'debug') s.appendChild(h('div', 'warnstrip', '⚠ No camera — the mouse is playing'));
 
   const items = [];
@@ -149,16 +116,24 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
     card.querySelector('.lbl').innerHTML = `<span class="tn"></span><span class="tvsub">${howMany(it.g)}</span>`;
     card.querySelector('.tn').textContent = it.name;
     onPick(card, () => choose(n));
-    card.addEventListener('mouseenter', () => { if (!going && !open) move(n); });
+    card.addEventListener('mouseenter', () => { if (!going && !bar.menuOpen) move(n); });
     card.addEventListener('remotefocus', () => move(n));
     rows[it.rowAt].row.appendChild(card);
     return { card, pic, paint: it.paint, hot: 0, it, still: false };
   });
+  /* the way to more: the Store, at the end of the row */
+  if (nav.store && rows.length){
+    const more = button('', 'tvtile addtile');
+    more.insertBefore(h('div', 'icon', '<span class="plus">+</span>'), more.firstChild);
+    more.querySelector('.lbl').innerHTML = '<span class="tn">Get more games</span><span class="tvsub">Opens the Store</span>';
+    onPick(more, () => { if (going) return; sfx.select(); nav.store(); });
+    rows[0].row.appendChild(more);
+  }
   s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
 
   let scrollY = 0;
   if (lastFocus === null) lastFocus = Math.max(0, items.findIndex(it => it.g.id === remembered()));
-  let focus = Math.min(lastFocus, items.length - 1), t = 0, going = null, open = null, tick = 0, flown = !arrive;
+  let focus = Math.min(lastFocus, items.length - 1), t = 0, going = null, flown = !arrive;
   /* After the remote's used, pointing takes over again only once a hand (or
      the mouse) actually moves - not because the rows slid under one that's
      resting. */
@@ -189,76 +164,11 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
   }
   /* A pick goes straight in. */
   function choose(n){
-    if (going || open) return;
+    if (going || bar.menuOpen) return;
     move(n);
     sfx.select();
     going = { t: 0, g: items[n].g };
     cards[n].card.classList.add('launch');
-  }
-  /* The corner menu: a little card under the button. */
-  function openMenu(){
-    if (going || open) return;
-    sfx.select();
-    open = overlay(); open.classList.add('popmenu');
-    const card = h('div', 'popcard');
-    const esc = (e) => { if (e.key === 'Escape'){ e.preventDefault(); sfx.back(); shut(); } };
-    const shut = () => { if (!open) return; open.remove(); open = null; removeEventListener('keydown', esc, true); };
-    addEventListener('keydown', esc, true);
-    for (const m of MENU){
-      const b = onPick(button(`<span class="pi">${m.icon}</span><span class="pn">${m.name}</span>${m.soon && !(m.id === 'store' && onStore) ? '<span class="soon">Soon</span>' : ''}`, 'popitem'), () => {
-        sfx.select(); shut();
-        if (m.id === 'store' && onStore) return onStore();
-        if (m.soon) return comingSoon(m);
-        if (m.id === 'settings') settings(onRecalibrate);
-      });
-      card.appendChild(b);
-    }
-    /* In the Windows app: a newer version, now (picked once it checks,
-       picked again it installs and restarts on it); and signing out. */
-    const appInfo = typeof window !== 'undefined' && window.orlisApp;
-    if (appInfo){
-      card.appendChild(h('div', 'popline'));
-      let next = null, busy = false;
-      const up = onPick(button(`<span class="pi">\u{1F504}</span><span class="pn">Check for updates</span>`, 'popitem update'), async () => {
-        if (busy) return;
-        const say = (t) => { up.querySelector('.pn').textContent = t; };
-        busy = true; sfx.select();
-        try {
-          if (next){ say('Updating…'); await appInfo.installUpdate(); }
-          else {
-            say('Checking…');
-            const r = await appInfo.checkUpdate();
-            if (r.available){ next = r.version; say(`Update to ${appInfo.nameOf ? appInfo.nameOf(next) : next}`); }
-            else say('Up to date');
-          }
-        } catch (e){ next = null; say('Couldn\'t check - try later'); }
-        busy = false;
-      });
-      card.appendChild(up);
-    }
-    if (account.signedIn){
-      card.appendChild(onPick(button(`<span class="pi">\u{1F6AA}</span><span class="pn">Sign out</span>`, 'popitem'), () => { sfx.back(); account.signOut(); location.reload(); }));
-    }
-    /* In the Windows app, a way out. Picked once it asks; picked again
-       (within a few seconds) it closes - so a hand resting there by
-       accident doesn't end the evening. */
-    const app = appWindow();
-    if (app){
-      let sure = 0;
-      const ex = onPick(button(`<span class="pi">\u{1F44B}</span><span class="pn">Exit</span>`, 'popitem exit'), () => {
-        if (performance.now() - sure < EXIT_SURE * 1000){ sfx.back(); app.close(); return; }
-        sure = performance.now(); sfx.select();
-        ex.querySelector('.pn').textContent = 'Exit? Pick again';
-        setTimeout(() => { if (ex.isConnected) ex.querySelector('.pn').textContent = 'Exit'; }, EXIT_SURE * 1000);
-      });
-      card.appendChild(ex);
-    }
-    /* small print: the version, and who's signed in */
-    const bits = [appInfo ? `Orlis Play ${appInfo.label ? appInfo.label() : appInfo.version}` : '', account.signedIn ? account.state.account.email : ''].filter(Boolean);
-    if (bits.length) card.appendChild(h('div', 'popfoot', bits.join(' \u00B7 ').replace(/[&<>]/g, '')));
-    open.appendChild(card);
-    /* a click anywhere outside it closes it (and Escape) */
-    open.addEventListener('pointerdown', (e) => { if (e.target === open){ sfx.back(); shut(); } });
   }
   show();
   ambience.start();
@@ -266,7 +176,7 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
   return {
     get focus(){ return focus; },
     tick(dt){
-      t += dt; tick += dt;
+      t += dt;
       /* arriving: each tile flies out from the middle of the screen, where the cube was */
       if (!flown){
         flown = true;
@@ -284,19 +194,12 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
       if (remote.lastKey !== keySeen){ keySeen = remote.lastKey; anchor = cursor.rings.map(r => [r.x, r.y]); }
       if (anchor && (cursor.rings.length !== anchor.length || cursor.rings.some((r, i) => Math.hypot(r.x - anchor[i][0], r.y - anchor[i][1]) > POINT_AGAIN))) anchor = null;
       /* The tile pointed at is the picked one. */
-      if (!anchor && !open) for (let n = 0; n < cards.length; n++){
+      if (!anchor && !bar.menuOpen) for (let n = 0; n < cards.length; n++){
         const cd = cards[n];
         cd.hot = cd.card.classList.contains('hot') && n !== focus ? cd.hot + dt : 0;
         if (cd.hot >= HOVER_FOCUS){ cd.hot = 0; move(n); }
       }
-      if (tick >= 1 || !clock.textContent){
-        tick = 0;
-        clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        /* (off here: it comes on when a game starts) */
-        const ok = !pose.mouse.active;
-        cam.className = 'camdot ' + (ok ? 'ok' : 'off');
-        cam.title = ok ? 'The camera comes on when a game starts' : 'No camera';
-      }
+      bar.tick(dt);
       /* the banner's trailer: the picked game, playing itself */
       const it = items[focus];
       if (it.trailer === undefined) it.trailer = trailer(it.g);
@@ -310,10 +213,9 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
     },
     draw(c, W, H){
       /* the room: soft paper, washed with the picked game's colour */
-      const dark = theme() === 'dark';
-      c.fillStyle = dark ? DARK_PAPER : PAPER; c.fillRect(0, 0, W, H);
-      wash(c, W * 0.15, 0, H * 0.9, dark ? '#134e4a' : '#ccfbf1', dark ? 0.45 : 0.6);
-      wash(c, W * 0.9, H, H * 1.0, items[focus].accent, dark ? 0.22 : 0.18);
+      c.fillStyle = PAPER; c.fillRect(0, 0, W, H);
+      wash(c, W * 0.15, 0, H * 0.9, '#ccfbf1', 0.6);
+      wash(c, W * 0.9, H, H * 1.0, items[focus].accent, 0.18);
       /* the banner's living picture; the tiles' still ones */
       const it = items[focus];
       if (it.trailer) paint(heroPic, (c, w, hh) => cover(c, w, hh, it.trailer), t, 1);
@@ -324,7 +226,7 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
 }
 
 /* How many can play: '1-4 players', or just the one number. */
-function howMany(g){
+export function howMany(g){
   const lo = g.minPlayers || 1, hi = g.maxPlayers || MAX_PLAYERS;
   return lo === hi ? `${hi} player${hi > 1 ? 's' : ''}` : `${lo}\u2013${hi} players`;
 }
@@ -339,7 +241,7 @@ function wash(c, x, y, r, col, a){
    it the trailer says (anchor: how far down the middle of the view sits). */
 const TW = 1440, TH = 810;
 let film = null;
-function cover(c, w, h, tr){
+export function cover(c, w, h, tr){
   if (!film){ film = document.createElement('canvas'); film.width = TW; film.height = TH; }
   const fc = film.getContext && film.getContext('2d'); if (!fc) return;
   fc.setTransform(1, 0, 0, 1, 0, 0);
@@ -349,7 +251,7 @@ function cover(c, w, h, tr){
 }
 
 /* A picture on its own small canvas, sized to it as laid out. */
-function paint(pic, fn, t, sharp = 2){
+export function paint(pic, fn, t, sharp = 2){
   if (!pic.getContext || !pic.getBoundingClientRect) return false;
   const w0 = pic.offsetWidth || pic.getBoundingClientRect().width, h0 = pic.offsetHeight || pic.getBoundingClientRect().height;
   if (!w0) return false;
@@ -415,14 +317,6 @@ function settings(onRecalibrate){
     mark();
     row('Display', seg);
   } else row('Display', small('Full screen', () => toggleFullscreen()));
-
-  /* light or dark (for evenings on the TV), kept for next time */
-  const tseg = h('div', 'seg');
-  const themes = [['light', 'Light'], ['dark', 'Dark']];
-  const tmark = () => themes.forEach(([t], i) => tseg.children[i].classList.toggle('chosen', theme() === t));
-  for (const [t, name] of themes) tseg.appendChild(small(name, () => { sfx.select(); setTheme(t); tmark(); }, 'mode'));
-  tmark();
-  row('Theme', tseg);
 
   /* the camera: which one (when there's a choice), and finding everyone again */
   const camCtl = row('Camera', small('Re-calibrate', () => { s.remove(); onRecalibrate(); }));

@@ -4,9 +4,9 @@ import { menu, toggleFullscreen, openSettings } from './ui/menu.js';
 import { remote, typing } from './ui/remote.js';
 import { account, welcome } from './ui/account.js';
 import { installTitlebar, titlebarPlaying } from './ui/titlebar.js';
-import { theme, applyTheme, DARK_PAPER } from './ui/theme.js';
 import { library } from './ui/library.js';
-import { openStore } from './ui/store.js';
+import { storePage } from './ui/store.js';
+import { createPage } from './ui/create.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -42,16 +42,21 @@ let paused = null, lost = null, handsUp = 0, empty = 0, joined = new Set();
    "again"), and the camera check. Everywhere else - the intro, signing in,
    the home screen - it's off: no light, and no work for the laptop. */
 const CAMERA = new Set(['starting', 'play', 'outro', 'results', 'calibrate']);
+/* The pages that are the mouse's and the keyboard's: Home, the Store,
+   Create, and signing in. */
+const HOMEY = new Set(['menu', 'store', 'create', 'who']);
 
 function go(next, build){
+  /* (a page with something to tidy away first - the Store's previews) */
+  if (scene && scene.leave) scene.leave();
   mode = next;
   if (CAMERA.has(next)) pose.wake(); else pose.sleep();
-  if (next === 'menu' || next === 'who') updateIfWaiting();
+  if (HOMEY.has(next)) updateIfWaiting();
   clearUI();
   cursor.reset();
   /* For now the home screen (and signing in) is the mouse's and the
      keyboard's: hands don't point there. The games still play by moving. */
-  cursor.enabled = !(next === 'menu' || next === 'who');
+  cursor.enabled = !HOMEY.has(next);
   titlebarPlaying(next === 'play' || next === 'outro');
   scene = build ? build() : null;
 }
@@ -65,8 +70,16 @@ function toMenu(arrive = false){
   voice.hush();
   if (mode === 'results' || mode === 'play' || mode === 'outro') sfx.back();
   pose.keepSitters = false;
-  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, onWho: () => toWho(false),
-    onStore: account.needed ? () => openStore({ onChange: () => toMenu(false), onPlay: toGame }) : null, arrive }));
+  go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, onWho: () => toWho(false), nav: tabs(), arrive }));
+}
+/* The tabs along the top: Home, the Store, Create. */
+function tabs(){ return { home: () => toMenu(false), store: toStore, create: toCreate }; }
+function toStore(){
+  music.stop(); voice.hush();
+  go('store', () => storePage({ nav: tabs(), onPlay: toGame, onChange: () => {}, onWho: () => toWho(false), onRecalibrate: toCalibration }));
+}
+function toCreate(){
+  go('create', () => createPage({ nav: tabs(), onWho: () => toWho(false), onRecalibrate: toCalibration }));
 }
 
 /* The Windows app's way in: find the server and sign in (once), then pick
@@ -231,7 +244,7 @@ let last = 0;
    30 times a second rather than 60. And with another window in front, almost
    nothing runs: a few frames a second, no tracking, no sound - and a game in
    progress pauses, to carry on when someone's back. */
-const CALM = new Set(['boot', 'menu', 'who', 'starting']);
+const CALM = new Set(['boot', 'menu', 'store', 'create', 'who', 'starting']);
 const HOME_GAP = 1000 / 30 - 2, AWAY_GAP = 250;
 let lastFrame = 0, wasAway = false;
 function tick(now){
@@ -250,7 +263,7 @@ function tick(now){
   if (!away && !CALM.has(mode)) pose.update(now, dt);
 
   /* paper, under the menus; dark under a game while it loads */
-  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' || mode === 'starting' ? '#0d0b1a' : theme() === 'dark' ? DARK_PAPER : '#f3f4f7';
+  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' || mode === 'starting' ? '#0d0b1a' : '#f3f4f7';
   c.fillRect(0, 0, W, H);
 
   if (mode === 'play' && inst && !paused && !lost){
@@ -363,7 +376,7 @@ function updateIfWaiting(){
 }
 addEventListener('orlisupdate', () => {
   updateWaiting = true;
-  if (mode === 'menu' || mode === 'who') updateIfWaiting();
+  if (HOMEY.has(mode)) updateIfWaiting();
 });
 
 /* ---------- boot ---------- */
@@ -376,7 +389,6 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
 /* The boot show, then the front door. (The camera waits for a game.) */
 (async function boot(){
   document.title = 'Orlis Play';
-  applyTheme();
   /* the games already downloaded (they run in the sandbox) */
   const libraryReady = account.needed ? library.load() : Promise.resolve();
   installTitlebar();

@@ -84,3 +84,29 @@ test('starter games: an update replaces an older one, but one the owner removed 
   assert.equal(r.s.store.games().length, 0);
   await r.s.close();
 });
+
+test("a game's Store page details pass through, tidied; anything unknown is dropped", () => {
+  const m = manifestOf(readOrlis(writeOrlis({
+    'manifest.json': JSON.stringify({ format: 1, kit: 2, id: 'hop', name: 'Hop', version: '1.0',
+      about: 'x'.repeat(900), uses: 'body', ages: 4, tags: ['Party', 7, 'a'.repeat(40)],
+      howto: [{ move: 'jump', title: 'Jump', line: 'Over the logs' }, { move: 'teleport', title: 'No' }],
+      secret: 'dropped' }),
+    'game.js': ''
+  })));
+  assert.equal(m.about.length, 600);
+  assert.equal(m.uses, 'body');
+  assert.equal(m.ages, 4);
+  assert.deepEqual(m.tags, ['Party', 'a'.repeat(20)]);
+  assert.deepEqual(m.howto, [{ move: 'jump', title: 'Jump', line: 'Over the logs' }]);
+  assert.equal(m.secret, undefined);
+  const plain = manifestOf(readOrlis(game('plain', '1.0')));
+  assert.equal(plain.uses, ''); assert.equal(plain.ages, null); assert.deepEqual(plain.howto, []);
+});
+
+test('the Store says when each game was added', async () => {
+  const { s, call, token } = await fresh([{ name: 'pop-party.orlis', data: game('pop-party', '1.0', 'Pop Party') }]);
+  try {
+    const { games } = await call('GET', '/api/store', null, token);
+    assert.ok(!Number.isNaN(Date.parse(games[0].added)));
+  } finally { s.close(); }
+});

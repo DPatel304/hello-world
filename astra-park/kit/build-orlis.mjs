@@ -31,9 +31,16 @@ export const PACKAGES = {
   'pop-party': {
     entry: 'src/games/pop-party.js',
     manifest: {
-      id: 'pop-party', name: 'Pop Party', version: '1.0', by: 'Orlis Play',
+      id: 'pop-party', name: 'Pop Party', version: '1.1', by: 'Orlis Play',
       blurb: 'Reach up and pop the balloons before they float away',
-      players: [1, 4], icon: { cols: ['#ff7eb3', '#ffa25a'], glyph: BALLOON }
+      about: 'Balloons drift up from the bottom of the screen. Reach up, swat them, and pop as many as you can before they float away. Gold balloons are worth double, and everyone can play at once.',
+      players: [1, 4], uses: 'hands', ages: 3, tags: ['Party', 'Together'],
+      howto: [
+        { move: 'reach', title: 'Reach up', line: 'Swat a balloon to pop it' },
+        { move: 'jump', title: 'Jump', line: 'For the ones floating away' },
+        { move: 'together', title: 'Play together', line: 'Up to four at once' }
+      ],
+      icon: { cols: ['#ff7eb3', '#ffa25a'], glyph: BALLOON }
     }
   }
 };

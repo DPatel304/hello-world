@@ -51,7 +51,7 @@ export function store(dataDir, starters = []){
       if (!c || c.mtime !== st.mtimeMs || c.size !== st.size){
         try {
           const data = readFileSync(path), m = manifestOf(readOrlis(data));
-          c = { mtime: st.mtimeMs, size: st.size, entry: { ...m, bytes: data.length, sha256: sha256(data), file: f } };
+          c = { mtime: st.mtimeMs, size: st.size, entry: { ...m, bytes: data.length, sha256: sha256(data), added: new Date(st.mtimeMs).toISOString(), file: f } };
         } catch (e){ c = { mtime: st.mtimeMs, size: st.size, entry: null, error: e.message }; }
         cache.set(f, c);
       }

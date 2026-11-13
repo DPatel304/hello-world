@@ -47,6 +47,25 @@ function place(g){
   if (at >= 0) GAMES[at] = g; else GAMES.unshift(g);
 }
 
+/* A game's file from the Store: downloaded, checked against what the
+   server listed, and opened. */
+async function fetchRec(entry, progress = () => {}){
+  const s = account.state;
+  progress(0.05);
+  const r = await fetch(s.server.url.replace(/\/$/, '') + `/api/store/${encodeURIComponent(entry.id)}/file`, { headers: { Authorization: `Bearer ${s.token}` } });
+  if (!r.ok) throw new Error(r.status === 401 ? 'Please sign in again.' : 'The download didn\'t work. Try again.');
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  progress(0.6);
+  if (await sha256(bytes) !== entry.sha256) throw new Error('The download came through damaged. Try again.');
+  const parts = await readOrlis(bytes);
+  if (!parts['manifest.json'] || !parts['game.js']) throw new Error('That game file is missing its parts.');
+  const manifest = JSON.parse(text(parts['manifest.json']));
+  if (manifest.id !== entry.id) throw new Error('That game file isn\'t the one asked for.');
+  if ((manifest.kit || 1) > KIT) throw new Error('This game needs a newer Orlis Play. Check for updates first.');
+  if ((manifest.kit || 1) < KIT) throw new Error('This game was made for an older Orlis Play, and needs updating by its maker.');
+  return { id: manifest.id, version: manifest.version, sha256: entry.sha256, manifest, code: text(parts['game.js']), at: Date.now() };
+}
+
 export const library = {
   /* id -> version, of what's installed */
   installed: new Map(),
@@ -70,20 +89,7 @@ export const library = {
   /* From the Store: download, check it's the very file the server listed,
      open it, start it, and keep it. */
   async install(entry, progress = () => {}){
-    const s = account.state;
-    progress(0.05);
-    const r = await fetch(s.server.url.replace(/\/$/, '') + `/api/store/${encodeURIComponent(entry.id)}/file`, { headers: { Authorization: `Bearer ${s.token}` } });
-    if (!r.ok) throw new Error(r.status === 401 ? 'Please sign in again.' : 'The download didn\'t work. Try again.');
-    const bytes = new Uint8Array(await r.arrayBuffer());
-    progress(0.6);
-    if (await sha256(bytes) !== entry.sha256) throw new Error('The download came through damaged. Try again.');
-    const parts = await readOrlis(bytes);
-    if (!parts['manifest.json'] || !parts['game.js']) throw new Error('That game file is missing its parts.');
-    const manifest = JSON.parse(text(parts['manifest.json']));
-    if (manifest.id !== entry.id) throw new Error('That game file isn\'t the one asked for.');
-    if ((manifest.kit || 1) > KIT) throw new Error('This game needs a newer Orlis Play. Check for updates first.');
-    if ((manifest.kit || 1) < KIT) throw new Error('This game was made for an older Orlis Play, and needs updating by its maker.');
-    const rec = { id: manifest.id, version: manifest.version, sha256: entry.sha256, manifest, code: text(parts['game.js']), at: Date.now() };
+    const rec = await fetchRec(entry, progress);
     const g = await start(rec);
     progress(0.9);
     await tx('readwrite', st => st.put(rec));
@@ -91,6 +97,17 @@ export const library = {
     this.installed.set(rec.id, rec.version);
     progress(1);
     return g;
+  },
+
+  /* For the Store's banner and game pages: a game not downloaded yet,
+     playing itself - fetched and checked just the same, started in the
+     sandbox, and not kept. (A game already here is used as it is.) */
+  async preview(entry){
+    if (this.installed.get(entry.id) === entry.version){
+      const here = GAMES.find(x => x.id === entry.id);
+      if (here) return here;
+    }
+    return start(await fetchRec(entry));
   },
 
   async remove(id){

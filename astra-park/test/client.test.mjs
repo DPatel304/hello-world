@@ -35,7 +35,7 @@ test('display modes: a window or Big Picture, kept, with a default for new insta
 test('the corner menu can check for an update and install it now', () => {
   assert.ok(main.includes('generate_handler![set_display_mode, check_update, install_update'));
   assert.ok(main.includes('window.ORLIS_VERSION') && main.includes('window.orlisApp'));
-  const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
+  const menu = readFileSync(new URL('../src/ui/tabs.js', import.meta.url), 'utf8');
   assert.ok(menu.includes('Check for updates</span>') && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
 });
 
@@ -107,4 +107,21 @@ test('updates: the Update button and a slow check both show "Updating"; the beta
   const wf = readFileSync(new URL('../../.github/workflows/orlis-play-windows.yml', import.meta.url), 'utf8');
   assert.ok(!/gh release delete beta/.test(wf), 'the beta stays up while the next one builds');
   assert.ok(wf.indexOf('upload "$TAG" "$UPD"') < wf.indexOf('upload "$TAG" latest.json'), 'the update file goes up last');
+});
+
+test('Home, the Store and Create are pages under the same tabs; the corner menu keeps Settings, updates, sign out and Exit', () => {
+  const tabs = readFileSync(new URL('../src/ui/tabs.js', import.meta.url), 'utf8');
+  assert.match(tabs, /\['home', 'Home'\], \['store', 'Store'\], \['create', 'Create'\]/);
+  for (const w of ['Settings</span>', 'Check for updates</span>', 'Sign out</span>', 'Exit</span>']) assert.ok(tabs.includes(w), w);
+  assert.ok(!/Store<\/span>|Create<\/span>/.test(tabs), 'Store and Create are tabs now, not in the corner menu');
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /go\('store'/); assert.match(main, /go\('create'/);
+  assert.match(main, /const HOMEY = new Set\(\['menu', 'store', 'create', 'who'\]\)/);
+});
+
+test('light only: no dark theme left', () => {
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  assert.ok(!css.includes('body.dark'));
+  const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
+  assert.ok(!menu.includes("row('Theme'"));
 });
