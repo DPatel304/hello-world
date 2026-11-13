@@ -2,8 +2,11 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "defaultMode": "acceptEdits",
+    "disableBypassPermissionsMode": "disable",
     "allow": [
-      "Read(./**)",
+      "Read(./game.js)",
+      "Read(./orlis.json)",
+      "Read(./CLAUDE.md)",
       "Edit(./game.js)",
       "Edit(./orlis.json)"
     ],
@@ -12,6 +15,9 @@
       "PowerShell",
       "WebFetch",
       "WebSearch",
+      "Agent",
+      "Task",
+      "NotebookEdit",
       "Edit(./CLAUDE.md)",
       "Edit(./.claude/**)",
       "Edit(./.orlis/**)"
@@ -20,12 +26,18 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read|Glob|Grep|Edit|Write|MultiEdit|NotebookEdit",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
             "command": "powershell.exe",
-            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.ps1"],
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.ps1"
+            ],
             "timeout": 20,
             "onFailure": "block"
           }
@@ -39,11 +51,18 @@
           {
             "type": "command",
             "command": "powershell.exe",
-            "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${CLAUDE_PROJECT_DIR}/.claude/hooks/check.ps1"],
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/check.ps1"
+            ],
             "timeout": 30
           }
         ]
       }
     ]
-  }
+  },
+  "enableAllProjectMcpServers": false
 }

@@ -46,6 +46,26 @@ expect('searching the folder: allowed', allowed(r), r);
 r = hook('guard.ps1', { tool_name: 'Glob', tool_input: { pattern: '**/*', path: 'C:\\Users' } });
 expect('searching elsewhere: refused', denied(r), r);
 
+r = hook('guard.ps1', { tool_name: 'Read', tool_input: { file_path: join(dir, '.claude', 'settings.json') } });
+expect("reading Claude Code's settings: refused (only the game, its rules, its how-to)", denied(r), r);
+r = hook('guard.ps1', { tool_name: 'Read', tool_input: { file_path: join(dir, '.claude', 'skills', 'orlis-game', 'SKILL.md') } });
+expect('reading the how-to: allowed', allowed(r), r);
+for (const [tool, input] of [['Bash', { command: 'dir' }], ['PowerShell', { command: 'dir' }], ['WebFetch', { url: 'https://example.com' }], ['WebSearch', { query: 'x' }],
+  ['Agent', { prompt: 'x' }], ['mcp__Gmail__send_message', { to: 'x' }], ['NotebookEdit', { notebook_path: join(dir, 'x.ipynb') }], ['SomethingNew', {}]])
+  { r = hook('guard.ps1', { tool_name: tool, tool_input: input }); expect(`${tool}: refused`, denied(r), r); }
+r = hook('guard.ps1', { tool_name: 'Skill', tool_input: { skill: 'orlis-game' } });
+expect('the orlis-game skill: allowed', allowed(r), r);
+r = hook('guard.ps1', { tool_name: 'Skill', tool_input: { skill: 'something-else' } });
+expect('another skill: refused', denied(r), r);
+r = hook('guard.ps1', { tool_name: 'TodoWrite', tool_input: { todos: [] } });
+expect('its to-do list: allowed', allowed(r), r);
+r = hook('guard.ps1', { tool_name: 'Edit', tool_input: { file_path: join(dir, 'game.js'), old_string: 'a', new_string: 'const stars = [];' } });
+expect('an ordinary change to game.js: allowed', allowed(r), r);
+r = hook('guard.ps1', { tool_name: 'Edit', tool_input: { file_path: join(dir, 'game.js'), old_string: 'a', new_string: 'fetch("https://example.com")' } });
+expect('a change reaching for the internet: refused before it is made', denied(r) && /internet/.test(r.json.hookSpecificOutput.permissionDecisionReason), r);
+r = hook('guard.ps1', { tool_name: 'Write', tool_input: { file_path: join(dir, 'game.js'), content: 'localStorage.x = 1; Orlis.run({})' } });
+expect('writing game.js with storage: refused', denied(r), r);
+
 /* the checks */
 r = hook('check.ps1', { tool_name: 'Edit', tool_input: { file_path: join(dir, 'game.js') } });
 expect('the starter game: passes, nothing said', allowed(r), r);

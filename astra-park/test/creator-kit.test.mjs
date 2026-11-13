@@ -11,8 +11,10 @@ test('the kit in the app is built from kit/creator as it is now', async () => {
 
 test("the app's checks and the server's are the same list", () => {
   assert.deepEqual(FORBIDDEN, SERVER_FORBIDDEN);
-  const ps = newGame({ name: 'x y' }).files['.claude/hooks/check.ps1'];
-  for (const [w] of FORBIDDEN) assert.ok(ps.includes(`@('${w.replace(/'/g, "''")}'`), `the hook checks ${w} too`);
+  for (const h of ['check.ps1', 'guard.ps1']){
+    const ps = newGame({ name: 'x y' }).files['.claude/hooks/' + h];
+    for (const [w] of FORBIDDEN) assert.ok(ps.includes(`@('${w.replace(/'/g, "''")}'`), `${h} checks ${w} too`);
+  }
 });
 
 test('a new game: the starter, its orlis.json, the rules and the guardrails', () => {
@@ -33,7 +35,9 @@ test("Claude Code's settings: no web, no commands, edits only to the game's two 
   for (const d of ['Bash', 'WebFetch', 'WebSearch', 'Edit(./CLAUDE.md)', 'Edit(./.claude/**)']) assert.ok(st.permissions.deny.includes(d), d);
   assert.deepEqual(st.permissions.allow.filter(a => a.startsWith('Edit')), ['Edit(./game.js)', 'Edit(./orlis.json)']);
   const pre = st.hooks.PreToolUse[0], post = st.hooks.PostToolUse[0];
-  assert.match(pre.matcher, /Read/); assert.match(pre.matcher, /Edit/); assert.match(pre.matcher, /Write/);
+  assert.equal(pre.matcher, '*', 'the guard is asked about every tool');
+  assert.equal(st.permissions.disableBypassPermissionsMode, 'disable', 'no switching the permissions off');
+  assert.equal(st.enableAllProjectMcpServers, false);
   assert.equal(pre.hooks[0].onFailure, 'block', 'a guard that fails says no');
   assert.ok(pre.hooks[0].args.at(-1).endsWith('/.claude/hooks/guard.ps1'));
   assert.ok(post.hooks[0].args.at(-1).endsWith('/.claude/hooks/check.ps1'));

@@ -30,7 +30,7 @@ export async function generate(){
   };
   walk(join(kit, 'template'));
   const ps = forbidden.map(([w, why]) => `  @('${w.replace(/'/g, "''")}', '${why.replace(/'/g, "''")}')`).join(",\n");
-  files['.claude/hooks/check.ps1'] = files['.claude/hooks/check.ps1'].replace('{{FORBIDDEN}}', ps);
+  for (const h of ['check.ps1', 'guard.ps1']) files['.claude/hooks/' + h] = files['.claude/hooks/' + h].replace('{{FORBIDDEN}}', () => ps);
   return `/* Made by kit/build-creator.mjs - don't edit; change kit/creator/ and run it again. */
 export const RUNTIME = ${JSON.stringify(runtime)};
 export const FORBIDDEN = ${JSON.stringify(forbidden)};
