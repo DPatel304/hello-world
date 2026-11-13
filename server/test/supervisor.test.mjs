@@ -92,3 +92,11 @@ test('Manage opens the management page on this laptop, with its key', async () =
   w.tray.stdout.write('manage\n'); await wait(20);
   assert.deepEqual(w.spawned.at(-1), ['explorer.exe', ['http://127.0.0.1:47871/manage#k=abc123']]);
 });
+
+test('where it is, said only the first time it ever runs', async () => {
+  const w = world(); supervise(w.opts); await wait(30);
+  assert.ok(w.toTray.some(l => l.startsWith('say Orlis Server is running')));
+  const again = world(); again.opts.dataDir = w.opts.dataDir;
+  supervise(again.opts); await wait(30);
+  assert.ok(!again.toTray.some(l => l.startsWith('say ')), 'not the second time');
+});

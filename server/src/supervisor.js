@@ -184,9 +184,13 @@ export function supervise({ exe, dataDir, version, afterUpdate = false, spawn = 
     log(`-- Orlis Server ${version} starting --`);
     startTray();
     tell('status Orlis Server ' + version + ' - running');
-    tell(afterUpdate
-      ? `say Orlis Server updated|Now version ${version}. It's still by the clock.`
-      : "say Orlis Server is running|It's here by the clock. Double-click the cube to manage it; right-click for more.");
+    /* where it is - said the first time it ever runs, not every time */
+    const told = join(dataDir, '.shown-where');
+    if (afterUpdate) tell(`say Orlis Server updated|Now version ${version}.`);
+    else if (!existsSync(told)){
+      tell("say Orlis Server is running|It's here by the clock. Double-click the cube to manage it; right-click for more.");
+      try { appendFileSync(told, ''); } catch {}
+    }
     startWorker();
   }
   begin();
