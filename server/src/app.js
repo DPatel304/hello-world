@@ -9,7 +9,10 @@ import { api } from './api.js';
 import { listenForApps, DISCOVERY_PORT } from './discovery.js';
 import { store } from './store.js';
 
-export const VERSION = '0.1.0';
+/* The server's version: 0.1 and the build number, stamped in when the exe
+   is built (build-exe.mjs); run from the code, plain 0.1.0. */
+/* global __ORLIS_SERVER_VERSION__ */
+export const VERSION = typeof __ORLIS_SERVER_VERSION__ === 'string' ? __ORLIS_SERVER_VERSION__ : '0.1.0';
 export const PORT = 47871;
 
 export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PORT, name, host = '0.0.0.0', starters = [] } = {}){

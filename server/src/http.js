@@ -13,6 +13,10 @@ export class Raw {
   constructor(data, name, type = 'application/octet-stream'){ this.data = data; this.name = name; this.type = type; }
 }
 
+/* When the server last heard from anyone (the updater waits for a quiet
+   moment). */
+export const activity = { last: 0 };
+
 /* routes: [method, '/api/thing/:id', handler(req) -> body | [status, body]] */
 export function makeServer(routes){
   const table = routes.map(([method, path, fn]) => {
@@ -21,6 +25,7 @@ export function makeServer(routes){
     return { method, re, names, fn };
   });
   return createServer(async (req, res) => {
+    activity.last = Date.now();
     /* The app is a page from its own address (tauri.localhost), so it needs
        permission to call this one. Sign-in uses a token in a header, not a
        cookie, so allowing any page to ask doesn't let one act as somebody. */

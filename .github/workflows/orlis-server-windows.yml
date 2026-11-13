@@ -30,6 +30,12 @@ jobs:
     defaults:
       run:
         working-directory: server
+    env:
+      # 0.1 and the build number: what the server reports, and updates itself from
+      ORLIS_SERVER_VERSION: 0.1.${{ github.run_number }}
+      # Orlis Play's update key: the server only installs a new exe signed with it
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
     steps:
       - uses: actions/checkout@v4
 
@@ -62,6 +68,7 @@ jobs:
         shell: pwsh
         run: |
           $env:ORLIS_DATA = Join-Path $env:RUNNER_TEMP 'orlis-check'
+          $env:ORLIS_NO_UPDATE = '1'
           $p = Start-Process -FilePath 'dist\Orlis Server.exe' -PassThru -WindowStyle Hidden
           $hello = $null
           for ($i = 0; $i -lt 20 -and -not $hello; $i++) {
@@ -73,15 +80,47 @@ jobs:
           if (-not (Test-Path (Join-Path $env:ORLIS_DATA 'games\pop-party.orlis'))) { throw 'Pop Party is not in the Store' }
           Write-Host "answered: $($hello | ConvertTo-Json -Compress)"
 
+      # The server release is refilled each time, never emptied first: the new
+      # files go up beside the old ones, and server.json - what running
+      # servers read to update themselves - last. So downloads and updates
+      # work the whole time.
+      - name: Sign it, for servers updating themselves
+        shell: bash
+        run: |
+          cp "dist/Orlis Server.exe" "Orlis-Server-$ORLIS_SERVER_VERSION.exe"
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::No TAURI_SIGNING_PRIVATE_KEY secret: this server won't be offered as an update."
+            exit 0
+          fi
+          (cd ../astra-park && npx tauri signer sign "../server/Orlis-Server-$ORLIS_SERVER_VERSION.exe")
+          test -f "Orlis-Server-$ORLIS_SERVER_VERSION.exe.sig"
+
       - name: Publish
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          V="$ORLIS_SERVER_VERSION"; UPD="Orlis-Server-$V.exe"
           cp "dist/Orlis Server.exe" Orlis-Server.exe
           cp starter/pop-party.orlis Pop-Party.orlis
-          gh release delete server --yes --cleanup-tag 2>/dev/null || true
-          gh release create server Orlis-Server.exe Pop-Party.orlis \
-            --target "${{ github.sha }}" --prerelease \
-            --title "Orlis Server" \
-            --notes "The Orlis home server, for the laptop. Download Orlis-Server.exe, put it in a folder of its own (its data goes beside it), and double-click it. If Windows asks, allow it on Private networks only."
+          NOTES="Orlis Server $V, the Orlis home server for the laptop. Download Orlis-Server.exe, put it in a folder of its own (its data goes beside it), and double-click it. If Windows asks, allow it on Private networks only. After that it keeps itself up to date."
+          if ! gh release view server >/dev/null 2>&1; then
+            gh release create server --prerelease --title "Orlis Server" --notes "$NOTES" --target "$GITHUB_SHA"
+          fi
+          gh release upload server "$UPD" Orlis-Server.exe Pop-Party.orlis --clobber
+          if [ -f "$UPD.sig" ]; then
+            node -e '
+              const fs = require("fs"), crypto = require("crypto"), [file, sig, version, url] = process.argv.slice(1);
+              fs.writeFileSync("server.json", JSON.stringify({ version, url, pub_date: new Date().toISOString(),
+                sha256: crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex"),
+                signature: fs.readFileSync(sig, "utf8").trim() }, null, 2));
+            ' "$UPD" "$UPD.sig" "$V" "https://github.com/$GITHUB_REPOSITORY/releases/download/server/$UPD"
+            cat server.json
+            gh release upload server server.json --clobber
+          fi
+          gh release edit server --title "Orlis Server" --notes "$NOTES" --prerelease
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/server" -f sha="$GITHUB_SHA" -F force=true >/dev/null || true
+          # older servers' update copies, no longer pointed at
+          gh release view server --json assets -q '.assets[].name' | grep -E '^Orlis-Server-[0-9.]+\.exe$' | grep -vx "$UPD" | while read -r old; do
+            gh release delete-asset server "$old" --yes || true
+          done

@@ -1,7 +1,7 @@
 # Orlis Server
 
 The Orlis Play server for one home: accounts, kids' profiles, invites, and
-(next) the store. It runs on a laptop and answers **only devices on the same
+the Store. It runs on a laptop and answers **only devices on the same
 home Wi-Fi** - it is not on the internet.
 
 ## On the laptop (Windows 11)
@@ -27,6 +27,19 @@ replaces the older one. Orlis Play's Store lists them; downloading one puts it
 on that PC's home screen, playable with the server off.
 
 **Back up** by copying the `Orlis Server data` folder (with the server closed).
+
+## Updates
+
+It keeps itself up to date. As it starts, and every few hours, it checks
+GitHub for a newer Orlis Server. It only takes one signed with Orlis Play's
+own update key, the same as the app's updates. When it finds one, it waits
+for a quiet moment (nobody using it for a couple of minutes), copies the
+family's data to `Orlis Server data\backups` (the last three are kept), swaps
+the new exe in, and restarts in a new window. The data stays as it is.
+
+Checking for updates is the one thing it does on the internet; nothing on
+the internet can reach it. To turn updates off, set the environment
+variable `ORLIS_NO_UPDATE=1`.
 
 ## How it stays private
 

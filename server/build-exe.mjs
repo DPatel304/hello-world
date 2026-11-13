@@ -20,7 +20,9 @@ await build({
   entryPoints: ['src/main.js'], bundle: true, platform: 'node', target: 'node22',
   format: 'cjs', outfile: join(out, 'orlis-server.cjs'), logLevel: 'warning',
   /* (import.meta.url is only used run from the code, never in the exe) */
-  define: { 'import.meta.url': '"file:///orlis-server.cjs"' }
+  define: { 'import.meta.url': '"file:///orlis-server.cjs"',
+    /* the version it reports, and updates itself from (the build sets it) */
+    __ORLIS_SERVER_VERSION__: JSON.stringify(process.env.ORLIS_SERVER_VERSION || '0.1.0') }
 });
 /* the starter games (built by astra-park/kit/build-orlis.mjs into
    starter/), carried inside the exe */

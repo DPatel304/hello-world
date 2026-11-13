@@ -9,9 +9,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as sea from 'node:sea';
 import { start, VERSION } from './app.js';
+import { activity } from './http.js';
+import { updater, QUIET, AFTER_UPDATE } from './update.js';
 
 const exeDir = dirname(process.execPath);
 const runningAsExe = !/[\\/]node(\.exe)?$/i.test(process.execPath);
+/* Only the exe on Windows updates itself (and not with ORLIS_NO_UPDATE). */
+const selfUpdates = runningAsExe && sea.isSea() && process.platform === 'win32' && !process.env.ORLIS_NO_UPDATE;
 const dataDir = process.env.ORLIS_DATA || (runningAsExe ? join(exeDir, 'Orlis Server data') : join(process.cwd(), 'data'));
 
 const lan = Object.values(networkInterfaces()).flat()
@@ -32,7 +36,13 @@ function starters(){
 
 async function main(){
   try {
-    const s = await start({ dataDir, name: process.env.ORLIS_NAME, starters: starters() });
+    /* (just updated: the old one may take a moment to let go of the port) */
+    const after = process.argv.includes(AFTER_UPDATE);
+    let s;
+    for (let tries = 0; ; tries++){
+      try { s = await start({ dataDir, name: process.env.ORLIS_NAME, starters: starters() }); break; }
+      catch (e){ if (!after || e.code !== 'EADDRINUSE' || tries >= 20) throw e; await new Promise(r => setTimeout(r, 500)); }
+    }
     const line = '-'.repeat(60);
     console.log(`${line}
   Orlis Server ${VERSION} is running: "${s.info.name}"
@@ -48,8 +58,13 @@ async function main(){
   (add a game by putting its .orlis file in ${s.store.dir})
 
   Data: ${dataDir}
-  To stop it, close this window.
+  To stop it, close this window.${selfUpdates ? `
+  It keeps itself up to date: a newer version installs itself
+  at a quiet moment, and it's back in a few seconds.` : ''}
 ${line}`);
+    if (after) console.log(`  Updated to ${VERSION}.`);
+    if (selfUpdates) updater({ version: VERSION, exe: process.execPath, dataDir, close: s.close,
+      idle: () => Date.now() - activity.last > QUIET }).start();
   } catch (e){
     console.error(e.code === 'EADDRINUSE'
       ? 'Orlis Server is already running (or something else is using its port). Close the other one first.'
