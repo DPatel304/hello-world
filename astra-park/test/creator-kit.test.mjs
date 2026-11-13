@@ -6,7 +6,7 @@ import { newGame, check, pack, idOf, FORBIDDEN } from '../src/ui/creator-kit.js'
 import { FORBIDDEN as SERVER_FORBIDDEN, checkGame } from '../../server/src/submissions.js';
 
 test('the kit in the app is built from kit/creator as it is now', async () => {
-  assert.equal(readFileSync(OUT, 'utf8'), await generate(), 'run: node kit/build-creator.mjs');
+  assert.equal(readFileSync(OUT, 'utf8').replace(/\r\n/g, '\n'), await generate(), 'run: node kit/build-creator.mjs');
 });
 
 test("the app's checks and the server's are the same list", () => {

@@ -24,7 +24,8 @@ export async function generate(){
     for (const f of readdirSync(d).sort()){
       const p = join(d, f);
       if (statSync(p).isDirectory()) walk(p);
-      else files[relative(join(kit, 'template'), p).split('\\').join('/')] = readFileSync(p, 'utf8');
+      /* (line endings as one: Git on Windows checks files out with CRLF) */
+      else files[relative(join(kit, 'template'), p).split('\\').join('/')] = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
     }
   };
   walk(join(kit, 'template'));
