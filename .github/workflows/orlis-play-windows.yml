@@ -181,6 +181,6 @@ jobs:
           gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --prerelease
           gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true >/dev/null || true
           # older betas' update copies, no longer pointed at
-          gh release view "$TAG" --json assets -q '.assets[].name' | grep '_x64-setup\.exe$' | grep -vx "$UPD" | while read -r old; do
+          gh release view "$TAG" --json assets -q '.assets[].name' | grep -E '_x64-setup\.exe(\.sig)?$' | grep -vx "$UPD" | while read -r old; do
             gh release delete-asset "$TAG" "$old" --yes || true
           done
