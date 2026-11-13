@@ -7,6 +7,8 @@ export class Fail extends Error {
 }
 
 const MAX_BODY = 64 * 1024;
+/* a game's file, sent as it is (a creator's game) */
+export const MAX_UPLOAD = 8 * 1024 * 1024;
 
 /* A reply that's a web page (the server's own management page). */
 export class Page {
@@ -37,7 +39,7 @@ export function makeServer(routes){
        permission to call this one. Sign-in uses a token in a header, not a
        cookie, so allowing any page to ask doesn't let one act as somebody. */
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Orlis-Name');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
     res.setHeader('Cache-Control', 'no-store');
     if (req.method === 'OPTIONS'){ res.writeHead(204); res.end(); return; }
@@ -48,8 +50,10 @@ export function makeServer(routes){
       if (!hit) throw new Fail(404, 'not_found', 'Nothing here.');
       const m = url.pathname.match(hit.re);
       const params = Object.fromEntries(hit.names.map((n, i) => [n, decodeURIComponent(m[i + 1])]));
-      const json = req.method === 'GET' ? {} : await readJson(req);
-      const out = await hit.fn({ params, body: json, query: url.searchParams, headers: req.headers, ip: req.socket.remoteAddress });
+      const file = (req.headers['content-type'] || '').startsWith('application/octet-stream');
+      const json = req.method === 'GET' || file ? {} : await readJson(req);
+      const raw = file ? await readRaw(req) : null;
+      const out = await hit.fn({ params, body: json, raw, query: url.searchParams, headers: req.headers, ip: req.socket.remoteAddress });
       if (Array.isArray(out)) [status, body] = out; else body = out;
     } catch (e){
       if (e instanceof Fail){ status = e.status; body = { error: e.code, message: e.message }; }
@@ -70,6 +74,20 @@ export function makeServer(routes){
     const text = JSON.stringify(body ?? {});
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(text) });
     res.end(text);
+  });
+}
+
+function readRaw(req){
+  return new Promise((ok, no) => {
+    let size = 0, parts = [];
+    /* (too big: the rest is read and dropped, so the answer gets through) */
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_UPLOAD){ parts = null; return; }
+      if (parts) parts.push(c);
+    });
+    req.on('end', () => parts ? ok(Buffer.concat(parts)) : no(new Fail(413, 'too_big', 'That game is too big to send (8 MB at most).')));
+    req.on('error', no);
   });
 }
 

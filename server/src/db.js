@@ -61,6 +61,24 @@ export const STEPS = [
     FROM accounts a;
   UPDATE accounts SET household_id = 'h-' || id;
   CREATE INDEX accounts_household ON accounts(household_id);
+  `,
+  /* 3: games a creator has sent in, waiting for the owner's OK (the file
+     itself is in "submissions" in the data folder) */
+  `
+  CREATE TABLE submissions (
+    id         TEXT PRIMARY KEY,
+    game_id    TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    version    TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    bytes      INTEGER NOT NULL,
+    sha256     TEXT NOT NULL,
+    status     TEXT NOT NULL CHECK (status IN ('waiting', 'approved', 'declined', 'withdrawn')),
+    note       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+  );
+  CREATE INDEX submissions_account ON submissions(account_id);
   `
 ];
 

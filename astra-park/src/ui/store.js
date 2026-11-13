@@ -99,18 +99,19 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
 
   /* Each game's trailer, once asked for: installed games play their own;
      the others are fetched, checked and played in the sandbox, not kept. */
+  const keyOf = (g) => g.submission ? `waiting:${g.submission}` : g.id;
   const films = new Map();      /* id -> { tr, failed } */
   function film(g){
-    if (films.has(g.id)) return films.get(g.id);
+    if (films.has(keyOf(g))) return films.get(keyOf(g));
     const f = { tr: null, failed: false };
-    films.set(g.id, f);
+    films.set(keyOf(g), f);
     library.preview(g).then(game => { f.tr = trailer(game); if (!f.tr) f.failed = true; }, () => { f.failed = true; });
     return f;
   }
   const forget = (id) => { const f = films.get(id); if (f && f.tr && f.tr.close) f.tr.close(); films.delete(id); };
   const closeFilms = () => { for (const f of films.values()) if (f.tr && f.tr.close) f.tr.close(); films.clear(); };
 
-  let games = [], lay = null, feat = 0, featT = 0, featHold = false, page = null, changed = false, t = 0;
+  let games = [], waiting = [], lay = null, feat = 0, featT = 0, featHold = false, page = null, changed = false, t = 0;
   const heroBits = {};
 
   /* A game's one button: Get, Update or Play - and what's next for it. */
@@ -129,6 +130,15 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
     });
     function refresh(){
       box.innerHTML = '';
+      /* a game waiting for the owner's OK: tried here, not kept */
+      if (g.submission){
+        box.appendChild(btn('<span class="tri"></span>Try it', 'play', async () => {
+          sfx.select();
+          try { const game = await library.preview(g); leave(); onPlay(game); }
+          catch (e){ box.appendChild(h('div', 'serr', esc(e.message))); }
+        }));
+        return;
+      }
       const now = library.installed.get(g.id);
       if (!now) box.appendChild(get(big ? `Get · ${kb(g.bytes)}` : 'Get'));
       else if (newer(g.version, now)) box.appendChild(get(`Update to ${esc(g.version)}`));
@@ -147,6 +157,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
   }
   /* (a badge on a card: already on the home screen, or newer here) */
   function badge(g){
+    if (g.submission) return '<span class="sbadge wait">Waiting for your OK</span>';
     const now = library.installed.get(g.id);
     if (!now) return '';
     return newer(g.version, now) ? '<span class="sbadge upd">Update</span>' : '<span class="sbadge got">✓ On home</span>';
@@ -156,6 +167,8 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
   function build(){
     scroll.innerHTML = '';
     lay = layout(games);
+    /* (nothing in the Store yet, but something waiting: that, in the banner) */
+    if (!lay.featured.length && waiting.length){ lay.featured = waiting.slice(0, 1); if (lay.rows.length === 1 && !lay.rows[0].list.length) lay.rows = []; }
     if (!lay.featured.length){ say('Nothing in the Store yet. Games the family adds to the Orlis server show up here.'); return; }
     /* the banner */
     const hero = h('section', 'shero');
@@ -175,7 +188,8 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
     showFeat();
 
     /* the rows */
-    for (const r of lay.rows){
+    const rows = waiting.length ? [{ name: 'Waiting for your OK', sub: 'Only you see these \u00B7 approve them on the management page', list: waiting }, ...lay.rows] : lay.rows;
+    for (const r of rows){
       const sec = h('section', 'srow');
       sec.appendChild(h('h3', '', `${esc(r.name)}${r.sub ? ` <span>${esc(r.sub)}</span>` : ''}`));
       const shelf = h('div', 'sshelf');
@@ -263,7 +277,17 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
     if (!account.needed){ say('The Store is in the Orlis Play app for Windows.'); return; }
     if (!account.signedIn){ say('Sign in to see the Store.'); return; }
     say('Looking in the Store…');
-    try { games = (await account.call('GET', '/api/store')).games || []; }
+    try {
+      games = (await account.call('GET', '/api/store')).games || [];
+      /* the owner: games creators have sent, to try before saying OK */
+      if (account.role === 'owner'){
+        try {
+          waiting = ((await account.call('GET', '/api/submissions?all=1')).submissions || []).filter(x => x.state === 'waiting')
+            .map(x => ({ id: x.gameId, submission: x.id, name: x.name, version: x.version, bytes: x.bytes, sha256: x.sha256, by: x.family,
+              blurb: `Sent by ${x.family}`, about: `${x.name}, from ${x.family}, is waiting for your OK. Try it here; approve or decline it on the management page (double-click the Orlis cube by the clock, on the server's laptop).`, players: [1, 4], tags: [] }));
+        } catch { waiting = []; }
+      }
+    }
     catch (e){ say(e.status === 0 ? 'Can’t reach your Orlis server right now. Is it running, and is this PC on the home Wi-Fi?' : e.message); return; }
     build();
   }
@@ -292,7 +316,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
       if (!lay || !lay.featured.length) return;
       const target = page ? page.pic : heroBits.pic;
       const g = page ? page.g : lay.featured[feat];
-      const f = films.get(g.id);
+      const f = films.get(keyOf(g));
       if (target && f && f.tr){
         if (paint(target, (cc, w, hh) => cover(cc, w, hh, f.tr), t, 1)) target.style.opacity = 1;
       }

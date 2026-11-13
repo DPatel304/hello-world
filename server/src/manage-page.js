@@ -46,11 +46,16 @@ button.danger{ color:var(--bad); }
 .icon{ width:40px; height:40px; border-radius:23%; display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; margin-right:12px; }
 .icon svg{ width:60%; height:60%; }
 .who{ display:flex; align-items:center; }
+#waiting:not(:empty){ display:inline-block; min-width:20px; margin-left:6px; padding:0 6px; border-radius:999px; background:var(--violet); color:#fff; font-size:12.5px; line-height:20px; }
+nav button.on #waiting{ background:#fff; color:var(--ink); }
+textarea{ width:100%; font:inherit; font-size:15px; border:1px solid #e3e5ec; border-radius:12px; padding:10px 12px; margin-top:10px; resize:vertical; min-height:70px; }
+.tag{ display:inline-block; font-size:12.5px; font-weight:700; padding:2px 9px; border-radius:999px; background:#f1f2f6; color:var(--dim); }
+.tag.approved{ background:#dcfce7; color:#15803d; } .tag.declined{ background:#fee2e2; color:var(--bad); }
 .empty{ text-align:center; color:var(--dim); padding:60px 20px; font-size:18px; }
 </style></head>
 <body>
 <header><h1>Orlis <i>Server</i></h1>
-<nav id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="families">Families</button><button data-t="store">Store</button><button data-t="backups">Backups</button></nav></header>
+<nav id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="approvals">Approvals<span id="waiting"></span></button><button data-t="families">Families</button><button data-t="store">Store</button><button data-t="backups">Backups</button></nav></header>
 <main id="main"></main>
 <script>
 (function(){
@@ -78,6 +83,30 @@ button.danger{ color:var(--bad); }
   var KINDS = { daily: 'Daily', update: 'Before an update', manual: 'Made by you', 'before-restore': 'Before a restore' };
 
   var views = {
+    approvals: function(){
+      return call('GET', '/api/submissions').then(function(r){
+        var waiting = r.submissions.filter(function(x){ return x.state === 'waiting'; });
+        var done = r.submissions.filter(function(x){ return x.state !== 'waiting'; });
+        var c = card('Waiting for your OK');
+        if (!waiting.length) note(c, 'Nothing waiting. Games your creators send in show up here.');
+        waiting.forEach(function(x){
+          var r2 = row(c, '<b>' + esc(x.name) + '</b> <span class="tag">version ' + esc(x.version) + '</span><small>From ' + esc(x.family) + ' (' + esc(x.by) + ') \u00b7 sent ' + esc(when(x.createdAt)) + ' \u00b7 ' + size(x.bytes) + '</small>', [
+            btn('Decline\u2026', '', function(){
+              if (r2.nextSibling && r2.nextSibling.dataset && r2.nextSibling.dataset.note) return;
+              var box = h('<div data-note="1"><textarea maxlength="300" placeholder="A note for them: what to change, say (they\u2019ll see it in Orlis Play)"></textarea><div style="text-align:right;margin-top:8px"></div></div>');
+              box.lastChild.appendChild(btn('Decline it', 'danger', function(){ call('POST', '/api/submissions/' + encodeURIComponent(x.id) + '/decline', { note: box.firstChild.value }).then(show, fail(c)); }));
+              r2.after(box); box.firstChild.focus();
+            }),
+            btn('Approve', 'go', function(b){ b.textContent = 'Approving\u2026'; call('POST', '/api/submissions/' + encodeURIComponent(x.id) + '/approve').then(show, fail(c)); })
+          ]);
+        });
+        if (waiting.length) note(c, 'To play one first: open Orlis Play on this laptop, then the Store - games waiting for your OK are at the top, and only you see them.');
+        if (done.length){
+          var d = card('Lately');
+          done.forEach(function(x){ row(d, '<b>' + esc(x.name) + '</b> <span class="tag ' + esc(x.state) + '">' + (x.state === 'approved' ? 'In the Store' : 'Declined') + '</span><small>' + esc(x.family) + ' \u00b7 ' + esc(when(x.decidedAt)) + (x.note ? ' \u00b7 \u201c' + esc(x.note) + '\u201d' : '') + '</small>'); });
+        }
+      });
+    },
     overview: function(){
       return call('GET', '/api/server').then(function(s){
         var c = card('This server');
@@ -147,8 +176,11 @@ button.danger{ color:var(--bad); }
       });
     }
   };
+  /* how many are waiting, on the tab */
+  function count(){ call('GET', '/api/submissions').then(function(r){ var n = r.submissions.filter(function(x){ return x.state === 'waiting'; }).length; document.getElementById('waiting').textContent = n ? n : ''; }, function(){}); }
   function show(){
     main.innerHTML = '';
+    if (key) count();
     [].forEach.call(document.querySelectorAll('#tabs button'), function(b){ b.className = b.dataset.t === tab ? 'on' : ''; });
     if (!key){ main.innerHTML = '<p class="empty">Open this page from the Orlis cube by the clock:<br>right-click it, then <b>Manage Orlis Server</b>.</p>'; return; }
     views[tab]().catch(function(e){ main.innerHTML = '<p class="empty">' + esc(e.message) + '</p>'; });

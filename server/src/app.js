@@ -8,6 +8,7 @@ import { hostname, networkInterfaces } from 'node:os';
 import { openDb } from './db.js';
 import { makeServer, activity, Fail, Page, isLocal } from './http.js';
 import { backups } from './backup.js';
+import { submissions } from './submissions.js';
 import { api } from './api.js';
 import { listenForApps, DISCOVERY_PORT } from './discovery.js';
 import { store } from './store.js';
@@ -40,7 +41,9 @@ export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PO
   const manageKey = readFileSync(keyFile, 'utf8').trim();
   const info = { name: name || `${hostname()}'s Orlis`, version: VERSION };
   const shop = store(dataDir, starters);
+  const sent = submissions(db, dataDir, shop);
   const owners = (who, owner) => [
+    ...sent.routes(who, owner, (h, ip) => h['x-orlis-manage'] !== undefined ? owner(h, ip) : who(h)),
     /* the management page itself: only to this laptop */
     ['GET', '/manage', ({ ip }) => {
       if (!isLocal(ip)) throw new Fail(404, 'not_found', 'Nothing here.');

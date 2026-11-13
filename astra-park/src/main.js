@@ -8,6 +8,7 @@ import { library } from './ui/library.js';
 import { storePage } from './ui/store.js';
 import { createPage } from './ui/create.js';
 import { familyPage } from './ui/family.js';
+import { outbox } from './ui/outbox.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -413,6 +414,9 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
     wait();
   });
   await libraryReady;
+  /* a creator's games waiting to send: sent by themselves, whenever the
+     family's server is in reach */
+  if (account.needed){ outbox.sync().catch(() => {}); setInterval(() => outbox.sync().catch(() => {}), 2 * 60 * 1000); }
   /* Straight into the game being worked on; or from the intro to the home
      screen, its tiles flying out of the cube. */
   if (straight) toGame(straight);
