@@ -2,11 +2,14 @@
 
      node kit/build-orlis.mjs pop-party
 
-   The game's own code is bundled into one module (game.js); the parts of the
-   app it shares - the camera's players, sound, avatars, the common bits -
-   are left out and taken from the app's Game Kit when it runs (src/kit.js).
-   The result goes to dist-games/, and into the server's starter games
-   (server/starter/), so a new Orlis Server comes with it. */
+   The game is bundled into one script (game.js) with the Orlis sandbox
+   runtime (kit/runtime/): it runs sealed off from the app, so where it
+   would reach the camera engine or the sound engine it gets the runtime's
+   stand-ins instead - the players' body points, sent in by the app, and
+   sound requests, sent out. Everything else it uses (the avatars, the
+   shared bits) it carries. The result goes to dist-games/, and into the
+   server's starter games (server/starter/), so a new Orlis Server comes
+   with it. */
 import { build } from 'esbuild';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -14,14 +17,12 @@ import { fileURLToPath } from 'node:url';
 import { writeOrlis, readOrlis, manifestOf, sha256, FORMAT } from '../../server/src/orlis-file.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const KIT = 1;
+const KIT = 2;           /* the sandbox's messages (kit/runtime/main.js); src/kit.js says what the app speaks */
 
-/* The kit: app files a game shares rather than carries (see src/kit.js). */
-const SHARED = {
-  [resolve(root, 'src/games/common.js')]: 'common',
-  [resolve(root, 'src/tracking/pose.js')]: 'pose',
-  [resolve(root, 'src/audio/sound.js')]: 'sound',
-  [resolve(root, 'src/ui/avatars.js')]: 'avatars'
+/* App files a game never gets inside the sandbox: their stand-ins. */
+const STANDIN = {
+  [resolve(root, 'src/tracking/pose.js')]: resolve(root, 'kit/runtime/pose.js'),
+  [resolve(root, 'src/audio/sound.js')]: resolve(root, 'kit/runtime/sound.js')
 };
 
 /* The games that are packaged, and what the Store shows for them. */
@@ -37,17 +38,14 @@ export const PACKAGES = {
   }
 };
 
-const kitPlugin = {
-  name: 'orlis-kit',
+const standIns = {
+  name: 'orlis-stand-ins',
   setup(b){
-    b.onResolve({ filter: /.*/ }, async (args) => {
-      if (args.kind === 'entry-point' || args.namespace === 'orlis-kit') return;
+    b.onResolve({ filter: /.*/ }, (args) => {
+      if (!args.resolveDir || /^[@a-z]/i.test(args.path) && !args.path.startsWith('.')) return;
       const full = resolve(args.resolveDir, args.path);
-      if (SHARED[full]) return { path: SHARED[full], namespace: 'orlis-kit' };
+      if (STANDIN[full]) return { path: STANDIN[full] };
     });
-    b.onLoad({ filter: /.*/, namespace: 'orlis-kit' }, (args) => ({
-      contents: `module.exports = globalThis.OrlisKit.modules[${JSON.stringify(args.path)}];`, loader: 'js'
-    }));
   }
 };
 
@@ -55,8 +53,12 @@ export async function buildOrlis(id){
   const pkg = PACKAGES[id];
   if (!pkg) throw new Error(`no package called ${id} (have: ${Object.keys(PACKAGES).join(', ')})`);
   const out = await build({
-    entryPoints: [join(root, pkg.entry)], bundle: true, format: 'esm', target: 'es2020',
-    minify: true, write: false, legalComments: 'none', plugins: [kitPlugin], logLevel: 'warning'
+    stdin: {
+      contents: `import game from ${JSON.stringify(join(root, pkg.entry))};\nimport { run } from ${JSON.stringify(join(root, 'kit/runtime/main.js'))};\nrun(game);`,
+      resolveDir: root, loader: 'js'
+    },
+    bundle: true, format: 'iife', target: 'es2020',
+    minify: true, write: false, legalComments: 'none', plugins: [standIns], logLevel: 'warning'
   });
   const code = out.outputFiles[0].text;
   const manifest = { format: FORMAT, kit: KIT, ...pkg.manifest };

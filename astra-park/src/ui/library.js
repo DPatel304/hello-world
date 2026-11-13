@@ -1,14 +1,15 @@
 /* The Library: the games downloaded from the Store, kept on this PC, so they
    play with no server in reach. Each is kept whole - its manifest and its
    code - in the app's own storage (IndexedDB), and started as the app
-   starts: its code is loaded as a module that takes the shared parts from
-   the Game Kit (kit.js), and the game joins the home screen.
+   starts, in the sandbox (sandbox.js): sealed off from the app, the account
+   and the internet. Then the game joins the home screen.
 
    Only in the Windows app; elsewhere there's no Library and the games are
    all built in. */
 import { GAMES } from '../games/index.js';
 import { KIT } from '../kit.js';
 import { readOrlis, sha256 } from './orlis-file.js';
+import { sandboxed } from './sandbox.js';
 import { account } from './account.js';
 
 const DB = 'orlis-library', STORE = 'games';
@@ -32,19 +33,14 @@ async function tx(mode, fn){
   });
 }
 
-/* A game's code, started: a module of its own, from its text. (Through
-   Function, so the app's bundler leaves this import alone.) */
-const load = new Function('u', 'return import(u)');
+/* A game's code, started in the sandbox - only if it was built for this
+   app's kit (an older one needs downloading again). */
 async function start(rec){
-  const url = URL.createObjectURL(new Blob([rec.code], { type: 'text/javascript' }));
-  try {
-    const mod = await load(url);
-    const g = mod.default;
-    if (!g || g.id !== rec.id || typeof g.create !== 'function') throw new Error('not a game');
-    /* what the Store said about it, for the home screen */
-    g.store = { version: rec.version, blurb: rec.manifest.blurb, icon: rec.manifest.icon };
-    return g;
-  } finally { URL.revokeObjectURL(url); }
+  if ((rec.manifest.kit || 1) !== KIT) throw Object.assign(new Error('built for another kit'), { stale: true });
+  const g = await sandboxed(rec);
+  /* what the Store said about it, for the home screen */
+  g.store = { version: rec.version, blurb: rec.manifest.blurb, icon: rec.manifest.icon };
+  return g;
 }
 function place(g){
   const at = GAMES.findIndex(x => x.id === g.id);
@@ -63,7 +59,11 @@ export const library = {
     try { all = await tx('readonly', s => s.getAll()); } catch { return; }
     for (const rec of all || []){
       try { place(await start(rec)); this.installed.set(rec.id, rec.version); }
-      catch (e){ this.failed.push(rec.id); }
+      catch (e){
+        this.failed.push(rec.id);
+        /* (made for an older kit: gone, so the Store offers it fresh) */
+        if (e.stale) try { await tx('readwrite', st => st.delete(rec.id)); } catch {}
+      }
     }
   },
 
@@ -82,6 +82,7 @@ export const library = {
     const manifest = JSON.parse(text(parts['manifest.json']));
     if (manifest.id !== entry.id) throw new Error('That game file isn\'t the one asked for.');
     if ((manifest.kit || 1) > KIT) throw new Error('This game needs a newer Orlis Play. Check for updates first.');
+    if ((manifest.kit || 1) < KIT) throw new Error('This game was made for an older Orlis Play, and needs updating by its maker.');
     const rec = { id: manifest.id, version: manifest.version, sha256: entry.sha256, manifest, code: text(parts['game.js']), at: Date.now() };
     const g = await start(rec);
     progress(0.9);

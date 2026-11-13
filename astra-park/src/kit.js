@@ -1,22 +1,9 @@
-/* The Orlis Game Kit: what the app gives a downloaded game (a .orlis file).
+/* The Orlis Game Kit, as the app speaks it: the messages between the app
+   and a downloaded game running in its sandbox (kit/runtime/main.js is the
+   game's side; ui/sandbox.js is this side).
 
-   A downloaded game is built without its own copy of these - the camera's
-   players, the sounds and music, the players' pictures, the shared bits - so
-   it uses the very same ones as everything else here (one camera, one sound
-   engine). It finds them on globalThis.OrlisKit, which this sets up as the
-   app starts. See astra-park/kit/build-orlis.mjs for the other side.
-
-   KIT goes up by one whenever something a game can rely on is taken away or
-   changes shape; a game says which it was built for, and the app won't run
-   one made for a newer kit than its own. */
-import * as common from './games/common.js';
-import * as pose from './tracking/pose.js';
-import * as sound from './audio/sound.js';
-import * as avatars from './ui/avatars.js';
-
-export const KIT = 1;
-export const KIT_MODULES = { common, pose, sound, avatars };
-
-export function installKit(){
-  globalThis.OrlisKit = { version: KIT, modules: KIT_MODULES };
-}
+   KIT goes up by one whenever those messages change in a way an older game
+   or app wouldn't understand. A game says which it was built for; the app
+   runs only games built for its own. (1 was games sharing the app's own
+   parts directly - before the sandbox; no longer run.) */
+export const KIT = 2;

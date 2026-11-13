@@ -5,7 +5,6 @@ import { remote, typing } from './ui/remote.js';
 import { account, welcome } from './ui/account.js';
 import { installTitlebar, titlebarPlaying } from './ui/titlebar.js';
 import { theme, applyTheme, DARK_PAPER } from './ui/theme.js';
-import { installKit } from './kit.js';
 import { library } from './ui/library.js';
 import { openStore } from './ui/store.js';
 import { boot as bootShow } from './ui/boot.js';
@@ -344,8 +343,7 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
 (async function boot(){
   document.title = 'Orlis Play';
   applyTheme();
-  /* the Game Kit for downloaded games, and the ones already downloaded */
-  installKit();
+  /* the games already downloaded (they run in the sandbox) */
   const libraryReady = account.needed ? library.load() : Promise.resolve();
   installTitlebar();
   const params = new URLSearchParams(location.search), debug = params.has('debug');

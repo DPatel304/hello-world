@@ -27,6 +27,8 @@ function sandbox(fake, fn){
 }
 
 export function trailer(game){
+  /* a downloaded game plays its own, in its sandbox */
+  if (game.sandboxed) return game.trailer();
   if (game.id === 'pop-party') return popTrailer(game);
   if (game.id === 'last-known-position') return lkpTrailer(game);
   return null;
