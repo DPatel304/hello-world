@@ -291,9 +291,10 @@ export function menu({ onPlay, onRecalibrate, onWho, onStore, arrive = false }){
       if (tick >= 1 || !clock.textContent){
         tick = 0;
         clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-        const ok = pose.usingCamera && pose.ready;
+        /* (off here: it comes on when a game starts) */
+        const ok = !pose.mouse.active;
         cam.className = 'camdot ' + (ok ? 'ok' : 'off');
-        cam.title = ok ? 'Camera on' : 'No camera';
+        cam.title = ok ? 'The camera comes on when a game starts' : 'No camera';
       }
       /* the banner's trailer: the picked game, playing itself */
       const it = items[focus];
@@ -424,14 +425,14 @@ function settings(onRecalibrate){
 
   /* the camera: which one (when there's a choice), and finding everyone again */
   const camCtl = row('Camera', small('Re-calibrate', () => { s.remove(); onRecalibrate(); }));
-  if (pose.usingCamera){
+  if (pose.reason !== 'debug'){
     pose.cameras().then(list => {
       if (list.length < 2) return;
       const seg = h('div', 'seg');
       list.forEach(cam => {
         const b = small(cam.label.slice(0, 24), async () => {
           b.querySelector('.lbl').textContent = 'Switching…';
-          try { await pose.use(cam.id); onRecalibrate(); }
+          try { await pose.use(cam.id); seg.querySelectorAll('.chosen').forEach(x => x.classList.remove('chosen')); b.classList.add('chosen'); b.querySelector('.lbl').textContent = cam.label.slice(0, 24); }
           catch (e){ b.querySelector('.lbl').textContent = 'Couldn\'t open it'; }
         }, 'mode');
         b.classList.toggle('chosen', cam.id === pose.activeId);

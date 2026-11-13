@@ -89,3 +89,22 @@ test('one version people see (client/VERSION), with the build number behind it',
   assert.ok(wf.includes('VERSION="$SHOWN.$BUILD"') && wf.includes('BUILD: ${{ github.run_number }}'), 'each build is newer than the last');
   assert.ok(main.includes('Beta \\u00B7 build') && main.includes('nameOf'), 'labelled "0.1 Beta · build 27" in the app');
 });
+
+test('the camera is on only in a game (and the camera check): off through the intro, signing in and the home screen', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const set = main.match(/const CAMERA = new Set\(\[([^\]]*)\]\)/)[1];
+  for (const m of ['play', 'outro', 'results', 'calibrate', 'starting']) assert.ok(set.includes(`'${m}'`), m);
+  for (const m of ['boot', 'menu', 'who']) assert.ok(!set.includes(`'${m}'`), m);
+  assert.match(main, /CAMERA\.has\(next\)\) pose\.wake\(\); else pose\.sleep\(\)/);
+  assert.ok(!/pose\.start\(/.test(main), 'boot no longer starts the camera');
+});
+
+test('updates: the Update button and a slow check both show "Updating"; the beta is swapped, not deleted first', () => {
+  const rs = readFileSync(new URL('../client/src-tauri/src/main.rs', import.meta.url), 'utf8');
+  assert.match(rs, /async fn install_update[\s\S]*run_update\(&app, found\)/);
+  assert.match(rs, /orlisupdate/);
+  assert.match(rs, /SPLASH_AT_LEAST/);
+  const wf = readFileSync(new URL('../../.github/workflows/orlis-play-windows.yml', import.meta.url), 'utf8');
+  assert.ok(!/gh release delete beta/.test(wf), 'the beta stays up while the next one builds');
+  assert.ok(wf.indexOf('upload "$TAG" "$UPD"') < wf.indexOf('upload "$TAG" latest.json'), 'the update file goes up last');
+});

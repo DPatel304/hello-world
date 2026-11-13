@@ -84,16 +84,19 @@ test('Back closes an open window; with none, it goes back (pauses a game, leaves
   assert.equal(backs, 1);
 });
 
-test('the boot plays the kalimba as the lights merge, and waits for the camera before handing over', () => {
+test('the boot plays the kalimba as the lights merge, and hands over without waiting for the camera', () => {
   resetDom();
   let chimed = 0; sfx.boot = () => { chimed++; };
   const show = boot();
   for (let k = 0; k < (MERGE + 0.1) * 60; k++) show.tick(1 / 60);
   assert.equal(chimed, 1, 'the chime, once, as they join');
+  for (let k = 0; k < (HOLD - MERGE) * 60; k++) show.tick(1 / 60);
+  show.camReady = false;
   for (let k = 0; k < 10 * 60; k++) show.tick(1 / 60);
-  assert.ok(!show.done && Math.abs(show.t - HOLD) < 1e-6, 'holding on the cube while the camera starts');
+  assert.ok(!show.done && Math.abs(show.t - HOLD) < 1e-6, 'it can still hold on the cube, if asked to');
   show.camReady = true;
   for (let k = 0; k < (BOOT - HOLD + 0.1) * 60; k++) show.tick(1 / 60);
   assert.ok(show.done);
   delete sfx.boot;
+  assert.equal(boot().camReady, true, 'nothing to wait for now: the camera starts with a game');
 });

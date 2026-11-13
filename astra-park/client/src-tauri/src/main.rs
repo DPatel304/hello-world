@@ -1,7 +1,9 @@
 //! Orlis Play for Windows: the game in a window of its own.
 //!
-//! On every start it: checks for a newer version of the app (a few seconds
-//! at most; offline, it just opens) and installs it if there is one; lists
+//! On every start it: checks for a newer version of the app and installs it
+//! if there is one, showing "Updating - back in a moment" (if the check is
+//! slow it carries on in the background, and the update happens once
+//! everyone's back on the home screen; offline, it just opens); lists
 //! the songs in the family's "Orlis Play" music folder for the game to play;
 //! opens the game in the display mode last chosen (a window, or Big Picture:
 //! full screen, for the TV); and lets the game use the camera without a
@@ -10,9 +12,9 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{path::Path, time::Duration};
+use std::{path::Path, sync::Mutex, time::{Duration, Instant}};
 use tauri::{AppHandle, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 /// Song files the game can play.
 const SONGS: &[&str] = &["mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "flac", "webm"];
@@ -25,22 +27,54 @@ const MODES: &[&str] = &["window", "bigpicture"];
 /// The window, in window mode.
 const WINDOW_SIZE: (f64, f64) = (1280.0, 720.0);
 
-/// How long the update check may hold up the start.
+/// How long the update check may hold up the start. A slower one carries on
+/// behind the game.
 const UPDATE_WAIT: Duration = Duration::from_secs(4);
+/// The "Updating" window stays up at least this long, so it can be read.
+const SPLASH_AT_LEAST: Duration = Duration::from_millis(1800);
+
+/// A newer version found after the game had opened, waiting for the game to
+/// say now's a good moment (the home screen, not mid-round).
+#[derive(Default)]
+struct Pending(Mutex<Option<Update>>);
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(Pending::default())
         .invoke_handler(tauri::generate_handler![set_display_mode, check_update, install_update, find_servers])
         .setup(|app| {
             let app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if update(&app).await {
-                    return; // installing; the new version starts itself
-                }
+                let mut check = std::pin::pin!(tauri::async_runtime::spawn(find_update(app.clone())));
+                // A quick answer: update now, before the game opens.
+                let late = match tokio::time::timeout(UPDATE_WAIT, check.as_mut()).await {
+                    Ok(Ok(Some(found))) => {
+                        if run_update(&app, found).await.is_ok() {
+                            return; // installing; the new version starts itself
+                        }
+                        None
+                    }
+                    Ok(_) => None,
+                    Err(_) => Some(check),
+                };
                 if let Err(e) = open(&app) {
                     eprintln!("could not open the game: {e}");
                     app.exit(1);
+                }
+                // A slow one: keep it, and tell the game, which updates
+                // when everyone's on the home screen (src/main.js).
+                if let Some(check) = late {
+                    if let Ok(Some(found)) = check.await {
+                        let version = found.version.clone();
+                        *app.state::<Pending>().0.lock().unwrap() = Some(found);
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.eval(&format!(
+                                "window.dispatchEvent(new CustomEvent('orlisupdate', {{ detail: {} }}))",
+                                serde_json::to_string(&version).unwrap_or_else(|_| "\"\"".into())
+                            ));
+                        }
+                    }
                 }
             });
             Ok(())
@@ -49,35 +83,39 @@ fn main() {
         .expect("Orlis Play failed to start");
 }
 
-/// A newer version, if there is one and it comes quickly: downloaded,
-/// installed, and the app restarted on it. True if that's under way.
-async fn update(app: &AppHandle) -> bool {
-    let check = async {
-        let updater = app.updater().ok()?;
-        updater.check().await.ok().flatten()
-    };
-    let Ok(Some(found)) = tokio::time::timeout(UPDATE_WAIT, check).await else {
-        return false;
-    };
-    // While it installs: a small window - the cube, "Updating - back in a
-    // moment", and how far along (client/updating.html).
+/// Is there a newer version? (None offline, too.)
+async fn find_update(app: AppHandle) -> Option<Update> {
+    app.updater().ok()?.check().await.ok().flatten()
+}
+
+/// Update to it: the game's window goes, a small one says "Updating - back
+/// in a moment" with how far along (client/updating.html), and once it's
+/// downloaded the installer takes over and starts the new version. On a
+/// failure the game comes back as it was.
+async fn run_update(app: &AppHandle, found: Update) -> Result<(), String> {
+    let shown = Instant::now();
     let splash = WebviewWindowBuilder::new(app, "updating", WebviewUrl::App("updating.html".into()))
         .title("Orlis Play")
         .inner_size(460.0, 300.0)
         .resizable(false)
         .maximizable(false)
         .decorations(false)
+        .always_on_top(true)
         .center()
         .build()
         .ok();
-    let mut got: u64 = 0;
+    let main = app.get_webview_window("main");
+    if let Some(w) = &main {
+        let _ = w.hide();
+    }
     let show = |k: f64| {
         if let Some(w) = &splash {
             let _ = w.eval(&format!("window.progress && progress({k:.3})"));
         }
     };
-    match found
-        .download_and_install(
+    let mut got: u64 = 0;
+    let bytes = found
+        .download(
             |chunk, total| {
                 got += chunk as u64;
                 if let Some(t) = total.filter(|t| *t > 0) {
@@ -86,17 +124,23 @@ async fn update(app: &AppHandle) -> bool {
             },
             || show(1.0),
         )
-        .await
-    {
-        Ok(()) => {
-            app.restart();
-        }
+        .await;
+    // (long enough to read, however quick the download)
+    if let Some(left) = SPLASH_AT_LEAST.checked_sub(shown.elapsed()) {
+        tokio::time::sleep(left).await;
+    }
+    match bytes.and_then(|b| found.install(b)) {
+        Ok(()) => app.restart(),
         Err(e) => {
-            eprintln!("update failed, opening this version: {e}");
+            eprintln!("update failed, carrying on with this version: {e}");
             if let Some(w) = &splash {
                 let _ = w.close();
             }
-            false
+            if let Some(w) = &main {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+            Err(e.to_string())
         }
     }
 }
@@ -187,14 +231,18 @@ async fn check_update(app: AppHandle) -> Result<serde_json::Value, String> {
     })
 }
 
-/// Settings > Update: download the newer version, install it, and restart
-/// on it.
+/// The Update button, or the game saying now's a good moment for an update
+/// found in the background: the "Updating" window, the install, and the
+/// restart on the new version.
 #[tauri::command]
-async fn install_update(app: AppHandle) -> Result<(), String> {
-    let found = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
-    let Some(u) = found else { return Err("already up to date".into()) };
-    u.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
-    app.restart();
+async fn install_update(app: AppHandle, pending: tauri::State<'_, Pending>) -> Result<(), String> {
+    let kept = pending.0.lock().unwrap().take();
+    let found = match kept {
+        Some(u) => u,
+        None => app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?
+            .ok_or_else(|| "already up to date".to_string())?,
+    };
+    run_update(&app, found).await
 }
 
 /// Where Orlis Server listens for "is there an Orlis server here?" on the

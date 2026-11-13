@@ -142,69 +142,116 @@ export const pose = {
      app is untestable on any machine that cannot see a person. */
   mouse:{ active:false, x:.5, y:.5 },
 
-  async start(video, { forceMouse = false } = {}){
+  /* The camera is on only while it's wanted - in a game, or the camera
+     check - and off everywhere else (the home screen is the mouse's), so
+     the laptop isn't watching anyone, or working, for nothing. on() turns it
+     on (the first time, loading the body tracker as well) and off() turns it
+     off; the tracker stays loaded, so the next on() takes a moment, not
+     seconds. Each on() tries the camera afresh: one that was missing or
+     refused last time may be there now. */
+  on:false,
+  setVideo(video, { forceMouse = false } = {}){
     this.video = video;
-    if (forceMouse){ this.reason = 'debug'; this.enableMouse(); return false; }
+    if (forceMouse){ this.reason = 'debug'; this.enableMouse(); }
+  },
+  async wake(){
+    if (this.reason === 'debug') return false;
+    if (this.on && this.ready) return true;
+    if (this._waking) return this._waking;
+    this._waking = this._wake().finally(() => { this._waking = null; });
+    return this._waking;
+  },
+  async _wake(){
+    const video = this.video;
     try {
-      /* Ask for the remembered camera by id. The moment a second one exists -
-         a phone running Camo, a USB webcam beside the laptop's built-in -
-         whatever Windows calls default is as likely to be the wrong one, and
-         without this there is no way to say otherwise. An id that has gone
-         away is `ideal`, not `exact`, so an unplugged camera degrades to the
-         default instead of refusing to start. */
-      const want = this.preferred();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: Object.assign(
-          { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
-          want ? { deviceId:{ ideal: want } } : {}),
-        audio:false
-      });
-      this.activeId = stream.getVideoTracks()[0].getSettings().deviceId || '';
-      video.srcObject = stream;
-      await video.play();
+      await this._open(this.preferred(), false);
     } catch (e){
+      if (e && e.name === 'Off') return false;
       this.reason = (e && e.name) === 'NotAllowedError' ? 'denied' : 'nocamera';
       this.enableMouse();
       return false;
     }
-    /* Local copies if `npm run offline` has been run, otherwise the CDN. A
-       living-room box should not need the internet, but nobody should have to
-       download 40MB before they can try it either.
+    if (!this.lm){
+      /* Local copies if `npm run offline` has been run, otherwise the CDN. A
+         living-room box should not need the internet, but nobody should have to
+         download 40MB before they can try it either.
 
-       Opened straight off the filesystem there is nothing to probe: a fetch of
-       a sibling file from a file:// page is refused by CORS, which logs an
-       error and tells us nothing. Skip to the CDN. */
-    /* (The Windows app always carries them, and says so.) */
-    const local = typeof window !== 'undefined' && window.ORLIS_LOCAL ? true
-      : location.protocol === 'file:' ? false
-      : await fetch('/wasm/vision_wasm_internal.js', { method:'HEAD' })
-              .then(r => r.ok).catch(() => false);
-    const wasmDir = local ? '/wasm'
-      : 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm';
-    const model = local ? '/models/pose_landmarker_lite.task'
-      : 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/' +
-        'pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
-    /* The runtime is tens of megabytes over somebody else's CDN. If it is slow,
-       blocked or offline, the app used to sit on "Starting the camera…"
-       forever with the camera light on and nothing to show for it. Give it a
-       deadline and say what went wrong instead. */
-    try {
-      const files = await withTimeout(FilesetResolver.forVisionTasks(wasmDir), 25000);
-      this.lm = await withTimeout(PoseLandmarker.createFromOptions(files, {
-        baseOptions:{ modelAssetPath: model, delegate:'GPU' },
-        runningMode:'VIDEO', numPoses:SEEN_MAX,
-        minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5
-      }), 40000);
-    } catch (e){
-      this.reason = local ? 'badassets' : 'nonetwork';
-      this.detail = (e && e.message) || String(e);
-      try { video.srcObject.getTracks().forEach(t => t.stop()); } catch (e2) {}
-      this.usingCamera = false;
-      this.enableMouse();
-      return false;
+         Opened straight off the filesystem there is nothing to probe: a fetch of
+         a sibling file from a file:// page is refused by CORS, which logs an
+         error and tells us nothing. Skip to the CDN. */
+      /* (The Windows app always carries them, and says so.) */
+      const local = typeof window !== 'undefined' && window.ORLIS_LOCAL ? true
+        : location.protocol === 'file:' ? false
+        : await fetch('/wasm/vision_wasm_internal.js', { method:'HEAD' })
+                .then(r => r.ok).catch(() => false);
+      const wasmDir = local ? '/wasm'
+        : 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.0/wasm';
+      const model = local ? '/models/pose_landmarker_lite.task'
+        : 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/' +
+          'pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+      /* The runtime is tens of megabytes over somebody else's CDN. If it is slow,
+         blocked or offline, the app used to sit on "Starting the camera…"
+         forever with the camera light on and nothing to show for it. Give it a
+         deadline and say what went wrong instead. */
+      try {
+        const files = await withTimeout(FilesetResolver.forVisionTasks(wasmDir), 25000);
+        this.lm = await withTimeout(PoseLandmarker.createFromOptions(files, {
+          baseOptions:{ modelAssetPath: model, delegate:'GPU' },
+          runningMode:'VIDEO', numPoses:SEEN_MAX,
+          minPoseDetectionConfidence:0.5, minPosePresenceConfidence:0.5, minTrackingConfidence:0.5
+        }), 40000);
+      } catch (e){
+        this.reason = local ? 'badassets' : 'nonetwork';
+        this.detail = (e && e.message) || String(e);
+        this._close();
+        this.usingCamera = false;
+        this.enableMouse();
+        return false;
+      }
     }
-    this.ready = true; this.usingCamera = true;
+    /* (turned off again while it was starting) */
+    if (!this._want){ this._close(); return false; }
+    this.reason = ''; this.mouse.active = false;
+    this.ready = true; this.usingCamera = true; this.on = true;
     return true;
+  },
+  /* the camera off: the light goes out, and nobody's tracked */
+  sleep(){
+    this._want = false;
+    this.on = false;
+    this._close();
+    for (const p of this.players){ p.lm = null; p.present = false; p.lostFor = 99; }
+    this.personCount = 0; this.seenCount = 0; this.fps = 0;
+  },
+  async _open(deviceId, exact){
+    this._want = true;
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: Object.assign(
+        { width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
+        /* Ask for the remembered camera by id. The moment a second one exists -
+           a phone running Camo, a USB webcam beside the laptop's built-in -
+           whatever Windows calls default is as likely to be the wrong one, and
+           without this there is no way to say otherwise. An id that has gone
+           away is `ideal`, not `exact`, so an unplugged camera degrades to the
+           default instead of refusing to start. */
+        deviceId ? { deviceId: exact ? { exact: deviceId } : { ideal: deviceId } } : {}),
+      audio:false
+    });
+    if (!this._want){ stream.getTracks().forEach(t => t.stop()); throw Object.assign(new Error('off'), { name:'Off' }); }
+    this.activeId = stream.getVideoTracks()[0].getSettings().deviceId || deviceId || '';
+    this.video.srcObject = stream;
+    await this.video.play();
+  },
+  _close(){
+    try { this.video.srcObject && this.video.srcObject.getTracks().forEach(t => t.stop()); } catch (e){}
+    try { this.video.srcObject = null; } catch (e){}
+    this._lastT = undefined;
+  },
+
+  /* (the old way in: the camera on, from the start) */
+  async start(video, opts = {}){
+    this.setVideo(video, opts);
+    return this.wake();
   },
 
   /* Labels only come back once permission has been granted, which is why the
@@ -221,16 +268,13 @@ export const pose = {
     try { return localStorage.getItem('astrapark_camera') || ''; } catch (e){ return ''; }
   },
 
+  /* Settings' camera picker: remembered, and switched to now if it's on. */
   async use(deviceId){
     try { localStorage.setItem('astrapark_camera', deviceId); } catch (e){}
-    try { this.video.srcObject.getTracks().forEach(t => t.stop()); } catch (e){}
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video:{ deviceId:{ exact: deviceId }, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:30} },
-      audio:false
-    });
-    this.video.srcObject = stream;
-    await this.video.play();
     this.activeId = deviceId;
+    if (!this.on) return;
+    this._close();
+    await this._open(deviceId, true);
     /* The new camera sees a different room: everything learned about the old
        one is wrong, so start the players over. */
     for (const p of this.players){ p.lm = null; p.present = false; p.lostFor = 99; }
@@ -249,7 +293,7 @@ export const pose = {
      new frame, so games keep their own smooth cadence even if pose dips. */
   update(nowMs, dt){
     if (this.mouse.active) return this._mouseUpdate(dt);
-    if (!this.ready) return;
+    if (!this.ready || !this.on) return;
     const v = this.video;
     if (v.readyState < 2) return;
     /* Wall clock, not dt: the loop clamps dt to 50ms so a frame that really

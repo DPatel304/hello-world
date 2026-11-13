@@ -38,8 +38,15 @@ let scene = null, mode = 'boot';
 let game = null, inst = null, players = 1, roundLeft = 0, played = 0;
 let paused = null, lost = null, handsUp = 0, empty = 0, joined = new Set();
 
+/* The camera's on only where it's used: a game, its scores (a wave picks
+   "again"), and the camera check. Everywhere else - the intro, signing in,
+   the home screen - it's off: no light, and no work for the laptop. */
+const CAMERA = new Set(['starting', 'play', 'outro', 'results', 'calibrate']);
+
 function go(next, build){
   mode = next;
+  if (CAMERA.has(next)) pose.wake(); else pose.sleep();
+  if (next === 'menu' || next === 'who') updateIfWaiting();
   clearUI();
   cursor.reset();
   /* For now the home screen (and signing in) is the mouse's and the
@@ -83,8 +90,19 @@ function toGame(g){
   game = g;
   ambience.stop();
   players = MAX_PLAYERS;
-  music.start(game.music);
-  startRound();
+  /* The camera first, if it's off: a moment's "Starting the camera" (the
+     first time, a few, while the body tracker loads). */
+  if (pose.on || pose.mouse.active && pose.reason === 'debug'){ music.start(game.music); startRound(); return; }
+  go('starting', () => {
+    const s = screen('dim lost');
+    s.append(h('p', 'lede', `${g.name} \u2014 starting the camera\u2026`));
+    return null;
+  });
+  pose.wake().finally(() => {
+    if (mode !== 'starting' || game !== g) return;      /* (went somewhere else meanwhile) */
+    music.start(game.music);
+    startRound();
+  });
 }
 
 function startRound(){
@@ -213,7 +231,7 @@ let last = 0;
    30 times a second rather than 60. And with another window in front, almost
    nothing runs: a few frames a second, no tracking, no sound - and a game in
    progress pauses, to carry on when someone's back. */
-const CALM = new Set(['menu', 'who']);
+const CALM = new Set(['boot', 'menu', 'who', 'starting']);
 const HOME_GAP = 1000 / 30 - 2, AWAY_GAP = 250;
 let lastFrame = 0, wasAway = false;
 function tick(now){
@@ -232,7 +250,7 @@ function tick(now){
   if (!away && !CALM.has(mode)) pose.update(now, dt);
 
   /* paper, under the menus; dark under a game while it loads */
-  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' ? '#0d0b1a' : theme() === 'dark' ? DARK_PAPER : '#f3f4f7';
+  c.fillStyle = mode === 'play' || mode === 'outro' || mode === 'results' || mode === 'starting' ? '#0d0b1a' : theme() === 'dark' ? DARK_PAPER : '#f3f4f7';
   c.fillRect(0, 0, W, H);
 
   if (mode === 'play' && inst && !paused && !lost){
@@ -331,6 +349,23 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && !wake) holdScreen();
 });
 
+/* ---------- an update found after starting ----------
+   The app checks for a newer version as it starts; when GitHub is slow to
+   answer, the game opens and the check carries on behind it. If it finds
+   one, the update happens on the home screen (or Who's playing) - now, if
+   that's where everyone is, or as soon as a round's over - with "Updating
+   - back in a moment" while it installs. */
+let updateWaiting = false;
+function updateIfWaiting(){
+  if (!updateWaiting || !window.orlisApp) return;
+  updateWaiting = false;
+  window.orlisApp.installUpdate().catch(() => {});
+}
+addEventListener('orlisupdate', () => {
+  updateWaiting = true;
+  if (mode === 'menu' || mode === 'who') updateIfWaiting();
+});
+
 /* ---------- boot ---------- */
 /* Launching goes the usual way in: the boot show, then the home screen.
    While a game's being worked on, ?dev on the address goes straight into
@@ -338,8 +373,7 @@ document.addEventListener('visibilitychange', () => {
    moment being worked on. */
 const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : null;
 
-/* The boot show plays while the camera starts; the front door opens when
-   both are done. */
+/* The boot show, then the front door. (The camera waits for a game.) */
 (async function boot(){
   document.title = 'Orlis Play';
   applyTheme();
@@ -353,14 +387,13 @@ const START_IN = /[?&]dev\b/.test(location.search) ? 'last-known-position' : nul
   if (straight) show = { done: true };
   else go('boot', () => (show = bootShow()));
   requestAnimationFrame(tick);
-  const started = pose.start(video, { forceMouse: debug });
+  pose.setVideo(video, { forceMouse: debug });
   window.__pose = pose; window.__cursor = cursor; window.__music = music;   /* handles for tests; harmless in play */
   window.__round = () => inst;
   holdScreen();
-  let ready = false;
-  started.then(() => { ready = true; show.camReady = true; }, () => { ready = true; show.camReady = true; });
+  show.camReady = true;
   await new Promise(res => {
-    const wait = () => { if (show.done && ready) res(); else setTimeout(wait, 50); };
+    const wait = () => { if (show.done) res(); else setTimeout(wait, 50); };
     wait();
   });
   await libraryReady;

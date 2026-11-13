@@ -114,17 +114,9 @@ jobs:
           fi
           cat client/release.json
 
-      # The beta is one release that's refilled each time: its update file
-      # always describes the newest beta, at the same address.
-      - name: Clear the last beta
-        if: env.CHANNEL != 'release'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete beta --yes --cleanup-tag 2>/dev/null || true
-
-      - name: Build the app and publish it
+      # The release: a new GitHub release for each version.
+      - name: Build the app and publish it (release)
+        if: env.CHANNEL == 'release'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,10 +129,11 @@ jobs:
           releaseBody: Orlis Play ${{ env.LABEL }}, for Windows. Download ${{ env.SETUP }} below and double-click it.
           releaseCommitish: ${{ github.sha }}
           releaseDraft: false
-          prerelease: ${{ env.PRERELEASE }}
+          prerelease: false
           includeUpdaterJson: true
 
-      - name: The installer under the name that never changes
+      - name: The installer under the name that never changes (release)
+        if: env.CHANNEL == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -148,3 +141,46 @@ jobs:
           exe=$(ls client/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
           cp "$exe" "$SETUP"
           gh release upload "$TAG" "$SETUP" --clobber
+
+      # The beta: one release, refilled each time, so its update file is
+      # always at the same address and describes the newest beta. The old
+      # one stays up while the new one builds (that's ten minutes or so) and
+      # is swapped out only once the new one is ready - the update file last
+      # - so checking for updates works the whole time.
+      - name: Build the app (beta)
+        if: env.CHANNEL != 'release'
+        shell: bash
+        run: npx tauri build --config client/release.json
+
+      - name: Swap the new beta in
+        if: env.CHANNEL != 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          exe=$(ls client/src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          cp "$exe" "$SETUP"
+          # (the update's own copy, named for its version, so an app that read
+          #  the last update file mid-swap still gets the file it describes)
+          UPD="Orlis-Play-Beta_${VERSION}_x64-setup.exe"
+          cp "$exe" "$UPD"
+          NOTES="Orlis Play $LABEL, for Windows. Download $SETUP below and double-click it."
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --prerelease --title "$TITLE" --notes "$NOTES" --target "$GITHUB_SHA"
+          fi
+          gh release upload "$TAG" "$UPD" "$SETUP" --clobber
+          if [ -f "$exe.sig" ]; then
+            node -e '
+              const fs = require("fs"), [sig, version, notes, url] = process.argv.slice(1);
+              fs.writeFileSync("latest.json", JSON.stringify({ version, notes, pub_date: new Date().toISOString(),
+                platforms: { "windows-x86_64": { signature: fs.readFileSync(sig, "utf8").trim(), url } } }, null, 2));
+            ' "$exe.sig" "$VERSION" "$NOTES" "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$UPD"
+            cat latest.json
+            gh release upload "$TAG" latest.json --clobber
+          fi
+          gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --prerelease
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true >/dev/null || true
+          # older betas' update copies, no longer pointed at
+          gh release view "$TAG" --json assets -q '.assets[].name' | grep '_x64-setup\.exe$' | grep -vx "$UPD" | while read -r old; do
+            gh release delete-asset "$TAG" "$old" --yes || true
+          done

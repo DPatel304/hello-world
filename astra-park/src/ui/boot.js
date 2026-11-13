@@ -9,9 +9,9 @@
    their light round a little loop-the-loop. Nobody has to; it carries on
    the same either way.
 
-   The camera starts underneath it all. If it's slower than the show, the
-   cube waits, breathing, with a quiet "starting the camera" under it until
-   it's ready (camReady). A click or a key skips to the end. */
+   (camReady: the cube can wait, breathing, for something to be ready
+   before it breaks - nothing does now; the camera waits for a game.) A
+   click or a key skips to the end. */
 import { sfx } from '../audio/sound.js';
 import { pose, PLAYER_COLORS } from '../tracking/pose.js';
 import { screen, h, clearUI } from './screens.js';
@@ -41,7 +41,7 @@ export function boot(){
   addEventListener('pointerdown', end, { once: true });
 
   const show = {
-    camReady: false,
+    camReady: true,
     get t(){ return t; },
     get done(){ return t >= BOOT; },
     tick(dt){

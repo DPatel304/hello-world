@@ -122,7 +122,7 @@ test('cursorHand uses the mouse hand in mouse mode', () => {
    screen left is the player's own left as they face the television. */
 test('players are assigned left to right after mirroring', () => {
   resetPose();
-  pose.ready = true;
+  pose.ready = true; pose.on = true;
   pose.video = { readyState: 2, currentTime: 1 };
 
   /* Raw camera x: A on the right of frame, B on the left. Mirroring puts A on
@@ -139,7 +139,7 @@ test('players are assigned left to right after mirroring', () => {
 
 test('a player who leaves frame is aged out, not forgotten instantly', () => {
   resetPose();
-  pose.ready = true;
+  pose.ready = true; pose.on = true;
   pose.video = { readyState: 2, currentTime: 1 };
   arrive([person(0.5)]);
   assert.equal(pose.players[0].present, true);
@@ -191,7 +191,7 @@ function person(x, { size = 0.2, sit = false, knees = true, y = 0.5 } = {}){
 }
 let frame = 10;
 function see(people, dt = 0.05){
-  pose.ready = true; pose.mouse.active = false;
+  pose.ready = true; pose.on = true; pose.mouse.active = false;
   pose.video = { readyState: 2, currentTime: ++frame };
   pose.lm = { detectForVideo: () => ({ landmarks: people }) };
   pose.update(frame * 50, dt);
