@@ -25,7 +25,7 @@ const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || null;
 const save = (v) => { try { v ? localStorage.setItem(KEY, JSON.stringify(v)) : localStorage.removeItem(KEY); } catch {} };
 
 export const account = {
-  /* { server: { url, name }, token, account: { id, email, role }, profiles: [...], current } */
+  /* { server: { url, name }, token, account: { id, email, role }, household: { id, name }, profiles: [...] (the whole family's), current } */
   state: load(),
   get needed(){ return inApp(); },
   get signedIn(){ return !!(this.state && this.state.token); },
@@ -45,7 +45,7 @@ export const account = {
     if (!s || !s.token || !s.server) return;
     try {
       const me = await call(s.server.url, 'GET', '/api/me', null, s.token);
-      this.set({ account: me.account, profiles: me.profiles });
+      this.set({ account: me.account, household: me.household || null, profiles: me.profiles });
     } catch (e){ if (e.status === 401) this.signOut(); }
   },
   call: (method, path, body) => {
@@ -166,7 +166,7 @@ export function welcome(done, { auto = true } = {}){
     signIn(sv);
   }
   const device = () => (navigator.userAgent.includes('Windows') ? 'Windows PC' : 'A device');
-  const finish = (r) => { account.set({ token: r.token, account: r.account, profiles: r.profiles, current: null }); sfx.gold?.(); who(); };
+  const finish = (r) => { account.set({ token: r.token, account: r.account, household: r.household || null, profiles: r.profiles, current: null }); sfx.gold?.(); who(); };
 
   function setup(sv){
     show(h('h2', '', 'Set up Orlis Play'),

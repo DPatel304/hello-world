@@ -1,4 +1,10 @@
 /* What the Orlis Play app can ask the server.
+   Families are households: a household's grown-ups each have an account,
+   and its kids' profiles are shared by all of them. The owner (whoever set
+   the server up) looks after the whole server - the Store, who creates -
+   and invites new families; any parent can invite another grown-up into
+   their own family. One family never sees another's kids.
+
 
    Accounts belong to a parent (or another grown-up): an email and password.
    The kids are profiles under it - a name and an avatar, nothing else - so no
@@ -17,7 +23,7 @@ import { now } from './db.js';
 import { hashPassword, checkPassword, burnTime, newToken, hashToken, newId, newInviteCode, tidyInvite } from './secure.js';
 
 export const LIMITS = {
-  profiles: 8,              /* per account */
+  profiles: 8,              /* per family */
   invites: 20,              /* unused ones an owner can have out at once */
   password: [8, 200],
   name: [1, 20],
@@ -76,12 +82,18 @@ export function api(db, info, extra = () => []){
 
   /* ---------- what's sent back ---------- */
   const accountOut = (a) => ({ id: a.id, email: a.email, role: a.role, createdAt: a.created_at });
-  const profilesOf = (id) => q('SELECT id, name, avatar FROM profiles WHERE account_id = ? ORDER BY created_at, rowid').all(id).map(p => ({ ...p }));
+  const householdOf = (a) => { const h = q('SELECT id, name FROM households WHERE id = ?').get(a.household_id); return h ? { ...h } : null; };
+  /* the family's profiles: everyone's kids (and grown-ups) in the household */
+  const profilesOf = (a) => q('SELECT p.id, p.name, p.avatar, p.account_id AS accountId FROM profiles p JOIN accounts x ON x.id = p.account_id WHERE x.household_id = ? ORDER BY p.created_at, p.rowid').all(a.household_id).map(p => ({ ...p }));
+  const ownProfiles = (accountId) => q('SELECT COUNT(*) AS n FROM profiles WHERE account_id = ?').get(accountId).n;
+  /* a profile in the asker's family, or nothing */
+  const familyProfile = (a, id) => q('SELECT p.* FROM profiles p JOIN accounts x ON x.id = p.account_id WHERE p.id = ? AND x.household_id = ?').get(id, a.household_id);
+  const familyName = (v, fallback) => { const n = text(v).replace(/\s+/g, ' ').slice(0, 40); return n || fallback; };
   function signIn(accountId, dev){
     const token = newToken(), t = now();
     q('INSERT INTO sessions (token_hash, account_id, device, created_at, last_seen) VALUES (?, ?, ?, ?, ?)').run(hashToken(token), accountId, device(dev), t, t);
     const a = q('SELECT * FROM accounts WHERE id = ?').get(accountId);
-    return { token, account: accountOut(a), profiles: profilesOf(accountId) };
+    return { token, account: accountOut(a), household: householdOf(a), profiles: profilesOf(a) };
   }
   const accounts = () => q('SELECT COUNT(*) AS n FROM accounts').get().n;
 
@@ -100,13 +112,19 @@ export function api(db, info, extra = () => []){
       let invite = null;
       if (!first){
         invite = q('SELECT * FROM invites WHERE code = ? AND used_by IS NULL').get(tidyInvite(body.invite));
-        if (!invite) throw new Fail(400, 'bad_invite', 'That invite code isn\'t right, or it\'s been used. Ask the owner for a new one.');
+        if (!invite) throw new Fail(400, 'bad_invite', 'That invite code isn\'t right, or it\'s been used. Ask for a new one.');
       }
       if (q('SELECT 1 FROM accounts WHERE email = ?').get(e)) throw new Fail(409, 'taken', 'There\'s already an account with that email. Try signing in.');
       const id = newId(), t = now();
       db.exec('BEGIN');
       try {
-        q('INSERT INTO accounts (id, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)').run(id, e, hashPassword(p), first ? 'owner' : invite.role, t);
+        /* joining a family, or starting one */
+        let home = invite && invite.household_id;
+        if (!home){
+          home = newId();
+          q('INSERT INTO households (id, name, created_at) VALUES (?, ?, ?)').run(home, familyName(body.family, `${n}'s family`), t);
+        }
+        q('INSERT INTO accounts (id, email, password_hash, role, created_at, household_id) VALUES (?, ?, ?, ?, ?, ?)').run(id, e, hashPassword(p), first ? 'owner' : invite.role, t, home);
         q('INSERT INTO profiles (id, account_id, name, avatar, created_at) VALUES (?, ?, ?, ?, ?)').run(newId(), id, n, avatar(body.avatar), t);
         if (invite) q('UPDATE invites SET used_by = ?, used_at = ? WHERE code = ?').run(id, t, invite.code);
         db.exec('COMMIT');
@@ -137,20 +155,33 @@ export function api(db, info, extra = () => []){
 
     ['GET', '/api/me', ({ headers }) => {
       const a = who(headers);
-      return { account: accountOut(a), profiles: profilesOf(a.id) };
+      return { account: accountOut(a), household: householdOf(a), profiles: profilesOf(a) };
+    }],
+    /* the asker's own family: its name and its grown-ups */
+    ['GET', '/api/household', ({ headers }) => {
+      const a = who(headers);
+      return { household: householdOf(a), accounts: q('SELECT id, email, role, created_at AS createdAt FROM accounts WHERE household_id = ? ORDER BY created_at').all(a.household_id).map(r => ({ ...r })) };
+    }],
+    /* the family's name, as it's shown ("The Patels") */
+    ['PATCH', '/api/household', ({ headers, body }) => {
+      const a = who(headers);
+      const n = familyName(body.name, '');
+      if (!n) throw new Fail(400, 'bad_name', 'Give the family a name.');
+      q('UPDATE households SET name = ? WHERE id = ?').run(n, a.household_id);
+      return householdOf(a);
     }],
 
     /* ---------- the family's profiles ---------- */
     ['POST', '/api/profiles', ({ headers, body }) => {
       const a = who(headers);
-      if (profilesOf(a.id).length >= LIMITS.profiles) throw new Fail(400, 'full', `An account can have up to ${LIMITS.profiles} profiles.`);
+      if (profilesOf(a).length >= LIMITS.profiles) throw new Fail(400, 'full', `A family can have up to ${LIMITS.profiles} profiles.`);
       const p = { id: newId(), name: name(body.name), avatar: avatar(body.avatar) };
       q('INSERT INTO profiles (id, account_id, name, avatar, created_at) VALUES (?, ?, ?, ?, ?)').run(p.id, a.id, p.name, p.avatar, now());
       return [201, p];
     }],
     ['PATCH', '/api/profiles/:id', ({ headers, params, body }) => {
       const a = who(headers);
-      const p = q('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(params.id, a.id);
+      const p = familyProfile(a, params.id);
       if (!p) throw new Fail(404, 'no_profile', 'No such profile.');
       const n = body.name === undefined ? p.name : name(body.name);
       const v = body.avatar === undefined ? p.avatar : avatar(body.avatar);
@@ -159,30 +190,60 @@ export function api(db, info, extra = () => []){
     }],
     ['DELETE', '/api/profiles/:id', ({ headers, params }) => {
       const a = who(headers);
-      if (!q('SELECT 1 FROM profiles WHERE id = ? AND account_id = ?').get(params.id, a.id)) throw new Fail(404, 'no_profile', 'No such profile.');
-      if (profilesOf(a.id).length <= 1) throw new Fail(400, 'last', 'An account needs at least one profile.');
-      q('DELETE FROM profiles WHERE id = ? AND account_id = ?').run(params.id, a.id);
+      const p = familyProfile(a, params.id);
+      if (!p) throw new Fail(404, 'no_profile', 'No such profile.');
+      /* (a grown-up's own profile - the first on their account - stays) */
+      const theirs = q('SELECT id FROM profiles WHERE account_id = ? ORDER BY created_at, rowid LIMIT 1').get(p.account_id);
+      if (ownProfiles(p.account_id) <= 1 || (theirs && theirs.id === p.id)) throw new Fail(400, 'last', 'Each grown-up keeps their own profile.');
+      q('DELETE FROM profiles WHERE id = ?').run(p.id);
+      return { ok: true };
+    }],
+
+    /* Invites: the owner's to start a new family (household: 'new'), and
+       any parent's to bring another grown-up into their own ('mine'). Only
+       the owner makes someone a creator. */
+    ['POST', '/api/invites', ({ headers, body }) => {
+      const a = who(headers);
+      const isOwner = a.role === 'owner';
+      const fresh = body.household === 'new';
+      if (fresh && !isOwner) throw new Fail(403, 'not_owner', 'Only the owner can invite a new family.');
+      const role = body.role === 'creator' ? 'creator' : 'player';
+      if (role === 'creator' && !isOwner) throw new Fail(403, 'not_owner', 'Only the owner can invite a creator.');
+      if (q('SELECT COUNT(*) AS n FROM invites WHERE used_by IS NULL').get().n >= LIMITS.invites) throw new Fail(400, 'too_many', 'There are lots of unused invites already.');
+      let code; do { code = newInviteCode(); } while (q('SELECT 1 FROM invites WHERE code = ?').get(code));
+      const home = fresh ? null : a.household_id;
+      q('INSERT INTO invites (code, role, created_by, created_at, household_id) VALUES (?, ?, ?, ?, ?)').run(code, role, a.id, now(), home);
+      return [201, { code, role, household: fresh ? 'new' : 'mine' }];
+    }],
+    ['GET', '/api/invites', ({ headers }) => {
+      const a = who(headers);
+      const all = a.role === 'owner';
+      const rows = q(`SELECT i.code, i.role, i.created_at AS createdAt, i.used_at AS usedAt, u.email AS usedBy, h.name AS family, i.household_id AS householdId,
+          CASE WHEN i.household_id IS NULL THEN 'new' ELSE 'join' END AS kind
+        FROM invites i LEFT JOIN accounts u ON u.id = i.used_by LEFT JOIN households h ON h.id = i.household_id
+        WHERE ${all ? '1' : 'i.created_by = ?'} ORDER BY i.created_at DESC`).all(...(all ? [] : [a.id]));
+      return { invites: rows.map(r => ({ ...r })) };
+    }],
+    ['DELETE', '/api/invites/:code', ({ headers, params }) => {
+      const a = who(headers);
+      const r = a.role === 'owner'
+        ? q('DELETE FROM invites WHERE code = ? AND used_by IS NULL').run(tidyInvite(params.code))
+        : q('DELETE FROM invites WHERE code = ? AND used_by IS NULL AND created_by = ?').run(tidyInvite(params.code), a.id);
+      if (!r.changes) throw new Fail(404, 'no_invite', 'No unused invite with that code.');
       return { ok: true };
     }],
 
     /* ---------- the owner's ---------- */
-    ['POST', '/api/invites', ({ headers, body }) => {
-      const a = owner(headers);
-      const role = body.role === 'creator' ? 'creator' : 'player';
-      if (q('SELECT COUNT(*) AS n FROM invites WHERE used_by IS NULL').get().n >= LIMITS.invites) throw new Fail(400, 'too_many', 'There are lots of unused invites already.');
-      let code; do { code = newInviteCode(); } while (q('SELECT 1 FROM invites WHERE code = ?').get(code));
-      q('INSERT INTO invites (code, role, created_by, created_at) VALUES (?, ?, ?, ?)').run(code, role, a.id, now());
-      return [201, { code, role }];
-    }],
-    ['GET', '/api/invites', ({ headers }) => {
+    /* every family on this server: its name, its grown-ups and how many
+       profiles (not the kids' names - the owner doesn't need them) */
+    ['GET', '/api/households', ({ headers }) => {
       owner(headers);
-      return { invites: q('SELECT i.code, i.role, i.created_at AS createdAt, i.used_at AS usedAt, a.email AS usedBy FROM invites i LEFT JOIN accounts a ON a.id = i.used_by ORDER BY i.created_at DESC').all().map(r => ({ ...r })) };
-    }],
-    ['DELETE', '/api/invites/:code', ({ headers, params }) => {
-      owner(headers);
-      const r = q('DELETE FROM invites WHERE code = ? AND used_by IS NULL').run(tidyInvite(params.code));
-      if (!r.changes) throw new Fail(404, 'no_invite', 'No unused invite with that code.');
-      return { ok: true };
+      const hs = q('SELECT id, name, created_at AS createdAt FROM households ORDER BY created_at').all().map(h => ({ ...h }));
+      for (const h of hs){
+        h.accounts = q('SELECT id, email, role, created_at AS createdAt FROM accounts WHERE household_id = ? ORDER BY created_at').all(h.id).map(r => ({ ...r }));
+        h.profiles = q('SELECT COUNT(*) AS n FROM profiles p JOIN accounts x ON x.id = p.account_id WHERE x.household_id = ?').get(h.id).n;
+      }
+      return { households: hs.filter(h => h.accounts.length) };
     }],
     ['GET', '/api/accounts', ({ headers }) => {
       owner(headers);

@@ -7,7 +7,7 @@
    it's been released - add a new one. */
 import { DatabaseSync } from 'node:sqlite';
 
-const STEPS = [
+export const STEPS = [
   /* 1: accounts (a parent's), the kids' profiles under them, signed-in
      devices, and invite codes. */
   `
@@ -41,6 +41,26 @@ const STEPS = [
     used_by    TEXT REFERENCES accounts(id) ON DELETE SET NULL,
     used_at    TEXT
   );
+  `,
+  /* 2: households - a family: its grown-ups' accounts, and the kids'
+     profiles under them, which the whole family shares. An invite is to
+     join a family (household_id), or to start a new one (none). Each
+     account there already becomes a family of its own. */
+  `
+  CREATE TABLE households (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  ALTER TABLE accounts ADD COLUMN household_id TEXT REFERENCES households(id);
+  ALTER TABLE invites ADD COLUMN household_id TEXT REFERENCES households(id) ON DELETE CASCADE;
+  INSERT INTO households (id, name, created_at)
+    SELECT 'h-' || a.id,
+           COALESCE((SELECT p.name FROM profiles p WHERE p.account_id = a.id ORDER BY p.created_at, p.rowid LIMIT 1), 'A') || '''s family',
+           a.created_at
+    FROM accounts a;
+  UPDATE accounts SET household_id = 'h-' || id;
+  CREATE INDEX accounts_household ON accounts(household_id);
   `
 ];
 

@@ -34,7 +34,7 @@ export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false }
   let menuOpen = null;
   const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => {
     if (menuOpen || isBusy()) return;
-    menuOpen = cornerMenu({ onRecalibrate, onFamily: nav.family && account.role === 'owner' ? nav.family : null, onClosed: () => { menuOpen = null; } });
+    menuOpen = cornerMenu({ onRecalibrate, onFamily: nav.family && account.signedIn ? nav.family : null, onClosed: () => { menuOpen = null; } });
   });
   const sys = h('div', 'tvsys'); sys.append(cam, clock, burger);
   top.append(brand, tabs, sys);
@@ -64,8 +64,7 @@ function appWindow(){
   return w && w.getCurrentWindow ? w.getCurrentWindow() : null;
 }
 
-/* The corner menu: a little card under the button - Settings, Family (for
-   the owner), a newer version, signing out, and Exit. A click outside it closes it (or Escape). */
+/* The corner menu: a little card under the button - Settings, Family, a newer version, signing out, and Exit. A click outside it closes it (or Escape). */
 export function cornerMenu({ onRecalibrate, onFamily = null, onClosed } = {}){
   sfx.select();
   const open = screen('dim popmenu'); open.style.zIndex = 5;
@@ -76,7 +75,7 @@ export function cornerMenu({ onRecalibrate, onFamily = null, onClosed } = {}){
   card.appendChild(onPick(button('<span class="pi">\u{2699}\u{FE0F}</span><span class="pn">Settings</span>', 'popitem'), () => {
     sfx.select(); shut(); openSettings(onRecalibrate);
   }));
-  /* the owner's page: the family's server, people, kids, games, backups */
+  /* the family's page (and, for the owner, the server's) */
   if (onFamily) card.appendChild(onPick(button('<span class="pi">\u{1F3E0}</span><span class="pn">Family</span>', 'popitem'), () => {
     sfx.select(); shut(); onFamily();
   }));
