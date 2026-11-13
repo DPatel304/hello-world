@@ -10,6 +10,8 @@ on:
     paths:
       - 'astra-park/kit/creator/**'
       - 'astra-park/src/ui/creator-kit*.js'
+      - 'astra-park/kit/build-creator.mjs'
+      - 'astra-park/test/creator-kit.test.mjs'
       - '.github/workflows/creator-kit-windows.yml'
   workflow_dispatch:
 
