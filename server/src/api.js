@@ -86,7 +86,7 @@ export function api(db, info, extra = () => []){
   const accounts = () => q('SELECT COUNT(*) AS n FROM accounts').get().n;
 
   return [
-    ...extra(who),
+    ...extra(who, owner),
     /* The app's "is this an Orlis server, and does it need setting up?" */
     ['GET', '/api/hello', () => ({ app: 'orlis', name: info.name, version: info.version, setup: accounts() === 0 })],
 

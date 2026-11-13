@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { openDb } from './db.js';
-import { makeServer } from './http.js';
+import { makeServer, activity, Fail } from './http.js';
+import { backups } from './backup.js';
 import { api } from './api.js';
 import { listenForApps, DISCOVERY_PORT } from './discovery.js';
 import { store } from './store.js';
@@ -15,18 +16,48 @@ import { store } from './store.js';
 export const VERSION = typeof __ORLIS_SERVER_VERSION__ === 'string' ? __ORLIS_SERVER_VERSION__ : '0.1.0';
 export const PORT = 47871;
 
-export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PORT, name, host = '0.0.0.0', starters = [] } = {}){
+/* How often it looks to see whether a daily backup is due, and how long
+   nobody must have used it first. */
+const BACKUP_LOOK = 60 * 60 * 1000, QUIET = 2 * 60 * 1000;
+
+/* restart(): how to start this server again (to finish a restore) - given
+   when something's there to do it. status.update: what the updater last
+   found, for the owner's page. */
+export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PORT, name, host = '0.0.0.0', starters = [], restart = null, status = { update: { state: 'off' } } } = {}){
   mkdirSync(dataDir, { recursive: true });
+  const safe = backups(dataDir, { version: VERSION });
+  /* a restore the owner asked for, done before anything is opened */
+  const restored = safe.applyPending();
   const db = openDb(join(dataDir, 'orlis.db'));
   const info = { name: name || `${hostname()}'s Orlis`, version: VERSION };
   const shop = store(dataDir, starters);
-  const web = makeServer(api(db, info, shop.routes));
+  const owners = (who, owner) => [
+    ...shop.routes(who, owner),
+    /* the owner's page in the app: this server, its backups */
+    ['GET', '/api/server', ({ headers }) => {
+      owner(headers);
+      return { name: info.name, version: VERSION, update: status.update, backups: safe.list(), restoring: safe.pending(), restored: restored ? restored.id : null, canRestart: !!restart };
+    }],
+    ['POST', '/api/backups', ({ headers }) => { owner(headers); return [201, safe.make('manual', db)]; }],
+    ['POST', '/api/backups/:id/restore', ({ headers, params }) => {
+      owner(headers);
+      let b;
+      try { b = safe.requestRestore(params.id); } catch (e){ throw new Fail(404, 'no_backup', 'No such backup.'); }
+      if (restart) setTimeout(restart, 600);
+      return { ok: true, backup: b, restarting: !!restart };
+    }]
+  ];
+  const web = makeServer(api(db, info, owners));
   await new Promise((ok, no) => { web.once('error', no); web.listen(port, host, ok); });
   const at = web.address().port;
   const udp = discoveryPort === false ? null
     : await listenForApps({ port: discoveryPort, answer: () => ({ name: info.name, port: at, version: VERSION }) });
+  /* the daily backup, at a quiet moment */
+  const look = () => { if (Date.now() - activity.last > QUIET) try { safe.daily(db); } catch (e){ console.error(`(backup didn't work: ${e.message})`); } };
+  const first = setTimeout(look, 60 * 1000), every = setInterval(look, BACKUP_LOOK);
+  first.unref?.(); every.unref?.();
   return {
-    port: at, info, db, discovery: udp, store: shop,
-    close: () => new Promise((ok) => { udp?.close(); web.close(() => { db.close(); ok(); }); web.closeAllConnections?.(); })
+    port: at, info, db, discovery: udp, store: shop, backups: safe, restored,
+    close: () => new Promise((ok) => { clearTimeout(first); clearInterval(every); udp?.close(); web.close(() => { db.close(); ok(); }); web.closeAllConnections?.(); })
   };
 }

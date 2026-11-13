@@ -10,7 +10,10 @@ home Wi-Fi** - it is not on the internet.
    https://github.com/dpatel304/orlis-play/releases/download/server/Orlis-Server.exe
 2. Make a folder for it, such as `Documents\Orlis Server`, and put it there.
    Its data goes in an `Orlis Server data` folder beside it.
-3. Double-click it. A window opens saying it's running - leave it open.
+3. Double-click it. It runs quietly: the Orlis cube appears by the clock
+   (the system tray - it may be under the ^ arrow). Right-click the cube to
+   see the log, open the data folder, restart it, or quit. It doesn't start
+   with Windows; double-click it again after the laptop restarts.
 4. If Windows Firewall asks, tick **Private networks** only (not Public).
    Your home Wi-Fi should be set to Private: Settings > Network & internet >
    Wi-Fi > your network > Private network.
@@ -26,7 +29,23 @@ Store, delete its file (it won't be put back). A newer version of a game
 replaces the older one. Orlis Play's Store lists them; downloading one puts it
 on that PC's home screen, playable with the server off.
 
-**Back up** by copying the `Orlis Server data` folder (with the server closed).
+## Backups
+
+The server backs up the family's things into `Orlis Server data\backups`:
+
+- **What:** the accounts, the kids' profiles, invites and sign-ins
+  (`orlis.db`), and the Store's games (`games\`).
+- **Not in them:** what each PC keeps for itself - its downloaded games,
+  scores and settings.
+- **When:** once a day at a quiet moment (a week of them is kept), before
+  every update, and whenever the owner picks **Back up now** on the Family
+  page in Orlis Play (corner menu > Family).
+- **Restoring:** on the Family page, pick a backup's **Restore** (twice). The
+  server restarts with the data as it was then; what it had a moment before
+  is kept as one more backup, so a restore can be undone.
+
+For a copy somewhere else (a USB stick), copy the `Orlis Server data`
+folder with the server quit.
 
 ## Updates
 
@@ -36,6 +55,10 @@ own update key, the same as the app's updates. When it finds one, it waits
 for a quiet moment (nobody using it for a couple of minutes), copies the
 family's data to `Orlis Server data\backups` (the last three are kept), swaps
 the new exe in, and restarts in a new window. The data stays as it is.
+
+What it's doing goes into `Orlis Server data\server.log` (right-click the
+cube > Show the log). If the server ever stops by itself, it starts again
+a few seconds later.
 
 Checking for updates is the one thing it does on the internet; nothing on
 the internet can reach it. To turn updates off, set the environment

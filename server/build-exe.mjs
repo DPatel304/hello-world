@@ -8,7 +8,7 @@
    carry; copy this Node program and stamp the blob into the copy. */
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, writeFileSync, chmodSync, existsSync, readdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync, chmodSync, existsSync, readdirSync, openSync, readSync, writeSync, closeSync } from 'node:fs';
 import { join } from 'node:path';
 
 const win = process.platform === 'win32';
@@ -46,4 +46,21 @@ if (win){
    "Orlis Server.exe" split the name in two) */
 execFileSync(process.execPath, [join('node_modules', 'postject', 'dist', 'cli.js'), exe, 'NODE_SEA_BLOB', join(out, 'sea.blob'), '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'], { stdio: 'inherit' });
 if (!win) chmodSync(exe, 0o755);
+/* On Windows: a windowed program, not a console one - double-clicked, it
+   opens no black window; it lives by the clock (src/supervisor.js). The
+   Windows header's "subsystem" says which: 3 is console, 2 is windowed. */
+if (win) setSubsystem(exe, 2);
+function setSubsystem(file, to){
+  const fd = openSync(file, 'r+');
+  try {
+    const b = Buffer.alloc(4);
+    readSync(fd, b, 0, 4, 0x3c);
+    const pe = b.readUInt32LE(0), at = pe + 4 + 20 + 68;
+    const sig = Buffer.alloc(4); readSync(fd, sig, 0, 4, pe);
+    if (sig.toString('latin1') !== 'PE\0\0') throw new Error('not a Windows program');
+    const v = Buffer.alloc(2); v.writeUInt16LE(to, 0);
+    writeSync(fd, v, 0, 2, at);
+  } finally { closeSync(fd); }
+  console.log(`subsystem set to ${to === 2 ? 'windowed' : 'console'}`);
+}
 console.log(`built ${exe}`);

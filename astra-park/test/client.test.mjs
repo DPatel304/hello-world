@@ -116,7 +116,7 @@ test('Home, the Store and Create are pages under the same tabs; the corner menu 
   assert.ok(!/Store<\/span>|Create<\/span>/.test(tabs), 'Store and Create are tabs now, not in the corner menu');
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(main, /go\('store'/); assert.match(main, /go\('create'/);
-  assert.match(main, /const HOMEY = new Set\(\['menu', 'store', 'create', 'who'\]\)/);
+  assert.match(main, /const HOMEY = new Set\(\['menu', 'store', 'create', 'family', 'who'\]\)/);
 });
 
 test('light only: no dark theme left', () => {

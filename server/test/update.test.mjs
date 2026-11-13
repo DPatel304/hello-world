@@ -4,7 +4,8 @@ import { generateKeyPairSync, createHash, sign, randomBytes } from 'node:crypto'
 import { mkdtempSync, writeFileSync, readFileSync, existsSync, readdirSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { genuine, updater, newer, PUBKEY, AFTER_UPDATE } from '../src/update.js';
+import { genuine, updater, newer, PUBKEY, AFTER_UPDATE, UPDATED } from '../src/update.js';
+import { backups } from '../src/backup.js';
 
 /* A signing key of our own, in the same shape as Orlis Play's (minisign). */
 function keypair(){
@@ -38,7 +39,7 @@ test('versions compare as numbers', () => {
   assert.ok(newer('0.1.12', '0.1.9')); assert.ok(!newer('0.1.9', '0.1.9')); assert.ok(newer('0.2.0', '0.1.99'));
 });
 
-function setup({ version = '0.1.20', bytes = Buffer.from('NEW EXE'), signWith, idle = () => true } = {}){
+function setup({ version = '0.1.20', bytes = Buffer.from('NEW EXE'), signWith, idle = () => true, supervised = false } = {}){
   const dir = mkdtempSync(join(tmpdir(), 'orlis-update-'));
   const exe = join(dir, 'Orlis Server.exe'), dataDir = join(dir, 'Orlis Server data');
   writeFileSync(exe, 'OLD EXE');
@@ -47,7 +48,8 @@ function setup({ version = '0.1.20', bytes = Buffer.from('NEW EXE'), signWith, i
   const feed = { version, url: 'https://x/Orlis-Server-new.exe', sha256: createHash('sha256').update(bytes).digest('hex'), signature: (signWith || k).signFile(bytes) };
   const seen = { spawned: null, exited: null, closed: 0, logs: [] };
   const u = updater({
-    version: '0.1.10', exe, dataDir, pub: k.pub, wait: 5,
+    version: '0.1.10', exe, dataDir, pub: k.pub, wait: 5, supervised,
+    backup: () => backups(dataDir, { version: '0.1.10' }).make('update'),
     close: async () => { seen.closed++; },
     fetchImpl: async (url) => url.endsWith('.json')
       ? { ok: true, json: async () => feed }
@@ -66,11 +68,22 @@ test('a newer, genuine server: backed up, swapped in, started, and this one clos
   await new Promise(r => setTimeout(r, 350));
   assert.equal(readFileSync(exe, 'utf8'), 'NEW EXE');
   assert.equal(readFileSync(join(dir, 'Orlis Server.old.exe'), 'utf8'), 'OLD EXE');
-  assert.equal(readFileSync(join(dataDir, 'backups', 'orlis-before-0.1.20.db'), 'utf8'), 'the family');
+  const [b] = backups(dataDir).list();
+  assert.equal(b.reason, 'update');
+  assert.equal(readFileSync(join(dataDir, 'backups', b.id, 'orlis.db'), 'utf8'), 'the family');
   assert.deepEqual(seen.spawned, [exe, [AFTER_UPDATE]]);
   assert.equal(seen.closed, 1); assert.equal(seen.exited, 0);
   u.tidy();
   assert.ok(!existsSync(join(dir, 'Orlis Server.old.exe')), 'the old one is tidied away next time');
+});
+
+test('under the tray, it hands over by exiting: the tray starts the new one', async () => {
+  const { u, exe, seen } = setup({ supervised: true });
+  await u.run();
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(readFileSync(exe, 'utf8'), 'NEW EXE');
+  assert.equal(seen.spawned, null);
+  assert.equal(seen.exited, UPDATED);
 });
 
 test('not signed with the key, or not newer: nothing changes', async () => {

@@ -34,7 +34,7 @@ export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false }
   let menuOpen = null;
   const burger = onPick(button('<span class="bars"><i></i><i></i><i></i></span>', 'burger'), () => {
     if (menuOpen || isBusy()) return;
-    menuOpen = cornerMenu({ onRecalibrate, onClosed: () => { menuOpen = null; } });
+    menuOpen = cornerMenu({ onRecalibrate, onFamily: nav.family && account.role === 'owner' ? nav.family : null, onClosed: () => { menuOpen = null; } });
   });
   const sys = h('div', 'tvsys'); sys.append(cam, clock, burger);
   top.append(brand, tabs, sys);
@@ -64,9 +64,9 @@ function appWindow(){
   return w && w.getCurrentWindow ? w.getCurrentWindow() : null;
 }
 
-/* The corner menu: a little card under the button - Settings, a newer
-   version, signing out, and Exit. A click outside it closes it (or Escape). */
-export function cornerMenu({ onRecalibrate, onClosed } = {}){
+/* The corner menu: a little card under the button - Settings, Family (for
+   the owner), a newer version, signing out, and Exit. A click outside it closes it (or Escape). */
+export function cornerMenu({ onRecalibrate, onFamily = null, onClosed } = {}){
   sfx.select();
   const open = screen('dim popmenu'); open.style.zIndex = 5;
   const card = h('div', 'popcard');
@@ -75,6 +75,10 @@ export function cornerMenu({ onRecalibrate, onClosed } = {}){
   addEventListener('keydown', esc, true);
   card.appendChild(onPick(button('<span class="pi">\u{2699}\u{FE0F}</span><span class="pn">Settings</span>', 'popitem'), () => {
     sfx.select(); shut(); openSettings(onRecalibrate);
+  }));
+  /* the owner's page: the family's server, people, kids, games, backups */
+  if (onFamily) card.appendChild(onPick(button('<span class="pi">\u{1F3E0}</span><span class="pn">Family</span>', 'popitem'), () => {
+    sfx.select(); shut(); onFamily();
   }));
   /* In the Windows app: a newer version, now (picked once it checks,
      picked again it installs and restarts on it); and signing out. */

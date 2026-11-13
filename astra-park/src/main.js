@@ -7,6 +7,7 @@ import { installTitlebar, titlebarPlaying } from './ui/titlebar.js';
 import { library } from './ui/library.js';
 import { storePage } from './ui/store.js';
 import { createPage } from './ui/create.js';
+import { familyPage } from './ui/family.js';
 import { boot as bootShow } from './ui/boot.js';
 import { calibration, results, pauseOverlay, lostOverlay,
          clearUI, drawSkeletons, screen, h } from './ui/screens.js';
@@ -44,7 +45,7 @@ let paused = null, lost = null, handsUp = 0, empty = 0, joined = new Set();
 const CAMERA = new Set(['starting', 'play', 'outro', 'results', 'calibrate']);
 /* The pages that are the mouse's and the keyboard's: Home, the Store,
    Create, and signing in. */
-const HOMEY = new Set(['menu', 'store', 'create', 'who']);
+const HOMEY = new Set(['menu', 'store', 'create', 'family', 'who']);
 
 function go(next, build){
   /* (a page with something to tidy away first - the Store's previews) */
@@ -73,10 +74,13 @@ function toMenu(arrive = false){
   go('menu', () => menu({ onPlay: toGame, onRecalibrate: toCalibration, onWho: () => toWho(false), nav: tabs(), arrive }));
 }
 /* The tabs along the top: Home, the Store, Create. */
-function tabs(){ return { home: () => toMenu(false), store: toStore, create: toCreate }; }
+function tabs(){ return { home: () => toMenu(false), store: toStore, create: toCreate, family: toFamily }; }
 function toStore(){
   music.stop(); voice.hush();
   go('store', () => storePage({ nav: tabs(), onPlay: toGame, onChange: () => {}, onWho: () => toWho(false), onRecalibrate: toCalibration }));
+}
+function toFamily(){
+  go('family', () => familyPage({ nav: tabs(), onWho: () => toWho(false), onRecalibrate: toCalibration }));
 }
 function toCreate(){
   go('create', () => createPage({ nav: tabs(), onWho: () => toWho(false), onRecalibrate: toCalibration }));
@@ -244,7 +248,7 @@ let last = 0;
    30 times a second rather than 60. And with another window in front, almost
    nothing runs: a few frames a second, no tracking, no sound - and a game in
    progress pauses, to carry on when someone's back. */
-const CALM = new Set(['boot', 'menu', 'store', 'create', 'who', 'starting']);
+const CALM = new Set(['boot', 'menu', 'store', 'create', 'family', 'who', 'starting']);
 const HOME_GAP = 1000 / 30 - 2, AWAY_GAP = 250;
 let lastFrame = 0, wasAway = false;
 function tick(now){

@@ -75,10 +75,28 @@ jobs:
             Start-Sleep -Milliseconds 500
             try { $hello = Invoke-RestMethod http://localhost:47871/api/hello } catch { }
           }
-          Stop-Process -Id $p.Id -Force
+          Start-Sleep -Seconds 1
+          Get-Process -Name 'Orlis Server' -ErrorAction SilentlyContinue | Stop-Process -Force
           if (-not $hello -or $hello.app -ne 'orlis') { throw 'Orlis Server.exe did not answer' }
+          $log = Join-Path $env:ORLIS_DATA 'server.log'
+          if (-not (Select-String -Path $log -Pattern 'is running' -Quiet)) { throw 'the server did not write its log' }
+          Write-Host (Get-Content $log -Raw)
           if (-not (Test-Path (Join-Path $env:ORLIS_DATA 'games\pop-party.orlis'))) { throw 'Pop Party is not in the Store' }
           Write-Host "answered: $($hello | ConvertTo-Json -Compress)"
+
+      - name: Check the icon by the clock
+        shell: pwsh
+        run: |
+          node -e "import('./src/supervisor.js').then(m => require('fs').writeFileSync('tray.ps1', m.trayScript()))"
+          $env:ORLIS_TRAY_TEST = '1'
+          $said = powershell.exe -NoProfile -ExecutionPolicy Bypass -File tray.ps1
+          if ($LASTEXITCODE -ne 0 -or $said -notcontains 'tray ok') { throw "the tray icon script failed: $said" }
+          # (and the exe is a windowed program: no black window)
+          $b = [IO.File]::ReadAllBytes('dist\Orlis Server.exe')
+          $pe = [BitConverter]::ToInt32($b, 0x3c)
+          $sub = [BitConverter]::ToUInt16($b, $pe + 4 + 20 + 68)
+          if ($sub -ne 2) { throw "subsystem is $sub, not windowed" }
+          Write-Host 'tray ok, windowed'
 
       # The server release is refilled each time, never emptied first: the new
       # files go up beside the old ones, and server.json - what running

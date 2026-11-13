@@ -5,7 +5,8 @@
    If there is, it downloads it and checks it's genuine: signed with Orlis
    Play's own update key (the same one the app's updates are signed with -
    only its builds on GitHub have it). Then, at a quiet moment - nobody
-   having asked it anything for a couple of minutes - it backs up its data,
+   having asked it anything for a couple of minutes - it backs up its data
+   (backup.js),
    swaps the new exe in for itself, starts it, and closes. It's back within
    seconds, in a new window.
 
@@ -13,7 +14,7 @@
    and never with ORLIS_NO_UPDATE set. Going online to check is the one
    thing it does on the internet; nobody on the internet can reach it. */
 import { createHash, createPublicKey, verify } from 'node:crypto';
-import { existsSync, renameSync, writeFileSync, unlinkSync, copyFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { spawn as spawnChild } from 'node:child_process';
 
@@ -46,7 +47,12 @@ export function genuine(file, sig, pub = PUBKEY){
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
 
 /* updater({ version, exe, dataDir, close, idle, ... }).start() */
-export function updater({ version, exe, dataDir, close, idle = () => true, log = console.log,
+/* backup(): a backup of the family's data, made with the server closed,
+   just before the switch. supervised: the server runs under the tray
+   (supervisor.js), which starts the new one when this one exits with
+   UPDATED; otherwise it starts the new one itself. */
+export const UPDATED = 75;
+export function updater({ version, exe, dataDir, close, backup = null, supervised = false, status = { update: {} }, idle = () => true, log = console.log,
   fetchImpl = fetch, spawn = spawnChild, exit = (c) => process.exit(c), feed = FEED, pub = PUBKEY, every = EVERY, wait = 30 * 1000 }){
   const dir = dirname(exe), name = basename(exe, '.exe');
   const old = join(dir, `${name}.old.exe`), fresh = join(dir, `${name}.new.exe`);
@@ -80,32 +86,25 @@ export function updater({ version, exe, dataDir, close, idle = () => true, log =
     try { renameSync(fresh, exe); } catch (e){ renameSync(old, exe); throw e; }
     log(`\n  Updating Orlis Server to ${found.version} - back in a moment...\n`);
     await close();
-    backup(found.version);
+    try { backup && backup(found.version); } catch (e){ log(`  (the backup before updating didn't work: ${e.message})`); }
+    if (supervised){ setTimeout(() => exit(UPDATED), 100); return; }
     spawn(exe, [AFTER_UPDATE], { cwd: dir, detached: true, stdio: 'ignore' }).unref?.();
     setTimeout(() => exit(0), 300);
-  }
-
-  /* a copy of the family's data from just before, the last three kept */
-  function backup(to){
-    const db = join(dataDir, 'orlis.db');
-    if (!existsSync(db)) return;
-    const into = join(dataDir, 'backups');
-    mkdirSync(into, { recursive: true });
-    copyFileSync(db, join(into, `orlis-before-${to}.db`));
-    const all = readdirSync(into).filter(f => /^orlis-before-.*\.db$/.test(f)).sort((a, b) => newer(a.slice(13, -3), b.slice(13, -3)) ? -1 : 1);
-    for (const f of all.slice(3)) try { unlinkSync(join(into, f)); } catch {}
   }
 
   async function run(){
     if (busy) return;
     busy = true;
+    const said = (state, more = {}) => { status.update = { state, checkedAt: new Date().toISOString(), ...more }; };
     try {
       const found = await find();
-      if (!found) return;
+      if (!found){ said('up to date'); return; }
+      said('ready', { version: found.version });
       log(`  A newer Orlis Server (${found.version}) is ready; it'll switch over at a quiet moment.`);
       while (!idle()) await new Promise(r => setTimeout(r, wait));
       await apply(found);
     } catch (e){
+      said('offline', { problem: e.message });
       log(`  (Couldn't check for a newer Orlis Server: ${e.message}. It'll try again later.)`);
     } finally { busy = false; }
   }

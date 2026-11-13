@@ -7,7 +7,7 @@
    into it); the first time it runs, it puts them in the folder. They're
    only put back if they're missing or older, so a game removed on purpose
    is noticed by its file being gone - see STARTERS_DONE. */
-import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { readOrlis, manifestOf, sha256 } from './orlis-file.js';
 import { Fail, Raw } from './http.js';
@@ -66,13 +66,24 @@ export function store(dataDir, starters = []){
 
   return {
     dir, games,
-    routes: (who) => [
+    routes: (who, owner) => [
       ['GET', '/api/store', ({ headers }) => { who(headers); return { games: games().map(pub) }; }],
       ['GET', '/api/store/:id/file', ({ headers, params }) => {
         who(headers);
         const g = games().find(x => x.id === params.id);
         if (!g) throw new Fail(404, 'no_game', 'That game isn\'t in the Store.');
         return new Raw(readFileSync(join(dir, g.file)), `${g.id}-${g.version}.orlis`);
+      }],
+      /* the owner takes a game out of the Store (every version of it; a
+         starter game isn't put back) */
+      ['DELETE', '/api/store/:id', ({ headers, params }) => {
+        owner(headers);
+        games();
+        let n = 0;
+        for (const [f, c] of cache) if (c.entry && c.entry.id === params.id){ try { unlinkSync(join(dir, f)); n++; } catch {} }
+        if (!n) throw new Fail(404, 'no_game', 'That game isn\'t in the Store.');
+        cache = new Map();
+        return { ok: true };
       }]
     ]
   };
