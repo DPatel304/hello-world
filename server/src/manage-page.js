@@ -57,7 +57,7 @@ button:disabled{ opacity:.55; cursor:not-allowed; } .tag.declined{ background:#f
 </style></head>
 <body>
 <header><h1>Orlis <i>Server</i></h1>
-<nav id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="approvals">Approvals<span id="waiting"></span></button><button data-t="families">Families</button><button data-t="store">Store</button><button data-t="backups">Backups</button></nav></header>
+<nav id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="approvals">Approvals<span id="waiting"></span></button><button data-t="families">Families</button><button data-t="store">Store</button><button data-t="backups">Backups</button><button data-t="history">History</button></nav></header>
 <main id="main"></main>
 <script>
 var TRY = ${TRY_SECS};
@@ -151,14 +151,30 @@ var TRY = ${TRY_SECS};
         row(inv, 'A friend\\u2019s family gets its own grown-ups and kids, kept apart from yours.<small>They set up Orlis Play on this Wi-Fi and type the code.</small>', [btn('Make an invite', 'go', function(){ call('POST', '/api/invites', { household: 'new' }).then(show, fail(inv)); })]);
       });
     },
+    history: function(){
+      return call('GET', '/api/history').then(function(r){
+        var c = card('What happened to the family\\u2019s games');
+        if (!r.history.length) note(c, 'Nothing yet. Every game sent, played, approved, declined or taken out is kept here, and every grown-up made a creator or not.');
+        var SAY = { sent: 'Sent for your OK', played: 'Played', approved: 'Approved', declined: 'Declined', withdrawn: 'Taken back by its maker', removed: 'Taken out of the Store', creator: 'Made a creator', 'not-creator': 'No longer a creator' };
+        r.history.forEach(function(x){
+          row(c, '<span class="tag ' + (x.what === 'approved' ? 'ok' : x.what === 'declined' || x.what === 'removed' ? 'declined' : '') + '">' + esc(SAY[x.what] || x.what) + '</span> ' +
+            (x.name ? '<b>' + esc(x.name) + '</b>' + (x.version ? ' <span class="tag">version ' + esc(x.version) + '</span>' : '') : '') +
+            '<small>' + esc(when(x.at)) + ' \\u00b7 ' + esc(x.who) + (x.note ? ' \\u00b7 ' + esc(x.note) : '') + '</small>', []);
+        });
+        note(c, 'Kept for good, in the server\\u2019s own data (and its backups).');
+      });
+    },
     store: function(){
-      return call('GET', '/api/store').then(function(st){
+      return Promise.all([call('GET', '/api/store'), call('GET', '/api/history').catch(function(){ return { history: [] }; })]).then(function(both){
+        var st = both[0], ok = {};
+        /* (each game's latest approval: who made it, and who said OK when) */
+        both[1].history.forEach(function(x){ if (x.what === 'approved' && !ok[x.gameId]) ok[x.gameId] = x; });
         var c = card('The Store\\u2019s games');
         if (!st.games || !st.games.length) note(c, 'Nothing in the Store. Put a game\\u2019s .orlis file in the server\\u2019s "games" folder to add one.');
         (st.games || []).forEach(function(g){
           var cols = (g.icon && g.icon.cols) || ['#6d5efc', '#6d5efc'];
           var glyph = g.icon && g.icon.glyph && !/<\\s*script|on\\w+\\s*=|javascript:|href/i.test(g.icon.glyph) ? g.icon.glyph : '';
-          row(c, '<span class="who"><span class="icon" style="background:linear-gradient(135deg,' + esc(cols[0]) + ',' + esc(cols[1] || cols[0]) + ')"><svg viewBox="0 0 100 100">' + glyph + '</svg></span><span><b>' + esc(g.name) + '</b><small>Version ' + esc(g.version) + (g.by ? ' \\u00b7 ' + esc(g.by) : '') + ' \\u00b7 ' + size(g.bytes) + '</small></span></span>',
+          row(c, '<span class="who"><span class="icon" style="background:linear-gradient(135deg,' + esc(cols[0]) + ',' + esc(cols[1] || cols[0]) + ')"><svg viewBox="0 0 100 100">' + glyph + '</svg></span><span><b>' + esc(g.name) + '</b><small>Version ' + esc(g.version) + (g.by ? ' \\u00b7 ' + esc(g.by) : '') + ' \\u00b7 ' + size(g.bytes) + (ok[g.id] ? '<br>' + esc(ok[g.id].note.split(' \\u00b7 ')[0]) + ' \\u00b7 approved ' + esc(when(ok[g.id].at)) + ' by ' + esc(ok[g.id].who) : '') + '</small></span></span>',
             [sure('Take out', 'Take it out? Click again', 'danger', function(){ call('DELETE', '/api/store/' + encodeURIComponent(g.id)).then(show, fail(c)); })]);
         });
         note(c, 'Taking a game out of the Store leaves it on any PC that already downloaded it.');

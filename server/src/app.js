@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { managePage } from './manage-page.js';
+import { history } from './history.js';
 import { hostname, networkInterfaces } from 'node:os';
 import { openDb } from './db.js';
 import { makeServer, activity, Fail, Page, isLocal } from './http.js';
@@ -41,7 +42,8 @@ export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PO
   const manageKey = readFileSync(keyFile, 'utf8').trim();
   const info = { name: name || `${hostname()}'s Orlis`, version: VERSION };
   const shop = store(dataDir, starters);
-  const sent = submissions(db, dataDir, shop);
+  const log = history(db);
+  const sent = submissions(db, dataDir, shop, log);
   const owners = (who, owner) => [
     ...sent.routes(who, owner, (h, ip) => h['x-orlis-manage'] !== undefined ? owner(h, ip) : who(h)),
     /* the management page itself: only to this laptop */
@@ -49,7 +51,9 @@ export async function start({ dataDir, port = PORT, discoveryPort = DISCOVERY_PO
       if (!isLocal(ip)) throw new Fail(404, 'not_found', 'Nothing here.');
       return new Page(managePage());
     }],
-    ...shop.routes(who, owner),
+    ...shop.routes(who, owner, log),
+    /* what happened to the family's games, for the management page */
+    ['GET', '/api/history', ({ headers, ip }) => { owner(headers, ip); return { history: log.list(300) }; }],
     /* the owner's page in the app: this server, its backups */
     ['GET', '/api/server', ({ headers, ip }) => {
       owner(headers, ip);

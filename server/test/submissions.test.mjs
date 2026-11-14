@@ -141,3 +141,29 @@ test("words that aren't for children are turned away - in the code, on screen, i
     assert.equal((await call('POST', '/api/submissions', game('w8', { code: 'const shell = 1, assets = 2, skill = 3, class_ = 4; postMessage({ t: "ready" });', blurb: 'Hello! Pass the ball' }), friend)).status, 201);
   } finally { await s.close(); }
 });
+
+test('a clear trail: every game sent, played, approved, declined, taken back or out, and every creator made or not, kept', async () => {
+  const { s, call, owner, friend } = await server();
+  try {
+    const a = await call('POST', '/api/submissions', game('bird-hoops'), friend);
+    await call('POST', `/api/submissions/${a.id}/tried`, { secs: 25 }, owner);
+    await call('POST', `/api/submissions/${a.id}/approve`, null, owner);
+    const b = await call('POST', '/api/submissions', game('star-hop'), friend);
+    await call('POST', `/api/submissions/${b.id}/decline`, { note: 'Bigger stars, please' }, owner);
+    const c = await call('POST', '/api/submissions', game('owl-hoot'), friend);
+    await call('DELETE', `/api/submissions/${c.id}`, null, friend);
+    await call('DELETE', '/api/store/bird-hoops', null, owner);
+    const fam = await call('GET', '/api/accounts', null, owner);
+    const max = (fam.accounts || []).find(x => x.email === 'max@example.com');
+    if (max) await call('POST', `/api/accounts/${max.id}/role`, { role: 'player' }, owner);
+    assert.equal((await call('GET', '/api/history', null, friend)).status, 403, 'the owner\'s to see');
+    const h = (await call('GET', '/api/history', null, owner)).history;
+    const seen = h.map(x => [x.what, x.name || x.note]).reverse();
+    assert.deepEqual(seen.slice(0, 8), [['sent', 'Bird Hoops'], ['played', 'Bird Hoops'], ['approved', 'Bird Hoops'], ['sent', 'Bird Hoops'], ['declined', 'Bird Hoops'], ['sent', 'Bird Hoops'], ['withdrawn', 'Bird Hoops'], ['removed', 'Bird Hoops']]);
+    const ok = h.find(x => x.what === 'approved');
+    assert.equal(ok.who, 'deep@example.com'); assert.equal(ok.version, '1.0');
+    assert.match(ok.note, /made by max@example\.com, Max's family · fingerprint [0-9a-f]{12}/);
+    assert.equal(h.find(x => x.what === 'declined').note, 'Bigger stars, please');
+    if (max) assert.deepEqual([h[0].what, h[0].note], ['not-creator', 'max@example.com']);
+  } finally { await s.close(); }
+});

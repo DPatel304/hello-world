@@ -70,7 +70,7 @@ export function checkGame(bytes){
   return { parts, manifest: m };
 }
 
-export function submissions(db, dataDir, shop){
+export function submissions(db, dataDir, shop, log = { add(){} }){
   const dir = join(dataDir, 'submissions');
   mkdirSync(dir, { recursive: true });
   const q = (sql) => db.prepare(sql);
@@ -108,6 +108,7 @@ export function submissions(db, dataDir, shop){
         const id = newId();
         writeFileSync(fileOf(id), raw);
         q("INSERT INTO submissions (id, game_id, name, version, account_id, bytes, sha256, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?)").run(id, m.id, m.name, m.version, a.id, raw.length, sha, now());
+        log.add(a, 'sent', { gameId: m.id, name: m.name, version: m.version, note: `from ${familyName(a.id)} · fingerprint ${sha.slice(0, 12)}` });
         return [201, out(q('SELECT * FROM submissions WHERE id = ?').get(id))];
       }],
       /* a creator's own, with how each went; the owner (or the management
@@ -130,15 +131,16 @@ export function submissions(db, dataDir, shop){
       }],
       /* the owner played it (in Orlis Play, for long enough to see it) */
       ['POST', '/api/submissions/:id/tried', ({ headers, ip, params, body }) => {
-        owner(headers, ip);
+        const me = owner(headers, ip);
         const r = q("SELECT * FROM submissions WHERE id = ? AND status = 'waiting'").get(params.id);
         if (!r) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
         if (!(Number(body.secs) >= TRY_SECS)) throw new Fail(400, 'too_short', `Play it for at least ${TRY_SECS} seconds.`);
+        if (!r.tried_at) log.add(me, 'played', { gameId: r.game_id, name: r.name, version: r.version, note: `for ${Math.round(Number(body.secs))} seconds` });
         q('UPDATE submissions SET tried_at = ? WHERE id = ?').run(now(), r.id);
         return { ok: true };
       }],
       ['POST', '/api/submissions/:id/approve', ({ headers, ip, params }) => {
-        owner(headers, ip);
+        const me = owner(headers, ip);
         const r = q("SELECT * FROM submissions WHERE id = ? AND status = 'waiting'").get(params.id);
         if (!r || !existsSync(fileOf(r.id))) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
         /* not before the owner's played it */
@@ -154,22 +156,28 @@ export function submissions(db, dataDir, shop){
         const file = writeOrlis({ 'manifest.json': JSON.stringify(raw, null, 2), 'game.js': parts['game.js'] });
         writeFileSync(join(shop.dir, `${manifest.id}.orlis`), file);
         q("UPDATE submissions SET status = 'approved', decided_at = ? WHERE id = ?").run(now(), r.id);
+        const sender = q('SELECT email FROM accounts WHERE id = ?').get(r.account_id);
+        log.add(me, 'approved', { gameId: r.game_id, name: r.name, version: r.version, note: `made by ${sender ? sender.email : 'someone'}, ${raw.by} · fingerprint ${r.sha256.slice(0, 12)}${raw.starter ? ' · a starter game' : ''}` });
         try { unlinkSync(fileOf(r.id)); } catch {}
         return { ok: true, game: { id: manifest.id, name: manifest.name, version: manifest.version, by: raw.by } };
       }],
       ['POST', '/api/submissions/:id/decline', ({ headers, ip, params, body }) => {
-        owner(headers, ip);
+        const me = owner(headers, ip);
+        const was = q("SELECT * FROM submissions WHERE id = ? AND status = 'waiting'").get(params.id);
         const note = (typeof body.note === 'string' ? body.note : '').trim().slice(0, 300);
         const r = q("UPDATE submissions SET status = 'declined', note = ?, decided_at = ? WHERE id = ? AND status = 'waiting'").run(note, now(), params.id);
         if (!r.changes) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
         try { unlinkSync(fileOf(params.id)); } catch {}
+        log.add(me, 'declined', { gameId: was.game_id, name: was.name, version: was.version, note: note || null });
         return { ok: true };
       }],
       /* the creator takes one back, while it's waiting */
       ['DELETE', '/api/submissions/:id', ({ headers, params }) => {
         const a = who(headers);
+        const was = q("SELECT * FROM submissions WHERE id = ? AND account_id = ? AND status = 'waiting'").get(params.id, a.id);
         const r = q("UPDATE submissions SET status = 'withdrawn', decided_at = ? WHERE id = ? AND account_id = ? AND status = 'waiting'").run(now(), params.id, a.id);
         if (!r.changes) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
+        log.add(a, 'withdrawn', { gameId: was.game_id, name: was.name, version: was.version });
         try { unlinkSync(fileOf(params.id)); } catch {}
         return { ok: true };
       }]

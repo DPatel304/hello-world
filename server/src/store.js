@@ -66,7 +66,7 @@ export function store(dataDir, starters = []){
 
   return {
     dir, games,
-    routes: (who, owner) => [
+    routes: (who, owner, log = { add(){} }) => [
       ['GET', '/api/store', ({ headers, ip }) => { headers['x-orlis-manage'] !== undefined ? owner(headers, ip) : who(headers); return { games: games().map(pub) }; }],
       ['GET', '/api/store/:id/file', ({ headers, params }) => {
         who(headers);
@@ -77,12 +77,13 @@ export function store(dataDir, starters = []){
       /* the owner takes a game out of the Store (every version of it; a
          starter game isn't put back) */
       ['DELETE', '/api/store/:id', ({ headers, params, ip }) => {
-        owner(headers, ip);
-        games();
+        const me = owner(headers, ip);
+        const was = games().find(g => g.id === params.id);
         let n = 0;
         for (const [f, c] of cache) if (c.entry && c.entry.id === params.id){ try { unlinkSync(join(dir, f)); n++; } catch {} }
         if (!n) throw new Fail(404, 'no_game', 'That game isn\'t in the Store.');
         cache = new Map();
+        log.add(me, 'removed', { gameId: params.id, name: was && was.name, version: was && was.version, note: was && was.by ? `by ${was.by}` : null });
         return { ok: true };
       }]
     ]

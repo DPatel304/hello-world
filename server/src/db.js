@@ -84,6 +84,19 @@ export const STEPS = [
      approved before). */
   `
   ALTER TABLE submissions ADD COLUMN tried_at TEXT;
+  `,
+  /* 5: what happened to the family's games, kept for good (history.js) */
+  `
+  CREATE TABLE history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at TEXT NOT NULL,
+    who TEXT NOT NULL,
+    what TEXT NOT NULL,
+    game_id TEXT,
+    name TEXT,
+    version TEXT,
+    note TEXT
+  );
   `
 ];
 

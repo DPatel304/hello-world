@@ -20,6 +20,7 @@
    play at home with no server in reach. */
 import { Fail, isLocal } from './http.js';
 import { now } from './db.js';
+import { history } from './history.js';
 import { hashPassword, checkPassword, burnTime, newToken, hashToken, newId, newInviteCode, tidyInvite } from './secure.js';
 
 export const LIMITS = {
@@ -264,8 +265,10 @@ export function api(db, info, extra = () => [], manageKey = null){
       const me = owner(headers, ip);
       if (params.id === me.id) throw new Fail(400, 'self', 'The owner stays the owner.');
       if (!['creator', 'player'].includes(body.role)) throw new Fail(400, 'bad_role', 'Roles are creator or player.');
+      const before = q('SELECT email, role FROM accounts WHERE id = ?').get(params.id);
       const r = q('UPDATE accounts SET role = ? WHERE id = ?').run(body.role, params.id);
       if (!r.changes) throw new Fail(404, 'no_account', 'No such account.');
+      if (before.role !== body.role) history(db).add(me, body.role === 'creator' ? 'creator' : 'not-creator', { note: before.email });
       return { id: params.id, role: body.role };
     }]
   ];
