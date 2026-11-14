@@ -983,7 +983,16 @@ body.titled #ui > .screen{ top:34px; }
 .tvpill{ position:absolute; top:.6vh; bottom:.6vh; left:0; width:0; z-index:-1; border-radius:999px; background:#fff; box-shadow:0 .3vh 1.2vh rgba(20,24,50,.14); }
 .tvpill.slide{ transition:left .38s cubic-bezier(.3,.9,.3,1), width .38s cubic-bezier(.3,.9,.3,1); }
 .tvtabs.pilled .tvtab.on{ background:transparent; box-shadow:none; }
-.tabin > :not(.tvtop){ animation:tabin .42s cubic-bezier(.2,.8,.25,1) both; }
-.tabin.fromleft > :not(.tvtop){ --from:-3vw; }
-.tabin.fromright > :not(.tvtop){ --from:3vw; }
+/* (the banner's picture fades in over the old one, where it is; the words,
+   buttons and rows on it slide in) */
+.tabin.fromleft{ --from:-3vw; }
+.tabin.fromright{ --from:3vw; }
+.tabin .shero{ animation:tabfade .42s ease both; }
+.tabin .shtext, .tabin .srow, .tabin .shelves, .tabin .snote, .tabin .smsg, .tabin > .fbody{ animation:tabin .42s cubic-bezier(.2,.8,.25,1) both; }
+.tabin .shtext{ animation-delay:.06s; }
 @keyframes tabin{ from{ opacity:0; transform:translateX(var(--from, 0)) } to{ opacity:1; transform:none } }
+@keyframes tabfade{ from{ opacity:0 } }
+#ui > .screen.tabin{ animation:none; }   /* (the bar and the old banner stay; what's new comes in) */
+.tabbehind{ pointer-events:none; z-index:0; transition:opacity .3s ease; }
+.tabbehind.gone{ opacity:0; }
+.tabin .tabbehind{ animation:none; }

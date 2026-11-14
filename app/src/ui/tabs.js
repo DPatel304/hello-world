@@ -18,6 +18,28 @@ export const TABS = [['home', 'Home'], ['store', 'Store'], ['create', 'Create']]
 /* The tab you were on last: going to another, its highlight slides over
    and the page comes in from that side - the bar itself stays put. */
 let lastTab = null;
+/* The banner you're leaving, as a still picture: the new page's banner
+   fades in over it, so the background goes from one to the other with no
+   blank paper between. */
+let behind = null;
+function keepBanner(top){
+  behind = null;
+  const s = top.parentElement, hero = s && s.querySelector('.shero');
+  if (!hero || s.classList.contains('paged')) return;
+  const r = hero.getBoundingClientRect();
+  if (r.bottom <= 0) return;                    /* (scrolled away) */
+  const copy = hero.cloneNode(true);
+  copy.querySelectorAll('.shtext, .sdots').forEach(x => x.remove());
+  /* (a canvas copies without its picture: paint it in) */
+  const from = hero.querySelectorAll('canvas'), to = copy.querySelectorAll('canvas');
+  to.forEach((c, i) => {
+    try { c.width = from[i].width; c.height = from[i].height; c.getContext('2d').drawImage(from[i], 0, 0); } catch (e){}
+    c.style.opacity = getComputedStyle(from[i]).opacity;   /* (as it was: its page's styles don't come with it) */
+  });
+  copy.className += ' tabbehind';
+  Object.assign(copy.style, { position: 'absolute', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', margin: 0 });
+  behind = copy;
+}
 
 export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false } = {}){
   const top = h('div', 'tvtop');
@@ -32,7 +54,7 @@ export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false }
   const tabs = h('nav', 'tvtabs');
   for (const [id, name] of TABS){
     if (id === page){ tabs.appendChild(h('span', 'tvtab on', name)); continue; }
-    const t = onPick(button(name, 'tvtab'), () => { if (isBusy()) return; sfx.nav(); nav[id] && nav[id](); });
+    const t = onPick(button(name, 'tvtab'), () => { if (isBusy()) return; sfx.nav(); keepBanner(top); nav[id] && nav[id](); });
     tabs.appendChild(t);
   }
   const clock = h('span', 'clock', ''), cam = h('span', 'camdot', '');
@@ -50,14 +72,23 @@ export function topBar(page, nav, { onWho, onRecalibrate, isBusy = () => false }
     const pill = h('i', 'tvpill', '');
     tabs.prepend(pill); tabs.classList.add('pilled');
     const place = (i) => { const el = tabs.children[i + 1]; pill.style.left = el.offsetLeft + 'px'; pill.style.width = el.offsetWidth + 'px'; };
+    const sliding = was >= 0 && was !== at;
+    /* (before the first picture: the page marks itself as arriving from a
+       tab, and the old banner goes in underneath) */
+    queueMicrotask(() => {
+      const s = top.parentElement;
+      if (!s || !sliding) return;
+      s.classList.add('tabin', was < at ? 'fromright' : 'fromleft');
+      if (behind){
+        const b = behind; behind = null;
+        s.prepend(b);
+        setTimeout(() => b.classList.add('gone'), 450);
+        setTimeout(() => b.remove(), 800);
+      }
+    });
     requestAnimationFrame(() => {
       if (!top.isConnected) return;
-      const s = top.parentElement;
-      if (was >= 0 && was !== at){
-        place(was); pill.getBoundingClientRect();
-        pill.classList.add('slide');
-        s && s.classList.add('tabin', was < at ? 'fromright' : 'fromleft');
-      }
+      if (sliding){ place(was); pill.getBoundingClientRect(); pill.classList.add('slide'); }
       place(at);
     });
   }
