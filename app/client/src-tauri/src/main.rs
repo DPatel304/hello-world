@@ -16,6 +16,8 @@ use std::{path::Path, sync::Mutex, time::{Duration, Instant}};
 use tauri::{AppHandle, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
+mod creating;
+
 /// Song files the game can play.
 const SONGS: &[&str] = &["mp3", "m4a", "aac", "ogg", "oga", "opus", "wav", "flac", "webm"];
 
@@ -42,7 +44,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Pending::default())
-        .invoke_handler(tauri::generate_handler![set_display_mode, check_update, install_update, find_servers])
+        .invoke_handler(tauri::generate_handler![set_display_mode, check_update, install_update, find_servers, creating::games_list, creating::game_make, creating::game_write, creating::game_read, creating::game_show, creating::claude_open])
         .setup(|app| {
             let app = app.handle().clone();
             tauri::async_runtime::spawn(async move {

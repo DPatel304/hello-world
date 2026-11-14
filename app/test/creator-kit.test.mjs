@@ -66,3 +66,25 @@ test('packed, a new game is one the family\'s server takes', async () => {
   assert.ok(code.indexOf('globalThis.Orlis') < code.indexOf('Star Catch') || code.includes('Orlis.run'), 'the runtime first, then the game');
   await assert.rejects(pack({ game: 'fetch(1)', manifest: g.files['orlis.json'] }), /the internet/);
 });
+
+test('a new game can start from another: its code and its look, a new id and version, and Claude told', async () => {
+  const { newGame: make, unpack, guardrails } = await import('../src/ui/creator-kit.js');
+  const first = make({ name: 'Bird Hoops', idea: 'Flap to fly' });
+  const m0 = JSON.parse(first.files['orlis.json']);
+  const game = 'const x = 1;\nOrlis.run({ create(){ return { step(){}, draw(){}, hud(){ return { score: [0] }; }, value(){ return 0; } }; } });\n';
+  const { bytes } = await pack({ game, manifest: { ...m0, tags: ['Flying'], icon: { cols: ['#111111', '#222222'], glyph: '<circle cx="50" cy="50" r="20" fill="#fff"/>' }, by: 'Max', version: '0.4' } });
+  /* (as the Store hands it back: the runtime in front, then the game) */
+  const { parts, manifest } = checkGame(Buffer.from(bytes));
+  const code = unpack(parts['game.js'].toString());
+  assert.equal(code, game, 'the game\'s own code, without the runtime');
+  assert.equal(unpack('just some code'), null, 'not made in Create: nothing');
+  const copy = make({ name: 'Bird Hoops', idea: 'Hoops at night', from: { name: 'Bird Hoops', game: code, manifest }, taken: ['bird-hoops'] });
+  const m = JSON.parse(copy.files['orlis.json']);
+  assert.equal(copy.id, 'bird-hoops-2', 'a new id, not the one it came from');
+  assert.deepEqual([m.id, m.version, m.blurb, m.by, m.tags], ['bird-hoops-2', '0.1', 'Hoops at night', undefined, ['Flying']]);
+  assert.equal(m.icon.cols[0], '#111111', 'it keeps the look');
+  assert.equal(copy.files['game.js'], game);
+  assert.match(copy.files['CLAUDE.md'], /starts as a copy of Bird Hoops/);
+  assert.deepEqual(check({ game: copy.files['game.js'], manifest: copy.files['orlis.json'] }), []);
+  assert.deepEqual(Object.keys(guardrails()).sort(), ['.claude/hooks/check.ps1', '.claude/hooks/guard.ps1', '.claude/settings.json', '.claude/skills/orlis-game/SKILL.md']);
+});

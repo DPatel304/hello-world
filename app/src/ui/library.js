@@ -112,6 +112,13 @@ export const library = {
     return start(await fetchRec(entry));
   },
 
+  /* A Store game's files, fetched and checked, not started or kept: for
+     starting a new game from it in Create. */
+  async source(entry){
+    const rec = await fetchRec(entry);
+    return { manifest: rec.manifest, code: rec.code };
+  },
+
   async remove(id){
     await tx('readwrite', st => st.delete(id));
     this.installed.delete(id);

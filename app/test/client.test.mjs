@@ -125,3 +125,12 @@ test('light only: no dark theme left', () => {
   const menu = readFileSync(new URL('../src/ui/menu.js', import.meta.url), 'utf8');
   assert.ok(!menu.includes("row('Theme'"));
 });
+
+test('Create: the app makes games in their own folders, and opens Claude Code there', () => {
+  const main = readFileSync(new URL('../client/src-tauri/src/main.rs', import.meta.url), 'utf8');
+  const rs = readFileSync(new URL('../client/src-tauri/src/creating.rs', import.meta.url), 'utf8');
+  for (const c of ['games_list', 'game_make', 'game_write', 'game_read', 'game_show', 'claude_open']) assert.ok(main.includes(`creating::${c}`), c);
+  assert.ok(rs.includes('join("Orlis Play").join("Games")'), 'in Documents\\Orlis Play\\Games');
+  assert.ok(rs.includes('r.starts_with(".claude/") || r == ".orlis/preview.txt"'), 'after it\'s made, Orlis Play only rewrites its own part');
+  assert.ok(rs.includes('.env("ORLIS_PROMPT"') && rs.includes('& $env:ORLIS_CLAUDE $env:ORLIS_PROMPT'), 'the idea is handed over, never written into the command');
+});

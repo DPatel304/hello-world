@@ -1,20 +1,28 @@
 /* Create: making your own games - for grown-ups the owner made creators.
 
-   For now: sending a game in. A creator picks a game's .orlis file; it waits
-   here (the outbox, on this PC) and is sent by itself when the family's
-   Orlis server is in reach - on its home Wi-Fi - to wait for the owner's OK.
-   Below, what's been sent and how each went: waiting, in the Store, or not
-   this time (with the owner's note).
+   New game: a name, the idea, and what to start from (the starter game,
+   one of your own, or a game in the Store someone made here). Orlis Play
+   makes the game's folder on this PC and opens Claude Code in it, with the
+   idea as the first thing to do - on the creator's own Claude account, with
+   Orlis Play's rules and guardrails. Your games: each one, to open in
+   Claude Code again (or see its folder).
 
-   Next, making the games themselves here, with Claude. Everyone else sees
-   what's coming. */
+   Sending: a game's .orlis file waits here (the outbox, on this PC) and is
+   sent by itself when the family's Orlis server is in reach - on its home
+   Wi-Fi - to wait for the owner's OK. Below, what's been sent and how each
+   went: waiting, in the Store, or not this time (with the owner's note).
+
+   Everyone else sees what's coming. */
 import { button, onPick } from './cursor.js';
 import { screen, h, clearUI } from './screens.js';
 import { sfx } from '../audio/sound.js';
 import { account } from './account.js';
 import { outbox } from './outbox.js';
 import { topBar } from './tabs.js';
-import { CREATE_SOON } from './menu.js';
+import { CREATE_SOON, looks } from './menu.js';
+import { making } from './making.js';
+import { unpack } from './creator-kit.js';
+import { library } from './library.js';
 import { PAPER } from './boot.js';
 
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -54,7 +62,9 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
     return scene;
   }
 
-  const { hero, text } = banner('Create', 'Make a game', 'Making games here, with Claude, is coming next. For now: send a game you’ve made, for the owner to OK for the Store.');
+  const { hero, text } = banner('Create', 'Make a game', making.available
+    ? 'Make your own movement game with Claude, try it, then send it for the Store.'
+    : 'Making games is in Orlis Play for Windows. Here: send a game you’ve made, for the owner to OK for the Store.');
   const btns = h('div', 'sbtns'), said_ = h('p', 'csaid', '');
   text.append(btns, said_);
   scroll.appendChild(hero);
@@ -66,6 +76,113 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
   pickFile.type = 'file'; pickFile.accept = '.orlis'; pickFile.style.display = 'none';
   s.appendChild(pickFile);
   let said = '';
+  let mine = [];                 /* the games being made on this PC */
+  let pop = null;
+
+  /* a small card in the middle, over the page (as on Family) */
+  function popup(...parts){
+    closePop();
+    pop = screen('dim fpopwrap'); pop.style.zIndex = 6;
+    const card = h('div', 'fpop');
+    card.append(...parts);
+    pop.appendChild(card);
+    pop.addEventListener('pointerdown', (e) => { if (e.target === pop){ sfx.back?.(); closePop(); } });
+    return card;
+  }
+  function closePop(){ if (pop){ pop.remove(); pop = null; } }
+  const problem = (card) => (e) => { card.querySelector('.ferr')?.remove(); card.appendChild(h('p', 'ferr', esc(e.message || 'That didn’t work.'))); };
+
+  /* What a new game can start from: the starter, your own games, and games
+     in the Store made in Create (not Orlis Play's own: those are built
+     another way). Each: a label, a line, and how to get its files. */
+  async function starts(){
+    const list = [{ label: 'Star Catch', line: 'The starter: catch the falling stars', get: async () => null }];
+    for (const g of mine) list.push({ label: g.manifest.name, line: 'Yours', get: async () => ({ name: g.manifest.name, ...(await making.read(g.folder)) }) });
+    try {
+      const store = (await account.call('GET', '/api/store')).games || [];
+      for (const g of store.filter(x => x.by && x.by !== 'Orlis Play' && !mine.some(m => m.manifest.id === x.id))){
+        list.push({ label: g.name, line: `In the Store, by ${g.by}`, get: async () => {
+          const src = await library.source(g);
+          const game = unpack(src.code);
+          if (!game) throw new Error(`${g.name} wasn’t made in Create, so it can’t be a starting point.`);
+          return { name: g.name, game, manifest: src.manifest };
+        } });
+      }
+    } catch {}
+    return list;
+  }
+
+  /* New game: a name, the idea, what to start from - then Claude Code. */
+  async function newGamePop(){
+    sfx.select();
+    const name = Object.assign(document.createElement('input'), { className: 'finput', maxLength: 40, placeholder: 'Bird Hoops' });
+    const idea = Object.assign(document.createElement('textarea'), { className: 'finput fidea', maxLength: 300, rows: 3, placeholder: 'Flap your arms like wings to fly a bird through hoops' });
+    const from = h('div', 'cfrom', '<p class="fnote">Looking…</p>');
+    let chosen = 0, list = [];
+    const go = btn('Make it', async () => {
+      if (!name.value.trim()){ name.focus(); return; }
+      go.classList.add('busy');
+      try {
+        const start = await list[chosen].get();
+        const made = await making.make({ name: name.value, idea: idea.value, from: start });
+        sfx.gold?.();
+        await refreshMine();
+        await opened(made.folder, made.name, await making.openClaude(made.folder, { first: made.idea }), true);
+      } catch (e){ go.classList.remove('busy'); problem(card)(e); }
+    }, 'go');
+    const card = popup(h('h2', '', 'New game'),
+      h('label', 'ffield', '<span>Its name</span>'), name,
+      h('label', 'ffield', '<span>The idea - what do you do, and how do you move?</span>'), idea,
+      h('label', 'ffield', '<span>Start from</span>'), from,
+      h('div', 'fbtns'));
+    card.querySelector('.fbtns').append(btn('Cancel', () => { sfx.back?.(); closePop(); }), go);
+    name.focus();
+    list = await starts();
+    const mark = () => [...from.children].forEach((b, i) => b.classList.toggle('chosen', i === chosen));
+    from.innerHTML = '';
+    list.forEach((o, i) => from.appendChild(onPick(button(`<b>${esc(o.label)}</b><small>${esc(o.line)}</small>`, 'setbtn cstart'), () => { chosen = i; mark(); })));
+    mark();
+  }
+
+  /* After opening Claude Code: what's happening, or how to get it. */
+  async function opened(folder, gameName, r, isNew){
+    if (r && r.opened){
+      popup(h('h2', '', isNew ? `${gameName} is ready` : 'Claude Code is opening'),
+        h('p', '', 'Claude Code is opening in a window of its own. The first time, it asks you to sign in with your Claude account, and whether you trust this folder - say yes.'),
+        h('p', 'fnote', isNew ? 'Claude starts on your idea straight away. Tell it what to change as you go.' : 'Tell Claude what you’d like to change.'),
+        h('div', 'fbtns')).querySelector('.fbtns').append(btn('OK', () => { sfx.select(); closePop(); }, 'go'));
+      return;
+    }
+    const cmd = 'irm https://claude.ai/install.ps1 | iex';
+    const card = popup(h('h2', '', 'Claude Code isn’t on this PC yet'),
+      h('p', '', `${isNew ? `${gameName} is made - ` : ''}to make games, Claude Code needs installing once, and it uses your own Claude account.`),
+      h('p', 'fnote', '1. Open PowerShell (search for it in the Start menu).<br>2. Paste this and press Enter:'),
+      h('div', 'ccmd', esc(cmd)),
+      h('p', 'fnote', '3. When it’s done, close PowerShell and come back here: pick the game under Your games, then Open in Claude Code. (Claude Code’s own setup help: code.claude.com/docs/en/setup)'),
+      h('div', 'fbtns'));
+    const copy = btn('Copy', async () => { try { await navigator.clipboard.writeText(cmd); copy.querySelector('.lbl').textContent = 'Copied'; } catch {} });
+    card.querySelector('.fbtns').append(copy, btn('OK', () => { sfx.select(); closePop(); }, 'go'));
+  }
+
+  /* One of your games: open it in Claude Code, or see its folder. */
+  function gamePop(g){
+    sfx.select();
+    const L = looks({ id: g.manifest.id, icon: g.manifest.icon });
+    const card = popup(L.icon('sicon cpopicon'), h('h2', '', esc(g.manifest.name)), h('p', 'fnote', esc(g.manifest.blurb || '')),
+      h('p', 'fnote', `Version ${esc(g.manifest.version || '0.1')} · changed ${esc(new Date(g.changed).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}`),
+      h('div', 'fbtns'));
+    card.querySelector('.fbtns').append(
+      btn('Show the folder', () => making.show(g.folder).catch(problem(card))),
+      btn('Open in Claude Code', async () => {
+        try { await opened(g.folder, g.manifest.name, await making.openClaude(g.folder), false); } catch (e){ problem(card)(e); }
+      }, 'go'));
+  }
+
+  async function refreshMine(){
+    if (!making.available) return;
+    try { mine = await making.list(); } catch { mine = []; }
+    draw();
+  }
 
   pickFile.addEventListener('change', async () => {
     const f = pickFile.files && pickFile.files[0];
@@ -96,10 +213,31 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
   async function draw(){
     const [waiting, sent] = await Promise.all([outbox.list(), outbox.sent()]);
     btns.innerHTML = '';
-    btns.append(sbtn('Send a game…', () => { sfx.select(); pickFile.click(); }, 'get'));
+    if (making.available) btns.append(sbtn('<span class="plus">+</span>New game', newGamePop, 'get'));
+    btns.append(sbtn('Send a game…', () => { sfx.select(); pickFile.click(); }, making.available ? 'ghost' : 'get'));
     if (waiting.length) btns.append(sbtn('Send now', () => { sfx.select(); send(); }, 'ghost'));
     said_.textContent = said;
     body.innerHTML = '';
+
+    /* your games, as the Store's cards */
+    if (making.available){
+      const sec = row('Your games', mine.length ? 'On this PC' : '');
+      if (!mine.length) sec.appendChild(h('p', 'cempty', 'None yet - press New game to make your first.'));
+      else {
+        const shelf = h('div', 'sshelf');
+        for (const g of mine){
+          const L = looks({ id: g.manifest.id, icon: g.manifest.icon });
+          const b = button('', 'slock');
+          const meta = h('div', 'smeta');
+          meta.append(L.icon('sicon'), h('div', 'stxt', `<div class="nm">${esc(g.manifest.name)}</div><div class="sub">${esc(g.manifest.blurb || '')}</div>`));
+          b.insertBefore(L.art('sthumb'), b.firstChild);
+          b.querySelector('.lbl').replaceWith(meta);
+          onPick(b, () => gamePop(g));
+          shelf.appendChild(b);
+        }
+        sec.appendChild(shelf);
+      }
+    }
 
     if (waiting.length){
       const sec = row('Waiting to send', 'Sends when this PC is on the home Wi-Fi with the Orlis server');
@@ -127,6 +265,9 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
   }
   draw();
   send();
+  refreshMine();
 
+  /* (leaving: no card left over the next page) */
+  for (const k of Object.keys(nav)){ const go = nav[k]; nav[k] = () => { closePop(); go(); }; }
   return scene;
 }
