@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, existsSync, readdirSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -108,4 +108,18 @@ test("the management page: this laptop only, and the owner's routes only with it
     assert.ok(isLocal('127.0.0.1') && isLocal('::1') && isLocal('::ffff:127.0.0.1'));
     assert.ok(!isLocal('192.168.1.20') && !isLocal('::ffff:192.168.1.20'), 'never from another device on the Wi-Fi');
   } finally { await s.close(); }
+});
+
+test("games waiting for the owner's OK are in a backup too, and come back with a restore", () => {
+  const dir = fresh(), b = backups(dir);
+  mkdirSync(join(dir, 'submissions'), { recursive: true });
+  writeFileSync(join(dir, 'submissions', 'abc.orlis'), game('bird-hoops'));
+  const made = b.make('manual');
+  assert.deepEqual(readdirSync(join(dir, 'backups', made.id, 'submissions')), ['abc.orlis']);
+  /* later: that one's gone, another's waiting - then the backup's put back */
+  unlinkSync(join(dir, 'submissions', 'abc.orlis'));
+  writeFileSync(join(dir, 'submissions', 'later.orlis'), game('star-hop'));
+  b.requestRestore(made.id);
+  b.applyPending();
+  assert.deepEqual(readdirSync(join(dir, 'submissions')), ['abc.orlis'], 'as it was then');
 });

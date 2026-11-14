@@ -276,8 +276,12 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
       if (account.role === 'owner'){
         try {
           waiting = ((await account.call('GET', '/api/submissions?all=1')).submissions || []).filter(x => x.state === 'waiting')
-            .map(x => ({ id: x.gameId, submission: x.id, name: x.name, version: x.version, bytes: x.bytes, sha256: x.sha256, by: x.family,
-              blurb: `Sent by ${x.family}`, about: `${x.name}, from ${x.family}, is waiting for your OK. Try it here and play it for at least 20 seconds - then Approve comes on, on the management page (the Orlis cube by the clock, on the server's laptop: Manage).`, players: [1, 4], tags: [] }));
+            /* (as it would be in the Store - its own icon and words - with
+               what to do about it) */
+            .map(x => { const d = x.game || {}; return { id: x.gameId, submission: x.id, name: x.name, version: x.version, bytes: x.bytes, sha256: x.sha256, by: x.family,
+              icon: d.icon || undefined, players: d.players || [1, 4], uses: d.uses || '', ages: d.ages || null, tags: d.tags || [], howto: d.howto || [],
+              blurb: d.blurb || `Sent by ${x.family}`,
+              about: `${d.about ? d.about + '\n\n' : ''}From ${x.family}, waiting for your OK. Try it here and play it for at least 20 seconds - then Approve comes on, on the management page (the Orlis cube by the clock, on the server's laptop: Manage).` }; });
         } catch { waiting = []; }
       }
     }

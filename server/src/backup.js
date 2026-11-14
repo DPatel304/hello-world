@@ -3,6 +3,7 @@
      orlis.db   the accounts, the kids' profiles, invites and sign-ins
      games\     the Store's games (the .orlis files), and which starter
                 games were taken out on purpose
+     submissions\  games sent in, waiting for the owner's OK
 
    (What each PC keeps for itself isn't here: its downloaded games, its
    scores and its settings. Those stay on that PC.)
@@ -56,6 +57,7 @@ export function backups(dataDir, { now = () => new Date(), version = '' } = {}){
       for (const x of ['-wal', '-shm']) if (existsSync(dbFile + x)) copyFileSync(dbFile + x, join(into, 'orlis.db' + x));
     }
     const games = copyGames(join(dataDir, 'games'), join(into, 'games'));
+    copyGames(join(dataDir, 'submissions'), join(into, 'submissions'));
     let accounts = null, profiles = null;
     if (db){
       try { accounts = db.prepare('SELECT COUNT(*) AS n FROM accounts').get().n; profiles = db.prepare('SELECT COUNT(*) AS n FROM profiles').get().n; } catch {}
@@ -118,6 +120,13 @@ export function backups(dataDir, { now = () => new Date(), version = '' } = {}){
     const games = join(dataDir, 'games');
     if (existsSync(games)) for (const f of readdirSync(games)) if (f.endsWith('.orlis') || f === '.starters') unlinkSync(join(games, f));
     copyGames(join(from, 'games'), games);
+    /* (the games waiting for the owner's OK, as they were then - a backup
+       made before they were kept has none, and leaves today's alone) */
+    if (existsSync(join(from, 'submissions'))){
+      const waiting = join(dataDir, 'submissions');
+      if (existsSync(waiting)) for (const f of readdirSync(waiting)) if (f.endsWith('.orlis')) unlinkSync(join(waiting, f));
+      copyGames(join(from, 'submissions'), waiting);
+    }
     return describe(id);
   }
 

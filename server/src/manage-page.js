@@ -183,7 +183,7 @@ var TRY = ${TRY_SECS};
     backups: function(){
       return call('GET', '/api/server').then(function(s){
         var c = card('Backups');
-        row(c, 'One is made every day, and before each update.<small>The accounts, kids\\u2019 profiles and the Store\\u2019s games. (Each PC keeps its own downloads, scores and settings.)</small>', [btn('Back up now', 'go', function(b){ b.textContent = 'Backing up\\u2026'; call('POST', '/api/backups').then(show, fail(c)); })]);
+        row(c, 'One is made every day, and before each update.<small>The accounts, kids\\u2019 profiles, the Store\\u2019s games, games waiting for your OK, and the history. (Each PC keeps its own downloads, scores and settings.)</small>', [btn('Back up now', 'go', function(b){ b.textContent = 'Backing up\\u2026'; call('POST', '/api/backups').then(show, fail(c)); })]);
         s.backups.forEach(function(b){
           var what = [b.accounts != null ? b.accounts + ' account' + (b.accounts === 1 ? '' : 's') : '', b.profiles != null ? b.profiles + ' profile' + (b.profiles === 1 ? '' : 's') : '', b.games + ' game' + (b.games === 1 ? '' : 's'), size(b.bytes)].filter(Boolean).join(' \\u00b7 ');
           row(c, '<b>' + esc(when(b.at)) + '</b><small>' + esc(KINDS[b.reason] || b.reason) + ' \\u00b7 ' + esc(what) + '</small>', [sure('Restore', 'Restore it? Click again', '', function(x){

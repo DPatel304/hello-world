@@ -118,7 +118,17 @@ export function submissions(db, dataDir, shop, log = { add(){} }){
         if (a.role === 'owner' && (headers['x-orlis-manage'] !== undefined || query.get('all') === '1')){
           const rows = q(`SELECT s.*, x.email, h.name AS family FROM submissions s JOIN accounts x ON x.id = s.account_id JOIN households h ON h.id = x.household_id
             WHERE s.status = 'waiting' OR (s.status IN ('approved', 'declined') AND s.decided_at > ?) ORDER BY s.created_at DESC`).all(new Date(Date.now() - 30 * 864e5).toISOString());
-          return { submissions: rows.map(out) };
+          /* (a waiting one's own details, from its file: its icon, its
+             lines for the Store, who it's for - so the owner sees it as it
+             would be) */
+          const details = (r) => {
+            if (r.status !== 'waiting' || !existsSync(fileOf(r.id))) return {};
+            try {
+              const m = manifestOf(readOrlis(readFileSync(fileOf(r.id))));
+              return { game: { icon: m.icon, blurb: m.blurb, about: m.about, players: m.players, uses: m.uses, ages: m.ages, tags: m.tags, howto: m.howto } };
+            } catch { return {}; }
+          };
+          return { submissions: rows.map(r => ({ ...out(r), ...details(r) })) };
         }
         return { submissions: q("SELECT * FROM submissions WHERE account_id = ? AND status != 'withdrawn' ORDER BY created_at DESC LIMIT 50").all(a.id).map(out) };
       }],
