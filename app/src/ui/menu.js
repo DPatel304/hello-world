@@ -153,7 +153,10 @@ export function menu({ onPlay, onRecalibrate, onWho, nav = {}, arrive = false })
     onPick(more, () => { if (going) return; sfx.select(); nav.store(); });
     rows[0].row.appendChild(more);
   }
-  s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
+  /* (which build this is: in the Beta, and while it's being made - not in
+     the released app) */
+  const beta = typeof window === 'undefined' || !window.ORLIS_LABEL || window.ORLIS_LABEL.beta;
+  if (beta) s.appendChild(h('div', 'buildstamp', typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'));
 
   let scrollY = 0;
   if (lastFocus === null) lastFocus = Math.max(0, items.findIndex(it => it.g.id === remembered()));

@@ -235,6 +235,8 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
       for (const c of [players(g), USES[g.uses], ages(g), ...(g.tags || [])].filter(Boolean)) chips.appendChild(h('span', 'schip', esc(c)));
       left.append(L.icon('sicon big'), h('h1', '', esc(g.name)), h('div', 'sby', esc([g.by, `Version ${g.version}`].filter(Boolean).join(' · '))), chips,
         h('p', 'sdesc', esc(g.about || g.blurb)), action(g, 'page', { big: true }));
+      /* (the owner's note, apart from the game's own words: what to do) */
+      if (g.submission) left.appendChild(h('p', 'sowner', `Waiting for your OK. Play it for 20 seconds with Try it, then approve it on the management page.`));
       const here = library.installed.get(g.id);
       const rows = [['Made by', g.by || 'Someone in the family'], ['Players', (([lo, hi]) => lo === hi ? String(hi) : `${lo} to ${hi}`)(g.players || [1, 4])], ['You’ll use', USES[g.uses] || 'Hands & arms'],
         ['Ages', g.ages ? `${g.ages} and up` : 'All ages'], ['Size', kb(g.bytes)], ['On this PC', here ? (newer(g.version, here) ? `Version ${here} (update ready)` : 'Yes, on the home screen') : 'Not yet']];
@@ -268,7 +270,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
     /* what it showed last time, straight away (so going to the Store is as
        quick as going Home); then what's there now, if it's changed */
     if (seen){ ({ games, waiting } = seen); build(); }
-    else say('Looking in the Store…');
+    else say('Loading…');
     let was = seen && JSON.stringify(seen);
     try {
       games = (await account.call('GET', '/api/store')).games || [];
@@ -280,8 +282,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
                what to do about it) */
             .map(x => { const d = x.game || {}; return { id: x.gameId, submission: x.id, name: x.name, version: x.version, bytes: x.bytes, sha256: x.sha256, by: x.family,
               icon: d.icon || undefined, players: d.players || [1, 4], uses: d.uses || '', ages: d.ages || null, tags: d.tags || [], howto: d.howto || [],
-              blurb: d.blurb || `Sent by ${x.family}`,
-              about: `${d.about ? d.about + '\n\n' : ''}From ${x.family}, waiting for your OK. Try it here and play it for at least 20 seconds - then Approve comes on, on the management page (the Orlis cube by the clock, on the server's laptop: Manage).` }; });
+              blurb: d.blurb || `Sent by ${x.family}`, about: d.about || d.blurb || '' }; });
         } catch { waiting = []; }
       }
     }

@@ -36,7 +36,7 @@ test('the corner menu can check for an update and install it now', () => {
   assert.ok(main.includes('generate_handler![set_display_mode, check_update, install_update'));
   assert.ok(main.includes('window.ORLIS_VERSION') && main.includes('window.orlisApp'));
   const menu = readFileSync(new URL('../src/ui/tabs.js', import.meta.url), 'utf8');
-  assert.ok(menu.includes('Check for updates</span>') && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
+  assert.ok(menu.includes("item('update', 'Check for updates')") && menu.includes('installUpdate()') && menu.includes('checkUpdate()'));
 });
 
 test('the music folder is the only place on disk the game can read', () => {
@@ -112,7 +112,9 @@ test('updates: the Update button and a slow check both show "Updating"; the beta
 test('Home, the Store and Create are pages under the same tabs; the corner menu keeps Settings, updates, sign out and Exit', () => {
   const tabs = readFileSync(new URL('../src/ui/tabs.js', import.meta.url), 'utf8');
   assert.match(tabs, /\['home', 'Home'\], \['store', 'Store'\], \['create', 'Create'\]/);
-  for (const w of ['Settings</span>', 'Check for updates</span>', 'Sign out</span>', 'Exit</span>']) assert.ok(tabs.includes(w), w);
+  for (const w of ["'Settings'", "'Check for updates'", "'Sign out'", "'Exit'"]) assert.ok(tabs.includes(`item(`) && tabs.includes(w), w);
+  assert.ok(!/\\u\{1F/.test(tabs), 'the corner menu has line icons, not emoji');
+  assert.ok(tabs.includes("id !== 'create' || !account.isKid"), 'a child playing sees Home and the Store, not Create');
   assert.ok(!/Store<\/span>|Create<\/span>/.test(tabs), 'Store and Create are tabs now, not in the corner menu');
   const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(main, /go\('store'/); assert.match(main, /go\('create'/);

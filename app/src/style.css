@@ -1020,3 +1020,28 @@ textarea.finput{ border-radius:1.4vh; resize:none; font-family:inherit; line-hei
 .btn.setbtn .tri{ width:0; height:0; border-left:.62em solid currentColor; border-top:.36em solid transparent; border-bottom:.36em solid transparent; }
 .cprobs{ text-align:left; margin:1.4vh 0; padding-left:1.2em; line-height:1.45; color:#3b3e4d; }
 .cprobs li{ margin:.6vh 0; }
+
+/* ---------- the pause and the end of a round: the game's own banner ----------
+   (the same look as Home's, the Store's and Create's banners, over the game) */
+.screen.gamebanner{ display:block; padding:0; text-align:left; }
+.screen.end.gamebanner{ background:none; justify-content:flex-start; }
+.screen.dim.pause.gamebanner{ background:rgba(10,10,24,.25); -webkit-backdrop-filter:blur(10px) saturate(1.2); backdrop-filter:blur(10px) saturate(1.2); }
+.gbshade{ position:absolute; inset:0; pointer-events:none; background:
+  linear-gradient(90deg, rgba(10,10,24,.78) 0, rgba(10,10,24,.42) 45%, rgba(10,10,24,0) 75%),
+  linear-gradient(0deg, rgba(10,10,24,.55) 0, rgba(10,10,24,0) 55%); }
+.gbtext{ position:absolute; left:4vw; bottom:9vh; max-width:70vw; color:#fff; font-family:var(--sys); animation:tabin .45s cubic-bezier(.2,.8,.25,1) both; }
+.gbtext .skicker{ color:#fff; }
+.gbtext h1{ color:#fff; font-size:8.4vh; margin:1vh 0 .6vh; line-height:1; letter-spacing:-.02em; text-shadow:0 .3vh 1.5vh rgba(0,0,0,.25); }
+.gbtext p{ font-size:2.8vh; margin:0; opacity:.92; font-variant-numeric:tabular-nums; }
+.gbtext .bigrow{ justify-content:flex-start; margin-top:3.4vh; }
+.gbtext .btn.big{ min-width:min(30vw,440px); }
+/* the corner menu's line icons */
+.btn.popitem .pi svg{ width:1.05em; height:1.05em; display:block; margin:0 auto; color:#3b3e4d; }
+
+/* the owner's note on a game waiting for their OK */
+.sowner{ margin:2vh 0 0; max-width:40vw; padding:1vh 1.6vh; border-radius:1.6vh; background:rgba(245,158,11,.18); border:1px solid rgba(245,158,11,.45); font-size:1.9vh; line-height:1.45; }
+/* pop-up cards: one layout - left-aligned, the buttons along the bottom right */
+.fpop{ text-align:left; }
+.fpop h2{ text-align:left; }
+.sicon.cpopicon{ margin:0 0 1.6vh; }
+.cacts{ justify-content:flex-start; }

@@ -161,7 +161,7 @@ function showResults(){
   /* Bests are still kept - the menu tiles show them - just not announced. */
   scores.record(game.id, Math.max(1, joined.size), inst.value());
   /* (a game being tried goes back where it came from: Create) */
-  go('results', () => results(game, () => toGame(game), game.back || toMenu));
+  go('results', () => results(game, () => toGame(game), game.back || toMenu, game.back ? 'Back to Create' : 'Home'));
 }
 
 /* ---------- pause by gesture ----------
@@ -184,9 +184,10 @@ function checkPause(dt){
 }
 function openPause(){
   if (paused) return;
-  paused = pauseOverlay(
+  paused = pauseOverlay(game, game.endless ? null : roundLeft,
     () => { paused.remove(); paused = null; cursor.reset(); },
-    () => { paused.remove(); paused = null; roundDone(); (game.back || toMenu)(); });
+    () => { paused.remove(); paused = null; roundDone(); (game.back || toMenu)(); },
+    game.back ? 'Back to Create' : 'Home');
   sfx.whoosh();
 }
 

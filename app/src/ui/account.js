@@ -30,6 +30,14 @@ export const account = {
   get needed(){ return inApp(); },
   get signedIn(){ return !!(this.state && this.state.token); },
   get current(){ const s = this.state; return s && s.profiles ? s.profiles.find(p => p.id === s.current) || null : null; },
+  /* Is a child playing? Each grown-up's own profile is the first on their
+     account; every other profile is a child's. */
+  get isKid(){
+    const me = this.current, all = (this.state && this.state.profiles) || [];
+    if (!me) return false;
+    const first = all.find(p => p.accountId === me.accountId);
+    return !!first && first.id !== me.id;
+  },
   get role(){ return this.state && this.state.account ? this.state.account.role : null; },
   set(patch){ this.state = { ...(this.state || {}), ...patch }; save(this.state); },
   signOut(){

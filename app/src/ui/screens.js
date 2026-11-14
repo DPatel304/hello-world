@@ -145,26 +145,42 @@ const ICON = {
 };
 const bigButton = (icon, label, cls, fn) => onPick(button(`<span class="ic">${ICON[icon]}</span><span class="tx">${label}</span>`, 'big ' + cls), fn);
 
+/* The game's own banner, over the game: the same look as the banners on
+   Home, the Store and Create - a small line above, the game's name big,
+   and the big buttons (big enough to pick by pointing) along under it. */
+function gameBanner(cls, kicker, name, line){
+  const s = screen(cls + ' gamebanner');
+  const t = h('div', 'gbtext');
+  const title = h('h1', ''); title.textContent = name;
+  t.append(h('div', 'skicker', kicker), title);
+  if (line) t.append(h('p', '', line));
+  s.append(h('div', 'gbshade'), t);
+  return { s, t };
+}
+
 /* After the round's own ending, just the way on: no scores and no winner.
    The ending scene stays in view behind - the bouquets, the lanterns, the
-   sky full of pictures - with two big buttons along the bottom. */
-export function results(game, onAgain, onMenu){
-  const s = screen('end');
+   sky full of pictures. back: where the other button goes ('Home', or
+   'Back to Create' for a game being tried). */
+export function results(game, onAgain, onMenu, back = 'Home'){
+  const { s, t } = gameBanner('end', 'Well played!', game.name);
   s.style.setProperty('--accent', game.accent);
-  s.append(h('div', 'endname', game.name));
   const row = h('div', 'row bigrow');
-  row.append(bigButton('again', 'Play again', 'go', onAgain), bigButton('home', 'Menu', 'home', onMenu));
-  s.appendChild(row);
+  row.append(bigButton('again', 'Play again', 'go', onAgain), bigButton('home', back, 'home', onMenu));
+  t.appendChild(row);
   sfx.fanfare();
   return { tick(){}, draw(){} };
 }
 
 /* ---------- pause ---------- */
-export function pauseOverlay(onResume, onQuit){
-  const s = screen('dim pause');
+/* left: seconds left in the round (none for an endless game). */
+export function pauseOverlay(game, left, onResume, onQuit, back = 'Home'){
+  const line = left == null || !isFinite(left) ? '' : `${Math.floor(left / 60)}:${String(Math.max(0, Math.floor(left % 60))).padStart(2, '0')} left`;
+  const { s, t } = gameBanner('dim pause', 'Paused', game.name, line);
+  s.style.setProperty('--accent', game.accent);
   const row = h('div', 'row bigrow');
-  row.append(bigButton('play', 'Keep playing', 'go', onResume), bigButton('home', 'Menu', 'home', onQuit));
-  s.appendChild(row);
+  row.append(bigButton('play', 'Keep playing', 'go', onResume), bigButton('home', back, 'home', onQuit));
+  t.appendChild(row);
   return s;
 }
 
