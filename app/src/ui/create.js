@@ -1,7 +1,7 @@
 /* Create: making your own games - for grown-ups the owner made creators.
 
-   New game: a name, the idea, and what to start from (the starter game,
-   one of your own, or a game in the Store someone made here). Orlis Play
+   New game: a name, the idea, and what to start from (a starter game:
+   Star Catch, or one of the owner's own in the Store). Orlis Play
    makes the game's folder on this PC and opens Claude Code in it, with the
    idea as the first thing to do - on the creator's own Claude account, with
    Orlis Play's rules and guardrails. Your games: each one, to open in
@@ -92,19 +92,19 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
   function closePop(){ if (pop){ pop.remove(); pop = null; } }
   const problem = (card) => (e) => { card.querySelector('.ferr')?.remove(); card.appendChild(h('p', 'ferr', esc(e.message || 'That didn’t work.'))); };
 
-  /* What a new game can start from: the starter, your own games, and games
-     in the Store made in Create (not Orlis Play's own: those are built
-     another way). Each: a label, a line, and how to get its files. */
+  /* What a new game can start from: starter games only - Star Catch (it
+     comes with Orlis Play), and games in the Store the owner made (the
+     server marks those, and only those, as starters). Never another
+     family's game. Each: a label, a line, and how to get its files. */
   async function starts(){
-    const list = [{ label: 'Star Catch', line: 'The starter: catch the falling stars', get: async () => null }];
-    for (const g of mine) list.push({ label: g.manifest.name, line: 'Yours', get: async () => ({ name: g.manifest.name, ...(await making.read(g.folder)) }) });
+    const list = [{ label: 'Star Catch', line: 'Catch the falling stars', get: async () => null }];
     try {
       const store = (await account.call('GET', '/api/store')).games || [];
-      for (const g of store.filter(x => x.by && x.by !== 'Orlis Play' && !mine.some(m => m.manifest.id === x.id))){
-        list.push({ label: g.name, line: `In the Store, by ${g.by}`, get: async () => {
+      for (const g of store.filter(x => x.starter === true)){
+        list.push({ label: g.name, line: g.blurb || 'A starter game', get: async () => {
           const src = await library.source(g);
           const game = unpack(src.code);
-          if (!game) throw new Error(`${g.name} wasn’t made in Create, so it can’t be a starting point.`);
+          if (!game) throw new Error(`${g.name} can’t be a starting point.`);
           return { name: g.name, game, manifest: src.manifest };
         } });
       }
@@ -133,7 +133,7 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
     const card = popup(h('h2', '', 'New game'),
       h('label', 'ffield', '<span>Its name</span>'), name,
       h('label', 'ffield', '<span>The idea - what do you do, and how do you move?</span>'), idea,
-      h('label', 'ffield', '<span>Start from</span>'), from,
+      h('label', 'ffield', '<span>Start from a starter game</span>'), from,
       h('div', 'fbtns'));
     card.querySelector('.fbtns').append(btn('Cancel', () => { sfx.back?.(); closePop(); }), go);
     name.focus();

@@ -119,6 +119,10 @@ export function submissions(db, dataDir, shop){
         const { parts, manifest } = checkGame(readFileSync(fileOf(r.id)));
         const raw = JSON.parse(parts['manifest.json'].toString('utf8'));
         raw.by = familyName(r.account_id);
+        /* a starter game - one new games can start from - only if the owner
+           made it, whatever the file says */
+        const maker = q('SELECT role FROM accounts WHERE id = ?').get(r.account_id);
+        raw.starter = !!maker && maker.role === 'owner';
         const file = writeOrlis({ 'manifest.json': JSON.stringify(raw, null, 2), 'game.js': parts['game.js'] });
         writeFileSync(join(shop.dir, `${manifest.id}.orlis`), file);
         q("UPDATE submissions SET status = 'approved', decided_at = ? WHERE id = ?").run(now(), r.id);

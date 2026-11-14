@@ -106,3 +106,15 @@ test('the management page sees what is waiting, and can approve', async () => {
     assert.equal((await call('POST', `/api/submissions/${a.id}/approve`, null, null, key)).ok, true);
   } finally { await s.close(); }
 });
+
+test("starter games: the owner's own, approved, are; a creator's never are, whatever its file says", async () => {
+  const { s, call, owner, friend } = await server();
+  try {
+    const mine = await call('POST', '/api/submissions', game('owl-hoots'), owner);
+    const theirs = await call('POST', '/api/submissions', writeOrlis({ 'manifest.json': JSON.stringify({ format: 1, kit: 2, id: 'bird-hoops', name: 'Bird Hoops', version: '1.0', blurb: 'x', players: [1, 4], icon: ICON, starter: true }), 'game.js': 'postMessage({ t: "ready" });' }), friend);
+    for (const x of [mine, theirs]) assert.equal((await call('POST', `/api/submissions/${x.id}/approve`, null, owner)).ok, true);
+    const store = (await call('GET', '/api/store', null, friend)).games;
+    assert.equal(store.find(g => g.id === 'owl-hoots').starter, true);
+    assert.equal(store.find(g => g.id === 'bird-hoops').starter, false);
+  } finally { await s.close(); }
+});

@@ -87,6 +87,8 @@ export function manifestOf(files){
     blurb: String(m.blurb || '').slice(0, 140), players: m.players || [1, 4],
     icon: m.icon && typeof m.icon === 'object' ? { cols: (m.icon.cols || []).slice(0, 2), glyph: String(m.icon.glyph || '').slice(0, 4000) } : null,
     by: String(m.by || '').slice(0, 60),
+    /* one new games in Create can start from (set by the server: the owner's own) */
+    starter: m.starter === true,
     /* for the Store's game page and rows (all optional) */
     about: String(m.about || '').slice(0, 600),
     uses: USES.includes(m.uses) ? m.uses : '',
