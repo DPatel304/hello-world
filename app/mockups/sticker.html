@@ -1,0 +1,187 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sticker book - game mockups</title>
+<style>
+  body{ margin:0; background:#e9ebf2; font-family:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif; }
+  .frame{ width:1600px; height:900px; position:relative; overflow:hidden; margin:0 0 24px; }
+  .frame canvas{ position:absolute; inset:0; }
+</style></head>
+<body>
+<div class="frame" id="l1"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="l2"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="l3"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="p1"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="p2"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="p3"><canvas width="1600" height="900"></canvas></div>
+<script type="module">
+import { body, head, portrait, setStyle, PARTS } from '/src/ui/avatar-art.js';
+
+const W = 1600, H = 900, T = 1.3, INK = '#1f1a3a';
+const KIDS = [
+  { name: 'Ellie', look: { skin: PARTS.skin[1], hair: 'ponytail', hairColor: PARTS.hairColor[1], eyes: 'sparkle', mouth: 'grin', color: '#ff5d8f', outfit: 'stars', extra: 'bow' } },
+  { name: 'Max', look: { skin: PARTS.skin[3], hair: 'curly', hairColor: PARTS.hairColor[0], eyes: 'dots', mouth: 'smile', color: '#3da9ff', outfit: 'stripes', extra: 'cap' } },
+  { name: 'Leo', look: { skin: PARTS.skin[5], hair: 'spiky', hairColor: PARTS.hairColor[0], eyes: 'wink', mouth: 'grin', color: '#a855f7', outfit: 'hoodie', extra: 'headphones' } }
+];
+const NOVA = { skin: PARTS.skin[2], hair: 'bob', hairColor: '#2a1d18', eyes: 'dots', mouth: 'smile', color: '#14b8a6', outfit: 'plain', extra: 'headphones' };
+const ctx = (id) => document.querySelector(`#${id} canvas`).getContext('2d');
+setStyle({ outline: INK, width: 0.7, shade: 'flat' });
+
+/* ---------- the sticker look: anything drawn on a layer gets a white edge and a soft shadow ---------- */
+function sticker(c, draw, edgeW = 9){
+  const o = document.createElement('canvas'); o.width = W; o.height = H; const oc = o.getContext('2d'); draw(oc);
+  const s = document.createElement('canvas'); s.width = W; s.height = H; const sc = s.getContext('2d');
+  sc.drawImage(o, 0, 0); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#ffffff'; sc.fillRect(0, 0, W, H);
+  c.save(); c.shadowColor = 'rgba(30,20,60,.28)'; c.shadowBlur = 16; c.shadowOffsetY = 9;
+  for (let a = 0; a < 16; a++) c.drawImage(s, Math.cos(a / 16 * Math.PI * 2) * edgeW, Math.sin(a / 16 * Math.PI * 2) * edgeW);
+  c.restore(); c.drawImage(o, 0, 0);
+}
+const circ = (c, x, y, r) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); };
+const ink = (c, w = 4) => { c.strokeStyle = INK; c.lineWidth = w; c.lineJoin = 'round'; c.lineCap = 'round'; c.stroke(); };
+const dots = (c, col, step = 60, r = 5, y0 = 0, y1 = H) => { c.fillStyle = col; for (let y = y0; y < y1; y += step) for (let x = 0; x < W + step; x += step){ circ(c, x + ((y / step) % 2) * step / 2, y, r); c.fill(); } };
+function star(c, x, y, r, col, pts = 5){ c.beginPath(); for (let k = 0; k < pts * 2; k++){ const a = -Math.PI / 2 + k * Math.PI / pts, rr = k % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.fillStyle = col; c.fill(); ink(c, 3); }
+function label(c, text, x, y, size, col = INK, align = 'center'){ c.font = `800 ${size}px "Segoe UI Variable Display","Segoe UI",Inter,sans-serif`; c.fillStyle = col; c.textAlign = align; c.fillText(text, x, y); }
+/* a pill for the HUD (a sticker itself) */
+function pill(c, x, y, w, h, fill, draw){ sticker(c, (o) => { o.beginPath(); o.roundRect(x, y, w, h, h / 2); o.fillStyle = fill; o.fill(); ink(o, 3); draw(o); }, 6); }
+
+/* ---------- Last Known Position's things, as stickers ---------- */
+function tree(c, x, base, s, col = '#3ccf7a'){
+  c.fillStyle = '#a0643c'; c.beginPath(); c.roundRect(x - 10 * s, base - 120 * s, 20 * s, 120 * s, 8 * s); c.fill(); ink(c, 3 * s);
+  c.fillStyle = col; circ(c, x, base - 160 * s, 70 * s); c.fill(); ink(c, 3 * s);
+  c.fillStyle = 'rgba(255,255,255,.35)'; circ(c, x - 24 * s, base - 186 * s, 18 * s); c.fill();
+  c.fillStyle = '#ff7eb3'; for (const [dx, dy] of [[30, -150], [-28, -140], [8, -196]]){ circ(c, x + dx * s, base + (dy - 10) * s, 7 * s); c.fill(); }
+}
+function crystal(c, x, y, s, col = '#5ee7ff'){
+  c.beginPath(); c.moveTo(x, y - 40 * s); c.lineTo(x + 22 * s, y - 10 * s); c.lineTo(x + 12 * s, y + 30 * s); c.lineTo(x - 12 * s, y + 30 * s); c.lineTo(x - 22 * s, y - 10 * s); c.closePath(); c.fillStyle = col; c.fill(); ink(c, 3 * s);
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.moveTo(x - 4 * s, y - 30 * s); c.lineTo(x - 14 * s, y - 8 * s); c.lineTo(x - 6 * s, y + 18 * s); c.closePath(); c.fill();
+}
+function puffball(c, x, base, s, col = '#ffb84d'){
+  c.fillStyle = col; c.beginPath(); for (let k = 0; k <= 20; k++){ const a = k / 20 * Math.PI * 2, r = 60 * s + (k % 2) * 7 * s; c.lineTo(x + Math.cos(a) * r, base - 64 * s + Math.sin(a) * r * 0.9); } c.closePath(); c.fill(); ink(c, 3.5 * s);
+  for (const d of [-1, 1]){ c.fillStyle = '#ffffff'; circ(c, x + d * 20 * s, base - 76 * s, 15 * s); c.fill(); ink(c, 3 * s); c.fillStyle = INK; circ(c, x + d * 20 * s + 3 * s, base - 74 * s, 7 * s); c.fill(); }
+  c.beginPath(); c.arc(x, base - 52 * s, 12 * s, 0.1 * Math.PI, 0.9 * Math.PI); ink(c, 3 * s);
+  c.strokeStyle = '#3ccf7a'; c.lineWidth = 5 * s; c.beginPath(); c.moveTo(x, base - 120 * s); c.lineTo(x + 4 * s, base - 146 * s); c.stroke();
+  for (let k = 0; k < 5; k++){ const a = k / 5 * Math.PI * 2; c.fillStyle = '#ff5d8f'; circ(c, x + 4 * s + Math.cos(a) * 11 * s, base - 154 * s + Math.sin(a) * 11 * s, 8 * s); c.fill(); }
+  c.fillStyle = '#ffe066'; circ(c, x + 4 * s, base - 154 * s, 6 * s); c.fill();
+}
+function ship(c, x, y, s){
+  c.save(); c.translate(x, y); c.rotate(-0.25);
+  c.fillStyle = '#f1f3f9'; c.beginPath(); c.moveTo(-170 * s, 20 * s); c.quadraticCurveTo(-170 * s, -60 * s, 0, -64 * s); c.quadraticCurveTo(150 * s, -60 * s, 210 * s, 0); c.quadraticCurveTo(150 * s, 60 * s, 0, 64 * s); c.quadraticCurveTo(-170 * s, 60 * s, -170 * s, 20 * s); c.closePath(); c.fill(); ink(c, 5 * s);
+  c.fillStyle = '#ff8a3d'; c.beginPath(); c.moveTo(-120 * s, -50 * s); c.lineTo(-190 * s, -120 * s); c.lineTo(-60 * s, -60 * s); c.closePath(); c.fill(); ink(c, 4 * s);
+  c.fillStyle = '#5ee7ff'; circ(c, 90 * s, -10 * s, 34 * s); c.fill(); ink(c, 4 * s);
+  c.fillStyle = 'rgba(255,255,255,.7)'; circ(c, 80 * s, -20 * s, 10 * s); c.fill();
+  c.fillStyle = '#3da9ff'; c.fillRect(-120 * s, 8 * s, 150 * s, 18 * s); c.strokeRect(-120 * s, 8 * s, 150 * s, 18 * s);
+  c.restore();
+}
+function smoke(c, x, y, s){ c.fillStyle = '#e7e3f2'; for (const [dx, dy, r] of [[0, 0, 40], [40, -50, 50], [10, -120, 60], [60, -180, 46]]){ circ(c, x + dx * s, y + dy * s, r * s); c.fill(); ink(c, 3); } }
+function zubu(c, x, base, s, t){
+  /* a giant friendly creature: a big round body, a long neck, a small head, sleepy eyes opening */
+  c.fillStyle = '#4fd1c5';
+  c.beginPath(); c.ellipse(x, base - 170 * s, 300 * s, 170 * s, 0, 0, Math.PI * 2); c.fill(); ink(c, 6 * s);
+  for (const d of [-1, 1]){ c.beginPath(); c.roundRect(x + d * 180 * s - 40 * s, base - 70 * s, 80 * s, 70 * s, 30 * s); c.fill(); ink(c, 5 * s); }
+  c.beginPath(); c.moveTo(x + 160 * s, base - 260 * s); c.quadraticCurveTo(x + 320 * s, base - 460 * s, x + 420 * s, base - 470 * s); c.lineTo(x + 470 * s, base - 400 * s); c.quadraticCurveTo(x + 340 * s, base - 380 * s, x + 260 * s, base - 200 * s); c.closePath(); c.fill(); ink(c, 6 * s);
+  c.beginPath(); c.ellipse(x + 470 * s, base - 460 * s, 95 * s, 70 * s, -0.2, 0, Math.PI * 2); c.fill(); ink(c, 6 * s);
+  c.fillStyle = '#ffffff'; circ(c, x + 495 * s, base - 480 * s, 22 * s); c.fill(); ink(c, 4 * s); c.fillStyle = INK; circ(c, x + 500 * s, base - 478 * s, 11 * s); c.fill();
+  c.beginPath(); c.arc(x + 520 * s, base - 430 * s, 26 * s, 0.1 * Math.PI, 0.8 * Math.PI); ink(c, 4 * s);
+  c.fillStyle = '#ffd166'; for (let k = 0; k < 6; k++){ c.beginPath(); c.moveTo(x - 180 * s + k * 70 * s, base - 300 * s - Math.sin(k) * 20 * s); c.lineTo(x - 150 * s + k * 70 * s, base - 360 * s); c.lineTo(x - 120 * s + k * 70 * s, base - 305 * s); c.closePath(); c.fill(); ink(c, 4 * s); }
+  c.fillStyle = 'rgba(255,255,255,.3)'; c.beginPath(); c.ellipse(x - 90 * s, base - 240 * s, 110 * s, 40 * s, -0.2, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#38b2ac'; for (const [dx, dy, r] of [[-120, -140, 28], [40, -110, 22], [140, -180, 18], [-20, -220, 16]]){ circ(c, x + dx * s, base + dy * s, r * s); c.fill(); }
+}
+/* Nova on the comms: a sticker card, her face and a line */
+function novaCard(c, x, y, line){
+  c.font = '800 30px "Segoe UI Variable Display","Segoe UI",Inter,sans-serif';
+  const w = Math.max(470, 200 + c.measureText(line).width);
+  sticker(c, (o) => {
+    o.beginPath(); o.roundRect(x, y, w, 150, 30); o.fillStyle = '#ffffff'; o.fill(); ink(o, 3);
+    portrait(o, x + 82, y + 75, 110, NOVA, T);
+    label(o, 'NOVA', x + 160, y + 52, 22, '#14b8a6', 'left');
+    label(o, line, x + 160, y + 96, 30, INK, 'left');
+  }, 7);
+}
+/* the HUD's crystals: a pill */
+function crystals(c, n){ pill(c, 1330, 40, 230, 78, '#ffffff', (o) => { crystal(o, 1385, 80, 0.75); label(o, String(n), 1470, 98, 44); }); }
+
+/* L1: running the trail, from behind */
+{ const c = ctx('l1');
+  c.fillStyle = '#7ad7f0'; c.fillRect(0, 0, W, H); dots(c, 'rgba(255,255,255,.35)', 70, 6, 0, 420);
+  c.fillStyle = '#ffe066'; circ(c, 1250, 150, 70); c.fill(); ink(c, 4);
+  c.fillStyle = '#9ee39b'; c.beginPath(); c.moveTo(0, 420); c.quadraticCurveTo(400, 360, 800, 400); c.quadraticCurveTo(1200, 440, W, 380); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
+  c.fillStyle = '#6fcf6d'; c.fillRect(0, 470, W, H);
+  /* the path, into the distance */
+  c.fillStyle = '#ffd8a8'; c.beginPath(); c.moveTo(740, 440); c.lineTo(860, 440); c.lineTo(1350, H); c.lineTo(250, H); c.closePath(); c.fill(); ink(c, 4);
+  c.setLineDash([26, 26]); c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 6; c.beginPath(); c.moveTo(800, 450); c.lineTo(800, H); c.stroke(); c.setLineDash([]);
+  sticker(c, (o) => { for (const [x, s] of [[600, 0.5], [470, 0.75], [260, 1.1]]) tree(o, x, 440 + 330 * (s - 0.5) + 60, s); for (const [x, s, col] of [[1000, 0.5, '#36c2a4'], [1150, 0.75, '#3ccf7a'], [1380, 1.1, '#36c2a4']]) tree(o, x, 440 + 330 * (s - 0.5) + 60, s, col); }, 6);
+  sticker(c, (o) => { crystal(o, 780, 520, 0.6); crystal(o, 850, 580, 0.75); crystal(o, 760, 650, 0.95); puffball(o, 900, 500, 0.55); }, 6);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, 560 + i * 240, 880, 330, k.look, T + i, i === 1 ? 'cheer' : 'stand', { costume: 'space', back: true })), 9);
+  novaCard(c, 40, 40, 'Follow the crystals!');
+  crystals(c, 12);
+}
+/* L2: the crash site */
+{ const c = ctx('l2');
+  c.fillStyle = '#b197fc'; c.fillRect(0, 0, W, H); dots(c, 'rgba(255,255,255,.3)', 70, 6, 0, 520);
+  c.fillStyle = '#ffe066'; for (const [x, y] of [[700, 300], [900, 140], [1400, 260], [1100, 90]]) star(c, x, y, 16, '#ffe066');
+  c.fillStyle = '#8ce99a'; c.beginPath(); c.moveTo(0, 560); c.quadraticCurveTo(800, 480, W, 560); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
+  sticker(c, (o) => { smoke(o, 1180, 470, 1); ship(o, 1150, 560, 1.15); }, 8);
+  sticker(c, (o) => { tree(o, 120, 660, 1.1); tree(o, 1510, 700, 0.9, '#36c2a4'); }, 6);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, 380 + i * 260, 860, 380, k.look, T + i, ['wave', 'stand', 'cheer'][i], { costume: 'space' })), 9);
+  novaCard(c, 40, 40, 'Everyone OK? Wave at me!');
+}
+/* L3: meeting Zubu */
+{ const c = ctx('l3');
+  c.fillStyle = '#5c7cfa'; c.fillRect(0, 0, W, H); dots(c, 'rgba(255,255,255,.25)', 70, 5, 0, 600);
+  c.fillStyle = '#69db7c'; c.beginPath(); c.moveTo(0, 640); c.quadraticCurveTo(800, 560, W, 640); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
+  c.fillStyle = '#ffe066'; for (let k = 0; k < 18; k++){ const x = (k * 263) % W, y = 200 + (k * 131) % 380; circ(c, x, y, 7); c.fill(); }
+  sticker(c, (o) => zubu(o, 620, 780, 1.05, T), 10);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, 300 + i * 200, 880, 240, k.look, T + i, 'cheer', { costume: 'space' })), 8);
+  novaCard(c, 40, 40, "That's Zubu! Say hi!");
+}
+
+/* ---------- Pop Party ---------- */
+function balloon(c, x, y, r, col){
+  c.fillStyle = col; c.beginPath(); c.ellipse(x, y, r * 0.85, r, 0, 0, Math.PI * 2); c.fill(); ink(c, 3);
+  c.beginPath(); c.moveTo(x - 7, y + r + 6); c.lineTo(x + 7, y + r + 6); c.lineTo(x, y + r - 4); c.closePath(); c.fillStyle = col; c.fill(); ink(c, 2.5);
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.35, r * 0.16, r * 0.26, -0.4, 0, Math.PI * 2); c.fill();
+}
+const string = (c, x0, y0, x1, y1) => { c.strokeStyle = 'rgba(31,26,58,.6)'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo((x0 + x1) / 2 - 20, (y0 + y1) / 2, x1, y1); c.stroke(); };
+function popBurst(c, x, y, col){ star(c, x, y, 70, '#ffffff', 8); star(c, x, y, 48, col, 8); }
+function confetti(c, n, seed = 1){ for (let k = 0; k < n; k++){ const x = (k * 137 * seed) % W, y = (k * 71 * seed) % H, col = ['#ff5d8f', '#ffd43b', '#3da9ff', '#22c55e', '#a855f7'][k % 5]; c.save(); c.translate(x, y); c.rotate(k); c.fillStyle = col; c.fillRect(-8, -4, 16, 8); c.restore(); } }
+function scores(c, vals){ KIDS.forEach((k, i) => pill(c, 40 + i * 230, 40, 200, 86, '#ffffff', (o) => { portrait(o, 40 + i * 230 + 44, 83, 66, k.look, T); label(o, String(vals[i]), 40 + i * 230 + 140, 103, 46, k.look.color); })); pill(c, 1400, 40, 160, 86, '#ffffff', (o) => label(o, '1:12', 1480, 101, 42)); }
+const PARTY_BG = (c, a, b) => { const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, a); g.addColorStop(1, b); c.fillStyle = g; c.fillRect(0, 0, W, H); dots(c, 'rgba(255,255,255,.35)', 64, 6); c.fillStyle = '#8ce99a'; c.beginPath(); c.moveTo(0, 790); c.quadraticCurveTo(800, 740, W, 790); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill(); };
+const mitt = (c, x, y, col) => { const g = c.createRadialGradient(x, y, 4, x, y, 48); g.addColorStop(0, col); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; circ(c, x, y, 48); c.fill(); };
+
+/* P1: popping balloons */
+{ const c = ctx('p1');
+  PARTY_BG(c, '#74c0fc', '#ffd6e7');
+  sticker(c, (o) => { for (const [x, y, r, col] of [[220, 260, 50, '#ff8787'], [520, 200, 44, '#ffd43b'], [1000, 300, 52, '#63e6be'], [1250, 220, 46, '#b197fc'], [1460, 330, 50, '#ffa94d'], [720, 360, 40, '#74c0fc']]) balloon(o, x, y, r, col); }, 6);
+  sticker(c, (o) => popBurst(o, 860, 230, '#ff8787'), 6);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, 360 + i * 440, 860, 400, k.look, T + i, i === 1 ? 'reach' : 'cheer')), 9);
+  KIDS.forEach((k, i) => { const u = 400 / 300, hands = i === 1 ? [[-66, -305], [66, -305]] : [[-92, -290], [92, -290]]; for (const [hx, hy] of hands) mitt(c, 360 + i * 440 + hx * u, 860 + hy * u, k.look.color); });
+  scores(c, [7, 9, 5]);
+}
+/* P2: a balloon animal walks by */
+{ const c = ctx('p2');
+  PARTY_BG(c, '#ffd8a8', '#fff3bf');
+  const dog = (o, x, y, s, col) => {
+    const seg = (ax, ay, bx, by, w) => { o.lineCap = 'round'; o.strokeStyle = INK; o.lineWidth = w + 6; o.beginPath(); o.moveTo(x + ax * s, y + ay * s); o.lineTo(x + bx * s, y + by * s); o.stroke(); o.strokeStyle = col; o.lineWidth = w; o.stroke(); o.strokeStyle = 'rgba(255,255,255,.45)'; o.lineWidth = w * 0.25; o.beginPath(); o.moveTo(x + ax * s - 4, y + ay * s - w * 0.2); o.lineTo(x + bx * s - 4, y + by * s - w * 0.2); o.stroke(); };
+    seg(-90, 0, 80, 0, 64 * s); for (const [ax, bx] of [[-80, -95], [-60, -40], [60, 80], [75, 95]]) seg(ax, 10, bx, 110, 40 * s);
+    seg(80, 0, 110, -90, 52 * s); seg(110, -90, 190, -80, 54 * s); seg(110, -100, 95, -170, 40 * s); seg(130, -100, 150, -170, 40 * s); seg(-90, -5, -150, -80, 34 * s);
+    o.fillStyle = INK; circ(o, x + 150 * s, y - 100 * s, 7 * s); o.fill(); o.fillStyle = INK; circ(o, x + 195 * s, y - 80 * s, 10 * s); o.fill();
+  };
+  sticker(c, (o) => dog(o, 700, 380, 1.0, '#ff8787'), 8);
+  sticker(c, (o) => { balloon(o, 260, 240, 46, '#63e6be'); balloon(o, 1350, 210, 50, '#b197fc'); balloon(o, 1500, 360, 40, '#74c0fc'); }, 6);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, [260, 1000, 1360][i], 870, 340, k.look, T + i, i === 0 ? 'reach' : i === 1 ? 'wave' : 'cheer')), 9);
+  scores(c, [11, 14, 9]);
+}
+/* P3: the bouquets, at the end */
+{ const c = ctx('p3');
+  PARTY_BG(c, '#d0bfff', '#ffe3e3');
+  confetti(c, 90, 3);
+  const cols = ['#ff8787', '#ffd43b', '#63e6be', '#74c0fc', '#b197fc', '#ffa94d'];
+  sticker(c, (o) => KIDS.forEach((k, i) => {
+    const x = 330 + i * 470, hx = x + 92 * (380 / 300), hy = 860 - 290 * (380 / 300);
+    const n = [7, 9, 5][i];
+    for (let b = 0; b < n; b++){ const bx = hx - 60 + (b % 4) * 44 + (b > 3 ? 22 : 0), by = hy - 150 - Math.floor(b / 4) * 70 - (b % 2) * 20; string(o, bx, by + 44, hx, hy); balloon(o, bx, by, 34, cols[(b + i) % cols.length]); }
+    body(o, x, 860, 380, k.look, T + i, 'cheer');
+  }), 9);
+  sticker(c, (o) => { o.beginPath(); o.roundRect(560, 40, 480, 110, 55); o.fillStyle = '#ff5d8f'; o.fill(); ink(o, 4); label(o, 'Well played!', 800, 115, 56, '#ffffff'); }, 8);
+}
+document.body.dataset.ready = '1';
+</script>
+</body></html>
