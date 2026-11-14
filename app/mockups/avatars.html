@@ -1,0 +1,129 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Orlis avatars - mockups</title>
+<style>
+  body{ margin:0; background:#e9ebf2; font-family:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif; color:#16161d; }
+  .frame{ width:1600px; height:900px; position:relative; overflow:hidden; margin:0 0 24px; background:#f3f4f7; }
+  .frame canvas{ position:absolute; inset:0; }
+  .tag{ position:absolute; left:28px; top:22px; font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#6b6f80; z-index:2; }
+  .tag.light{ color:rgba(255,255,255,.75); }
+  h1{ position:absolute; left:64px; top:52px; margin:0; font-size:56px; letter-spacing:-.02em; z-index:2; }
+  h1.light{ color:#fff; text-shadow:0 3px 14px rgba(0,0,0,.3); }
+  .sub{ position:absolute; left:66px; top:126px; font-size:22px; color:#5b5f6e; z-index:2; }
+  .sub.light{ color:rgba(255,255,255,.85); }
+  /* the avatar maker */
+  .maker{ position:absolute; inset:0; display:grid; grid-template-columns: 640px 1fr; }
+  .maker .left{ position:relative; }
+  .maker .right{ padding:70px 64px 0 0; }
+  .tabs{ display:flex; gap:8px; background:#fff; border-radius:999px; padding:6px; width:max-content; box-shadow:0 6px 20px rgba(20,24,50,.08); }
+  .tabs span{ padding:10px 22px; border-radius:999px; font-weight:600; font-size:20px; color:#3b3e4d; }
+  .tabs span.on{ background:#16161d; color:#fff; }
+  .opts{ display:grid; grid-template-columns:repeat(4, 170px); gap:18px; margin-top:34px; }
+  .opt{ width:170px; height:170px; border-radius:30px; background:#fff; box-shadow:0 8px 24px rgba(20,24,50,.08); position:relative; }
+  .opt.on{ box-shadow:0 0 0 6px #6d5efc, 0 8px 24px rgba(20,24,50,.12); }
+  .opt canvas{ position:absolute; inset:0; }
+  .opt b{ position:absolute; left:0; right:0; bottom:10px; text-align:center; font-size:17px; color:#5b5f6e; font-weight:600; }
+  .row{ display:flex; gap:16px; margin-top:36px; }
+  .btn{ padding:16px 34px; border-radius:999px; font-size:24px; font-weight:700; background:#fff; box-shadow:0 6px 18px rgba(20,24,50,.1); }
+  .btn.go{ background:#6d5efc; color:#fff; }
+  .swatches{ display:flex; gap:14px; margin-top:28px; }
+  .swatches i{ width:54px; height:54px; border-radius:50%; display:block; box-shadow:inset 0 0 0 3px rgba(0,0,0,.08); }
+  .swatches i.on{ box-shadow:0 0 0 5px #fff, 0 0 0 9px #6d5efc; }
+  .label{ font-size:18px; font-weight:700; color:#6b6f80; margin-top:30px; letter-spacing:.06em; text-transform:uppercase; }
+</style></head>
+<body>
+<div class="frame" id="a"><div class="tag">A · Four kids, four avatars</div><h1>Everyone has their own</h1><div class="sub">Skin, hair, face, their colour, an outfit and one extra - picked by the child</div><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="b"><div class="tag">B · The avatar maker</div><div class="maker"><div class="left"><canvas width="640" height="900"></canvas></div><div class="right">
+  <div class="tabs"><span>Skin</span><span class="on">Hair</span><span>Face</span><span>Colour</span><span>Outfit</span><span>Extra</span></div>
+  <div class="opts" id="hairopts"></div>
+  <div class="label">Hair colour</div>
+  <div class="swatches" id="haircols"></div>
+  <div class="row"><span class="btn">🎲 Surprise me</span><span class="btn go">Done</span></div>
+</div></div></div>
+<div class="frame" id="c"><div class="tag light">C · In Last Known Position</div><h1 class="light">Their faces, in the visors</h1><div class="sub light">Each suit in the child's own colour; from behind, their face floats over them</div><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="d"><div class="tag">D · In Pop Party</div><h1>As themselves</h1><div class="sub">Moving like the child, glowing mitts on their hands</div><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="e"><div class="tag light">E · The line-up, once as you start</div><h1 class="light">Stand like this</h1><div class="sub light">Left to right as you look at the TV - tap ⇄ to swap two</div><canvas width="1600" height="900"></canvas></div>
+<script type="module">
+import { body, head, portrait, PARTS } from '/src/ui/avatar-art.js';
+import { worldCrewFront, worldCrew } from '/src/games/lkp-cast.js';
+
+const KIDS = [
+  { name: 'Ellie', look: { skin: PARTS.skin[1], hair: 'ponytail', hairColor: PARTS.hairColor[1], eyes: 'sparkle', mouth: 'grin', color: '#ff5d8f', outfit: 'stars', extra: 'bow' } },
+  { name: 'Max', look: { skin: PARTS.skin[3], hair: 'curly', hairColor: PARTS.hairColor[0], eyes: 'dots', mouth: 'smile', color: '#3da9ff', outfit: 'stripes', extra: 'cap' } },
+  { name: 'Ava', look: { skin: PARTS.skin[0], hair: 'bob', hairColor: PARTS.hairColor[4], eyes: 'happy', mouth: 'tongue', color: '#22c55e', outfit: 'dots', extra: 'glasses' } },
+  { name: 'Leo', look: { skin: PARTS.skin[5], hair: 'spiky', hairColor: PARTS.hairColor[0], eyes: 'wink', mouth: 'grin', color: '#a855f7', outfit: 'hoodie', extra: 'headphones' } }
+];
+const T = 1.3;
+const ctx = (id) => document.querySelector(`#${id} canvas`).getContext('2d');
+const label = (c, text, x, y, size = 30, col = '#16161d') => { c.font = `700 ${size}px "Segoe UI Variable Display","Segoe UI",Inter,sans-serif`; c.fillStyle = col; c.textAlign = 'center'; c.fillText(text, x, y); };
+
+/* A */
+{ const c = ctx('a');
+  KIDS.forEach((k, i) => { const x = 260 + i * 360; body(c, x, 760, 470, k.look, T + i, ['wave', 'stand', 'cheer', 'stand'][i]); label(c, k.name, x, 820); portrait(c, x + 110, 300, 90, k.look, T); }); }
+
+/* B */
+{ const c = document.querySelector('#b .left canvas').getContext('2d');
+  const g = c.createRadialGradient(320, 420, 40, 320, 420, 420); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#ffe3ec'); c.fillStyle = g; c.fillRect(0, 0, 640, 900);
+  body(c, 320, 800, 600, KIDS[0].look, T, 'wave');
+  const opts = document.getElementById('hairopts');
+  ['ponytail', 'short', 'curly', 'buns', 'long', 'spiky', 'bob', 'none'].forEach((hs) => {
+    const d = document.createElement('div'); d.className = 'opt' + (hs === 'ponytail' ? ' on' : '');
+    const cv = document.createElement('canvas'); cv.width = 170; cv.height = 170; d.appendChild(cv);
+    const b = document.createElement('b'); b.textContent = hs[0].toUpperCase() + hs.slice(1); d.appendChild(b);
+    head(cv.getContext('2d'), 85, 78, 46, { ...KIDS[0].look, hair: hs, extra: 'none' }, T);
+    opts.appendChild(d);
+  });
+  const sw = document.getElementById('haircols');
+  PARTS.hairColor.forEach((col, i) => { const e = document.createElement('i'); e.style.background = col; if (i === 1) e.className = 'on'; sw.appendChild(e); });
+}
+
+/* C: Last Known Position */
+{ const c = ctx('c');
+  const sky = c.createLinearGradient(0, 0, 0, 900); sky.addColorStop(0, '#1b1440'); sky.addColorStop(0.55, '#3b2a6b'); sky.addColorStop(1, '#1d5e5a'); c.fillStyle = sky; c.fillRect(0, 0, 1600, 900);
+  for (let i = 0; i < 90; i++){ c.fillStyle = `rgba(255,255,255,${0.2 + (i % 5) / 8})`; c.fillRect((i * 173) % 1600, (i * 97) % 420, 2, 2); }
+  c.fillStyle = '#2f8a6a'; c.beginPath(); c.ellipse(800, 1080, 1300, 330, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#3aa07a'; c.beginPath(); c.ellipse(800, 1110, 1200, 300, 0, 0, Math.PI * 2); c.fill();
+  /* three running at us, faces in their visors */
+  KIDS.slice(0, 3).forEach((k, i) => {
+    const x = 330 + i * 360, base = 830;
+    worldCrewFront(c, x, base, 520, T + i * 0.3, k.look.color, { run: 0.8, runPh: T * 6 + i * 2 }, (fx, fy, r) => head(c, fx, fy + r * 0.12, r * 0.86, { ...k.look, extra: k.look.extra === 'glasses' ? 'glasses' : 'none' }, T));
+  });
+  /* one from behind, their face over them */
+  const k = KIDS[3], x = 1380, base = 760;
+  worldCrew(c, x, base, 330, T, k.look.color, { run: 0.6, runPh: T * 6, air: 0 }, null);
+  portrait(c, x, base - 420, 92, k.look, T);
+  c.fillStyle = 'rgba(255,255,255,.95)'; c.beginPath(); c.moveTo(x - 12, base - 372); c.lineTo(x + 12, base - 372); c.lineTo(x, base - 356); c.closePath(); c.fill();
+}
+
+/* D: Pop Party */
+{ const c = ctx('d');
+  const sky = c.createLinearGradient(0, 0, 0, 900); sky.addColorStop(0, '#8fd3ff'); sky.addColorStop(1, '#ffe1ef'); c.fillStyle = sky; c.fillRect(0, 0, 1600, 900);
+  const balloon = (x, y, r, col) => { c.fillStyle = col; c.beginPath(); c.ellipse(x, y, r * 0.85, r, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(0,0,0,.15)'; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y + r); c.quadraticCurveTo(x - 10, y + r + 40, x + 4, y + r + 80); c.stroke(); c.fillStyle = 'rgba(255,255,255,.5)'; c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.35, r * 0.18, r * 0.28, -0.4, 0, Math.PI * 2); c.fill(); };
+  [[200, 240, 46, '#ff7eb3'], [520, 180, 40, '#ffd166'], [900, 260, 50, '#7ad7f0'], [1180, 170, 42, '#a78bfa'], [1430, 280, 48, '#86efac'], [700, 330, 36, '#fda4af']].forEach(b => balloon(...b));
+  c.fillStyle = '#a7e3a1'; c.fillRect(0, 820, 1600, 80);
+  KIDS.forEach((k, i) => {
+    const x = 260 + i * 360;
+    body(c, x, 840, 430, k.look, T + i, i % 2 ? 'reach' : 'cheer');
+    /* glowing mitts in their colour */
+    const u = 430 / 300, hands = i % 2 ? [[-66, -305], [66, -305]] : [[-92, -290], [92, -290]];
+    for (const [hx, hy] of hands){ const gx = x + hx * u, gy = 840 + hy * u; const g = c.createRadialGradient(gx, gy, 2, gx, gy, 42); g.addColorStop(0, k.look.color); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.beginPath(); c.arc(gx, gy, 42, 0, Math.PI * 2); c.fill(); }
+  });
+}
+
+/* E: the line-up */
+{ const c = ctx('e');
+  const bg = c.createLinearGradient(0, 0, 1600, 900); bg.addColorStop(0, '#191632'); bg.addColorStop(1, '#2b2350'); c.fillStyle = bg; c.fillRect(0, 0, 1600, 900);
+  /* the players the camera sees, faint */
+  for (let i = 0; i < 3; i++){ c.fillStyle = 'rgba(255,255,255,.06)'; const x = 420 + i * 380; c.beginPath(); c.arc(x, 330, 46, 0, Math.PI * 2); c.fill(); c.fillRect(x - 55, 390, 110, 190); }
+  const row = KIDS.slice(0, 3);
+  row.forEach((k, i) => {
+    const x = 420 + i * 380, y = 730;
+    c.fillStyle = 'rgba(255,255,255,.08)'; c.beginPath(); c.roundRect(x - 120, y - 120, 240, 230, 34); c.fill();
+    portrait(c, x, y - 20, 150, k.look, T);
+    label(c, k.name, x, y + 90, 32, '#ffffff');
+    if (i < row.length - 1){ c.fillStyle = 'rgba(255,255,255,.9)'; c.beginPath(); c.arc(x + 190, y - 20, 30, 0, Math.PI * 2); c.fill(); label(c, '⇄', x + 190, y - 8, 32, '#2b2350'); }
+  });
+  label(c, 'Ready? Wave to start!', 800, 230, 36, 'rgba(255,255,255,.9)');
+}
+document.body.dataset.ready = '1';
+</script>
+</body></html>
