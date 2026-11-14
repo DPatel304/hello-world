@@ -1,0 +1,78 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sticker kids in the toy-figure worlds - mockups</title>
+<style>
+  body{ margin:0; background:#e9ebf2; }
+  .frame{ width:1600px; height:900px; position:relative; overflow:hidden; margin:0 0 24px; }
+  .frame canvas{ position:absolute; inset:0; }
+</style></head>
+<body>
+<div class="frame" id="run"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="runtoy"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="crash"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="climb"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="pop"><canvas width="1600" height="900"></canvas></div>
+<div class="frame" id="pop2"><canvas width="1600" height="900"></canvas></div>
+<script type="module">
+/* Real frames from the games (frames/, captured from Orlis Play), with the
+   children drawn over them as sticker-book avatars - the games' own art
+   left as it is. */
+import { body, setStyle, PARTS } from '/src/ui/avatar-art.js';
+
+const W = 1600, H = 900, T = 1.3, INK = '#1f1a3a';
+const KIDS = [
+  { skin: PARTS.skin[1], hair: 'ponytail', hairColor: PARTS.hairColor[1], eyes: 'sparkle', mouth: 'grin', color: '#ff5d8f', outfit: 'stars', extra: 'bow' },
+  { skin: PARTS.skin[3], hair: 'curly', hairColor: PARTS.hairColor[0], eyes: 'dots', mouth: 'smile', color: '#3da9ff', outfit: 'stripes', extra: 'cap' },
+  { skin: PARTS.skin[5], hair: 'spiky', hairColor: PARTS.hairColor[0], eyes: 'wink', mouth: 'grin', color: '#a855f7', outfit: 'hoodie', extra: 'headphones' }
+];
+const STICKER = { outline: INK, width: 0.7, shade: 'flat' };
+const ctx = (id) => document.querySelector(`#${id} canvas`).getContext('2d');
+const img = (src) => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.src = src; });
+
+/* a layer of characters, with the sticker's white edge and soft shadow */
+function sticker(c, draw, edgeW = 7){
+  const o = document.createElement('canvas'); o.width = W; o.height = H; const oc = o.getContext('2d'); draw(oc);
+  if (edgeW){
+    const s = document.createElement('canvas'); s.width = W; s.height = H; const sc = s.getContext('2d');
+    sc.drawImage(o, 0, 0); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#ffffff'; sc.fillRect(0, 0, W, H);
+    c.save(); c.shadowColor = 'rgba(20,15,45,.35)'; c.shadowBlur = 14; c.shadowOffsetY = 8;
+    for (let a = 0; a < 16; a++) c.drawImage(s, Math.cos(a / 16 * Math.PI * 2) * edgeW, Math.sin(a / 16 * Math.PI * 2) * edgeW);
+    c.restore();
+  }
+  c.drawImage(o, 0, 0);
+}
+const mitt = (c, x, y, col) => { const g = c.createRadialGradient(x, y, 4, x, y, 44); g.addColorStop(0, col); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.beginPath(); c.arc(x, y, 44, 0, Math.PI * 2); c.fill(); };
+
+const [run, crash, climb, pop, pop2] = await Promise.all(['fr-lkp-80', 'fr-lkp-110', 'fr-lkp-140', 'fr-pp-40', 'fr-pp-24'].map(n => img(`frames/${n}.jpg`)));
+
+/* running the trail, from behind: sticker kids */
+{ const c = ctx('run'); c.drawImage(run, 0, 0);
+  setStyle(STICKER);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, [620, 800, 980][i], 880, 270, k, T + i, i === 1 ? 'cheer' : 'stand', { costume: 'space', back: true })));
+}
+/* the same, but the kids as toy figures (no sticker edge, lit) - to compare */
+{ const c = ctx('runtoy'); c.drawImage(run, 0, 0);
+  setStyle({});
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, [620, 800, 980][i], 880, 270, k, T + i, i === 1 ? 'cheer' : 'stand', { costume: 'space', back: true })), 0);
+}
+/* the crash site: facing us, faces in their helmets */
+{ const c = ctx('crash'); c.drawImage(crash, 0, 0);
+  setStyle(STICKER);
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, [330, 520, 710][i], 640, 250, k, T + i, ['wave', 'stand', 'cheer'][i], { costume: 'space' })));
+}
+/* climbing: one up the rock, reaching */
+{ const c = ctx('climb'); c.drawImage(climb, 0, 0);
+  setStyle(STICKER);
+  sticker(c, (o) => { body(o, 440, 600, 330, KIDS[0], T, 'reach', { costume: 'space' }); body(o, 760, 830, 260, KIDS[1], T + 1, 'cheer', { costume: 'space' }); body(o, 1000, 860, 260, KIDS[2], T + 2, 'wave', { costume: 'space' }); });
+}
+/* Pop Party: the kids as themselves, mitts in their colours */
+for (const [id, frame, poses] of [['pop', pop, ['cheer', 'reach', 'cheer']], ['pop2', pop2, ['reach', 'wave', 'reach']]]){
+  const c = ctx(id); c.drawImage(frame, 0, 0);
+  setStyle(STICKER);
+  const xs = [380, 800, 1220], h = 400;
+  sticker(c, (o) => KIDS.forEach((k, i) => body(o, xs[i], 880, h, k, T + i, poses[i])));
+  const u = h / 300, hands = { cheer: [[-92, -290], [92, -290]], reach: [[-66, -305], [66, -305]], wave: [[-96, -278]] };
+  KIDS.forEach((k, i) => { for (const [hx, hy] of hands[poses[i]]) mitt(c, xs[i] + hx * u, 880 + hy * u, k.color); });
+}
+document.body.dataset.ready = '1';
+</script>
+</body></html>
