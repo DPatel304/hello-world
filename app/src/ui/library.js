@@ -119,6 +119,12 @@ export const library = {
     return { manifest: rec.manifest, code: rec.code };
   },
 
+  /* A game being made in Create, as it is now: started in the sandbox just
+     like a Store game, and not kept. */
+  tryOut({ code, manifest }){
+    return start({ id: manifest.id, version: manifest.version, manifest, code });
+  },
+
   async remove(id){
     await tx('readwrite', st => st.delete(id));
     this.installed.delete(id);

@@ -77,9 +77,10 @@ and `hands.right` (`x`, `y` from 0 to 1 across and down the screen, plus
 ## After each change
 
 A check runs by itself after every edit and tells you about any rule the
-game breaks - fix those first. The grown-up tries each version straight away
-in Orlis Play's preview (it reloads when you save). If they report a
-problem, `.orlis/preview.txt` has what the preview saw (errors, if any).
+game breaks - fix those first. The grown-up plays each version by pressing
+**Try it** in Orlis Play. If they say it broke, or that Orlis Play's check
+found something, `.orlis/preview.txt` has what happened (how long they
+played, and any error, or what the check found) - read it first.
 
 When they're happy, they press **Check and send** in Orlis Play - you don't
 need to do anything for that.

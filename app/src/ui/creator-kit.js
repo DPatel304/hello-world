@@ -105,11 +105,21 @@ export function check({ game, manifest }){
   return problems;
 }
 
-export async function pack({ game, manifest }){
+/* The game as it runs: the Orlis runtime, then the game's own code (after
+   the checks: throws with the problems). For Try it, and for packing. */
+export function build({ game, manifest }){
   const problems = check({ game, manifest });
   if (problems.length) throw Object.assign(new Error(problems.join(' ')), { problems });
   const m = typeof manifest === 'string' ? JSON.parse(manifest) : manifest;
   const full = { ...m, format: 1, kit: KIT };
   const code = `${RUNTIME}\nOrlis.manifest=${JSON.stringify({ id: full.id, name: full.name, icon: full.icon || null })};\n${game}\n`;
+  return { code, manifest: full };
+}
+
+export async function pack({ game, manifest }){
+  const { code, manifest: full } = build({ game, manifest });
   return { bytes: await writeOrlis({ 'manifest.json': JSON.stringify(full, null, 2), 'game.js': code }), manifest: full };
 }
+
+/* The next version after one: 0.1 -> 0.2, 1.9 -> 1.10. */
+export const nextVersion = (v) => { const p = String(v).split('.').map(n => parseInt(n, 10) || 0); while (p.length < 2) p.push(0); p[p.length - 1]++; return p.join('.'); };

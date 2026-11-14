@@ -12,7 +12,9 @@
                             has them, then Claude Code opened in the folder
                             (first: a new game - Claude starts on the idea).
                             { opened } or { missing: true }
-   making.show(folder)      the folder in File Explorer */
+   making.show(folder)      the folder in File Explorer
+   making.note(folder, t)   what Try it saw, in .orlis/preview.txt for Claude
+   making.setVersion(folder, v)  orlis.json's version, raised before sending */
 import { newGame, guardrails } from './creator-kit.js';
 
 const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
@@ -46,5 +48,12 @@ export const making = {
     return call('claude_open', { folder, prompt: first ? FIRST(first) : AGAIN });
   },
 
-  show(folder){ return call('game_show', { folder }); }
+  show(folder){ return call('game_show', { folder }); },
+
+  /* what Try it saw, for Claude to read (.orlis/preview.txt) */
+  note(folder, text){ return call('game_write', { folder, files: { '.orlis/preview.txt': text } }); },
+
+  /* a new version number in orlis.json - the one thing Orlis Play changes
+     in the game itself, so each version sent replaces the last */
+  setVersion(folder, version){ return call('game_version', { folder, version }); }
 };

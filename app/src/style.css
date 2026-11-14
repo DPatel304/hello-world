@@ -1008,7 +1008,15 @@ textarea.finput{ border-radius:1.4vh; resize:none; font-family:inherit; line-hei
 .btn.setbtn.cstart.chosen{ border-color:#6d5efc; box-shadow:0 0 0 .4vh rgba(109,94,252,.18); }
 .btn.setbtn.busy{ opacity:.6; pointer-events:none; }
 .ccmd{ font-family:Consolas, ui-monospace, monospace; background:#f1f2f6; border-radius:1.2vh; padding:1.2vh 1.6vh; margin:1vh 0; font-size:.95em; user-select:all; }
-.sicon.cpopicon{ width:9vh; height:9vh; margin-bottom:1.6vh; }
+.sicon.cpopicon{ width:9vh; height:9vh; margin:0 auto 1.6vh; }
 .fpop p{ line-height:1.45; }
 .smeta{ min-width:0; } .stxt{ min-width:0; }
 .stxt .sub{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Create: a game's own card - Try it, Check and send */
+.cacts{ display:flex; gap:1.2vh; justify-content:center; margin:2.2vh 0 .4vh; }
+.btn.setbtn.cbig{ font-size:1.15em; padding:.7em 1.5em; }
+.btn.setbtn.cbig .lbl{ display:flex; align-items:center; gap:.5em; }
+.btn.setbtn .tri{ width:0; height:0; border-left:.62em solid currentColor; border-top:.36em solid transparent; border-bottom:.36em solid transparent; }
+.cprobs{ text-align:left; margin:1.4vh 0; padding-left:1.2em; line-height:1.45; color:#3b3e4d; }
+.cprobs li{ margin:.6vh 0; }

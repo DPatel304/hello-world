@@ -124,6 +124,28 @@ pub fn game_write(app: AppHandle, folder: String, files: HashMap<String, String>
     write_all(&dir, &files)
 }
 
+/// A new version number in the game's orlis.json (before it's sent, so each
+/// version sent replaces the last) - the only change Orlis Play makes to the
+/// game itself; everything else in it stays as it was.
+#[tauri::command]
+pub fn game_version(app: AppHandle, folder: String, version: String) -> Result<(), String> {
+    let ok = !version.is_empty()
+        && version.len() <= 12
+        && version.split('.').count() <= 3
+        && version.split('.').all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+    if !ok {
+        return Err("Versions look like 0.2 or 1.10.".into());
+    }
+    let dir = game_dir(&app, &folder)?;
+    let path = dir.join("orlis.json");
+    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let mut m: Value = serde_json::from_str(&text).map_err(|_| "orlis.json isn't valid JSON - ask Claude to fix it first.".to_string())?;
+    let Some(obj) = m.as_object_mut() else { return Err("orlis.json isn't a game's details.".into()) };
+    obj.insert("version".into(), Value::String(version));
+    let out = serde_json::to_string_pretty(&m).map_err(|e| e.to_string())? + "\n";
+    fs::write(&path, out).map_err(|e| format!("Couldn't write orlis.json: {e}"))
+}
+
 /// The game as it is now: game.js and orlis.json.
 #[tauri::command]
 pub fn game_read(app: AppHandle, folder: String) -> Result<Value, String> {

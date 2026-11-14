@@ -88,7 +88,7 @@ function toFamily(){
   go('family', () => familyPage({ nav: tabs(), onWho: () => toWho(false), onRecalibrate: toCalibration }));
 }
 function toCreate(){
-  go('create', () => createPage({ nav: tabs(), onWho: () => toWho(false), onRecalibrate: toCalibration }));
+  go('create', () => createPage({ nav: tabs(), onPlay: toGame, onWho: () => toWho(false), onRecalibrate: toCalibration }));
 }
 
 /* The Windows app's way in: find the server and sign in (once), then pick
@@ -147,11 +147,21 @@ function endRound(){
   showResults();
 }
 
+/* A round's over (or left): a game being tried from Create hears how it
+   went - how long, and anything that went wrong. */
+function roundDone(){
+  if (!game || !game.onDone || !inst) return;
+  const f = game.onDone;
+  try { f({ secs: Math.round(played), failed: inst.failed || null }); } catch {}
+}
+
 function showResults(){
+  roundDone();
   music.intensity(0.2);
   /* Bests are still kept - the menu tiles show them - just not announced. */
   scores.record(game.id, Math.max(1, joined.size), inst.value());
-  go('results', () => results(game, () => toGame(game), toMenu));
+  /* (a game being tried goes back where it came from: Create) */
+  go('results', () => results(game, () => toGame(game), game.back || toMenu));
 }
 
 /* ---------- pause by gesture ----------
@@ -176,7 +186,7 @@ function openPause(){
   if (paused) return;
   paused = pauseOverlay(
     () => { paused.remove(); paused = null; cursor.reset(); },
-    () => { paused.remove(); paused = null; toMenu(); });
+    () => { paused.remove(); paused = null; roundDone(); (game.back || toMenu)(); });
   sfx.whoosh();
 }
 

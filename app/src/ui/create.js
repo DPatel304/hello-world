@@ -21,7 +21,8 @@ import { outbox } from './outbox.js';
 import { topBar } from './tabs.js';
 import { CREATE_SOON, looks } from './menu.js';
 import { making } from './making.js';
-import { unpack } from './creator-kit.js';
+import { unpack, check, build, pack, nextVersion } from './creator-kit.js';
+import { newer } from './store.js';
 import { library } from './library.js';
 import { PAPER } from './boot.js';
 
@@ -41,7 +42,10 @@ function banner(kicker, title, line){
   return { hero, text };
 }
 
-export function createPage({ nav = {}, onWho, onRecalibrate }){
+/* How the last Try it went, to say so on coming back to Create. */
+let lastTry = null;
+
+export function createPage({ nav = {}, onPlay = () => {}, onWho, onRecalibrate }){
   clearUI();
   const s = screen('tvhome createpage onhero');
   const bar = topBar('create', nav, { onWho, onRecalibrate });
@@ -164,18 +168,97 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
     card.querySelector('.fbtns').append(copy, btn('OK', () => { sfx.select(); closePop(); }, 'go'));
   }
 
-  /* One of your games: open it in Claude Code, or see its folder. */
+  /* What's wrong, said plainly - and written down for Claude to read. */
+  function problemsPop(g, title, problems){
+    making.note(g.folder, `${new Date().toLocaleString()} - Orlis Play's check found:\n${problems.map(p => '- ' + p).join('\n')}\n`).catch(() => {});
+    const card = popup(h('h2', '', esc(title)), h('ul', 'cprobs', problems.map(p => `<li>${esc(p)}</li>`).join('')),
+      h('p', 'fnote', 'Tell Claude: “Fix what Orlis Play’s check found” - it’s written down for Claude to read.'), h('div', 'fbtns'));
+    card.querySelector('.fbtns').append(
+      btn('Open in Claude Code', async () => { try { await opened(g.folder, g.manifest.name, await making.openClaude(g.folder), false); } catch (e){ problem(card)(e); } }),
+      btn('OK', () => { sfx.select(); closePop(); }, 'go'));
+  }
+
+  /* Try it: the game as it is now - checked, then played full screen with
+     the camera, sealed off like any Store game. Back here after, with a
+     note of how it went for Claude. */
+  async function tryIt(g, card){
+    let now;
+    try { now = await making.read(g.folder); } catch (e){ problem(card)(e); return; }
+    const problems = check(now);
+    if (problems.length) return problemsPop(g, `${g.manifest.name} needs a fix first`, problems);
+    let game;
+    try { game = await library.tryOut(build(now)); }
+    catch (e){
+      const why = e.message === 'the game didn\'t start' ? 'It didn’t start: there may be a mistake in game.js that stops it running.' : `It didn’t start: ${e.message}`;
+      return problemsPop(g, `${g.manifest.name} didn’t start`, [why]);
+    }
+    const name = g.manifest.name, folder = g.folder;
+    game.back = () => nav.create && nav.create();
+    game.onDone = ({ secs, failed }) => {
+      lastTry = { name, folder, secs, failed };
+      making.note(folder, failed
+        ? `${new Date().toLocaleString()} - Tried it: it stopped after ${secs} seconds with this error:\n${failed}\n`
+        : `${new Date().toLocaleString()} - Tried it: played ${secs} seconds, no errors.\n`).catch(() => {});
+    };
+    sfx.select(); closePop(); onPlay(game);
+  }
+
+  /* Check and Send: checked, a new version number if this one's been sent
+     before, packed, and into the outbox - sent now if the Orlis server's in
+     reach, or by itself when it is. */
+  async function sendIt(g, card){
+    let now;
+    try { now = await making.read(g.folder); } catch (e){ problem(card)(e); return; }
+    const problems = check(now);
+    if (problems.length) return problemsPop(g, `${g.manifest.name} needs a fix before it’s sent`, problems);
+    let m = JSON.parse(now.manifest);
+    try {
+      const before = [...((await outbox.sent()) || []).filter(x => x.gameId === m.id), ...(await outbox.list()).filter(x => x.gameId === m.id)].map(x => x.version);
+      const top = before.reduce((a, v) => (!a || newer(v, a) ? v : a), null);
+      if (top && !newer(m.version, top)){
+        const v = nextVersion(top);
+        await making.setVersion(g.folder, v);
+        now = await making.read(g.folder); m = JSON.parse(now.manifest);
+      }
+      const { bytes } = await pack(now);
+      await outbox.add(bytes);
+      sfx.select();
+      said = `${m.name} (version ${m.version}) is ready to send.`;
+      closePop();
+      await send();
+      refreshMine();
+    } catch (e){ problem(card)(e); }
+  }
+
+  /* One of your games: try it, send it, open it in Claude Code, or see its folder. */
   function gamePop(g){
     sfx.select();
     const L = looks({ id: g.manifest.id, icon: g.manifest.icon });
     const card = popup(L.icon('sicon cpopicon'), h('h2', '', esc(g.manifest.name)), h('p', 'fnote', esc(g.manifest.blurb || '')),
       h('p', 'fnote', `Version ${esc(g.manifest.version || '0.1')} · changed ${esc(new Date(g.changed).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}`),
-      h('div', 'fbtns'));
+      h('div', 'cacts'), h('div', 'fbtns'));
+    card.querySelector('.cacts').append(
+      btn('<span class="tri"></span>Try it', () => tryIt(g, card), 'go cbig'),
+      btn('Check and send', () => sendIt(g, card), 'cbig'));
     card.querySelector('.fbtns').append(
       btn('Show the folder', () => making.show(g.folder).catch(problem(card))),
       btn('Open in Claude Code', async () => {
         try { await opened(g.folder, g.manifest.name, await making.openClaude(g.folder), false); } catch (e){ problem(card)(e); }
-      }, 'go'));
+      }));
+  }
+
+  /* back from Try it: how it went */
+  function afterTry(){
+    const t = lastTry; lastTry = null;
+    if (!t) return;
+    const g = mine.find(x => x.folder === t.folder) || { folder: t.folder, manifest: { name: t.name } };
+    const card = popup(h('h2', '', t.failed ? `${esc(t.name)} stopped` : `How was ${esc(t.name)}?`),
+      h('p', '', t.failed ? `It stopped after ${t.secs} seconds because something went wrong. It’s written down for Claude: tell it “It broke when I tried it - have a look”.` : `You played ${t.secs} seconds, with no errors. Tell Claude what to change, or send it when you’re happy.`),
+      h('div', 'fbtns'));
+    card.querySelector('.fbtns').append(
+      btn('Open in Claude Code', async () => { try { await opened(g.folder, t.name, await making.openClaude(g.folder), false); } catch (e){ problem(card)(e); } }),
+      ...(t.failed || !mine.length ? [] : [btn('Check and send', () => sendIt(g, card))]),
+      btn('OK', () => { sfx.select(); closePop(); }, 'go'));
   }
 
   async function refreshMine(){
@@ -183,6 +266,8 @@ export function createPage({ nav = {}, onWho, onRecalibrate }){
     try { mine = await making.list(); } catch { mine = []; }
     draw();
   }
+  /* (back from Try it) */
+  if (lastTry) refreshMine().then(afterTry);
 
   pickFile.addEventListener('change', async () => {
     const f = pickFile.files && pickFile.files[0];
