@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Orlis art styles - mockups</title>
+<style>
+  body{ margin:0; background:#e9ebf2; font-family:"Segoe UI Variable Display","Segoe UI",Inter,system-ui,sans-serif; }
+  .frame{ width:1600px; height:900px; position:relative; overflow:hidden; margin:0 0 24px; }
+  .frame canvas{ position:absolute; inset:0; }
+  .txt{ position:absolute; left:64px; top:48px; z-index:2; max-width:560px; }
+  .tag{ font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; opacity:.7; }
+  h1{ margin:10px 0 8px; font-size:58px; letter-spacing:-.02em; line-height:1; }
+  p{ margin:0; font-size:21px; line-height:1.45; opacity:.85; }
+  .light{ color:#fff; } .light h1{ text-shadow:0 3px 14px rgba(0,0,0,.3); }
+</style></head>
+<body>
+<div class="frame" id="toy"><canvas width="1600" height="900"></canvas><div class="txt light"><div class="tag">1 · Toy figures</div><h1>Toy figures</h1><p>Last Known Position's look: chunky shapes, bold outlines, lit from the left. Reads clearly from the sofa and suits action and adventure.</p></div></div>
+<div class="frame" id="clay"><canvas width="1600" height="900"></canvas><div class="txt"><div class="tag">2 · Soft clay</div><h1>Soft clay</h1><p>No outlines; soft, round and glossy, like vinyl toys or clay. Gentle and cosy, very "little kids" - feels like a 3D game without being one.</p></div></div>
+<div class="frame" id="sticker"><canvas width="1600" height="900"></canvas><div class="txt"><div class="tag">3 · Sticker book</div><h1>Sticker book</h1><p>Flat, bright colours with a white sticker edge, on cheerful patterned backgrounds. Pop Party's energy; very readable on any background.</p></div></div>
+<div class="frame" id="paper"><canvas width="1600" height="900"></canvas><div class="txt"><div class="tag">4 · Storybook paper</div><h1>Storybook paper</h1><p>Cut-paper shapes in warm, softer colours with little paper shadows. Calm and crafted - lovely for gentle games and stories.</p></div></div>
+<div class="frame" id="neon"><canvas width="1600" height="900"></canvas><div class="txt light"><div class="tag">5 · Night glow</div><h1>Night glow</h1><p>Dark worlds with glowing outlines in each child's colour. Exciting and magical - great for space and night games, less so for sunny ones.</p></div></div>
+<script type="module">
+import { body, portrait, setStyle, PARTS } from '/src/ui/avatar-art.js';
+import { worldCrewFront } from '/src/games/lkp-cast.js';
+
+const KIDS = [
+  { skin: PARTS.skin[1], hair: 'ponytail', hairColor: PARTS.hairColor[1], eyes: 'sparkle', mouth: 'grin', color: '#ff5d8f', outfit: 'stars', extra: 'bow' },
+  { skin: PARTS.skin[3], hair: 'curly', hairColor: PARTS.hairColor[0], eyes: 'dots', mouth: 'smile', color: '#3da9ff', outfit: 'stripes', extra: 'cap' },
+  { skin: PARTS.skin[5], hair: 'spiky', hairColor: PARTS.hairColor[0], eyes: 'wink', mouth: 'grin', color: '#a855f7', outfit: 'hoodie', extra: 'headphones' }
+];
+const POSES = ['wave', 'cheer', 'stand'], T = 1.3, W = 1600, H = 900;
+const ctx = (id) => document.querySelector(`#${id} canvas`).getContext('2d');
+
+/* an avatar drawn on its own layer, then put in the scene with an effect */
+function layer(c, draw, fx = {}){
+  const o = document.createElement('canvas'); o.width = W; o.height = H;
+  const oc = o.getContext('2d'); draw(oc);
+  if (fx.sticker){
+    const s = document.createElement('canvas'); s.width = W; s.height = H; const sc = s.getContext('2d');
+    sc.drawImage(o, 0, 0); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#ffffff'; sc.fillRect(0, 0, W, H);
+    c.save(); c.shadowColor = 'rgba(30,20,60,.25)'; c.shadowBlur = 14; c.shadowOffsetY = 8;
+    for (let a = 0; a < 16; a++) c.drawImage(s, Math.cos(a / 16 * Math.PI * 2) * fx.sticker, Math.sin(a / 16 * Math.PI * 2) * fx.sticker);
+    c.restore();
+  }
+  c.save();
+  if (fx.paper){ c.shadowColor = 'rgba(80,55,25,.35)'; c.shadowOffsetX = 7; c.shadowOffsetY = 9; c.shadowBlur = 3; }
+  if (fx.glow){ c.shadowColor = fx.glow; c.shadowBlur = 26; c.drawImage(o, 0, 0); }
+  if (fx.soft){ c.shadowColor = 'rgba(60,40,90,.22)'; c.shadowBlur = 30; c.shadowOffsetY = 18; }
+  c.drawImage(o, 0, 0); c.restore();
+}
+function kids(c, style, fx = {}, tint = (l) => l, base = 820, h = 430, xs = [760, 1060, 1360]){
+  setStyle(style);
+  KIDS.forEach((k, i) => layer(c, (oc) => body(oc, xs[i], base, h, tint(k), T + i, POSES[i]), typeof fx === 'function' ? fx(k) : fx));
+  KIDS.forEach((k, i) => layer(c, (oc) => portrait(oc, 120 + i * 130, 760, 104, tint(k), T), typeof fx === 'function' ? fx(k) : fx));
+  setStyle();
+}
+
+/* 1. toy figures, on Last Known Position's planet */
+{ const c = ctx('toy');
+  const sky = c.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1b1440'); sky.addColorStop(0.55, '#3b2a6b'); sky.addColorStop(1, '#1d5e5a'); c.fillStyle = sky; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 90; i++){ c.fillStyle = `rgba(255,255,255,${0.2 + (i % 5) / 8})`; c.fillRect((i * 173) % W, (i * 97) % 420, 2, 2); }
+  c.fillStyle = '#2f8a6a'; c.beginPath(); c.ellipse(900, 1080, 1300, 330, 0, 0, Math.PI * 2); c.fill();
+  kids(c, {});
+}
+/* 2. soft clay, in a soft pastel room */
+{ const c = ctx('clay');
+  const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#fde7f0'); bg.addColorStop(0.62, '#f7f0ff'); bg.addColorStop(0.62, '#e8defa'); bg.addColorStop(1, '#d9ccf5'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+  for (const [x, y, r, col] of [[1250, 250, 120, '#ffd6e7'], [1480, 420, 80, '#d6f5ff'], [980, 330, 60, '#fff1c2']]){ const g = c.createRadialGradient(x - r * 0.3, y - r * 0.4, 4, x, y, r); g.addColorStop(0, '#ffffff'); g.addColorStop(1, col); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); }
+  kids(c, { outline: null, shade: 'clay', feature: '#2b2140' }, { soft: true });
+}
+/* 3. sticker book, on a bright patterned page */
+{ const c = ctx('sticker');
+  c.fillStyle = '#ffe66d'; c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(255,255,255,.45)'; for (let x = 0; x < W; x += 80) for (let y = 0; y < H; y += 80){ c.beginPath(); c.arc(x + (y / 80 % 2) * 40, y, 9, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = '#7bdff2'; c.beginPath(); c.moveTo(0, 700); c.quadraticCurveTo(800, 600, W, 720); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
+  kids(c, { outline: '#1f1a3a', width: 0.7, shade: 'flat' }, { sticker: 9 });
+}
+/* 4. storybook paper: softer colours, layered paper hills */
+{ const c = ctx('paper');
+  c.fillStyle = '#f4ead8'; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 2600; i++){ c.fillStyle = `rgba(120,90,50,${Math.random() * 0.05})`; c.fillRect(Math.random() * W, Math.random() * H, 2, 2); }
+  const hill = (y, col, amp) => { c.save(); c.shadowColor = 'rgba(80,55,25,.3)'; c.shadowOffsetY = 6; c.shadowBlur = 4; c.fillStyle = col; c.beginPath(); c.moveTo(0, y); for (let x = 0; x <= W; x += 40) c.lineTo(x, y - Math.sin(x / 260 + amp) * 40); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill(); c.restore(); };
+  hill(560, '#cfe0b4', 1); hill(680, '#a9c98f', 3); hill(800, '#86b07a', 5);
+  c.fillStyle = '#f7c873'; c.save(); c.shadowColor = 'rgba(80,55,25,.3)'; c.shadowOffsetX = 5; c.shadowOffsetY = 6; c.beginPath(); c.arc(1380, 170, 70, 0, Math.PI * 2); c.fill(); c.restore();
+  const soften = (k) => ({ ...k, color: mixHex(k.color, '#e9dcc4', 0.3), hairColor: mixHex(k.hairColor, '#e9dcc4', 0.15) });
+  kids(c, { outline: null, shade: 'flat', feature: '#3a2c2a' }, { paper: true }, soften);
+}
+/* 5. night glow */
+{ const c = ctx('neon');
+  const bg = c.createRadialGradient(1000, 500, 50, 1000, 500, 1000); bg.addColorStop(0, '#1d1b4a'); bg.addColorStop(1, '#07061a'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+  for (let i = 0; i < 120; i++){ c.fillStyle = `rgba(200,220,255,${0.15 + (i % 5) / 9})`; c.fillRect((i * 211) % W, (i * 131) % H, 2, 2); }
+  c.strokeStyle = 'rgba(120,200,255,.35)'; c.lineWidth = 2; for (let k = 0; k < 6; k++){ c.beginPath(); c.moveTo(0, 820 + k * 14); c.lineTo(W, 820 + k * 14); c.stroke(); }
+  kids(c, { outline: '#e8f6ff', width: 0.6, shade: 'lit' }, (k) => ({ glow: k.color }));
+}
+function mixHex(a, b, k){ const p = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const x = p(a), y = p(b); return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * k).toString(16).padStart(2, '0')).join(''); }
+document.body.dataset.ready = '1';
+</script>
+</body></html>
