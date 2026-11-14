@@ -42,6 +42,12 @@ test('a creator sends a game in; the owner tries it and approves it; it is in th
     const file = await call('GET', `/api/submissions/${sent.id}/file`, null, owner);
     assert.equal(manifestOf(readOrlis(file.bytes)).id, 'bird-hoops');
     assert.equal((await call('GET', `/api/submissions/${sent.id}/file`, null, friend)).status, 403, 'only the owner tries them');
+    /* not before the owner's played it */
+    assert.equal((await call('POST', `/api/submissions/${sent.id}/approve`, null, owner)).status, 409, 'played first');
+    assert.equal((await call('POST', `/api/submissions/${sent.id}/tried`, { secs: 5 }, owner)).status, 400, 'for long enough');
+    assert.equal((await call('POST', `/api/submissions/${sent.id}/tried`, { secs: 30 }, friend)).status, 403, 'by the owner');
+    assert.equal((await call('POST', `/api/submissions/${sent.id}/tried`, { secs: 30 }, owner)).ok, true);
+    assert.equal((await call('GET', '/api/submissions?all=1', null, owner)).submissions[0].tried, true);
     const ok = await call('POST', `/api/submissions/${sent.id}/approve`, null, owner);
     assert.equal(ok.game.by, "Max's family", "the creator's family, whatever the file said");
     const g = (await call('GET', '/api/store', null, friend)).games.find(x => x.id === 'bird-hoops');
@@ -103,6 +109,7 @@ test('the management page sees what is waiting, and can approve', async () => {
     const key = { 'X-Orlis-Manage': s.manageKey };
     const list = await call('GET', '/api/submissions', null, null, key);
     assert.deepEqual(list.submissions.map(x => x.id), [a.id]);
+    await call('POST', `/api/submissions/${a.id}/tried`, { secs: 30 }, null, key);
     assert.equal((await call('POST', `/api/submissions/${a.id}/approve`, null, null, key)).ok, true);
   } finally { await s.close(); }
 });
@@ -112,9 +119,25 @@ test("starter games: the owner's own, approved, are; a creator's never are, what
   try {
     const mine = await call('POST', '/api/submissions', game('owl-hoots'), owner);
     const theirs = await call('POST', '/api/submissions', writeOrlis({ 'manifest.json': JSON.stringify({ format: 1, kit: 2, id: 'bird-hoops', name: 'Bird Hoops', version: '1.0', blurb: 'x', players: [1, 4], icon: ICON, starter: true }), 'game.js': 'postMessage({ t: "ready" });' }), friend);
-    for (const x of [mine, theirs]) assert.equal((await call('POST', `/api/submissions/${x.id}/approve`, null, owner)).ok, true);
+    for (const x of [mine, theirs]){ await call('POST', `/api/submissions/${x.id}/tried`, { secs: 30 }, owner); assert.equal((await call('POST', `/api/submissions/${x.id}/approve`, null, owner)).ok, true); }
     const store = (await call('GET', '/api/store', null, friend)).games;
     assert.equal(store.find(g => g.id === 'owl-hoots').starter, true);
     assert.equal(store.find(g => g.id === 'bird-hoops').starter, false);
+  } finally { await s.close(); }
+});
+
+test("words that aren't for children are turned away - in the code, on screen, in the Store's text, however they're written", async () => {
+  const { s, call, friend } = await server();
+  try {
+    const no = async (bytes) => { const r = await call('POST', '/api/submissions', bytes, friend); assert.equal(r.status, 400); return r.message; };
+    assert.match(await no(game('w1', { code: 'c.fillText("you got kiLLed", 1, 1); postMessage({ t: "ready" });' })), /aren't for children \(killed\)/);
+    assert.match(await no(game('w2', { code: 'const k1ll = 1; postMessage({ t: "ready" });' })), /kill/, 'numbers for letters');
+    assert.match(await no(game('w3', { code: 'function bloodSplat(){} postMessage({ t: "ready" });' })), /blood/, 'joined in a name');
+    assert.match(await no(game('w4', { blurb: 'Shoot them with a gun' })), /gun/, 'the Store\'s text');
+    assert.match(await no(game('w5', { code: 'c.fillText(String.fromCharCode(104, 105), 0, 0); postMessage({ t: "ready" });' })), /hidden words/);
+    assert.match(await no(game('w6', { code: 'const i = new Image(); postMessage({ t: "ready" });' })), /pictures made as it runs/);
+    assert.match(await no(game('w7', { code: 'document.createElement("iframe"); postMessage({ t: "ready" });' })), /parts of a web page/);
+    /* (and the ordinary words around them are fine) */
+    assert.equal((await call('POST', '/api/submissions', game('w8', { code: 'const shell = 1, assets = 2, skill = 3, class_ = 4; postMessage({ t: "ready" });', blurb: 'Hello! Pass the ball' }), friend)).status, 201);
   } finally { await s.close(); }
 });

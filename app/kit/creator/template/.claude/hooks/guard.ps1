@@ -22,6 +22,21 @@ $forbidden = @(
 )
 # --------------------------------------------------------------------------
 
+# the words no game for children has (the same list as Orlis Play's and the
+# server's): found however they're written - any capitals, joined in a name
+# (killZone), numbers or signs for letters (k1ll)
+$words = New-Object 'System.Collections.Generic.HashSet[string]' (,[string[]]@({{WORDS}}))
+function Find-Words([string]$t) {
+  $found = New-Object System.Collections.Generic.List[string]
+  # (colours and hex numbers aren't words: #ff9a55 is no a55)
+  $t = [regex]::Replace($t, '#[0-9a-fA-F]{3,8}\b|\b0[xX][0-9a-fA-F]+\b', ' ')
+  foreach ($v in @($t, [regex]::Replace($t, '([a-z])([A-Z])', '$1 $2'))) {
+    $s = $v.ToLowerInvariant().Replace('0', 'o').Replace('1', 'i').Replace('3', 'e').Replace('4', 'a').Replace('5', 's').Replace('7', 't').Replace('8', 'b').Replace('@', 'a').Replace('$', 's').Replace('!', 'i').Replace('|', 'i')
+    foreach ($w in ($s -split '[^a-z]+')) { if ($w -and $words.Contains($w) -and -not $found.Contains($w)) { $found.Add($w) } }
+  }
+  return ,$found
+}
+
 $ErrorActionPreference = 'Stop'
 $in = [Console]::In.ReadToEnd() | ConvertFrom-Json
 $root = [IO.Path]::GetFullPath($env:CLAUDE_PROJECT_DIR).TrimEnd('\', '/')
@@ -73,6 +88,8 @@ if ($tool -eq 'Edit') { $new += [string]$ti.new_string }
 if ($tool -eq 'MultiEdit') { foreach ($e in $ti.edits) { $new += [string]$e.new_string } }
 $text = $new -join "`n"
 if ($text.Length -gt 1000000) { Deny 'That is too big - a game stays under a megabyte.' }
+$said = Find-Words $text
+if ($said.Count) { Deny ('That change has words that aren''t for children (' + ($said -join ', ') + '). Orlis Play games are for young children: use gentle words everywhere, even in the code''s names and comments.') }
 foreach ($f in $forbidden) {
   if ($text.Contains($f[0])) {
     $w = $f[0].TrimEnd('(')

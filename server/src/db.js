@@ -79,6 +79,11 @@ export const STEPS = [
     decided_at TEXT
   );
   CREATE INDEX submissions_account ON submissions(account_id);
+  `,
+  /* 4: when the owner played a game waiting for their OK (it can't be
+     approved before). */
+  `
+  ALTER TABLE submissions ADD COLUMN tried_at TEXT;
   `
 ];
 

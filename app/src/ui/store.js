@@ -119,7 +119,8 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
       if (g.submission){
         box.appendChild(btn('<span class="tri"></span>Try it', 'play', async () => {
           sfx.select();
-          try { const game = await library.preview(g); leave(); onPlay(game); }
+          /* (played long enough, it can be approved: main.js tells the server) */
+          try { const game = await library.preview(g); game.trial = g.submission; leave(); onPlay(game); }
           catch (e){ box.appendChild(h('div', 'serr', esc(e.message))); }
         }));
         return;
@@ -174,7 +175,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
     showFeat();
 
     /* the rows */
-    const rows = waiting.length ? [{ name: 'Waiting for your OK', sub: 'Only you see these \u00B7 approve them on the management page', list: waiting }, ...lay.rows] : lay.rows;
+    const rows = waiting.length ? [{ name: 'Waiting for your OK', sub: 'Only you see these \u00B7 play each one, then approve it on the management page', list: waiting }, ...lay.rows] : lay.rows;
     for (const r of rows){
       const sec = h('section', 'srow');
       sec.appendChild(h('h3', '', `${esc(r.name)}${r.sub ? ` <span>${esc(r.sub)}</span>` : ''}`));
@@ -276,7 +277,7 @@ export function storePage({ nav = {}, onPlay, onChange = () => {}, onWho, onReca
         try {
           waiting = ((await account.call('GET', '/api/submissions?all=1')).submissions || []).filter(x => x.state === 'waiting')
             .map(x => ({ id: x.gameId, submission: x.id, name: x.name, version: x.version, bytes: x.bytes, sha256: x.sha256, by: x.family,
-              blurb: `Sent by ${x.family}`, about: `${x.name}, from ${x.family}, is waiting for your OK. Try it here; approve or decline it on the management page (double-click the Orlis cube by the clock, on the server's laptop).`, players: [1, 4], tags: [] }));
+              blurb: `Sent by ${x.family}`, about: `${x.name}, from ${x.family}, is waiting for your OK. Try it here and play it for at least 20 seconds - then Approve comes on, on the management page (the Orlis cube by the clock, on the server's laptop: Manage).`, players: [1, 4], tags: [] }));
         } catch { waiting = []; }
       }
     }

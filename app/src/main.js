@@ -253,6 +253,9 @@ let last = 0;
    30 times a second rather than 60. And with another window in front, almost
    nothing runs: a few frames a second, no tracking, no sound - and a game in
    progress pauses, to carry on when someone's back. */
+/* Seconds the owner plays a waiting game before it can be approved (the
+   server's TRY_SECS). */
+const TRY_SECS = 20;
 const CALM = new Set(['boot', 'menu', 'store', 'create', 'family', 'who', 'starting']);
 const HOME_GAP = 1000 / 30 - 2, AWAY_GAP = 250;
 let lastFrame = 0, wasAway = false;
@@ -278,6 +281,12 @@ function tick(now){
   if (mode === 'play' && inst && !paused && !lost){
     inst.step(dt, W, H);
     roundLeft -= dt; played += dt;
+    /* the owner trying a game that's waiting for their OK: once they've
+       played it long enough, the server's told (Approve comes on) */
+    if (game.trial && !game.trialSent && played >= TRY_SECS){
+      game.trialSent = true;
+      account.call('POST', `/api/submissions/${encodeURIComponent(game.trial)}/tried`, { secs: Math.round(played) }).catch(() => { game.trialSent = false; });
+    }
     /* The band builds with the round: quiet fingerpicking through the
        opening, then strumming, and a new layer about every minute after,
        until everything - up a key - for the last ten seconds. An endless

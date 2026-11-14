@@ -134,3 +134,11 @@ test('Create: the app makes games in their own folders, and opens Claude Code th
   assert.ok(rs.includes('r.starts_with(".claude/") || r == ".orlis/preview.txt"'), 'after it\'s made, Orlis Play only rewrites its own part');
   assert.ok(rs.includes('.env("ORLIS_PROMPT"') && rs.includes('& $env:ORLIS_CLAUDE $env:ORLIS_PROMPT'), 'the idea is handed over, never written into the command');
 });
+
+test('a game waiting for the owner\'s OK is played before it can be approved: the app tells the server, after the same time it asks for', async () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const { TRY_SECS } = await import('../../server/src/submissions.js');
+  assert.equal(+main.match(/const TRY_SECS = (\d+);/)[1], TRY_SECS);
+  assert.ok(main.includes("/tried`"), 'it tells the server');
+  assert.ok(readFileSync(new URL('../src/ui/store.js', import.meta.url), 'utf8').includes('game.trial = g.submission'), 'Try it marks the game');
+});

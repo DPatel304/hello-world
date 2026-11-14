@@ -15,6 +15,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { readOrlis, writeOrlis, manifestOf, sha256 } from './orlis-file.js';
+import { badWords } from './words.js';
 import { Fail, Raw } from './http.js';
 import { now } from './db.js';
 import { newId } from './secure.js';
@@ -28,11 +29,24 @@ export const FORBIDDEN = [
   ['eval(', 'code made up as it runs'], ['new Function', 'code made up as it runs'], ['document.cookie', 'the app\'s storage'],
   ['localStorage', 'the app\'s storage'], ['sessionStorage', 'the app\'s storage'], ['indexedDB', 'the app\'s storage'],
   ['window.parent', 'other windows'], ['window.top', 'other windows'], ['top.location', 'other windows'], ['window.open', 'other windows'],
-  ['opener', 'other windows'], ['navigator.', 'the computer\'s details'], ['Worker(', 'other code']
+  ['opener', 'other windows'], ['navigator.', 'the computer\'s details'], ['Worker(', 'other code'],
+  /* (ways round the words check: pictures, pages and letters made as it runs) */
+  ['Image(', 'pictures made as it runs'], ['createImageBitmap', 'pictures made as it runs'], ['Blob(', 'pictures made as it runs'],
+  ['FontFace', 'other letters'], ['createElement', 'parts of a web page'], ['innerHTML', 'parts of a web page'], ['iframe', 'other windows'],
+  ['contentWindow', 'other windows'], ['fromCharCode', 'hidden words'], ['fromCodePoint', 'hidden words'], ['atob(', 'hidden words']
 ];
 const UNSAFE_PICTURE = /<\s*script|\bon\w+\s*=|javascript:|<\s*foreign|href|<\s*image/i;
 
+/* Everything a game's file says about it in the Store. */
+function storeText(parts){
+  try { const m = JSON.parse(parts['manifest.json'].toString('utf8')); return [m.name, m.blurb, m.about, ...(m.tags || []), ...(m.howto || []).flatMap(h => [h.title, h.line])].filter(x => typeof x === 'string').join('\n'); }
+  catch { return ''; }
+}
+
 /* The checks, on a game's file. Throws, with every problem found. */
+/* Seconds of play before a game can be approved. */
+export const TRY_SECS = 20;
+
 export function checkGame(bytes){
   let parts, m;
   try { parts = readOrlis(bytes); m = manifestOf(parts); }
@@ -47,6 +61,9 @@ export function checkGame(bytes){
     const seen = new Set();
     for (const [what, why] of FORBIDDEN) if (js.includes(what) && !seen.has(why)){ seen.add(why); problems.push(`it reaches for ${why} (${what.replace(/\($/, '')})`); }
   }
+  /* words no game for children has - in its code or its Store text */
+  const said = badWords([code ? code.toString('utf8') : '', storeText(parts)].join('\n'));
+  if (said.length) problems.push(`it has words that aren't for children (${said.join(', ')})`);
   if (!m.blurb) problems.push('it needs a line saying what the game is');
   if (m.icon && UNSAFE_PICTURE.test(m.icon.glyph)) problems.push('its picture has more than shapes in it');
   if (problems.length) throw new Fail(400, 'checks', `It didn't pass the checks: ${problems.join('; ')}.`, );
@@ -57,7 +74,7 @@ export function submissions(db, dataDir, shop){
   const dir = join(dataDir, 'submissions');
   mkdirSync(dir, { recursive: true });
   const q = (sql) => db.prepare(sql);
-  const out = (r) => r && ({ id: r.id, gameId: r.game_id, name: r.name, version: r.version, bytes: r.bytes, state: r.status, note: r.note, createdAt: r.created_at, decidedAt: r.decided_at,
+  const out = (r) => r && ({ id: r.id, gameId: r.game_id, name: r.name, version: r.version, bytes: r.bytes, state: r.status, note: r.note, createdAt: r.created_at, decidedAt: r.decided_at, tried: !!r.tried_at,
     ...(r.email ? { by: r.email, family: r.family, sha256: r.sha256 } : {}) });
   const fileOf = (id) => join(dir, `${id}.orlis`);
   const familyName = (accountId) => {
@@ -111,10 +128,21 @@ export function submissions(db, dataDir, shop){
         if (!r || !existsSync(fileOf(r.id))) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
         return new Raw(readFileSync(fileOf(r.id)), `${r.game_id}-${r.version}.orlis`);
       }],
+      /* the owner played it (in Orlis Play, for long enough to see it) */
+      ['POST', '/api/submissions/:id/tried', ({ headers, ip, params, body }) => {
+        owner(headers, ip);
+        const r = q("SELECT * FROM submissions WHERE id = ? AND status = 'waiting'").get(params.id);
+        if (!r) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
+        if (!(Number(body.secs) >= TRY_SECS)) throw new Fail(400, 'too_short', `Play it for at least ${TRY_SECS} seconds.`);
+        q('UPDATE submissions SET tried_at = ? WHERE id = ?').run(now(), r.id);
+        return { ok: true };
+      }],
       ['POST', '/api/submissions/:id/approve', ({ headers, ip, params }) => {
         owner(headers, ip);
         const r = q("SELECT * FROM submissions WHERE id = ? AND status = 'waiting'").get(params.id);
         if (!r || !existsSync(fileOf(r.id))) throw new Fail(404, 'no_submission', 'That game isn\'t waiting any more.');
+        /* not before the owner's played it */
+        if (!r.tried_at) throw new Fail(409, 'try_first', `Play ${r.name} first: in Orlis Play, the Store's "Waiting for your OK" row, Try it.`);
         /* into the Store, made by the creator's family */
         const { parts, manifest } = checkGame(readFileSync(fileOf(r.id)));
         const raw = JSON.parse(parts['manifest.json'].toString('utf8'));

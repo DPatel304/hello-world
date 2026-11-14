@@ -6,6 +6,21 @@ $null = [Console]::In.ReadToEnd()
 $root = $env:CLAUDE_PROJECT_DIR
 $problems = New-Object System.Collections.Generic.List[string]
 
+# the words no game for children has (the same list as Orlis Play's and the
+# server's): found however they're written - any capitals, joined in a name
+# (killZone), numbers or signs for letters (k1ll)
+$words = New-Object 'System.Collections.Generic.HashSet[string]' (,[string[]]@({{WORDS}}))
+function Find-Words([string]$t) {
+  $found = New-Object System.Collections.Generic.List[string]
+  # (colours and hex numbers aren't words: #ff9a55 is no a55)
+  $t = [regex]::Replace($t, '#[0-9a-fA-F]{3,8}\b|\b0[xX][0-9a-fA-F]+\b', ' ')
+  foreach ($v in @($t, [regex]::Replace($t, '([a-z])([A-Z])', '$1 $2'))) {
+    $s = $v.ToLowerInvariant().Replace('0', 'o').Replace('1', 'i').Replace('3', 'e').Replace('4', 'a').Replace('5', 's').Replace('7', 't').Replace('8', 'b').Replace('@', 'a').Replace('$', 's').Replace('!', 'i').Replace('|', 'i')
+    foreach ($w in ($s -split '[^a-z]+')) { if ($w -and $words.Contains($w) -and -not $found.Contains($w)) { $found.Add($w) } }
+  }
+  return ,$found
+}
+
 # what a game's code never needs, inside the sandbox (as Orlis Play and the server check)
 $forbidden = @(
 {{FORBIDDEN}}
@@ -41,6 +56,13 @@ else {
     if ($m.icon -and $m.icon.glyph -match '(?i)<\s*script|\bon\w+\s*=|javascript:|<\s*foreign|href|<\s*image') { $problems.Add('orlis.json: the icon picture must be simple shapes only.') }
   }
 }
+
+# words no game for children has: in the code, on screen, or in the Store's text
+$all = ''
+if (Test-Path $gamePath) { $all += [IO.File]::ReadAllText($gamePath) }
+if ($m) { $all += "`n" + ((@($m.name, $m.blurb, $m.about) + @($m.tags) + @($m.howto | ForEach-Object { $_.title; $_.line })) -join "`n") }
+$said = Find-Words $all
+if ($said.Count) { $problems.Add('It has words that aren''t for children: ' + ($said -join ', ') + '. Use gentle words everywhere, even in the code''s names and comments.') }
 
 if ($problems.Count) {
   @{ decision = 'block'; reason = "Orlis Play's checks found: " + ($problems -join ' ') } | ConvertTo-Json -Compress

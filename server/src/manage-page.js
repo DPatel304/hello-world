@@ -1,3 +1,4 @@
+import { TRY_SECS } from './submissions.js';
 /* The management page: the server's own, opened from the Orlis cube by the
    clock (Manage Orlis Server), in the browser on this laptop only. It's
    where the owner looks after the server - every family and who's a
@@ -50,7 +51,8 @@ button.danger{ color:var(--bad); }
 nav button.on #waiting{ background:#fff; color:var(--ink); }
 textarea{ width:100%; font:inherit; font-size:15px; border:1px solid #e3e5ec; border-radius:12px; padding:10px 12px; margin-top:10px; resize:vertical; min-height:70px; }
 .tag{ display:inline-block; font-size:12.5px; font-weight:700; padding:2px 9px; border-radius:999px; background:#f1f2f6; color:var(--dim); }
-.tag.approved{ background:#dcfce7; color:#15803d; } .tag.declined{ background:#fee2e2; color:var(--bad); }
+.tag.approved, .tag.ok{ background:#dcfce7; color:#15803d; }
+button:disabled{ opacity:.55; cursor:not-allowed; } .tag.declined{ background:#fee2e2; color:var(--bad); }
 .empty{ text-align:center; color:var(--dim); padding:60px 20px; font-size:18px; }
 </style></head>
 <body>
@@ -58,6 +60,7 @@ textarea{ width:100%; font:inherit; font-size:15px; border:1px solid #e3e5ec; bo
 <nav id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="approvals">Approvals<span id="waiting"></span></button><button data-t="families">Families</button><button data-t="store">Store</button><button data-t="backups">Backups</button></nav></header>
 <main id="main"></main>
 <script>
+var TRY = ${TRY_SECS};
 (function(){
   /* the key: from the address the cube opened (then out of sight) */
   var key = '';
@@ -90,17 +93,19 @@ textarea{ width:100%; font:inherit; font-size:15px; border:1px solid #e3e5ec; bo
         var c = card('Waiting for your OK');
         if (!waiting.length) note(c, 'Nothing waiting. Games your creators send in show up here.');
         waiting.forEach(function(x){
-          var r2 = row(c, '<b>' + esc(x.name) + '</b> <span class="tag">version ' + esc(x.version) + '</span><small>From ' + esc(x.family) + ' (' + esc(x.by) + ') \u00b7 sent ' + esc(when(x.createdAt)) + ' \u00b7 ' + size(x.bytes) + '</small>', [
+          var r2 = row(c, '<b>' + esc(x.name) + '</b> <span class="tag">version ' + esc(x.version) + '</span>' + (x.tried ? ' <span class="tag ok">played \u2713</span>' : ' <span class="tag">not played yet</span>') + '<small>From ' + esc(x.family) + ' (' + esc(x.by) + ') \u00b7 sent ' + esc(when(x.createdAt)) + ' \u00b7 ' + size(x.bytes) + '</small>', [
             btn('Decline\u2026', '', function(){
               if (r2.nextSibling && r2.nextSibling.dataset && r2.nextSibling.dataset.note) return;
               var box = h('<div data-note="1"><textarea maxlength="300" placeholder="A note for them: what to change, say (they\u2019ll see it in Orlis Play)"></textarea><div style="text-align:right;margin-top:8px"></div></div>');
               box.lastChild.appendChild(btn('Decline it', 'danger', function(){ call('POST', '/api/submissions/' + encodeURIComponent(x.id) + '/decline', { note: box.firstChild.value }).then(show, fail(c)); }));
               r2.after(box); box.firstChild.focus();
             }),
-            btn('Approve', 'go', function(b){ b.textContent = 'Approving\u2026'; call('POST', '/api/submissions/' + encodeURIComponent(x.id) + '/approve').then(show, fail(c)); })
+            /* (only once it's been played: in Orlis Play, Try it) */
+            x.tried ? btn('Approve', 'go', function(b){ b.textContent = 'Approving\u2026'; call('POST', '/api/submissions/' + encodeURIComponent(x.id) + '/approve').then(show, fail(c)); })
+              : (function(){ var b = btn('Play it first', '', function(){}); b.disabled = true; b.title = 'Approve comes on once you\u2019ve played this version in Orlis Play (the Store, Waiting for your OK, Try it).'; return b; })()
           ]);
         });
-        if (waiting.length) note(c, 'To play one first: open Orlis Play on this laptop, then the Store - games waiting for your OK are at the top, and only you see them.');
+        if (waiting.length) note(c, 'Every game is played before it\u2019s approved: open Orlis Play, then the Store - games waiting for your OK are at the top (only you see them). Press Try it and play for at least ' + TRY + ' seconds; Approve comes on here.');
         if (done.length){
           var d = card('Lately');
           done.forEach(function(x){ row(d, '<b>' + esc(x.name) + '</b> <span class="tag ' + esc(x.state) + '">' + (x.state === 'approved' ? 'In the Store' : 'Declined') + '</span><small>' + esc(x.family) + ' \u00b7 ' + esc(when(x.decidedAt)) + (x.note ? ' \u00b7 \u201c' + esc(x.note) + '\u201d' : '') + '</small>'); });

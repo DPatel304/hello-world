@@ -11,11 +11,12 @@
    pack({ game, manifest })  the game as a .orlis file: orlis.json as the
                              manifest, and the Orlis runtime in front of the
                              game's own code */
-import { RUNTIME, FORBIDDEN, TEMPLATE } from './creator-kit.gen.js';
+import { RUNTIME, FORBIDDEN, WORDS, TEMPLATE } from './creator-kit.gen.js';
+import { badWords } from '../../kit/creator/words.js';
 import { writeOrlis } from './orlis-file.js';
 import { KIT } from '../kit.js';
 
-export { FORBIDDEN };
+export { FORBIDDEN, WORDS };
 const ID = /^[a-z0-9][a-z0-9-]{1,40}$/, VER = /^\d+\.\d+(\.\d+)?$/;
 const UNSAFE_PICTURE = /<\s*script|\bon\w+\s*=|javascript:|<\s*foreign|href|<\s*image/i;
 export const EDITABLE = ['game.js', 'orlis.json'];
@@ -96,6 +97,11 @@ export function check({ game, manifest }){
     if (m.uses && !['hands', 'body'].includes(m.uses)) problems.push('orlis.json: "uses" is "hands" or "body".');
     if (m.icon && UNSAFE_PICTURE.test(m.icon.glyph || '')) problems.push('orlis.json: the icon picture must be simple shapes only.');
   } else if (manifest == null) problems.push('orlis.json is missing.');
+  /* words no game for children has: in the code (even its names and
+     comments), on screen, or in the Store's text */
+  const text = [typeof game === 'string' ? game : '', ...(m ? [m.name, m.blurb, m.about, ...(m.tags || []), ...(m.howto || []).flatMap(x => [x && x.title, x && x.line])] : [])].filter(x => typeof x === 'string').join('\n');
+  const said = badWords(text);
+  if (said.length) problems.push(`It has words that aren't for children: ${said.join(', ')}. Use gentle words everywhere, even in the code's names and comments.`);
   return problems;
 }
 

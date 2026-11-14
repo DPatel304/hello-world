@@ -20,7 +20,7 @@ test("the app's checks and the server's are the same list", () => {
 test('a new game: the starter, its orlis.json, the rules and the guardrails', () => {
   const g = newGame({ name: 'Bird Hoops!', idea: 'Flap your arms to fly a bird through hoops' });
   assert.equal(g.id, 'bird-hoops');
-  assert.deepEqual(Object.keys(g.files).sort(), ['.claude/hooks/check.ps1', '.claude/hooks/guard.ps1', '.claude/settings.json', '.claude/skills/orlis-game/SKILL.md', 'CLAUDE.md', 'game.js', 'orlis.json']);
+  assert.deepEqual(Object.keys(g.files).sort(), ['.claude/hooks/check.ps1', '.claude/hooks/guard.ps1', '.claude/hooks/prompt.ps1', '.claude/settings.json', '.claude/skills/orlis-game/SKILL.md', 'CLAUDE.md', 'game.js', 'orlis.json']);
   const m = JSON.parse(g.files['orlis.json']);
   assert.deepEqual([m.id, m.name, m.blurb, m.version], ['bird-hoops', 'Bird Hoops!', 'Flap your arms to fly a bird through hoops', '0.1']);
   assert.match(g.files['CLAUDE.md'], /^# Bird Hoops!: an Orlis Play game/);
@@ -42,6 +42,10 @@ test("Claude Code's settings: no web, no commands, edits only to the game's two 
   assert.ok(pre.hooks[0].args.at(-1).endsWith('/.claude/hooks/guard.ps1'));
   assert.ok(post.hooks[0].args.at(-1).endsWith('/.claude/hooks/check.ps1'));
   assert.equal(pre.hooks[0].command, 'powershell.exe', "Windows' own PowerShell: nothing to install");
+  const ask = st.hooks.UserPromptSubmit[0].hooks[0];
+  assert.ok(ask.args.at(-1).endsWith('/.claude/hooks/prompt.ps1'), 'every message is looked at first');
+  const files = newGame({ name: 'x y' }).files;
+  for (const h of ['guard.ps1', 'check.ps1', 'prompt.ps1']) assert.ok(files['.claude/hooks/' + h].includes("'kill', 'kills'"), `${h} has the words list`);
 });
 
 test('the checks: the starter passes; reaching for the internet, a broken orlis.json and the like do not', () => {
@@ -86,5 +90,31 @@ test('a new game can start from another: its code and its look, a new id and ver
   assert.equal(copy.files['game.js'], game);
   assert.match(copy.files['CLAUDE.md'], /starts as a copy of Bird Hoops/);
   assert.deepEqual(check({ game: copy.files['game.js'], manifest: copy.files['orlis.json'] }), []);
-  assert.deepEqual(Object.keys(guardrails()).sort(), ['.claude/hooks/check.ps1', '.claude/hooks/guard.ps1', '.claude/settings.json', '.claude/skills/orlis-game/SKILL.md']);
+  assert.deepEqual(Object.keys(guardrails()).sort(), ['.claude/hooks/check.ps1', '.claude/hooks/guard.ps1', '.claude/hooks/prompt.ps1', '.claude/settings.json', '.claude/skills/orlis-game/SKILL.md']);
+});
+
+test("words that aren't for children: the app's list is the server's, checked before sending and on screen", async () => {
+  const { WORDS: SERVER_WORDS } = await import('../../server/src/words.js');
+  const { clean, badWords } = await import('../kit/creator/words.js');
+  const { WORDS, RUNTIME } = await import('../src/ui/creator-kit.gen.js');
+  assert.deepEqual(WORDS, SERVER_WORDS, 'one list: change server/src/words.js and kit/creator/words.json together');
+  assert.deepEqual(badWords(RUNTIME), [], 'the runtime carries the list as codes, not words');
+  const g = newGame({ name: 'Star Catch' });
+  assert.match(check({ game: g.files['game.js'] + '\n// kill the stars that fall off\n', manifest: g.files['orlis.json'] }).join(), /aren't for children: kill/);
+  assert.match(check({ game: g.files['game.js'], manifest: { ...JSON.parse(g.files['orlis.json']), about: 'A bloody good time' } }).join(), /bloody/);
+  /* on screen */
+  assert.equal(clean('Great!'), 'Great!');
+  assert.equal(clean('Score: 12'), 'Score: 12');
+  assert.match(clean('you got k1lled'), /^★+$/);
+  assert.match(clean('K I L L'), /^★+$/, 'spelled out with gaps');
+  assert.equal(clean('Skill shot'), 'Skill shot', 'ordinary words around them are fine');
+});
+
+test('colours and hex numbers are not words (#ff9a55 is no a55), but a word spelled with numbers is', async () => {
+  const { badWords } = await import('../kit/creator/words.js');
+  const { badWords: serverBad } = await import('../../server/src/words.js');
+  for (const f of [badWords, serverBad]){
+    assert.deepEqual(f('sun: "#ff9a55", leaf: "#3d9a55", mask: 0xA55, c: "#a55"'), []);
+    assert.deepEqual(f('you are an a55'), ['ass']);
+  }
 });
